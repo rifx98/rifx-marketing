@@ -79,6 +79,33 @@ export default function PanelClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Estados para datos reales
+  const [conversationsData, setConversationsData] = useState<any>(null);
+  const [statsData, setStatsData] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      // Cargar CRM
+      fetch('/api/panel/conversations')
+        .then(res => res.json())
+        .then(data => setConversationsData(data))
+        .catch(console.error);
+      
+      // Cargar Estadísticas
+      fetch('/api/panel/stats')
+        .then(res => res.json())
+        .then(data => setStatsData(data))
+        .catch(console.error);
+
+      // Refrescar cada 10 segundos
+      const interval = setInterval(() => {
+        fetch('/api/panel/conversations').then(res => res.json()).then(data => setConversationsData(data));
+        fetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -322,14 +349,14 @@ export default function PanelClient() {
                     <div className="flex justify-between items-start mb-4 relative z-10">
                       <div>
                         <p className="text-gray-400 text-sm font-medium mb-1">Ingresos Generados (IA)</p>
-                        <h3 className="text-3xl font-bold text-white">$2,350</h3>
+                        <h3 className="text-3xl font-bold text-white">${statsData?.totalRevenue || 0}</h3>
                       </div>
                       <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
                         <TrendingUp className="w-5 h-5 text-emerald-400" />
                       </div>
                     </div>
                     <p className="text-xs text-emerald-400 flex items-center gap-1">
-                      <span className="font-bold">+15%</span> vs semana anterior
+                      <span className="font-bold">Total histórico</span>
                     </p>
                   </div>
 
@@ -338,7 +365,7 @@ export default function PanelClient() {
                     <div className="flex justify-between items-start mb-4 relative z-10">
                       <div>
                         <p className="text-gray-400 text-sm font-medium mb-1">Ventas Cerradas</p>
-                        <h3 className="text-3xl font-bold text-white">12</h3>
+                        <h3 className="text-3xl font-bold text-white">{statsData?.totalSales || 0}</h3>
                       </div>
                       <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
                         <CheckCircle2 className="w-5 h-5 text-blue-400" />
@@ -354,7 +381,7 @@ export default function PanelClient() {
                     <div className="flex justify-between items-start mb-4 relative z-10">
                       <div>
                         <p className="text-gray-400 text-sm font-medium mb-1">Conversaciones Activas</p>
-                        <h3 className="text-3xl font-bold text-white">45</h3>
+                        <h3 className="text-3xl font-bold text-white">{statsData?.activeConversations || 0}</h3>
                       </div>
                       <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center">
                         <MessageSquare className="w-5 h-5 text-pink-400" />
@@ -378,7 +405,7 @@ export default function PanelClient() {
                     </span>
                   </div>
                   <div className="p-0">
-                    {mockSales.map((sale, index) => (
+                    {(statsData?.recentSales || mockSales).map((sale: any, index: number) => (
                       <motion.div 
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
@@ -426,13 +453,13 @@ export default function PanelClient() {
                       <MessageSquare className="w-4 h-4 text-pink-400" />
                       Chateando Ahora
                     </h3>
-                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full">3</span>
+                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full">{conversationsData?.chatting?.length || 0}</span>
                   </div>
                   <div className="p-4 space-y-4 overflow-y-auto flex-1">
-                    {[1, 2, 3].map((i) => (
+                    {(conversationsData?.chatting || []).map((conv: any) => (
                       <div 
-                        key={i} 
-                        onClick={() => setSelectedChat({name: `Cliente Potencial #${i}`, status: 'Chateando Ahora'})}
+                        key={conv.id} 
+                        onClick={() => setSelectedChat({name: conv.customer_name, status: 'Chateando Ahora'})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-pink-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -440,12 +467,12 @@ export default function PanelClient() {
                             <User className="w-4 h-4 text-pink-300" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium">Cliente Potencial #{i}</p>
-                            <p className="text-xs text-pink-400 flex items-center gap-1"><Clock className="w-3 h-3"/> Escribiendo...</p>
+                            <p className="text-sm font-medium truncate max-w-[120px]">{conv.customer_name}</p>
+                            <p className="text-xs text-pink-400 flex items-center gap-1"><Clock className="w-3 h-3"/> Activo</p>
                           </div>
                         </div>
                         <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg truncate">
-                          "Sí, me interesa el paquete de diseño..."
+                          {conv.phone_number}
                         </p>
                       </div>
                     ))}
@@ -457,15 +484,15 @@ export default function PanelClient() {
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-200 flex items-center gap-2">
                       <Zap className="w-4 h-4 text-yellow-400" />
-                      Interesados
+                      Interesados (Link de Pago)
                     </h3>
-                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full">5</span>
+                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full">{conversationsData?.interested?.length || 0}</span>
                   </div>
                   <div className="p-4 space-y-4 overflow-y-auto flex-1">
-                    {[1, 2].map((i) => (
+                    {(conversationsData?.interested || []).map((conv: any) => (
                       <div 
-                        key={i} 
-                        onClick={() => setSelectedChat({name: `Prospecto #${i+3}`, status: 'Interesado'})}
+                        key={conv.id} 
+                        onClick={() => setSelectedChat({name: conv.customer_name, status: 'Interesado'})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -473,12 +500,12 @@ export default function PanelClient() {
                             <User className="w-4 h-4 text-yellow-300" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium">Prospecto #{i+3}</p>
-                            <p className="text-xs text-yellow-400">Preguntó precios</p>
+                            <p className="text-sm font-medium truncate max-w-[120px]">{conv.customer_name}</p>
+                            <p className="text-xs text-yellow-400">Generó Pago</p>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg">
-                          Esperando respuesta al link de pago.
+                        <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg truncate">
+                          {conv.phone_number}
                         </p>
                       </div>
                     ))}
@@ -492,13 +519,13 @@ export default function PanelClient() {
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       Compraron
                     </h3>
-                    <span className="bg-emerald-500/20 text-emerald-300 text-xs px-2 py-1 rounded-full">12</span>
+                    <span className="bg-emerald-500/20 text-emerald-300 text-xs px-2 py-1 rounded-full">{conversationsData?.bought?.length || 0}</span>
                   </div>
                   <div className="p-4 space-y-4 overflow-y-auto flex-1">
-                    {mockSales.slice(0,2).map((sale) => (
+                    {(conversationsData?.bought || []).map((conv: any) => (
                       <div 
-                        key={sale.id} 
-                        onClick={() => setSelectedChat({name: sale.customer, status: 'Compró'})}
+                        key={conv.id} 
+                        onClick={() => setSelectedChat({name: conv.customer_name, status: 'Compró'})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -506,12 +533,12 @@ export default function PanelClient() {
                             <User className="w-4 h-4 text-emerald-300" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{sale.customer}</p>
-                            <p className="text-xs text-emerald-400">Pagó ${sale.amount}</p>
+                            <p className="text-sm font-medium truncate max-w-[120px]">{conv.customer_name}</p>
+                            <p className="text-xs text-emerald-400">Cliente Cerrado</p>
                           </div>
                         </div>
                         <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg truncate">
-                          Compró: {sale.service}
+                          {conv.phone_number}
                         </p>
                       </div>
                     ))}
