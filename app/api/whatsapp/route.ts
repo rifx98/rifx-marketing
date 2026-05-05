@@ -78,13 +78,26 @@ export async function POST(req: NextRequest) {
       content: customerMessage,
     });
 
-    // 3. Cargar historial de mensajes (últimos 20)
-    const { data: history } = await supabase
+    // 3. Cargar historial de mensajes (últimos 10, sin mensajes de error)
+    const { data: rawHistory } = await supabase
       .from('messages')
       .select('role, content')
       .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: true })
-      .limit(20);
+      .order('created_at', { ascending: false })
+      .limit(15);
+
+    // Filtrar mensajes de error/fallback que contaminan el contexto
+    const errorPatterns = [
+      'Lo siento, no pude procesar',
+      'Disculpa, estoy procesando mucha información',
+      'Estamos experimentando dificultades técnicas',
+    ];
+    const cleanHistory = (rawHistory || [])
+      .reverse() // volver a orden cronológico
+      .filter((m: { content: string }) => !errorPatterns.some(p => m.content.includes(p)));
+
+    // Limitar a los últimos 10 mensajes limpios para no exceder el contexto
+    const history = cleanHistory.slice(-10);
 
     // 4. Obtener configuración (prompt de la IA)
     const { data: config } = await supabase.from('config').select('*').limit(1).single();
@@ -100,7 +113,7 @@ export async function POST(req: NextRequest) {
     // 5. Enviar a Groq (compatible con SDK de OpenAI)
     console.log(`🔑 Usando API key: ${groqKey.substring(0, 8)}...${groqKey.substring(groqKey.length - 4)}`);
     console.log(`📝 Prompt del sistema: ${aiPrompt.substring(0, 80)}...`);
-    console.log(`💬 Total mensajes en historial: ${(history || []).length}`);
+    console.log(`💬 Historial: ${(rawHistory || []).length} total, ${history.length} después de filtrar`);
 
     const groq = new OpenAI({
       apiKey: groqKey,
@@ -109,7 +122,7 @@ export async function POST(req: NextRequest) {
 
     const chatMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: aiPrompt },
-      ...(history || []).map((m: { role: string; content: string }) => ({
+      ...history.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
