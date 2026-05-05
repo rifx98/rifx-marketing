@@ -27,6 +27,8 @@ export async function GET() {
       hasWhatsappToken: !!config.whatsapp_token,
       hasOpenaiKey: !!config.openai_key,
       hasPayphoneToken: !!config.payphone_token,
+      whatsapp_token: config.whatsapp_token || '',
+      openai_key: config.openai_key || '',
       whatsapp_phone_id: config.whatsapp_phone_id || '',
       payphone_store_id: config.payphone_store_id || '',
       ai_prompt: config.ai_prompt || '',
