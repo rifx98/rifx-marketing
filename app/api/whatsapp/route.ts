@@ -184,19 +184,30 @@ async function sendWhatsAppMessage(to: string, text: string) {
     return;
   }
 
-  await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body: text },
-    }),
-  });
+  try {
+    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { body: text },
+      }),
+    });
+    
+    const result = await response.json();
+    if (!response.ok) {
+      console.error('❌ Error de Meta API:', JSON.stringify(result, null, 2));
+    } else {
+      console.log('✅ WhatsApp enviado:', result);
+    }
+  } catch (err) {
+    console.error('❌ Error en fetch WhatsApp:', err);
+  }
 }
 
 async function generatePayPhonePayment(
