@@ -71,7 +71,9 @@ export default function PanelClient() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings'>('dashboard');
-  const [selectedChat, setSelectedChat] = useState<{name: string, status: string} | null>(null);
+  const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string} | null>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [showChartModal, setShowChartModal] = useState(false);
   const [calMonth, setCalMonth] = useState(4);
   const [calYear, setCalYear] = useState(2026);
@@ -132,6 +134,40 @@ export default function PanelClient() {
       return () => clearInterval(interval);
     }
   }, [isLoggedIn]);
+
+  // Cargar mensajes reales cuando se selecciona un chat
+  React.useEffect(() => {
+    if (!selectedChat?.id) {
+      setChatMessages([]);
+      return;
+    }
+
+    const loadMessages = () => {
+      fetch(`/api/panel/conversations?id=${selectedChat.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.messages) {
+            setChatMessages(data.messages);
+          }
+        })
+        .catch(console.error);
+    };
+
+    setLoadingMessages(true);
+    fetch(`/api/panel/conversations?id=${selectedChat.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.messages) {
+          setChatMessages(data.messages);
+        }
+        setLoadingMessages(false);
+      })
+      .catch(() => setLoadingMessages(false));
+
+    // Auto-refrescar cada 5 segundos
+    const msgInterval = setInterval(loadMessages, 5000);
+    return () => clearInterval(msgInterval);
+  }, [selectedChat?.id]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -513,7 +549,7 @@ export default function PanelClient() {
                     {(conversationsData?.chatting || []).map((conv: any) => (
                       <div 
                         key={conv.id} 
-                        onClick={() => setSelectedChat({name: conv.customer_name, status: 'Chateando Ahora'})}
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: 'Chateando Ahora'})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-pink-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -546,7 +582,7 @@ export default function PanelClient() {
                     {(conversationsData?.interested || []).map((conv: any) => (
                       <div 
                         key={conv.id} 
-                        onClick={() => setSelectedChat({name: conv.customer_name, status: 'Interesado'})}
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: 'Interesado'})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -579,7 +615,7 @@ export default function PanelClient() {
                     {(conversationsData?.bought || []).map((conv: any) => (
                       <div 
                         key={conv.id} 
-                        onClick={() => setSelectedChat({name: conv.customer_name, status: 'Compró'})}
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: 'Compró'})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -806,46 +842,53 @@ export default function PanelClient() {
                     </button>
                   </div>
 
-                  {/* Chat Area */}
-                  <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-black/20">
-                    <p className="text-xs text-center text-gray-500 my-4">Hoy 10:42 AM</p>
-                    
-                    {/* User Msg */}
-                    <div className="flex justify-end">
-                      <div className="bg-purple-600/20 border border-purple-500/30 text-white p-3 rounded-2xl rounded-tr-sm max-w-[80%] text-sm">
-                        Hola, vi el anuncio en Instagram. ¿Qué precio tiene el diseño web?
+                  {/* Chat Area — Mensajes Reales */}
+                  <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>
+                    {loadingMessages ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                          <p className="text-sm text-gray-500">Cargando mensajes...</p>
+                        </div>
                       </div>
-                    </div>
-                    
-                    {/* AI Msg */}
-                    <div className="flex justify-start">
-                      <div className="bg-white/5 border border-white/10 text-gray-200 p-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm">
-                        ¡Hola {selectedChat.name.split(' ')[0]}! 👋 Soy Nova, asesor de RIFX. El paquete de Diseño Web Inmersivo comienza en $850. Incluye optimización SEO y diseño adaptado a móviles. ¿Te gustaría que te envíe el PDF con todos los detalles?
+                    ) : chatMessages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-sm text-gray-500">No hay mensajes aún</p>
                       </div>
-                    </div>
+                    ) : (
+                      chatMessages.map((msg: any, idx: number) => {
+                        const time = new Date(msg.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+                        const isUser = msg.role === 'user';
+                        // Show date separator
+                        const msgDate = new Date(msg.created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' });
+                        const prevDate = idx > 0 ? new Date(chatMessages[idx-1].created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' }) : null;
+                        const showDate = idx === 0 || msgDate !== prevDate;
 
-                    {/* User Msg */}
-                    <div className="flex justify-end">
-                      <div className="bg-purple-600/20 border border-purple-500/30 text-white p-3 rounded-2xl rounded-tr-sm max-w-[80%] text-sm">
-                        Sí por favor. ¿Y cuánto tardan en entregarlo?
-                      </div>
-                    </div>
-
-                    {/* AI Msg */}
-                    <div className="flex justify-start">
-                      <div className="bg-white/5 border border-white/10 text-gray-200 p-3 rounded-2xl rounded-tl-sm max-w-[80%] text-sm">
-                        ¡Claro que sí! 📄 *[Documento Enviado]* <br/><br/>
-                        El tiempo de entrega es de 2 a 3 semanas dependiendo de la complejidad. Si estás listo para empezar, puedo generarte un link de pago ahora mismo para agendar tu proyecto. 🚀
-                      </div>
-                    </div>
-                    
-                    {selectedChat.status === 'Chateando Ahora' && (
-                      <div className="flex justify-start">
-                         <p className="text-xs text-gray-500 flex items-center gap-1 mt-2">
-                           <Clock className="w-3 h-3"/> Cliente escribiendo...
-                         </p>
-                      </div>
+                        return (
+                          <React.Fragment key={msg.id || idx}>
+                            {showDate && (
+                              <p className="text-xs text-center text-gray-600 my-3 select-none">{msgDate}</p>
+                            )}
+                            <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`p-3 rounded-2xl max-w-[80%] text-sm whitespace-pre-wrap ${
+                                isUser
+                                  ? 'bg-purple-600/20 border border-purple-500/30 text-white rounded-tr-sm'
+                                  : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm'
+                              }`}>
+                                {msg.content}
+                                <p className={`text-[10px] mt-1 ${isUser ? 'text-purple-400/60 text-right' : 'text-gray-600'}`}>
+                                  {time} {!isUser && '• IA'}
+                                </p>
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        );
+                      })
                     )}
+                    <div className="flex items-center gap-2 pt-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <p className="text-xs text-gray-500">Actualizando en vivo cada 5s</p>
+                    </div>
                   </div>
 
                   {/* Input area (read only for now) */}
