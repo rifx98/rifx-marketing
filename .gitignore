@@ -1,0 +1,6 @@
+opencode.json
+.env
+.env.local
+node_modules/
+.next/
+.tina/__generated__/

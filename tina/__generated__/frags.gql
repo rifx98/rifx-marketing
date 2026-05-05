@@ -1,0 +1,80 @@
+fragment HeroParts on Hero {
+  __typename
+  titulo_1
+  titulo_2
+  titulo_3
+  subtitulo
+  boton_form
+  imagen_hero
+}
+
+fragment MisionParts on Mision {
+  __typename
+  etiqueta
+  titulo
+  subtitulo_naranja
+  descripcion
+  boton
+  imagen
+}
+
+fragment ServiciosParts on Servicios {
+  __typename
+  titulo_seccion
+  servicio_1 {
+    __typename
+    emoji
+    nombre
+    descripcion
+  }
+  servicio_2 {
+    __typename
+    emoji
+    nombre
+    descripcion
+  }
+  servicio_3 {
+    __typename
+    emoji
+    nombre
+    descripcion
+  }
+}
+
+fragment TestimoniosParts on Testimonios {
+  __typename
+  testimonio_1 {
+    __typename
+    nombre
+    texto
+    foto
+  }
+  testimonio_2 {
+    __typename
+    nombre
+    texto
+    foto
+  }
+  testimonio_3 {
+    __typename
+    nombre
+    texto
+    foto
+  }
+}
+
+fragment CtaParts on Cta {
+  __typename
+  titulo_1
+  titulo_2
+  boton
+}
+
+fragment ContactoParts on Contacto {
+  __typename
+  telefono
+  email
+  direccion
+  footer_texto
+  copyright
+}

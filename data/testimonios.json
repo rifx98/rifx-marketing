@@ -1,0 +1,17 @@
+{
+  "testimonio_1": {
+    "nombre": "Juan Pérez - CEO Tech",
+    "texto": "Servicios de marketing digital que transformaron nuestra visión en resultados reales y medibles.",
+    "foto": ""
+  },
+  "testimonio_2": {
+    "nombre": "Maria S. - Marketing Dir.",
+    "texto": "El equipo de RF MOONR entendió perfectamente nuestras necesidades galácticas.",
+    "foto": ""
+  },
+  "testimonio_3": {
+    "nombre": "Carlos R. - Founder",
+    "texto": "Una estrategia orbital que nos puso por delante de la competencia en meses.",
+    "foto": ""
+  }
+}

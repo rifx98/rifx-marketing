@@ -1,0 +1,150 @@
+document.addEventListener("DOMContentLoaded", async () => {
+  const loadJSON = async (file) => {
+    try {
+      // In development, adding a cache-buster can help show changes immediately upon refresh
+      const res = await fetch(`data/${file}.json?t=${new Date().getTime()}`);
+      if (res.ok) {
+        const text = await res.text();
+        return text ? JSON.parse(text) : null;
+      }
+    } catch (e) {
+      console.warn(`No se ha podido cargar ${file}.json`, e);
+    }
+    return null;
+  };
+
+  // 1. Hero
+  const hero = await loadJSON('hero');
+  if (hero) {
+    const heroSec = document.querySelector('section[data-purpose="hero-section"]');
+    if (heroSec) {
+      if (hero.titulo_1 || hero.titulo_2 || hero.titulo_3) {
+        const h1 = heroSec.querySelector('h1');
+        if (h1) h1.innerHTML = `${hero.titulo_1 || ''}<br/>${hero.titulo_2 || ''}<br/>${hero.titulo_3 || ''}`;
+      }
+      if (hero.subtitulo) {
+        const p = heroSec.querySelector('p.text-gray-300');
+        if (p) p.textContent = hero.subtitulo;
+      }
+      if (hero.boton_form) {
+        const btn = heroSec.querySelector('form button');
+        if (btn) btn.innerHTML = `${hero.boton_form} 🚀`;
+      }
+      if (hero.imagen_hero) {
+        const img = heroSec.querySelector('img');
+        if (img) img.src = hero.imagen_hero;
+      }
+    }
+  }
+
+  // 2. Misión
+  const mision = await loadJSON('mision');
+  if (mision) {
+    const misSec = document.querySelector('section[data-purpose="mission-section"]');
+    if (misSec) {
+      if (mision.etiqueta) {
+        const span = misSec.querySelector('span.text-rocket-orange');
+        if (span) span.textContent = mision.etiqueta;
+      }
+      if (mision.titulo) {
+        const h2 = misSec.querySelector('h2');
+        if (h2) h2.textContent = mision.titulo;
+      }
+      if (mision.subtitulo_naranja) {
+        const subspan = misSec.querySelector('p.text-rocket-orange span.text-space-navy');
+        if (subspan) subspan.textContent = mision.subtitulo_naranja;
+      }
+      if (mision.descripcion) {
+        const pDesc = misSec.querySelector('p.text-gray-600');
+        if (pDesc) pDesc.textContent = mision.descripcion;
+      }
+      if (mision.boton) {
+        const btn = misSec.querySelector('button');
+        if (btn) btn.innerHTML = `${mision.boton} 🚀`;
+      }
+      if (mision.imagen) {
+        const img = misSec.querySelector('img.object-cover');
+        if (img) img.src = mision.imagen;
+      }
+    }
+  }
+
+  // 3. Servicios
+  const servicios = await loadJSON('servicios');
+  if (servicios) {
+    const servSec = document.querySelector('section[data-purpose="services-section"]');
+    if (servSec) {
+      if (servicios.titulo_seccion) {
+        const h2 = servSec.querySelector('h2');
+        if (h2) h2.textContent = servicios.titulo_seccion;
+      }
+      const cards = servSec.querySelectorAll('.grid > div');
+      [servicios.servicio_1, servicios.servicio_2, servicios.servicio_3].forEach((srv, i) => {
+        if (srv && cards[i]) {
+          const card = cards[i];
+          if (srv.emoji) {
+            const emojiSpan = card.querySelector('div.mb-4 span, div.mb-6 span');
+            if (emojiSpan) emojiSpan.textContent = srv.emoji;
+          }
+          if (srv.nombre) card.querySelector('h3').textContent = srv.nombre;
+          if (srv.descripcion) card.querySelector('p.text-gray-400').textContent = srv.descripcion;
+        }
+      });
+    }
+  }
+
+  // 4. Testimonios
+  const testimonios = await loadJSON('testimonios');
+  if (testimonios) {
+    const testSec = document.querySelector('section[data-purpose="testimonials"]');
+    if (testSec) {
+      const cards = testSec.querySelectorAll('.grid > div.bg-space-navy');
+      [testimonios.testimonio_1, testimonios.testimonio_2, testimonios.testimonio_3].forEach((test, i) => {
+        if (test && cards[i]) {
+          const card = cards[i];
+          if (test.nombre) card.querySelector('p.text-rocket-orange').textContent = test.nombre;
+          if (test.texto) card.querySelector('p.italic').textContent = `"${test.texto}"`;
+          if (test.foto) card.querySelector('img').src = test.foto;
+        }
+      });
+    }
+  }
+
+  // 5. CTA Final
+  const cta = await loadJSON('cta');
+  if (cta) {
+    const ctaSec = document.querySelector('section[data-purpose="final-cta"]');
+    if (ctaSec) {
+      if (cta.titulo_1 || cta.titulo_2) {
+        const h2 = ctaSec.querySelector('h2');
+        if (h2) h2.innerHTML = `${cta.titulo_1 || ''} <br class="hidden md:block"/> ${cta.titulo_2 || ''}`;
+      }
+      if (cta.boton) {
+        const btn = ctaSec.querySelector('button');
+        if (btn) btn.innerHTML = `${cta.boton} <span class="text-xl lg:text-2xl">🚀</span>`;
+      }
+    }
+  }
+
+  // 6. Contacto
+  const contacto = await loadJSON('contacto');
+  if (contacto) {
+    const footer = document.querySelector('footer[data-purpose="main-footer"]');
+    if (footer) {
+      const contactLis = footer.querySelectorAll('ul.space-y-4 li');
+      if (contactLis.length >= 3) {
+        if (contacto.email) contactLis[0].querySelector('span.text-sm').textContent = contacto.email;
+        if (contacto.telefono) contactLis[1].querySelector('span.text-sm').textContent = contacto.telefono;
+        if (contacto.direccion) contactLis[2].querySelector('span.text-sm').textContent = contacto.direccion;
+      }
+      if (contacto.footer_texto) {
+        const brandP = footer.querySelector('.flex-col > p.text-gray-400');
+        if (brandP && !brandP.closest('ul')) brandP.textContent = contacto.footer_texto;
+      }
+      if (contacto.copyright) {
+        const copyP = footer.querySelector('.pt-8 p');
+        if (copyP) copyP.textContent = contacto.copyright;
+      }
+    }
+  }
+});

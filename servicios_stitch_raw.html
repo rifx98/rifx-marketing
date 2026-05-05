@@ -1,0 +1,307 @@
+<!DOCTYPE html><html class="dark" lang="es"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary-fixed": "#F27121",
+              "on-primary-fixed-variant": "#0b1229",
+              "inverse-primary": "#F27121",
+              "tertiary-container": "#F27121",
+              "secondary-container": "#181e36",
+              "tertiary": "#F27121",
+              "on-tertiary-fixed": "#0b1229",
+              "error-container": "#93000a",
+              "surface-container-lowest": "#060d24",
+              "outline": "#F27121",
+              "surface-container-high": "#222941",
+              "surface": "#0b1229",
+              "primary-fixed-dim": "#F27121",
+              "on-tertiary-fixed-variant": "#F27121",
+              "on-secondary": "#ffffff",
+              "surface-dim": "#0b1229",
+              "on-secondary-fixed": "#ffffff",
+              "surface-container-low": "#141a32",
+              "surface-container-highest": "#2d344c",
+              "tertiary-fixed-dim": "#F27121",
+              "on-surface": "#ffffff",
+              "on-background": "#ffffff",
+              "outline-variant": "#F27121",
+              "inverse-surface": "#ffffff",
+              "on-tertiary": "#0b1229",
+              "on-surface-variant": "#ffffff",
+              "background": "#0b1229",
+              "surface-tint": "#F27121",
+              "primary": "#F27121",
+              "inverse-on-surface": "#0b1229",
+              "surface-bright": "#323851",
+              "secondary-fixed-dim": "#ffffff",
+              "error": "#ffb4ab",
+              "secondary-fixed": "#ffffff",
+              "surface-container": "#181e36",
+              "secondary": "#ffffff",
+              "tertiary-fixed": "#F27121",
+              "on-secondary-fixed-variant": "#ffffff",
+              "on-error": "#ffffff",
+              "on-secondary-container": "#ffffff",
+              "on-primary": "#0b1229",
+              "on-error-container": "#ffdad6",
+              "on-primary-container": "#ffffff",
+              "surface-variant": "#2d344c",
+              "on-primary-fixed": "#0b1229",
+              "on-tertiary-container": "#0b1229",
+              "primary-container": "#F27121"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(45, 52, 76, 0.4);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+      .rim-light {
+        box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+      }
+      .asymmetric-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+      }
+    
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+      }
+      .animate-float {
+        animation: float 6s ease-in-out infinite;
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/30">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/40 backdrop-blur-xl dark:bg-[#0b1229]/40 border-b border-white/10 shadow-[0_0_40px_rgba(242,113,33,0.06)]">
+<div class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+<div class="text-2xl font-bold tracking-tighter text-[#F27121] font-headline" style="">RIOG</div>
+<div class="hidden md:flex gap-8 items-center">
+<a class="font-['Space_Grotesk'] uppercase tracking-widest text-sm text-[#F27121] border-b-2 border-[#F27121] pb-1" href="#" style="">Servicios</a>
+<a class="font-['Space_Grotesk'] uppercase tracking-widest text-sm text-white/70 hover:text-white transition-colors" href="#" style="">Sobre Nosotros</a>
+<a class="font-['Space_Grotesk'] uppercase tracking-widest text-sm text-white/70 hover:text-white transition-colors" href="#" style="">Contacto</a>
+</div>
+<button class="bg-[#F27121] text-[#0b1229] px-6 py-2 rounded-xl font-bold scale-95 active:scale-90 transition-transform" style="">
+                Empezar
+            </button>
+</div>
+</nav>
+<main class="pt-24">
+<!-- Hero Section -->
+<section class="relative min-h-[819px] flex items-center px-8 overflow-hidden">
+<div class="max-w-7xl mx-auto w-full asymmetric-grid gap-8">
+<div class="col-span-12 md:col-span-7 z-10 flex flex-col justify-center">
+<span class="text-[#F27121] font-headline font-bold tracking-[0.2em] uppercase text-sm mb-4" style="">Misión Intergaláctica</span>
+<h1 class="text-6xl md:text-8xl font-headline font-bold text-white tracking-tighter leading-none mb-6" style="">
+                        Gama de <br><span class="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#F27121]" style="">Servicios Estelares</span>
+</h1>
+<p class="text-xl text-white/70 max-w-lg mb-10 leading-relaxed" style="">
+                        Desbloquea el potencial infinito de tu marca con soluciones digitales de alto impacto diseñadas para dominar el vacío competitivo.
+                    </p>
+<div class="flex gap-4">
+<button class="bg-[#F27121] text-[#0b1229] px-8 py-4 rounded-xl font-bold text-lg hover:shadow-[0_0_30px_rgba(242,113,33,0.3)] transition-all" style="">
+                            Explorar Órbitas
+                        </button>
+</div>
+</div>
+<div class="col-span-12 md:col-span-5 relative mt-12 md:mt-0">
+<div class="absolute -top-20 -right-20 w-96 h-96 bg-[#F27121]/10 rounded-full blur-[120px]"></div>
+<div class="relative z-0">
+<img alt="Meteoritos en Llamas" class="w-full h-auto max-h-[600px] object-contain transition-all duration-700 animate-float" src="https://lh3.googleusercontent.com/aida/ADBb0ugT1Ia2piBzmiJjUQoP20ahgKkFYxH0rxjtNnXtvBA11lqh-GzQ2hr9zmq77XWmCrwbpet4ATrJT15gwixOrhfpQUXzx4DlPMYCrmKjgBs6PqjWD0sqXheUkLtzjCC1zbiWyIYuzWJxkqU-4reZekUMK9rKSU25SwA-crJrplkP2DIyWe1v5F7vxkzNQqB9bMHKInEJpoIjJrWrFWrGs3JgbUjx7aazjB_H46778uV_j0d_9uSA-ynVScdFneTUAsc7ji5y_xMP" style="image-rendering: auto;">
+<div class="absolute -bottom-6 -left-6 glass-card p-6 rounded-2xl rim-light border border-white/5">
+<span class="material-symbols-outlined text-[#F27121] text-4xl mb-2" style="">rocket_launch</span>
+<div class="text-white font-headline font-bold" style="">Status: Launch Ready</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Service Details Grid -->
+<section class="py-28 bg-surface-container-low px-8">
+<div class="max-w-7xl mx-auto">
+<div class="mb-20 text-center md:text-left">
+<h2 class="text-4xl md:text-5xl font-headline font-bold text-white mb-4" style="">Nuestros Protocolos</h2>
+<div class="h-1 w-24 bg-[#F27121]"></div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<!-- SEO Card -->
+<div class="glass-card p-10 rounded-2xl rim-light border border-white/5 hover:translate-y-[-8px] transition-transform group">
+<div class="w-16 h-16 bg-surface-container-highest rounded-full flex items-center justify-center mb-8 border border-[#F27121]/20 group-hover:border-[#F27121] transition-colors">
+<span class="material-symbols-outlined text-[#F27121] text-3xl" style="">language</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-white mb-4" style="">SEO Espacial</h3>
+<p class="text-white/70 leading-relaxed mb-6" style="">
+                            Posicionamiento orgánico mediante exploración de keywords en nuevas órbitas. Visibilidad total a través de la galaxia digital.
+                        </p>
+<ul class="space-y-3 text-sm font-label text-white/60">
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">01</span> Auditoría Técnica Profunda
+                            </li>
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">02</span> Enlace Estelar (Backlinks)
+                            </li>
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">03</span> Contenido de Alta Densidad
+                            </li>
+</ul>
+</div>
+<!-- Social Media Card -->
+<div class="glass-card p-10 rounded-2xl rim-light border border-white/5 hover:translate-y-[-8px] transition-transform group">
+<div class="w-16 h-16 bg-surface-container-highest rounded-full flex items-center justify-center mb-8 border border-[#F27121]/20 group-hover:border-[#F27121] transition-colors">
+<span class="material-symbols-outlined text-[#F27121] text-3xl" style="">public</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-white mb-4" style="">Redes Sociales Galácticas</h3>
+<p class="text-white/70 leading-relaxed mb-6" style="">
+                            Community management y estrategia orbital de contenidos. Generamos engagement real con audiencias cósmicas.
+                        </p>
+<ul class="space-y-3 text-sm font-label text-white/60">
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">01</span> Narrativas Transmedia
+                            </li>
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">02</span> Análisis de Sentimiento
+                            </li>
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">03</span> Gestión de Crisis Estelar
+                            </li>
+</ul>
+</div>
+<!-- Ads Card -->
+<div class="glass-card p-10 rounded-2xl rim-light border border-white/5 hover:translate-y-[-8px] transition-transform group">
+<div class="w-16 h-16 bg-surface-container-highest rounded-full flex items-center justify-center mb-8 border border-[#F27121]/20 group-hover:border-[#F27121] transition-colors">
+<span class="material-symbols-outlined text-[#F27121] text-3xl" style="">bolt</span>
+</div>
+<h3 class="text-2xl font-headline font-bold text-white mb-4" style="">Anuncios de Alta Velocidad</h3>
+<p class="text-white/70 leading-relaxed mb-6" style="">
+                            Campañas PPC con escalado rápido. Trazamos trayectorias de alto ROI para propulsar tus conversiones al infinito.
+                        </p>
+<ul class="space-y-3 text-sm font-label text-white/60">
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">01</span> Google Ads, Meta y Tiktok</li>
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">02</span> Retargeting Magnético
+                            </li>
+<li class="flex items-center gap-2" style="">
+<span class="text-[#F27121]" style="">03</span> Optimización de Conversión
+                            </li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- Value Prop Section -->
+<section class="py-28 px-8 overflow-hidden relative">
+<div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-16">
+<div class="w-full md:w-1/2">
+<img alt="Ilustración de astronauta RF MOONR" class="rounded-[2rem] w-full h-[600px] object-contain" src="https://lh3.googleusercontent.com/aida/ADBb0ugtkl7XDO_WHK5EvupVuwHGxfdpIPJP4-je3y5VRAMpm6cDi8j4E299Q0OW2lldd7Tya6dehyJ6prNXdTCZnBrRlJsHrSfRyOvGNJTF_9Uyth00hPlYgoywAVWd1RkzkUJrt-v5NofvGrJs8Z_nf8R4vXBaP5B4hBPmC3b57fjx5SBJcmmhdNA4KxUsI9ctyTdW69IJHv-BroMxZh8blAyCAzgYdhRbH6YKEr39GmcjQ0lzOj3SQMKRW2a5U0AZMWTHBE3cqtjB" style="">
+</div>
+<div class="w-full md:w-1/2">
+<h2 class="text-4xl md:text-5xl font-headline font-bold text-white mb-12" style="">Por qué elegir <span class="text-[#F27121]" style="">RF MOONR</span></h2>
+<div class="space-y-12">
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-[#F27121] text-4xl" style="">memory</span>
+<div>
+<h4 class="text-xl font-headline font-bold text-white mb-2" style="">Tecnología Avanzada</h4>
+<p class="text-white/70" style="">Utilizamos algoritmos de última generación para predecir tendencias antes de que alcancen la estratosfera.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-[#F27121] text-4xl" style="">auto_awesome</span>
+<div>
+<h4 class="text-xl font-headline font-bold text-white mb-2" style="">Creatividad de Alcance Estelar</h4>
+<p class="text-white/70" style="">No solo diseñamos, creamos experiencias visuales que rompen la barrera de lo convencional.</p>
+</div>
+</div>
+<div class="flex gap-6">
+<span class="material-symbols-outlined text-[#F27121] text-4xl" style="">groups</span>
+<div>
+<h4 class="text-xl font-headline font-bold text-white mb-2" style="">Tripulación Experta</h4>
+<p class="text-white/70" style="">Estrategas y creativos con años de vuelo en el sector digital liderando tu expedición.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Final CTA Section -->
+<section class="py-28 px-8">
+<div class="max-w-4xl mx-auto text-center glass-card p-16 rounded-[3rem] border border-[#F27121]/10 relative">
+<div class="absolute inset-0 bg-[#F27121]/5 blur-[100px] -z-10 rounded-full"></div>
+<h2 class="text-5xl md:text-6xl font-headline font-bold text-white mb-8" style="">¿Listo para el Despegue?</h2>
+<p class="text-xl text-white/70 mb-12" style="">Únete a las marcas que ya están conquistando nuevos territorios. Tu viaje al éxito comienza aquí.</p>
+<div class="flex flex-col md:flex-row justify-center gap-6">
+<button class="bg-[#F27121] text-[#0b1229] px-12 py-5 rounded-xl font-bold text-xl hover:scale-105 transition-transform" style="">
+                        Iniciar Proyecto
+                    </button>
+<button class="border border-[#F27121]/50 text-white px-12 py-5 rounded-xl font-bold text-xl hover:bg-white/5 transition-colors" style="">
+                        Ver Portafolio
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- New Footer from Components -->
+<footer class="bg-[#0b1229] w-full py-20 border-t border-white/5">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 max-w-7xl mx-auto px-8">
+<div class="col-span-1">
+<div class="text-xl font-bold text-white mb-4" style="">RIOG</div>
+<p class="font-['Inter'] text-sm text-white/50 leading-relaxed" style="">Elevando marcas al espacio digital con estrategias de vanguardia.</p>
+</div>
+<div>
+<h4 class="text-white font-bold mb-6" style="">Quick Links</h4>
+<ul class="space-y-4 font-['Inter'] text-sm text-white/50">
+<li class="" style=""><a class="hover:text-[#F27121] transition-colors" href="#" style="">Servicios</a></li>
+<li class="" style=""><a class="hover:text-[#F27121] transition-colors" href="#" style="">Sobre Nosotros</a></li>
+<li class="" style=""><a class="hover:text-[#F27121] transition-colors" href="#" style="">Contacto</a></li>
+<li class="" style=""><a class="hover:text-[#F27121] transition-colors" href="#" style="">Misión</a></li>
+</ul>
+</div>
+<div>
+<h4 class="text-white font-bold mb-6" style="">Contact Info</h4>
+<ul class="space-y-4 font-['Inter'] text-sm text-white/50">
+<li class="flex items-center gap-2" style=""><span class="material-symbols-outlined text-sm text-[#F27121]" style="">mail</span> contact@riog.space</li>
+<li class="flex items-center gap-2" style=""><span class="material-symbols-outlined text-sm text-[#F27121]" style="">location_on</span> Hub Central, Estación 01</li>
+</ul>
+</div>
+<div>
+<h4 class="text-white font-bold mb-6" style="">Social</h4>
+<div class="flex gap-4">
+<a class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-[#F27121] hover:bg-white/10 transition-all" href="#" style="">TikTok</a>
+<a class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-[#F27121] hover:bg-white/10 transition-all" href="#" style="">FB</a>
+<a class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-[#F27121] hover:bg-white/10 transition-all" href="#" style="">YT</a>
+</div>
+</div>
+</div>
+<div class="max-w-7xl mx-auto px-8 mt-20 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
+<p class="font-['Inter'] text-sm text-white/40" style="">© 2024 Orbital Digital. All systems operational.</p>
+<div class="flex gap-6 font-['Inter'] text-xs text-white/40">
+<a class="hover:text-white transition-colors" href="#" style="">Privacidad</a>
+<a class="hover:text-white transition-colors" href="#" style="">Términos</a>
+<a class="hover:text-white transition-colors" href="#" style="">Cookies</a>
+</div>
+</div>
+</footer>
+</body></html>

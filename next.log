@@ -1,0 +1,270 @@
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3001
+  - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 3078.8s
+ ○ Compiling / ...
+ ✓ Compiled / in 2.6s (546 modules)
+ GET / 200 in 3011ms
+ ✓ Compiled in 381ms (256 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 917ms (535 modules)
+ GET /favicon-16x16.png 404 in 1072ms
+ GET / 200 in 83ms
+ GET / 200 in 33ms
+ GET / 200 in 52ms
+ ⨯ ./app/globals.css:46:1
+Syntax error: C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\app\globals.css Unexpected }
+
+ [90m 44 | [39m    box-shadow[33m:[39m inset 0 1px 0 0 [36mrgba[39m[36m(255, 255, 255, 0.1)[39m[33m;[39m
+ [90m 45 | [39m  [33m}[39m
+[1m[31m>[39m[22m[90m 46 | [39m[33m}[39m
+ [90m    | [39m[1m[31m^[39m[22m
+ [90m 47 | [39m
+ ○ Compiling /_error ...
+ ⨯ ./app/globals.css:46:1
+Syntax error: C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\app\globals.css Unexpected }
+
+ [90m 44 | [39m    box-shadow[33m:[39m inset 0 1px 0 0 [36mrgba[39m[36m(255, 255, 255, 0.1)[39m[33m;[39m
+ [90m 45 | [39m  [33m}[39m
+[1m[31m>[39m[22m[90m 46 | [39m[33m}[39m
+ [90m    | [39m[1m[31m^[39m[22m
+ [90m 47 | [39m
+ GET / 500 in 15ms
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\build\webpack\loaders\css-loader\src\index.js??ruleSet[1].rules[13].oneOf[12].use[2]!C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\build\webpack\loaders\postcss-loader\src\index.js??ruleSet[1].rules[13].oneOf[12].use[3]!C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\app\globals.css': No serializer registered for PostCSSSyntaxError
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> webpack/lib/ModuleBuildError -> PostCSSSyntaxError
+ ✓ Compiled /_error in 531ms (770 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 349ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 638ms (759 modules)
+ ✓ Compiled in 446ms (773 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename 'C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\.next\cache\webpack\client-development\1.pack.gz_' -> 'C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\.next\cache\webpack\client-development\1.pack.gz'
+ ✓ Compiled in 553ms (770 modules)
+ ✓ Compiled in 466ms (770 modules)
+ GET / 200 in 93ms
+ GET / 200 in 49ms
+ GET / 200 in 39ms
+ GET / 200 in 50ms
+ ✓ Compiled in 437ms (770 modules)
+ GET / 200 in 85ms
+ ✓ Compiled /sobre-nosotros in 401ms (762 modules)
+ GET / 200 in 95ms
+ ✓ Compiled /_not-found in 509ms (779 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 687ms
+ ✓ Compiled in 536ms (779 modules)
+ ⨯ TypeError: Cannot read properties of undefined (reading 'entryCSSFiles')
+    at rE (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:3692)
+    at rN (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:4595)
+    at rU (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:6889)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:6151
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:140:36
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:103
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NextTracerImpl.trace (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:28)
+    at rL (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:6082)
+    at rW (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:12540)
+    at r0 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:16244)
+    at r6 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:23204)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:726
+    at AsyncLocalStorage.run (node:async_hooks:346:14)
+    at Object.wrap (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:36:16615)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:616
+    at AsyncLocalStorage.run (node:async_hooks:346:14)
+    at Object.wrap (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:36:15721)
+    at r3 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:543)
+    at nd.render (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:4661)
+    at doRender (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1438:44)
+    at cacheEntry.responseCache.get.routeKind (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1599:34)
+    at ResponseCache.get (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\response-cache\index.js:49:26)
+    at DevServer.renderToResponseWithComponentsImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1507:53)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1002:121
+    at NextTracerImpl.trace (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:105:20)
+    at DevServer.renderToResponseWithComponents (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1002:41)
+    at DevServer.renderPageComponent (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1931:35)
+    at async DevServer.renderToResponseImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1969:32)
+    at async DevServer.pipeImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:920:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:816:17)
+    at async C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\router-server.js:174:21)
+    at async handleRequest (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\router-server.js:353:24)
+    at async requestHandlerImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\router-server.js:377:13)
+    at async Server.requestListener (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  page: '/'
+}
+Could not find files for /_error in .next/build-manifest.json
+Could not find files for /_error in .next/build-manifest.json
+ ⨯ TypeError: Cannot read properties of undefined (reading 'entryCSSFiles')
+    at rE (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:3692)
+    at rN (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:4595)
+    at rU (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:6889)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:6151
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:140:36
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:103
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NextTracerImpl.trace (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:28)
+    at rL (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:6082)
+    at rW (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:12540)
+    at r0 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:16244)
+    at r6 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:23204)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:726
+    at AsyncLocalStorage.run (node:async_hooks:346:14)
+    at Object.wrap (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:36:16615)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:616
+    at AsyncLocalStorage.run (node:async_hooks:346:14)
+    at Object.wrap (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:36:15721)
+    at r3 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:543)
+    at nd.render (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:42:4661)
+    at doRender (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1438:44)
+    at cacheEntry.responseCache.get.routeKind (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1599:34)
+    at ResponseCache.get (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\response-cache\index.js:49:26)
+    at DevServer.renderToResponseWithComponentsImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1507:53)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1002:121
+    at NextTracerImpl.trace (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:105:20)
+    at DevServer.renderToResponseWithComponents (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1002:41)
+    at DevServer.renderPageComponent (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1931:35)
+    at async DevServer.renderToResponseImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1969:32)
+    at async DevServer.pipeImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:920:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\next-server.js:272:17)
+    at async DevServer.handleRequestImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:816:17)
+    at async C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\dev\next-dev-server.js:339:20
+    at async Span.traceAsyncFn (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\trace\trace.js:154:20)
+    at async DevServer.handleRequest (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\dev\next-dev-server.js:336:24)
+    at async invokeRender (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\router-server.js:174:21)
+    at async handleRequest (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\router-server.js:353:24)
+    at async requestHandlerImpl (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\router-server.js:377:13)
+    at async Server.requestListener (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\start-server.js:141:13) {
+  page: '/'
+}
+Could not find files for /_error in .next/build-manifest.json
+Could not find files for /_error in .next/build-manifest.json
+ ⨯ TypeError: Cannot read properties of undefined (reading 'clientModules')
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:24996
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:191:62
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:140:36
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:103
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NextTracerImpl.trace (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:28)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:191:31
+    at r6 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:41:1678)
+    at async doRender (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1438:30)
+    at async cacheEntry.responseCache.get.routeKind (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1599:28) {
+  page: '/'
+}
+Could not find files for /_error in .next/build-manifest.json
+Could not find files for /_error in .next/build-manifest.json
+ GET / 500 in 244ms
+ ⨯ TypeError: Cannot read properties of undefined (reading 'clientModules')
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:39:24996
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:191:62
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:140:36
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:103
+    at NoopContextManager.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NextTracerImpl.trace (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:122:28)
+    at C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\lib\trace\tracer.js:191:31
+    at r6 (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:41:1678)
+    at async doRender (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1438:30)
+    at async cacheEntry.responseCache.get.routeKind (C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\node_modules\next\dist\server\base-server.js:1599:28) {
+  page: '/'
+}
+Could not find files for /_error in .next/build-manifest.json
+Could not find files for /_error in .next/build-manifest.json
+ GET / 500 in 231ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 70ms
+ ✓ Compiled in 307ms (779 modules)
+ ✓ Compiled in 266ms (779 modules)
+ GET / 200 in 105ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 47ms
+ ✓ Compiled in 392ms (779 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /_next/static/webpack/7f65e2c2e9611afd.webpack.hot-update.json 404 in 93ms
+ GET / 200 in 48ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 33ms
+ GET / 200 in 52ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 41ms
+ GET / 200 in 41ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 33ms
+ GET / 200 in 32ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 30ms
+ ✓ Compiled in 412ms (776 modules)
+ GET / 200 in 78ms
+ ✓ Compiled /_not-found in 169ms (765 modules)
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 280ms
+ GET / 200 in 61ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 25ms
+ ✓ Compiled in 247ms (440 modules)
+ ✓ Compiled in 245ms (440 modules)
+ ✓ Compiled in 254ms (440 modules)
+ ✓ Compiled in 174ms (440 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 603ms (765 modules)
+ GET / 200 in 105ms
+ ✓ Compiled in 430ms (779 modules)
+ GET / 200 in 102ms
+ ○ Compiling /servicios ...
+ ✓ Compiled /servicios in 665ms (786 modules)
+ GET / 200 in 84ms
+ ✓ Compiled in 276ms (442 modules)
+ ✓ Compiled in 181ms (442 modules)
+ ✓ Compiled in 171ms (442 modules)
+ ✓ Compiled in 359ms (786 modules)
+ ⚠ Fast Refresh had to perform a full reload when g.github.io-main\\app\\components\\Header.tsx","ids":["default"]}, g.github.io-main\\app\\globals.css","ids":[]} changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ⚠ Fast Refresh had to perform a full reload when g.github.io-main\\app\\components\\Header.tsx","ids":["default"]}, g.github.io-main\\app\\globals.css","ids":[]} changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET / 200 in 94ms
+ GET / 200 in 51ms
+ ✓ Compiled in 478ms (786 modules)
+ ✓ Compiled in 517ms (786 modules)
+ ✓ Compiled in 514ms (770 modules)
+ ✓ Compiled in 359ms (784 modules)
+ GET / 200 in 132ms
+ GET /sobre-nosotros 200 in 78ms
+ ✓ Compiled in 350ms (443 modules)
+ ✓ Compiled in 532ms (787 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET / 200 in 181ms
+ ✓ Compiled in 476ms (787 modules)
+ ✓ Compiled in 400ms (787 modules)
+ GET / 200 in 93ms
+ GET /servicios 200 in 52ms
+ GET /sobre-nosotros 200 in 52ms
+ GET / 200 in 35ms
+ ✓ Compiled in 255ms (444 modules)
+ ✓ Compiled in 658ms (787 modules)
+ ✓ Compiled in 288ms (444 modules)
+ ✓ Compiled in 295ms (444 modules)
+ ✓ Compiled in 581ms (773 modules)
+ ✓ Compiled in 388ms (787 modules)
+ ✓ Compiled in 373ms (787 modules)
+ ✓ Compiled /contacto in 414ms (794 modules)
+ GET /contacto 200 in 613ms
+ GET /contacto 200 in 58ms
+ GET / 200 in 36ms
+ GET / 200 in 49ms
+ GET / 200 in 53ms
+ GET / 200 in 51ms
+ GET / 200 in 43ms

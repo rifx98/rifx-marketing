@@ -1,0 +1,56 @@
+  ▲ Next.js 14.2.5
+  - Local:        http://localhost:3002
+  - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 2948s
+ ○ Compiling / ...
+ ✓ Compiled / in 3.3s (546 modules)
+ GET / 200 in 3507ms
+ ✓ Compiled in 372ms (256 modules)
+ ⨯ ./app/globals.css:46:1
+Syntax error: C:\Users\x\OneDrive\Escritorio\rifx-marketing.github.io-main\app\globals.css Unexpected }
+
+ [90m 44 | [39m    box-shadow[33m:[39m inset 0 1px 0 0 [36mrgba[39m[36m(255, 255, 255, 0.1)[39m[33m;[39m
+ [90m 45 | [39m  [33m}[39m
+[1m[31m>[39m[22m[90m 46 | [39m[33m}[39m
+ [90m    | [39m[1m[31m^[39m[22m
+ [90m 47 | [39m
+ ✓ Compiled in 433ms (256 modules)
+ ✓ Compiled in 217ms (256 modules)
+ ✓ Compiled in 193ms (256 modules)
+ ✓ Compiled in 305ms (256 modules)
+ ✓ Compiled in 302ms (256 modules)
+ ✓ Compiled in 273ms (256 modules)
+ ✓ Compiled in 437ms (256 modules)
+ ✓ Compiled in 195ms (256 modules)
+ ✓ Compiled in 236ms (256 modules)
+ ✓ Compiled in 223ms (256 modules)
+ ✓ Compiled in 275ms (256 modules)
+ ✓ Compiled in 202ms (256 modules)
+ ✓ Compiled in 207ms (256 modules)
+ ✓ Compiled in 220ms (256 modules)
+ ✓ Compiled in 191ms (256 modules)
+ ✓ Compiled in 95ms (242 modules)
+ ✓ Compiled in 283ms (256 modules)
+ ✓ Compiled in 226ms (256 modules)
+ ✓ Compiled in 157ms (256 modules)
+ ✓ Compiled in 153ms (256 modules)
+ ✓ Compiled in 150ms (256 modules)
+ ✓ Compiled in 264ms (256 modules)
+ ✓ Compiled in 234ms (256 modules)
+ ✓ Compiled in 251ms (256 modules)
+ ✓ Compiled in 201ms (256 modules)
+ ✓ Compiled in 272ms (256 modules)
+ ✓ Compiled in 230ms (256 modules)
+ ✓ Compiled in 268ms (256 modules)
+ ✓ Compiled in 209ms (256 modules)
+ ✓ Compiled in 198ms (256 modules)
+ ✓ Compiled in 374ms (256 modules)
+ ✓ Compiled in 152ms (256 modules)
+ ✓ Compiled in 248ms (256 modules)
+ ✓ Compiled in 204ms (256 modules)
+ ✓ Compiled in 155ms (256 modules)
+ ✓ Compiled in 75ms (242 modules)
+ ✓ Compiled in 163ms (256 modules)
+ ✓ Compiled in 207ms (256 modules)
