@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 8. Enviar respuesta por WhatsApp
-    await sendWhatsAppMessage(customerPhone, aiResponse);
+    await sendWhatsAppMessage(customerPhone, aiResponse, config);
 
     console.log(`🤖 Respuesta enviada a ${customerName}: ${aiResponse.substring(0, 80)}...`);
 
@@ -175,9 +175,9 @@ export async function POST(req: NextRequest) {
 // FUNCIONES AUXILIARES
 // ============================================
 
-async function sendWhatsAppMessage(to: string, text: string) {
-  const token = process.env.WHATSAPP_TOKEN;
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+async function sendWhatsAppMessage(to: string, text: string, config: Record<string, string> | null) {
+  const token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
+  const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!token || !phoneId) {
     console.error('❌ Faltan credenciales de WhatsApp');

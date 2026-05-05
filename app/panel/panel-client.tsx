@@ -82,6 +82,12 @@ export default function PanelClient() {
   // Estados para datos reales
   const [conversationsData, setConversationsData] = useState<any>(null);
   const [statsData, setStatsData] = useState<any>(null);
+  const [configData, setConfigData] = useState<any>({
+    whatsapp_token: '',
+    whatsapp_phone_id: '',
+    openai_key: '',
+    ai_prompt: ''
+  });
 
   React.useEffect(() => {
     if (isLoggedIn) {
@@ -95,6 +101,14 @@ export default function PanelClient() {
       fetch('/api/panel/stats')
         .then(res => res.json())
         .then(data => setStatsData(data))
+        .catch(console.error);
+
+      // Cargar Config
+      fetch('/api/panel/config')
+        .then(res => res.json())
+        .then(data => {
+           setConfigData(data);
+        })
         .catch(console.error);
 
       // Refrescar cada 10 segundos
@@ -120,14 +134,24 @@ export default function PanelClient() {
     }, 1000);
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(configData)
+      });
+      if (res.ok) {
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
       setIsSaving(false);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-    }, 1500);
+    }
   };
 
   // ========== LOGIN SCREEN ==========
@@ -573,7 +597,8 @@ export default function PanelClient() {
                           <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp Business API Key</label>
                           <input 
                             type="password" 
-                            defaultValue="••••••••••••••••••••••••"
+                            value={configData.whatsapp_token || ''}
+                            onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
                             className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono text-sm"
                             placeholder="Escribe tu API Key aquí..."
                           />
@@ -582,7 +607,8 @@ export default function PanelClient() {
                           <label className="block text-sm font-medium text-gray-400 mb-1">Número de Teléfono (ID)</label>
                           <input 
                             type="text" 
-                            defaultValue="1029384756"
+                            value={configData.whatsapp_phone_id || ''}
+                            onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})}
                             className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all"
                           />
                         </div>
@@ -597,10 +623,11 @@ export default function PanelClient() {
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1">OpenAI API Key (ChatGPT)</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-1">OpenAI API Key (ChatGPT o Groq)</label>
                           <input 
                             type="password" 
-                            defaultValue="sk-••••••••••••••••••••••••"
+                            value={configData.openai_key || ''}
+                            onChange={e => setConfigData({...configData, openai_key: e.target.value})}
                             className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
                             placeholder="sk-..."
                           />
@@ -612,7 +639,8 @@ export default function PanelClient() {
                           </label>
                           <textarea 
                             rows={5}
-                            defaultValue="Eres 'Nova', el asesor de ventas estrella de RIFX Marketing. Tu objetivo es entender el negocio del cliente, ofrecer servicios como Diseño Web o Embudos, y cerrar la venta enviando el enlace de pago. Sé amable, persuasivo y muy profesional."
+                            value={configData.ai_prompt || ''}
+                            onChange={e => setConfigData({...configData, ai_prompt: e.target.value})}
                             className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all resize-y text-sm leading-relaxed"
                           />
                         </div>
