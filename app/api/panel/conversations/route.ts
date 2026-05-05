@@ -44,3 +44,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
+
+// PATCH: Actualizar estado de una conversación
+export async function PATCH(req: NextRequest) {
+  try {
+    const supabase = createSupabaseAdmin();
+    const { id, status } = await req.json();
+
+    if (!id || !status) {
+      return NextResponse.json({ error: 'Faltan id o status' }, { status: 400 });
+    }
+
+    const validStatuses = ['chatting', 'interested', 'bought'];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('conversations')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) {
+      console.error('❌ Error actualizando conversación:', error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error en PATCH conversación:', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}

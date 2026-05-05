@@ -919,8 +919,70 @@ export default function PanelClient() {
                     </div>
                   </div>
 
+                  {/* Status Change Buttons */}
+                  <div className="px-4 pt-3 pb-1 border-t border-white/10 bg-white/[0.01]">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Mover a:</p>
+                    <div className="flex gap-2">
+                      {selectedChat.status !== 'Chateando Ahora' && (
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/panel/conversations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: selectedChat!.id, status: 'chatting' }),
+                            });
+                            setSelectedChat({ ...selectedChat!, status: 'Chateando Ahora' });
+                            // Refrescar lista
+                            const res = await fetch('/api/panel/conversations');
+                            const data = await res.json();
+                            setConversationsData(data);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/20 transition-colors text-pink-400 text-xs font-medium"
+                        >
+                          <MessageSquare className="w-3 h-3" /> Chateando
+                        </button>
+                      )}
+                      {selectedChat.status !== 'Interesado' && (
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/panel/conversations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: selectedChat!.id, status: 'interested' }),
+                            });
+                            setSelectedChat({ ...selectedChat!, status: 'Interesado' });
+                            const res = await fetch('/api/panel/conversations');
+                            const data = await res.json();
+                            setConversationsData(data);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors text-yellow-400 text-xs font-medium"
+                        >
+                          <Zap className="w-3 h-3" /> Interesado
+                        </button>
+                      )}
+                      {selectedChat.status !== 'Compró' && (
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/panel/conversations', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: selectedChat!.id, status: 'bought' }),
+                            });
+                            setSelectedChat({ ...selectedChat!, status: 'Compró' });
+                            const res = await fetch('/api/panel/conversations');
+                            const data = await res.json();
+                            setConversationsData(data);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors text-emerald-400 text-xs font-medium"
+                        >
+                          <CheckCircle2 className="w-3 h-3" /> Compró
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Input area (read only for now) */}
-                  <div className="p-4 border-t border-white/10 bg-white/[0.01] flex gap-2 items-center">
+                  <div className="p-4 border-t border-white/5 bg-white/[0.01] flex gap-2 items-center">
                     <input 
                       type="text" 
                       placeholder="La IA está respondiendo automáticamente..." 
