@@ -88,6 +88,8 @@ export default function PanelClient() {
     openai_key: '',
     ai_prompt: ''
   });
+  const [showWhatsappKey, setShowWhatsappKey] = useState(false);
+  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
 
   React.useEffect(() => {
     if (isLoggedIn) {
@@ -595,13 +597,22 @@ export default function PanelClient() {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp Business API Key</label>
-                          <input 
-                            type="password" 
-                            value={configData.whatsapp_token || ''}
-                            onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono text-sm"
-                            placeholder="Escribe tu API Key aquí..."
-                          />
+                          <div className="relative">
+                            <input 
+                              type={showWhatsappKey ? "text" : "password"} 
+                              value={configData.whatsapp_token || ''}
+                              onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
+                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono text-sm"
+                              placeholder="Escribe tu API Key aquí..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowWhatsappKey(!showWhatsappKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            >
+                              {showWhatsappKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">Número de Teléfono (ID)</label>
@@ -624,13 +635,22 @@ export default function PanelClient() {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1">OpenAI API Key (ChatGPT o Groq)</label>
-                          <input 
-                            type="password" 
-                            value={configData.openai_key || ''}
-                            onChange={e => setConfigData({...configData, openai_key: e.target.value})}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
-                            placeholder="sk-..."
-                          />
+                          <div className="relative">
+                            <input 
+                              type={showOpenAiKey ? "text" : "password"} 
+                              value={configData.openai_key || ''}
+                              onChange={e => setConfigData({...configData, openai_key: e.target.value})}
+                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
+                              placeholder="sk-..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowOpenAiKey(!showOpenAiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            >
+                              {showOpenAiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-400 mb-1 flex justify-between">
