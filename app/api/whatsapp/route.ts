@@ -98,6 +98,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Enviar a Groq (compatible con SDK de OpenAI)
+    console.log(`🔑 Usando API key: ${groqKey.substring(0, 8)}...${groqKey.substring(groqKey.length - 4)}`);
+    console.log(`📝 Prompt del sistema: ${aiPrompt.substring(0, 80)}...`);
+    console.log(`💬 Total mensajes en historial: ${(history || []).length}`);
+
     const groq = new OpenAI({
       apiKey: groqKey,
       baseURL: 'https://api.groq.com/openai/v1',
@@ -111,14 +115,27 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: chatMessages,
-      max_tokens: 500,
-      temperature: 0.7,
-    });
+    let aiResponse: string;
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: chatMessages,
+        max_tokens: 500,
+        temperature: 0.7,
+      });
 
-    let aiResponse = completion.choices[0]?.message?.content || 'Lo siento, no pude procesar tu mensaje.';
+      aiResponse = completion.choices[0]?.message?.content || '';
+      console.log(`✅ Groq respondió: ${aiResponse.substring(0, 80)}...`);
+
+      if (!aiResponse) {
+        console.error('⚠️ Groq devolvió respuesta vacía. Choices:', JSON.stringify(completion.choices));
+        aiResponse = 'Disculpa, estoy procesando mucha información. ¿Podrías repetir tu pregunta? 🙏';
+      }
+    } catch (groqError: any) {
+      console.error('❌ Error de Groq API:', groqError?.message || groqError);
+      console.error('❌ Detalles:', JSON.stringify(groqError?.error || groqError?.response?.data || 'sin detalles'));
+      aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
+    }
 
     // 6. Detectar si la IA quiere generar un pago
     const paymentMatch = aiResponse.match(/\[GENERAR_PAGO:(\d+):(.+?)\]/);
