@@ -150,7 +150,15 @@ export default function PanelClient() {
         .then(res => res.json())
         .then(data => {
           if (data.messages) {
-            setChatMessages(data.messages);
+            // Solo actualizar si los mensajes realmente cambiaron
+            setChatMessages(prev => {
+              const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
+              const newLastId = data.messages.length > 0 ? data.messages[data.messages.length - 1]?.id : null;
+              if (prev.length === data.messages.length && prevLastId === newLastId) {
+                return prev; // Sin cambios, no re-renderizar
+              }
+              return data.messages;
+            });
           }
         })
         .catch(console.error);
@@ -172,10 +180,9 @@ export default function PanelClient() {
     return () => clearInterval(msgInterval);
   }, [selectedChat?.id]);
 
-  // Solo hacer scroll al fondo cuando llegan mensajes NUEVOS, no en cada refresco
+  // Solo hacer scroll al fondo cuando llegan mensajes NUEVOS
   useEffect(() => {
     if (chatMessages.length > 0 && chatMessages.length !== prevMsgCountRef.current) {
-      // Solo auto-scroll si el usuario ya estaba cerca del fondo o es la carga inicial
       const container = chatContainerRef.current;
       if (container) {
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
