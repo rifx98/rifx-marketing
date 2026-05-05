@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, 
@@ -74,6 +74,8 @@ export default function PanelClient() {
   const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef(0);
   const [showChartModal, setShowChartModal] = useState(false);
   const [calMonth, setCalMonth] = useState(4);
   const [calYear, setCalYear] = useState(2026);
@@ -139,6 +141,7 @@ export default function PanelClient() {
   React.useEffect(() => {
     if (!selectedChat?.id) {
       setChatMessages([]);
+      prevMsgCountRef.current = 0;
       return;
     }
 
@@ -168,6 +171,24 @@ export default function PanelClient() {
     const msgInterval = setInterval(loadMessages, 5000);
     return () => clearInterval(msgInterval);
   }, [selectedChat?.id]);
+
+  // Solo hacer scroll al fondo cuando llegan mensajes NUEVOS, no en cada refresco
+  useEffect(() => {
+    if (chatMessages.length > 0 && chatMessages.length !== prevMsgCountRef.current) {
+      // Solo auto-scroll si el usuario ya estaba cerca del fondo o es la carga inicial
+      const container = chatContainerRef.current;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        const isInitialLoad = prevMsgCountRef.current === 0;
+        if (isNearBottom || isInitialLoad) {
+          setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+          }, 50);
+        }
+      }
+      prevMsgCountRef.current = chatMessages.length;
+    }
+  }, [chatMessages]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -843,7 +864,7 @@ export default function PanelClient() {
                   </div>
 
                   {/* Chat Area — Mensajes Reales */}
-                  <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>
+                  <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20" ref={chatContainerRef}>
                     {loadingMessages ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="flex flex-col items-center gap-3">
