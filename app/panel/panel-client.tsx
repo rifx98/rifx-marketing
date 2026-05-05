@@ -78,6 +78,7 @@ export default function PanelClient() {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // Estados para datos reales
   const [conversationsData, setConversationsData] = useState<any>(null);
@@ -109,7 +110,17 @@ export default function PanelClient() {
       fetch('/api/panel/config')
         .then(res => res.json())
         .then(data => {
-           setConfigData(data);
+           if (!data.error) {
+             // Solo guardar campos válidos de la DB, no campos extra como hasWhatsappToken
+             setConfigData({
+               whatsapp_token: data.whatsapp_token || '',
+               whatsapp_phone_id: data.whatsapp_phone_id || '',
+               openai_key: data.openai_key || '',
+               payphone_token: data.payphone_token || '',
+               payphone_store_id: data.payphone_store_id || '',
+               ai_prompt: data.ai_prompt || '',
+             });
+           }
         })
         .catch(console.error);
 
@@ -139,18 +150,35 @@ export default function PanelClient() {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    setSaveError('');
+    setShowSuccess(false);
     try {
+      // Solo enviar campos válidos de la DB
+      const payload = {
+        whatsapp_token: configData.whatsapp_token,
+        whatsapp_phone_id: configData.whatsapp_phone_id,
+        openai_key: configData.openai_key,
+        payphone_token: configData.payphone_token,
+        payphone_store_id: configData.payphone_store_id,
+        ai_prompt: configData.ai_prompt,
+      };
       const res = await fetch('/api/panel/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(configData)
+        body: JSON.stringify(payload)
       });
-      if (res.ok) {
+      const result = await res.json();
+      if (res.ok && result.success) {
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        setSaveError(result.error || 'Error desconocido al guardar');
+        setTimeout(() => setSaveError(''), 8000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setSaveError(err?.message || 'Error de conexión al guardar');
+      setTimeout(() => setSaveError(''), 8000);
     } finally {
       setIsSaving(false);
     }
@@ -719,6 +747,21 @@ export default function PanelClient() {
                         )}
                       </AnimatePresence>
                     </div>
+
+                    {/* Error message */}
+                    <AnimatePresence>
+                      {saveError && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="mt-4 flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl"
+                        >
+                          <X className="w-5 h-5 shrink-0" />
+                          <span><strong>Error al guardar:</strong> {saveError}</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                   </div>
                 </form>
