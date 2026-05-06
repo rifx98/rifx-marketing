@@ -579,7 +579,7 @@ export default function PanelClient() {
                     {(conversationsData?.chatting || []).map((conv: any) => (
                       <div 
                         key={conv.id} 
-                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: 'Chateando Ahora'})}
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-pink-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -612,7 +612,7 @@ export default function PanelClient() {
                     {(conversationsData?.interested || []).map((conv: any) => (
                       <div 
                         key={conv.id} 
-                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: 'Interesado'})}
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -645,7 +645,7 @@ export default function PanelClient() {
                     {(conversationsData?.bought || []).map((conv: any) => (
                       <div 
                         key={conv.id} 
-                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: 'Compró'})}
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status})}
                         className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-3 mb-2">
@@ -872,15 +872,15 @@ export default function PanelClient() {
                       <button
                         onClick={async () => {
                           const currentDbStatus = selectedChat.status.replace('paused_', '');
-                          const baseStatus = currentDbStatus === 'Chateando Ahora' ? 'chatting' : currentDbStatus === 'Interesado' ? 'interested' : currentDbStatus === 'Compró' ? 'bought' : currentDbStatus;
+                          // baseStatus is already chatting, interested, or bought because we now store the real db status
+                          const baseStatus = currentDbStatus;
                           const newStatus = isHumanMode ? baseStatus : `paused_${baseStatus}`;
                           await fetch('/api/panel/conversations', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ id: selectedChat!.id, status: newStatus }),
                           });
-                          const displayStatus = selectedChat.status.replace('paused_', '');
-                          setSelectedChat({ ...selectedChat!, status: isHumanMode ? displayStatus : `paused_${displayStatus}` });
+                          setSelectedChat({ ...selectedChat!, status: newStatus });
                           const res = await fetch('/api/panel/conversations');
                           const data = await res.json();
                           setConversationsData(data);
@@ -955,7 +955,7 @@ export default function PanelClient() {
                   <div className="px-4 pt-3 pb-1 border-t border-white/10 bg-white/[0.01]">
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Mover a:</p>
                     <div className="flex gap-2">
-                      {selectedChat.status !== 'Chateando Ahora' && (
+                      {!selectedChat.status.includes('chatting') && (
                         <button
                           onClick={async () => {
                             await fetch('/api/panel/conversations', {
@@ -963,7 +963,7 @@ export default function PanelClient() {
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ id: selectedChat!.id, status: 'chatting' }),
                             });
-                            setSelectedChat({ ...selectedChat!, status: 'Chateando Ahora' });
+                            setSelectedChat({ ...selectedChat!, status: 'chatting' });
                             // Refrescar lista
                             const res = await fetch('/api/panel/conversations');
                             const data = await res.json();
@@ -974,7 +974,7 @@ export default function PanelClient() {
                           <MessageSquare className="w-3 h-3" /> Chateando
                         </button>
                       )}
-                      {selectedChat.status !== 'Interesado' && (
+                      {!selectedChat.status.includes('interested') && (
                         <button
                           onClick={async () => {
                             await fetch('/api/panel/conversations', {
@@ -982,7 +982,7 @@ export default function PanelClient() {
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ id: selectedChat!.id, status: 'interested' }),
                             });
-                            setSelectedChat({ ...selectedChat!, status: 'Interesado' });
+                            setSelectedChat({ ...selectedChat!, status: 'interested' });
                             const res = await fetch('/api/panel/conversations');
                             const data = await res.json();
                             setConversationsData(data);
@@ -992,7 +992,7 @@ export default function PanelClient() {
                           <Zap className="w-3 h-3" /> Interesado
                         </button>
                       )}
-                      {selectedChat.status !== 'Compró' && (
+                      {!selectedChat.status.includes('bought') && (
                         <button
                           onClick={async () => {
                             await fetch('/api/panel/conversations', {
@@ -1000,7 +1000,7 @@ export default function PanelClient() {
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ id: selectedChat!.id, status: 'bought' }),
                             });
-                            setSelectedChat({ ...selectedChat!, status: 'Compró' });
+                            setSelectedChat({ ...selectedChat!, status: 'bought' });
                             const res = await fetch('/api/panel/conversations');
                             const data = await res.json();
                             setConversationsData(data);
@@ -1078,12 +1078,11 @@ export default function PanelClient() {
                           <Zap className="w-4 h-4 text-white" />
                         </div>
                       </>
-                      </>
                     )}
                   </div>
-                      </>
-                    );
-                  })()}
+                </>
+              );
+            })()}
                 </motion.div>
               </motion.div>
             )}
