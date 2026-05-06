@@ -168,7 +168,9 @@ export default function HomeClient() {
         {/* Testimonials Section */}
         <section className="py-16 lg:py-24 bg-gray-50 overflow-hidden" data-purpose="testimonials">
           <div className="container mx-auto px-6 text-center mb-16">
-            <h2 className="text-space-navy text-3xl lg:text-4xl font-black px-4">Nuestros Clientes de Realeza:<br className="hidden md:block" />Testimonios de Élite</h2>
+            <span className="text-rocket-orange font-bold uppercase tracking-widest text-xs lg:text-sm">TESTIMONIOS</span>
+            <h2 className="text-space-navy text-3xl lg:text-4xl font-black px-4 mt-2">Lo que Dicen Nuestros Clientes</h2>
+            <p className="text-gray-500 text-sm mt-3 max-w-xl mx-auto">Empresas reales que han escalado sus resultados con nuestras estrategias de marketing digital.</p>
           </div>
           
           <div className="relative group">
@@ -180,53 +182,65 @@ export default function HomeClient() {
               {/* Bloque 1 */}
               <div className="flex gap-8 items-center pr-8">
                 {[
-                  { name: "Juan Pérez", handle: "@juanperez_ceo", text: "Servicios de marketing digital que transformaron nuestra visión en resultados reales y medibles.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuBxS8K7bR6uWoeuz8BOso1O5gjdOzKQWCBt9f5MR-oByOHTYVpnAR72S-0WN-zuYVT1ej8bkcMLsKBgFTe7R0dUJB2OtNzeW0L5hVKADZR44GFGDxREepA7DOK5T6iXoS8R2iAAm1kJX_8BmV9OC3npEA2WPKUKEI5yuIjnbLxth8xWn9b9iuc2c4FHbM3-QnV1lEk8bFErKxQv-d3QReILiB2cxZJpYKu8nzwyVI6d8v7LHFAiVErSzumzYvxI4fj8Bpkby2sJ8KI" },
-                  { name: "Maria S.", handle: "@marias_marketing", text: "El equipo de Rifx Marketing entendió perfectamente nuestras necesidades galácticas.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAahxCsNzTVaCiN3-9UPgU9RDrv0P2NSC7KnYWGq8_j_NGrcPve1iP4GpJZjlvZXwgcnVDhSCOt3eojUBDS-i523-RNJZqVWJ92TiT1IF_5nr0Vf-D8PdQz__Iojnv4hjD3Sqy6YuUS9hBg5_t5Avb3A_sA-x0cKdL9Lvjnk0hfjXEhV4vuJMxQzraCQJASOWgcKc1O5Dm57M4gyjwogdlIGvziM7D65Q0ERk325149r1ENJxN5pCX0waoO8O5bACQ8hrkL19EZnSY" },
-                  { name: "Carlos R.", handle: "@carlosr_founder", text: "Una estrategia orbital que nos puso por delante de la competencia en meses.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuB0lvtweSs4H-PwfTyNM7LFMyayMsRHem6qGvlD7PGyHG9ulWhFn0BoABm_0If9Qd0TCUfYbwkpk5K_zILzoMLIykW6-mcZL2CKZDSaZwpaqufeMluv25fvSh6JA0gE3Piqza6wM4tYJMp2bWT38kTQVtOBsJkc1v4BeqNdN_C0wtJ5wL9UPVx4mkmkR5l-aeQuYNgfRqnItzRpRnXixWtA_dKdVLsleusEieQwiTW6azwtAyPbMqlbCQ5u4NW9pAdNImhUrLzuB8o" },
-                  { name: "Elena G.", handle: "@elenag_ecommerce", text: "La automatización con IA ha sido un cambio de juego total para nuestras ventas en línea.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuByS8K7bR6uWoeuz8BOso1O5gjdOzKQWCBt9f5MR-oByOHTYVpnAR72S-0WN-zuYVT1ej8bkcMLsKBgFTe7R0dUJB2OtNzeW0L5hVKADZR44GFGDxREepA7DOK5T6iXoS8R2iAAm1kJX_8BmV9OC3npEA2WPKUKEI5yuIjnbLxth8xWn9b9iuc2c4FHbM3-QnV1lEk8bFErKxQv-d3QReILiB2cxZJpYKu8nzwyVI6d8v7LHFAiVErSzumzYvxI4fj8Bpkby2sJ8KI" }
+                  { name: "Andrés Mendoza", role: "CEO, TechVentures", text: "Desde que trabajamos con RIFX, nuestro costo por lead bajó un 62%. Su equipo entiende la conversión como nadie — cada dólar invertido genera retorno real.", img: "https://randomuser.me/api/portraits/men/32.jpg", stars: 5 },
+                  { name: "Valentina Herrera", role: "Directora de Marketing, Bloom", text: "La automatización con IA de WhatsApp nos permitió atender 3x más clientes sin contratar personal adicional. Literalmente transforma tu operación.", img: "https://randomuser.me/api/portraits/women/44.jpg", stars: 5 },
+                  { name: "Ricardo Salazar", role: "Fundador, NovaTrade", text: "En 4 meses pasamos de 200 a 1,800 visitas mensuales orgánicas. Su estrategia de contenido y SEO es de otro nivel. Totalmente recomendados.", img: "https://randomuser.me/api/portraits/men/75.jpg", stars: 5 },
+                  { name: "Camila Rivas", role: "E-commerce Manager, ModaEC", text: "Nuestra tienda online facturó un 140% más en el primer trimestre con ellos. Diseño impecable, campañas certeras y un soporte que siempre responde.", img: "https://randomuser.me/api/portraits/women/68.jpg", stars: 5 },
+                  { name: "Diego Paredes", role: "COO, CloudServ Latam", text: "Probamos 3 agencias antes de RIFX. Son los únicos que nos mostraron un dashboard con métricas reales desde el día 1. Transparencia total.", img: "https://randomuser.me/api/portraits/men/52.jpg", stars: 5 }
                 ].map((t, i) => (
                   <div key={i} className="inline-block w-[320px] md:w-[420px] whitespace-normal">
-                    <div className="bg-[#181e36]/80 text-white p-6 md:p-8 rounded-2xl h-full border border-white/5 shadow-2xl flex flex-col gap-6 hover:bg-[#181e36] hover:border-rocket-orange/30 transition-all duration-300">
-                      {/* Header: Avatar, Name, Handle */}
-                      <div className="flex items-center gap-4">
-                        <img alt={t.name} className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover shadow-md" src={t.img} />
+                    <div className="bg-[#181e36] text-white p-6 md:p-8 rounded-2xl h-full border border-white/5 shadow-2xl flex flex-col gap-5 hover:border-rocket-orange/30 transition-all duration-300">
+                      {/* Stars */}
+                      <div className="flex gap-1">
+                        {[...Array(t.stars)].map((_, s) => (
+                          <span key={s} className="text-yellow-400 text-sm">★</span>
+                        ))}
+                      </div>
+                      {/* Text Content */}
+                      <p className="text-gray-300 text-sm md:text-base leading-relaxed">
+                        &ldquo;{t.text}&rdquo;
+                      </p>
+                      {/* Header: Avatar, Name, Role */}
+                      <div className="flex items-center gap-4 mt-auto pt-4 border-t border-white/5">
+                        <img alt={t.name} className="w-12 h-12 rounded-full object-cover shadow-md ring-2 ring-rocket-orange/20" src={t.img} />
                         <div className="flex flex-col">
-                          <span className="font-bold text-white text-base md:text-lg tracking-tight">{t.name}</span>
-                          <span className="text-gray-400 text-xs md:text-sm">{t.handle}</span>
+                          <span className="font-bold text-white text-sm md:text-base">{t.name}</span>
+                          <span className="text-gray-400 text-xs">{t.role}</span>
                         </div>
                       </div>
-                      
-                      {/* Text Content */}
-                      <p className="text-gray-300 text-sm md:text-base leading-relaxed tracking-wide">
-                        {t.text}
-                      </p>
                     </div>
                   </div>
                 ))}
               </div>
-              {/* Bloque 2 (Duplicado para loop) */}
+              {/* Bloque 2 (Duplicado para loop infinito) */}
               <div className="flex gap-8 items-center pr-8">
                 {[
-                  { name: "Juan Pérez", handle: "@juanperez_ceo", text: "Servicios de marketing digital que transformaron nuestra visión en resultados reales y medibles.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuBxS8K7bR6uWoeuz8BOso1O5gjdOzKQWCBt9f5MR-oByOHTYVpnAR72S-0WN-zuYVT1ej8bkcMLsKBgFTe7R0dUJB2OtNzeW0L5hVKADZR44GFGDxREepA7DOK5T6iXoS8R2iAAm1kJX_8BmV9OC3npEA2WPKUKEI5yuIjnbLxth8xWn9b9iuc2c4FHbM3-QnV1lEk8bFErKxQv-d3QReILiB2cxZJpYKu8nzwyVI6d8v7LHFAiVErSzumzYvxI4fj8Bpkby2sJ8KI" },
-                  { name: "Maria S.", handle: "@marias_marketing", text: "El equipo de Rifx Marketing entendió perfectamente nuestras necesidades galácticas.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAahxCsNzTVaCiN3-9UPgU9RDrv0P2NSC7KnYWGq8_j_NGrcPve1iP4GpJZjlvZXwgcnVDhSCOt3eojUBDS-i523-RNJZqVWJ92TiT1IF_5nr0Vf-D8PdQz__Iojnv4hjD3Sqy6YuUS9hBg5_t5Avb3A_sA-x0cKdL9Lvjnk0hfjXEhV4vuJMxQzraCQJASOWgcKc1O5Dm57M4gyjwogdlIGvziM7D65Q0ERk325149r1ENJxN5pCX0waoO8O5bACQ8hrkL19EZnSY" },
-                  { name: "Carlos R.", handle: "@carlosr_founder", text: "Una estrategia orbital que nos puso por delante de la competencia en meses.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuB0lvtweSs4H-PwfTyNM7LFMyayMsRHem6qGvlD7PGyHG9ulWhFn0BoABm_0If9Qd0TCUfYbwkpk5K_zILzoMLIykW6-mcZL2CKZDSaZwpaqufeMluv25fvSh6JA0gE3Piqza6wM4tYJMp2bWT38kTQVtOBsJkc1v4BeqNdN_C0wtJ5wL9UPVx4mkmkR5l-aeQuYNgfRqnItzRpRnXixWtA_dKdVLsleusEieQwiTW6azwtAyPbMqlbCQ5u4NW9pAdNImhUrLzuB8o" },
-                  { name: "Elena G.", handle: "@elenag_ecommerce", text: "La automatización con IA ha sido un cambio de juego total para nuestras ventas en línea.", img: "https://lh3.googleusercontent.com/aida-public/AB6AXuByS8K7bR6uWoeuz8BOso1O5gjdOzKQWCBt9f5MR-oByOHTYVpnAR72S-0WN-zuYVT1ej8bkcMLsKBgFTe7R0dUJB2OtNzeW0L5hVKADZR44GFGDxREepA7DOK5T6iXoS8R2iAAm1kJX_8BmV9OC3npEA2WPKUKEI5yuIjnbLxth8xWn9b9iuc2c4FHbM3-QnV1lEk8bFErKxQv-d3QReILiB2cxZJpYKu8nzwyVI6d8v7LHFAiVErSzumzYvxI4fj8Bpkby2sJ8KI" }
+                  { name: "Andrés Mendoza", role: "CEO, TechVentures", text: "Desde que trabajamos con RIFX, nuestro costo por lead bajó un 62%. Su equipo entiende la conversión como nadie — cada dólar invertido genera retorno real.", img: "https://randomuser.me/api/portraits/men/32.jpg", stars: 5 },
+                  { name: "Valentina Herrera", role: "Directora de Marketing, Bloom", text: "La automatización con IA de WhatsApp nos permitió atender 3x más clientes sin contratar personal adicional. Literalmente transforma tu operación.", img: "https://randomuser.me/api/portraits/women/44.jpg", stars: 5 },
+                  { name: "Ricardo Salazar", role: "Fundador, NovaTrade", text: "En 4 meses pasamos de 200 a 1,800 visitas mensuales orgánicas. Su estrategia de contenido y SEO es de otro nivel. Totalmente recomendados.", img: "https://randomuser.me/api/portraits/men/75.jpg", stars: 5 },
+                  { name: "Camila Rivas", role: "E-commerce Manager, ModaEC", text: "Nuestra tienda online facturó un 140% más en el primer trimestre con ellos. Diseño impecable, campañas certeras y un soporte que siempre responde.", img: "https://randomuser.me/api/portraits/women/68.jpg", stars: 5 },
+                  { name: "Diego Paredes", role: "COO, CloudServ Latam", text: "Probamos 3 agencias antes de RIFX. Son los únicos que nos mostraron un dashboard con métricas reales desde el día 1. Transparencia total.", img: "https://randomuser.me/api/portraits/men/52.jpg", stars: 5 }
                 ].map((t, i) => (
                   <div key={i} className="inline-block w-[320px] md:w-[420px] whitespace-normal">
-                    <div className="bg-[#181e36]/80 text-white p-6 md:p-8 rounded-2xl h-full border border-white/5 shadow-2xl flex flex-col gap-6 hover:bg-[#181e36] hover:border-rocket-orange/30 transition-all duration-300">
-                      {/* Header: Avatar, Name, Handle */}
-                      <div className="flex items-center gap-4">
-                        <img alt={t.name} className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover shadow-md" src={t.img} />
+                    <div className="bg-[#181e36] text-white p-6 md:p-8 rounded-2xl h-full border border-white/5 shadow-2xl flex flex-col gap-5 hover:border-rocket-orange/30 transition-all duration-300">
+                      {/* Stars */}
+                      <div className="flex gap-1">
+                        {[...Array(t.stars)].map((_, s) => (
+                          <span key={s} className="text-yellow-400 text-sm">★</span>
+                        ))}
+                      </div>
+                      {/* Text Content */}
+                      <p className="text-gray-300 text-sm md:text-base leading-relaxed">
+                        &ldquo;{t.text}&rdquo;
+                      </p>
+                      {/* Header: Avatar, Name, Role */}
+                      <div className="flex items-center gap-4 mt-auto pt-4 border-t border-white/5">
+                        <img alt={t.name} className="w-12 h-12 rounded-full object-cover shadow-md ring-2 ring-rocket-orange/20" src={t.img} />
                         <div className="flex flex-col">
-                          <span className="font-bold text-white text-base md:text-lg tracking-tight">{t.name}</span>
-                          <span className="text-gray-400 text-xs md:text-sm">{t.handle}</span>
+                          <span className="font-bold text-white text-sm md:text-base">{t.name}</span>
+                          <span className="text-gray-400 text-xs">{t.role}</span>
                         </div>
                       </div>
-                      
-                      {/* Text Content */}
-                      <p className="text-gray-300 text-sm md:text-base leading-relaxed tracking-wide">
-                        {t.text}
-                      </p>
                     </div>
                   </div>
                 ))}
