@@ -79,14 +79,15 @@ export async function POST(req: NextRequest) {
     });
 
     // 2.5 Si la conversación está en modo humano (paused_*), NO responder con IA
-    if (conversation.status.startsWith('paused_')) {
-      console.log(`⏸️ Conversación pausada (modo humano) — mensaje guardado pero IA no responde`);
+    console.log(`🔎 Verificando modo humano para ${customerPhone}. Status actual: "${conversation.status}"`);
+    if (conversation.status && conversation.status.startsWith('paused_')) {
+      console.log(`⏸️ [MODO HUMANO DETECTADO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
       // Actualizar timestamp para que el panel vea el nuevo mensaje
       await supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversation.id);
-      return NextResponse.json({ status: 'paused_human_mode' });
+      return NextResponse.json({ status: 'paused_human_mode', message: 'AI is paused for this contact' });
     }
 
     // 2.6 Detectar intención de compra → mover a "interested" automáticamente

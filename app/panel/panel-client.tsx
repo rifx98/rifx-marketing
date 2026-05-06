@@ -871,19 +871,36 @@ export default function PanelClient() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={async () => {
+                          const statusMap: Record<string, string> = {
+                            'Chateando Ahora': 'chatting',
+                            'Interesado': 'interested',
+                            'Compró': 'bought',
+                            'chatting': 'chatting',
+                            'interested': 'interested',
+                            'bought': 'bought'
+                          };
+                          
                           const currentDbStatus = selectedChat.status.replace('paused_', '');
-                          // baseStatus is already chatting, interested, or bought because we now store the real db status
-                          const baseStatus = currentDbStatus;
+                          const baseStatus = statusMap[currentDbStatus] || currentDbStatus;
                           const newStatus = isHumanMode ? baseStatus : `paused_${baseStatus}`;
-                          await fetch('/api/panel/conversations', {
+                          
+                          console.log(`Switching status: ${selectedChat.status} -> ${newStatus}`);
+                          
+                          const resPatch = await fetch('/api/panel/conversations', {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ id: selectedChat!.id, status: newStatus }),
                           });
-                          setSelectedChat({ ...selectedChat!, status: newStatus });
-                          const res = await fetch('/api/panel/conversations');
-                          const data = await res.json();
-                          setConversationsData(data);
+                          
+                          if (resPatch.ok) {
+                            setSelectedChat({ ...selectedChat!, status: newStatus });
+                            const res = await fetch('/api/panel/conversations');
+                            const data = await res.json();
+                            setConversationsData(data);
+                          } else {
+                            const errData = await resPatch.json();
+                            alert(`Error al cambiar modo: ${errData.error}`);
+                          }
                         }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           isHumanMode
