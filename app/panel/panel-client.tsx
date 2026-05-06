@@ -153,13 +153,13 @@ export default function PanelClient() {
         .then(res => res.json())
         .then(data => {
           if (data.messages) {
-            // Detectar modo humano desde señales del sistema
-            const signals = data.messages.filter((m: any) => m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'));
+            // Detectar modo humano desde señales
+            const signals = data.messages.filter((m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__');
             if (signals.length > 0) {
               setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
             }
-            // Filtrar señales del sistema para no mostrarlas en el chat
-            const visibleMessages = data.messages.filter((m: any) => !(m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__')));
+            // Filtrar señales para no mostrarlas en el chat
+            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__');
             // Solo actualizar si los mensajes realmente cambiaron
             setChatMessages(prev => {
               const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
@@ -180,14 +180,14 @@ export default function PanelClient() {
       .then(data => {
         if (data.messages) {
           // Detectar modo humano
-          const signals = data.messages.filter((m: any) => m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'));
+          const signals = data.messages.filter((m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__');
           if (signals.length > 0) {
             setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
           } else {
             setIsHumanMode(false);
           }
-          // Filtrar señales del sistema
-          const visibleMessages = data.messages.filter((m: any) => !(m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__')));
+          // Filtrar señales
+          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__');
           setChatMessages(visibleMessages);
         }
         setLoadingMessages(false);

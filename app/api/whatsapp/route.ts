@@ -78,27 +78,25 @@ export async function POST(req: NextRequest) {
       content: customerMessage,
     });
 
-    // 2.5 Verificar si la conversación está en MODO HUMANO (señal del sistema)
-    const { data: latestSignal } = await supabase
+    // 2.5 Verificar si la conversación está en MODO HUMANO (señal en mensajes)
+    const { data: signalMessages } = await supabase
       .from('messages')
       .select('content')
       .eq('conversation_id', conversation.id)
-      .eq('role', 'system')
       .in('content', ['__SYSTEM_PAUSE__', '__SYSTEM_RESUME__'])
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
 
-    const isHumanMode = latestSignal?.content === '__SYSTEM_PAUSE__';
-    console.log(`🔎 Verificando modo humano para ${customerPhone}. Señal: "${latestSignal?.content || 'ninguna'}" → ${isHumanMode ? 'PAUSADO' : 'IA ACTIVA'}`);
+    const isHumanMode = signalMessages && signalMessages.length > 0 && signalMessages[0].content === '__SYSTEM_PAUSE__';
+    console.log(`🔎 Modo humano para ${customerPhone}: ${isHumanMode ? 'PAUSADO ⏸️' : 'IA ACTIVA ▶️'}`);
 
     if (isHumanMode) {
-      console.log(`⏸️ [MODO HUMANO DETECTADO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
+      console.log(`⏸️ [MODO HUMANO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
       await supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversation.id);
-      return NextResponse.json({ status: 'paused_human_mode', message: 'AI is paused for this contact' });
+      return NextResponse.json({ status: 'paused_human_mode' });
     }
 
     // 2.6 Detectar intención de compra → mover a "interested" automáticamente
@@ -141,7 +139,11 @@ export async function POST(req: NextRequest) {
     ];
     const cleanHistory = (rawHistory || [])
       .reverse() // volver a orden cronológico
-      .filter((m: { content: string }) => !errorPatterns.some(p => m.content.includes(p)));
+      .filter((m: { content: string }) => 
+        !errorPatterns.some(p => m.content.includes(p)) &&
+        m.content !== '__SYSTEM_PAUSE__' && 
+        m.content !== '__SYSTEM_RESUME__'
+      );
 
     // Limitar a los últimos 10 mensajes limpios para no exceder el contexto
     const history = cleanHistory.slice(-10);

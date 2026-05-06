@@ -3,8 +3,8 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 
 // ============================================
 // PAUSAR / REANUDAR IA PARA UNA CONVERSACIÓN
-// Usa mensajes del sistema en la tabla messages
-// para no necesitar cambios en el esquema de DB.
+// Usa mensajes con rol 'assistant' y contenido especial
+// como señal invisible. No requiere cambios de esquema.
 // ============================================
 
 const PAUSE_SIGNAL = '__SYSTEM_PAUSE__';
@@ -22,10 +22,10 @@ export async function POST(req: NextRequest) {
 
     const signal = paused ? PAUSE_SIGNAL : RESUME_SIGNAL;
 
-    // Insertar la señal del sistema en la tabla de mensajes
+    // Insertar la señal usando rol 'assistant' (permitido por la DB)
     const { error } = await supabase.from('messages').insert({
       conversation_id: conversationId,
-      role: 'system',
+      role: 'assistant',
       content: signal,
     });
 
@@ -53,18 +53,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Falta conversationId' }, { status: 400 });
     }
 
-    // Buscar la señal del sistema más reciente
-    const { data: latestSignal } = await supabase
+    const { data: messages } = await supabase
       .from('messages')
       .select('content')
       .eq('conversation_id', conversationId)
-      .eq('role', 'system')
       .in('content', [PAUSE_SIGNAL, RESUME_SIGNAL])
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
 
-    const isPaused = latestSignal?.content === PAUSE_SIGNAL;
+    const isPaused = messages && messages.length > 0 && messages[0].content === PAUSE_SIGNAL;
 
     return NextResponse.json({ paused: isPaused });
   } catch (error) {
