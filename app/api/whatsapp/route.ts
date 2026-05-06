@@ -78,6 +78,29 @@ export async function POST(req: NextRequest) {
       content: customerMessage,
     });
 
+    // 2.5 Detectar intención de compra → mover a "interested" automáticamente
+    if (conversation.status === 'chatting') {
+      const msgLower = customerMessage.toLowerCase();
+      const buyIntentKeywords = [
+        'pagar', 'precio', 'cuánto cuesta', 'cuanto cuesta', 'cuánto vale', 'cuanto vale',
+        'contratar', 'comprar', 'adquirir', 'link de pago', 'forma de pago',
+        'método de pago', 'metodo de pago', 'quiero el servicio', 'me interesa',
+        'cómo pago', 'como pago', 'dónde pago', 'donde pago', 'quiero pagar',
+        'cotización', 'cotizacion', 'presupuesto', 'invertir', 'inversión', 'inversion',
+        'quiero empezar', 'hagámoslo', 'hagamoslo', 'acepto', 'dale', 'va', 'sí quiero',
+        'si quiero', 'lo quiero', 'lo necesito', 'cuánto cobran', 'cuanto cobran',
+      ];
+
+      const hasIntent = buyIntentKeywords.some(kw => msgLower.includes(kw));
+      if (hasIntent) {
+        await supabase
+          .from('conversations')
+          .update({ status: 'interested', updated_at: new Date().toISOString() })
+          .eq('id', conversation.id);
+        console.log(`⚡ ${customerName} movido a INTERESADO (keyword detectada en: "${customerMessage.substring(0, 50)}")`);
+      }
+    }
+
     // 3. Cargar historial de mensajes (últimos 10, sin mensajes de error)
     const { data: rawHistory } = await supabase
       .from('messages')
