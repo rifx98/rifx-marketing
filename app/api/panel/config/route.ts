@@ -22,6 +22,7 @@ export async function GET() {
           payphone_token: '',
           payphone_store_id: '',
           ai_prompt: '',
+          panel_password: '',
         });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,6 +46,7 @@ export async function GET() {
       payphone_token: config.payphone_token || '',
       payphone_store_id: config.payphone_store_id || '',
       ai_prompt: config.ai_prompt || '',
+      panel_password: config.panel_password || '',
     });
   } catch (error: any) {
     console.error('❌ Error obteniendo config:', error);
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    const validFields = ['whatsapp_token', 'whatsapp_phone_id', 'openai_key', 'payphone_token', 'payphone_store_id', 'ai_prompt'];
+    const validFields = ['whatsapp_token', 'whatsapp_phone_id', 'openai_key', 'payphone_token', 'payphone_store_id', 'ai_prompt', 'panel_password'];
     for (const field of validFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];

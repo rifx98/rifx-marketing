@@ -90,6 +90,16 @@ export default function PanelClient() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  // Estados para cambio de contraseña
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+
   // Estados para datos reales
   const [conversationsData, setConversationsData] = useState<any>(null);
   const [statsData, setStatsData] = useState<any>(null);
@@ -97,7 +107,8 @@ export default function PanelClient() {
     whatsapp_token: '',
     whatsapp_phone_id: '',
     openai_key: '',
-    ai_prompt: ''
+    ai_prompt: '',
+    panel_password: '',
   });
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
   const [showOpenAiKey, setShowOpenAiKey] = useState(false);
@@ -133,6 +144,7 @@ export default function PanelClient() {
                payphone_token: data.payphone_token || '',
                payphone_store_id: data.payphone_store_id || '',
                ai_prompt: data.ai_prompt || '',
+               panel_password: data.panel_password || '',
              });
            }
         })
@@ -260,18 +272,75 @@ export default function PanelClient() {
     }
   }, [chatMessages]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
-    setTimeout(() => {
+    try {
+      // Verificar contraseña contra la DB
+      const res = await fetch('/api/panel/config');
+      const config = await res.json();
+      const storedPassword = config.panel_password || 'rifx2026'; // Default si no hay contraseña en DB
+      
+      if (loginUser === 'admin' && loginPass === storedPassword) {
+        setIsLoggedIn(true);
+      } else {
+        setLoginError('Usuario o contraseña incorrectos');
+      }
+    } catch {
+      // Fallback si no se puede conectar a la DB
       if (loginUser === 'admin' && loginPass === 'rifx2026') {
         setIsLoggedIn(true);
       } else {
         setLoginError('Usuario o contraseña incorrectos');
       }
-      setIsLoggingIn(false);
-    }, 1000);
+    }
+    setIsLoggingIn(false);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess(false);
+
+    // Validaciones
+    const storedPassword = configData.panel_password || 'rifx2026';
+    if (currentPassword !== storedPassword) {
+      setPasswordError('La contraseña actual no es correcta');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('La nueva contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Las contraseñas no coinciden');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const res = await fetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ panel_password: newPassword }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setPasswordSuccess(true);
+        setConfigData({ ...configData, panel_password: newPassword });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setTimeout(() => setPasswordSuccess(false), 5000);
+      } else {
+        setPasswordError(result.error || 'Error al cambiar la contraseña');
+      }
+    } catch (err: any) {
+      setPasswordError(err?.message || 'Error de conexión');
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -786,6 +855,20 @@ export default function PanelClient() {
 
                   <div className="space-y-8 relative z-10">
                     
+                    {/* ⚠️ Advertencia de APIs */}
+                    <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-amber-300 font-bold text-sm">⚠️ Zona Sensible — APIs del Chatbot</h4>
+                        <p className="text-amber-400/70 text-xs mt-1 leading-relaxed">
+                          Modificar las API Keys o el Prompt puede hacer que el chatbot de WhatsApp <strong className="text-amber-300">deje de funcionar</strong>. 
+                          Solo cambia estos valores si estás seguro de lo que haces. Si tienes dudas, contacta al equipo técnico.
+                        </p>
+                      </div>
+                    </div>
+
                     {/* WhatsApp Section */}
                     <div>
                       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-white/10 pb-2">
@@ -935,6 +1018,120 @@ export default function PanelClient() {
 
                   </div>
                 </form>
+
+                {/* 🔐 Cambiar Contraseña */}
+                <form onSubmit={handleChangePassword} className="mt-6 bg-white/[0.02] border border-white/10 rounded-2xl p-8 backdrop-blur-md relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
+                  
+                  <div className="relative z-10">
+                    <h3 className="text-xl font-semibold mb-2 flex items-center gap-2 border-b border-white/10 pb-2">
+                      <Lock className="w-5 h-5 text-emerald-400" />
+                      Cambiar Contraseña del Panel
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-6">Cambia tu contraseña de acceso al dashboard de administración.</p>
+
+                    <div className="space-y-4 max-w-md">
+                      {/* Contraseña actual */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Contraseña Actual</label>
+                        <div className="relative">
+                          <input 
+                            type={showCurrentPw ? "text" : "password"}
+                            value={currentPassword}
+                            onChange={e => setCurrentPassword(e.target.value)}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                            placeholder="Ingresa tu contraseña actual"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentPw(!showCurrentPw)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                          >
+                            {showCurrentPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Nueva contraseña */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Nueva Contraseña</label>
+                        <div className="relative">
+                          <input 
+                            type={showNewPw ? "text" : "password"}
+                            value={newPassword}
+                            onChange={e => setNewPassword(e.target.value)}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                            placeholder="Mínimo 6 caracteres"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPw(!showNewPw)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                          >
+                            {showNewPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Confirmar contraseña */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Confirmar Nueva Contraseña</label>
+                        <input 
+                          type="password"
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                          placeholder="Repite la nueva contraseña"
+                        />
+                      </div>
+
+                      {/* Botón + Mensajes */}
+                      <div className="pt-2 space-y-3">
+                        <button 
+                          type="submit"
+                          disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          {changingPassword ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <ShieldCheck className="w-4 h-4" />
+                          )}
+                          {changingPassword ? 'Cambiando...' : 'Cambiar Contraseña'}
+                        </button>
+
+                        <AnimatePresence>
+                          {passwordSuccess && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 rounded-xl"
+                            >
+                              <CheckCircle2 className="w-5 h-5 shrink-0" />
+                              <span>¡Contraseña actualizada correctamente! Usa la nueva contraseña en tu próximo inicio de sesión.</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <AnimatePresence>
+                          {passwordError && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl"
+                            >
+                              <X className="w-5 h-5 shrink-0" />
+                              <span>{passwordError}</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+
               </motion.div>
             )}
           </AnimatePresence>
