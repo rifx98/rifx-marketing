@@ -38,8 +38,8 @@ export default function EntryAnimation() {
       <img 
         src="/images/mars-user.png"
         alt="Mars Planet"
-        className="absolute w-48 h-48 md:w-80 md:h-80 object-contain animate-flare-erupt opacity-0 blur-[2px] z-10"
-        style={{ backfaceVisibility: 'hidden', willChange: 'transform, opacity' }}
+        className="absolute w-48 h-48 md:w-80 md:h-80 object-contain animate-flare-erupt opacity-0 z-10"
+        style={{ backfaceVisibility: 'hidden', willChange: 'transform, opacity', animationTimingFunction: 'ease-in-out' }}
       />
 
       <div className="relative flex flex-col items-center z-20">

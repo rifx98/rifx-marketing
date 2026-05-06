@@ -121,9 +121,9 @@
 
   /* Motion Graphics Cinematic Intro */
   @keyframes erupt-flare {
-    0% { transform: translate3d(0,0,0) scale(0); opacity: 0; filter: blur(10px); }
-    30% { transform: translate3d(0,0,0) scale(1.2); opacity: 1; filter: blur(2px); }
-    100% { transform: translate3d(0,0,0) scale(2.8); opacity: 0.3; filter: blur(8px); }
+    0% { transform: translate3d(0,0,0) scale(0); opacity: 0; }
+    40% { transform: translate3d(0,0,0) scale(1.4); opacity: 1; }
+    100% { transform: translate3d(0,0,0) scale(3); opacity: 0; }
   }
 
   @keyframes text-3d-fly {
