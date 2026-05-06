@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     if (!groqKey) {
       console.error('❌ No hay API Key de Groq configurada');
-      await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏');
+      await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config);
       return NextResponse.json({ error: 'No Groq key' }, { status: 500 });
     }
 
