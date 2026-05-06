@@ -76,6 +76,8 @@ export default function PanelClient() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevMsgCountRef = useRef(0);
+  const [manualMsg, setManualMsg] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
   const [showChartModal, setShowChartModal] = useState(false);
   const [calMonth, setCalMonth] = useState(4);
   const [calYear, setCalYear] = useState(2026);
@@ -849,25 +851,54 @@ export default function PanelClient() {
                   className="bg-[#0f0f0f] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[600px]"
                 >
                   {/* Header */}
+                  {(() => {
+                    const isHumanMode = selectedChat.status.startsWith('paused_') || selectedChat.status.includes('paused');
+                    return (
                   <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isHumanMode ? 'bg-gradient-to-tr from-orange-500 to-amber-500' : 'bg-gradient-to-tr from-purple-600 to-blue-600'}`}>
                         <User className="w-5 h-5 text-white" />
                       </div>
                       <div>
                         <h3 className="font-bold text-white">{selectedChat.name}</h3>
-                        <p className="text-xs text-emerald-400 flex items-center gap-1">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                          En línea (IA asignada)
+                        <p className={`text-xs flex items-center gap-1 ${isHumanMode ? 'text-orange-400' : 'text-emerald-400'}`}>
+                          <span className={`w-2 h-2 rounded-full animate-pulse ${isHumanMode ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
+                          {isHumanMode ? '👤 Modo Humano (IA pausada)' : '🤖 IA respondiendo'}
                         </p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => setSelectedChat(null)}
-                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      <X className="w-5 h-5 text-gray-400" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          const currentDbStatus = selectedChat.status.replace('paused_', '');
+                          const baseStatus = currentDbStatus === 'Chateando Ahora' ? 'chatting' : currentDbStatus === 'Interesado' ? 'interested' : currentDbStatus === 'Compró' ? 'bought' : currentDbStatus;
+                          const newStatus = isHumanMode ? baseStatus : `paused_${baseStatus}`;
+                          await fetch('/api/panel/conversations', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: selectedChat!.id, status: newStatus }),
+                          });
+                          const displayStatus = selectedChat.status.replace('paused_', '');
+                          setSelectedChat({ ...selectedChat!, status: isHumanMode ? displayStatus : `paused_${displayStatus}` });
+                          const res = await fetch('/api/panel/conversations');
+                          const data = await res.json();
+                          setConversationsData(data);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          isHumanMode
+                            ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                            : 'bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30'
+                        }`}
+                      >
+                        {isHumanMode ? '🤖 Devolver a IA' : '👤 Tomar Control'}
+                      </button>
+                      <button 
+                        onClick={() => setSelectedChat(null)}
+                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      >
+                        <X className="w-5 h-5 text-gray-400" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Chat Area — Mensajes Reales */}
@@ -981,18 +1012,75 @@ export default function PanelClient() {
                     </div>
                   </div>
 
-                  {/* Input area (read only for now) */}
+                  {/* Input area */}
                   <div className="p-4 border-t border-white/5 bg-white/[0.01] flex gap-2 items-center">
-                    <input 
-                      type="text" 
-                      placeholder="La IA está respondiendo automáticamente..." 
-                      className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
-                      readOnly
-                    />
-                    <div className="w-10 h-10 rounded-xl bg-purple-600/50 flex items-center justify-center opacity-50 cursor-not-allowed">
-                       <Zap className="w-4 h-4 text-white" />
-                    </div>
+                    {isHumanMode ? (
+                      <>
+                        <input 
+                          type="text" 
+                          value={manualMsg}
+                          onChange={(e) => setManualMsg(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter' && manualMsg.trim() && !sendingMsg) {
+                              setSendingMsg(true);
+                              await fetch('/api/panel/send-message', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
+                              });
+                              setManualMsg('');
+                              // Refrescar mensajes
+                              const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
+                              const data = await res.json();
+                              if (data.messages) setChatMessages(data.messages);
+                              setSendingMsg(false);
+                            }
+                          }}
+                          placeholder="Escribe tu mensaje..." 
+                          className="flex-1 bg-black/50 border border-orange-500/30 rounded-xl px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500/60 focus:outline-none"
+                          disabled={sendingMsg}
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!manualMsg.trim() || sendingMsg) return;
+                            setSendingMsg(true);
+                            await fetch('/api/panel/send-message', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
+                            });
+                            setManualMsg('');
+                            const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
+                            const data = await res.json();
+                            if (data.messages) setChatMessages(data.messages);
+                            setSendingMsg(false);
+                          }}
+                          disabled={sendingMsg || !manualMsg.trim()}
+                          className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {sendingMsg ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Zap className="w-4 h-4 text-white" />
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <input 
+                          type="text" 
+                          placeholder="La IA está respondiendo automáticamente... (clic en 'Tomar Control' para escribir)" 
+                          className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+                          readOnly
+                        />
+                        <div className="w-10 h-10 rounded-xl bg-purple-600/50 flex items-center justify-center opacity-50 cursor-not-allowed">
+                          <Zap className="w-4 h-4 text-white" />
+                        </div>
+                      </>
+                    )}
                   </div>
+                  );
+                  })()}
                 </motion.div>
               </motion.div>
             )}

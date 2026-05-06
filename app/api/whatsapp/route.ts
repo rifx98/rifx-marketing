@@ -78,8 +78,20 @@ export async function POST(req: NextRequest) {
       content: customerMessage,
     });
 
-    // 2.5 Detectar intención de compra → mover a "interested" automáticamente
-    if (conversation.status === 'chatting') {
+    // 2.5 Si la conversación está en modo humano (paused_*), NO responder con IA
+    if (conversation.status.startsWith('paused_')) {
+      console.log(`⏸️ Conversación pausada (modo humano) — mensaje guardado pero IA no responde`);
+      // Actualizar timestamp para que el panel vea el nuevo mensaje
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversation.id);
+      return NextResponse.json({ status: 'paused_human_mode' });
+    }
+
+    // 2.6 Detectar intención de compra → mover a "interested" automáticamente
+    const realStatus = conversation.status.replace('paused_', '');
+    if (realStatus === 'chatting') {
       const msgLower = customerMessage.toLowerCase();
       const buyIntentKeywords = [
         'pagar', 'precio', 'cuánto cuesta', 'cuanto cuesta', 'cuánto vale', 'cuanto vale',

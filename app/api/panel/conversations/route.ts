@@ -34,9 +34,9 @@ export async function GET(req: NextRequest) {
       .select('*')
       .order('updated_at', { ascending: false });
 
-    const chatting = (conversations || []).filter((c) => c.status === 'chatting');
-    const interested = (conversations || []).filter((c) => c.status === 'interested');
-    const bought = (conversations || []).filter((c) => c.status === 'bought');
+    const chatting = (conversations || []).filter((c) => c.status === 'chatting' || c.status === 'paused_chatting');
+    const interested = (conversations || []).filter((c) => c.status === 'interested' || c.status === 'paused_interested');
+    const bought = (conversations || []).filter((c) => c.status === 'bought' || c.status === 'paused_bought');
 
     return NextResponse.json({ chatting, interested, bought });
   } catch (error) {
@@ -55,7 +55,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan id o status' }, { status: 400 });
     }
 
-    const validStatuses = ['chatting', 'interested', 'bought'];
+    const validStatuses = [
+      'chatting', 'interested', 'bought',
+      'paused_chatting', 'paused_interested', 'paused_bought',
+    ];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
     }
