@@ -78,6 +78,7 @@ export default function PanelClient() {
   const prevMsgCountRef = useRef(0);
   const [manualMsg, setManualMsg] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [isHumanMode, setIsHumanMode] = useState(false);
   const [showChartModal, setShowChartModal] = useState(false);
   const [calMonth, setCalMonth] = useState(4);
   const [calYear, setCalYear] = useState(2026);
@@ -152,14 +153,21 @@ export default function PanelClient() {
         .then(res => res.json())
         .then(data => {
           if (data.messages) {
+            // Detectar modo humano desde señales del sistema
+            const signals = data.messages.filter((m: any) => m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'));
+            if (signals.length > 0) {
+              setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
+            }
+            // Filtrar señales del sistema para no mostrarlas en el chat
+            const visibleMessages = data.messages.filter((m: any) => !(m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__')));
             // Solo actualizar si los mensajes realmente cambiaron
             setChatMessages(prev => {
               const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
-              const newLastId = data.messages.length > 0 ? data.messages[data.messages.length - 1]?.id : null;
-              if (prev.length === data.messages.length && prevLastId === newLastId) {
-                return prev; // Sin cambios, no re-renderizar
+              const newLastId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1]?.id : null;
+              if (prev.length === visibleMessages.length && prevLastId === newLastId) {
+                return prev;
               }
-              return data.messages;
+              return visibleMessages;
             });
           }
         })
@@ -171,7 +179,16 @@ export default function PanelClient() {
       .then(res => res.json())
       .then(data => {
         if (data.messages) {
-          setChatMessages(data.messages);
+          // Detectar modo humano
+          const signals = data.messages.filter((m: any) => m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'));
+          if (signals.length > 0) {
+            setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
+          } else {
+            setIsHumanMode(false);
+          }
+          // Filtrar señales del sistema
+          const visibleMessages = data.messages.filter((m: any) => !(m.role === 'system' && (m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__')));
+          setChatMessages(visibleMessages);
         }
         setLoadingMessages(false);
       })
@@ -852,7 +869,6 @@ export default function PanelClient() {
                 >
                   {/* Header */}
                   {(() => {
-                    const isHumanMode = selectedChat.status.startsWith('paused_') || selectedChat.status.includes('paused');
                     return (
                       <>
                         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
@@ -871,32 +887,16 @@ export default function PanelClient() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={async () => {
-                          const statusMap: Record<string, string> = {
-                            'Chateando Ahora': 'chatting',
-                            'Interesado': 'interested',
-                            'Compró': 'bought',
-                            'chatting': 'chatting',
-                            'interested': 'interested',
-                            'bought': 'bought'
-                          };
+                          const newPaused = !isHumanMode;
                           
-                          const currentDbStatus = selectedChat.status.replace('paused_', '');
-                          const baseStatus = statusMap[currentDbStatus] || currentDbStatus;
-                          const newStatus = isHumanMode ? baseStatus : `paused_${baseStatus}`;
-                          
-                          console.log(`Switching status: ${selectedChat.status} -> ${newStatus}`);
-                          
-                          const resPatch = await fetch('/api/panel/conversations', {
-                            method: 'PATCH',
+                          const resPatch = await fetch('/api/panel/pause', {
+                            method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: selectedChat!.id, status: newStatus }),
+                            body: JSON.stringify({ conversationId: selectedChat!.id, paused: newPaused }),
                           });
                           
                           if (resPatch.ok) {
-                            setSelectedChat({ ...selectedChat!, status: newStatus });
-                            const res = await fetch('/api/panel/conversations');
-                            const data = await res.json();
-                            setConversationsData(data);
+                            setIsHumanMode(newPaused);
                           } else {
                             const errData = await resPatch.json();
                             alert(`Error al cambiar modo: ${errData.error}`);

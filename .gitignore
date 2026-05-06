@@ -4,3 +4,5 @@ opencode.json
 node_modules/
 .next/
 .tina/__generated__/
+
+.vercel

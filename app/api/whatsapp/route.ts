@@ -78,11 +78,22 @@ export async function POST(req: NextRequest) {
       content: customerMessage,
     });
 
-    // 2.5 Si la conversación está en modo humano (paused_*), NO responder con IA
-    console.log(`🔎 Verificando modo humano para ${customerPhone}. Status actual: "${conversation.status}"`);
-    if (conversation.status && conversation.status.startsWith('paused_')) {
+    // 2.5 Verificar si la conversación está en MODO HUMANO (señal del sistema)
+    const { data: latestSignal } = await supabase
+      .from('messages')
+      .select('content')
+      .eq('conversation_id', conversation.id)
+      .eq('role', 'system')
+      .in('content', ['__SYSTEM_PAUSE__', '__SYSTEM_RESUME__'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const isHumanMode = latestSignal?.content === '__SYSTEM_PAUSE__';
+    console.log(`🔎 Verificando modo humano para ${customerPhone}. Señal: "${latestSignal?.content || 'ninguna'}" → ${isHumanMode ? 'PAUSADO' : 'IA ACTIVA'}`);
+
+    if (isHumanMode) {
       console.log(`⏸️ [MODO HUMANO DETECTADO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
-      // Actualizar timestamp para que el panel vea el nuevo mensaje
       await supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })

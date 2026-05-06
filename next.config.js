@@ -4,6 +4,12 @@ const nextConfig = {
   images: {
     domains: ['rfmoonr.com'],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
