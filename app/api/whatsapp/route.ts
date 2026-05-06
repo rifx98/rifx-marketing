@@ -123,6 +123,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 2.7 Detectar solicitud de hablar con un humano → insertar alerta
+    const msgLowerHuman = customerMessage.toLowerCase();
+    const humanRequestKeywords = [
+      'hablar con un humano', 'hablar con una persona', 'hablar con alguien',
+      'quiero hablar con un humano', 'quiero un humano', 'persona real',
+      'agente real', 'agente humano', 'operador', 'asesor real',
+      'no quiero hablar con un bot', 'no quiero un bot', 'no eres real',
+      'eres un robot', 'eres un bot', 'quiero hablar con un asesor',
+      'necesito hablar con alguien', 'comunícame con alguien', 'comunicame con alguien',
+      'pásame con un humano', 'pasame con un humano', 'con una persona',
+      'quiero atención humana', 'quiero atencion humana', 'representante',
+    ];
+
+    const wantsHuman = humanRequestKeywords.some(kw => msgLowerHuman.includes(kw));
+    if (wantsHuman) {
+      // Insertar señal de alerta para el panel
+      await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: '__HUMAN_REQUEST__',
+      });
+      console.log(`🚨 ${customerName} (${customerPhone}) solicita hablar con un HUMANO`);
+    }
+
     // 3. Cargar historial de mensajes (últimos 10, sin mensajes de error)
     const { data: rawHistory } = await supabase
       .from('messages')
@@ -142,7 +166,8 @@ export async function POST(req: NextRequest) {
       .filter((m: { content: string }) => 
         !errorPatterns.some(p => m.content.includes(p)) &&
         m.content !== '__SYSTEM_PAUSE__' && 
-        m.content !== '__SYSTEM_RESUME__'
+        m.content !== '__SYSTEM_RESUME__' &&
+        m.content !== '__HUMAN_REQUEST__'
       );
 
     // Limitar a los últimos 10 mensajes limpios para no exceder el contexto

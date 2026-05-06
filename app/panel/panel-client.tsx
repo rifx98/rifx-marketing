@@ -22,7 +22,9 @@ import {
   Lock,
   Eye,
   EyeOff,
-  ShieldCheck
+  ShieldCheck,
+  Bell,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -79,6 +81,7 @@ export default function PanelClient() {
   const [manualMsg, setManualMsg] = useState('');
   const [sendingMsg, setSendingMsg] = useState(false);
   const [isHumanMode, setIsHumanMode] = useState(false);
+  const [humanAlerts, setHumanAlerts] = useState<{id: string, name: string, time: string}[]>([]);
   const [showChartModal, setShowChartModal] = useState(false);
   const [calMonth, setCalMonth] = useState(4);
   const [calYear, setCalYear] = useState(2026);
@@ -104,7 +107,11 @@ export default function PanelClient() {
       // Cargar CRM
       fetch('/api/panel/conversations')
         .then(res => res.json())
-        .then(data => setConversationsData(data))
+        .then(data => {
+          setConversationsData(data);
+          // Detectar alertas de solicitud de humano
+          checkHumanAlerts(data);
+        })
         .catch(console.error);
       
       // Cargar Estadísticas
@@ -133,12 +140,49 @@ export default function PanelClient() {
 
       // Refrescar cada 10 segundos
       const interval = setInterval(() => {
-        fetch('/api/panel/conversations').then(res => res.json()).then(data => setConversationsData(data));
+        fetch('/api/panel/conversations').then(res => res.json()).then(data => {
+          setConversationsData(data);
+          checkHumanAlerts(data);
+        });
         fetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
       }, 10000);
       return () => clearInterval(interval);
     }
   }, [isLoggedIn]);
+
+  // Función para detectar solicitudes de humano en las conversaciones
+  const checkHumanAlerts = async (data: any) => {
+    if (!data) return;
+    const allConvs = [...(data.chatting || []), ...(data.interested || []), ...(data.bought || [])];
+    const newAlerts: {id: string, name: string, time: string}[] = [];
+    
+    for (const conv of allConvs) {
+      try {
+        const res = await fetch(`/api/panel/conversations?id=${conv.id}`);
+        const convData = await res.json();
+        if (convData.messages) {
+          const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
+          // Solo alertar si hay solicitud Y la conversación no está ya en modo humano
+          if (hasHumanReq) {
+            // Verificar que no hay un __SYSTEM_PAUSE__ más reciente que el __HUMAN_REQUEST__
+            const lastHumanReq = [...convData.messages].reverse().findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
+            const lastPause = [...convData.messages].reverse().findIndex((m: any) => m.content === '__SYSTEM_PAUSE__');
+            if (lastPause === -1 || lastHumanReq < lastPause) {
+              newAlerts.push({
+                id: conv.id,
+                name: conv.customer_name,
+                time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Silenciar errores individuales
+      }
+    }
+    
+    setHumanAlerts(newAlerts);
+  };
 
   // Cargar mensajes reales cuando se selecciona un chat
   React.useEffect(() => {
@@ -159,7 +203,7 @@ export default function PanelClient() {
               setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
             }
             // Filtrar señales para no mostrarlas en el chat
-            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__');
+            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__');
             // Solo actualizar si los mensajes realmente cambiaron
             setChatMessages(prev => {
               const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
@@ -187,7 +231,7 @@ export default function PanelClient() {
             setIsHumanMode(false);
           }
           // Filtrar señales
-          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__');
+          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__');
           setChatMessages(visibleMessages);
         }
         setLoadingMessages(false);
@@ -581,8 +625,50 @@ export default function PanelClient() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.4 }}
-                className="grid grid-cols-1 md:grid-cols-3 gap-6"
+                className="space-y-4"
               >
+                {/* 🚨 Human Request Alerts */}
+                <AnimatePresence>
+                  {humanAlerts.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="bg-gradient-to-r from-red-500/20 via-orange-500/15 to-red-500/20 border border-red-500/40 rounded-2xl p-4 backdrop-blur-sm"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-8 h-8 rounded-full bg-red-500/30 flex items-center justify-center animate-pulse">
+                          <Bell className="w-4 h-4 text-red-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-red-300 text-sm">🚨 Solicitud de Atención Humana</h4>
+                          <p className="text-xs text-red-400/70">{humanAlerts.length} cliente{humanAlerts.length > 1 ? 's' : ''} pidiendo hablar con un humano</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {humanAlerts.map((alert) => (
+                          <div key={alert.id} className="flex items-center justify-between bg-black/30 rounded-xl px-4 py-2.5 border border-red-500/20">
+                            <div className="flex items-center gap-3">
+                              <AlertTriangle className="w-4 h-4 text-orange-400" />
+                              <div>
+                                <p className="text-sm font-medium text-white">{alert.name}</p>
+                                <p className="text-[10px] text-gray-400">Solicitó a las {alert.time}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setSelectedChat({id: alert.id, name: alert.name, status: 'chatting'})}
+                              className="px-3 py-1.5 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-xs font-medium text-orange-300 transition-all"
+                            >
+                              👤 Atender
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Column 1: Chateando */}
                 <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[70vh]">
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
@@ -680,6 +766,7 @@ export default function PanelClient() {
                       </div>
                     ))}
                   </div>
+                </div>
                 </div>
               </motion.div>
             )}

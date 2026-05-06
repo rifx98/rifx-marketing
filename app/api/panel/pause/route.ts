@@ -36,6 +36,56 @@ export async function POST(req: NextRequest) {
 
     console.log(`${paused ? '⏸️' : '▶️'} Conversación ${conversationId} ${paused ? 'PAUSADA' : 'REANUDADA'} por humano`);
 
+    // Si estamos REANUDANDO la IA, enviar mensaje al cliente por WhatsApp
+    if (!paused) {
+      try {
+        // Obtener la conversación para saber el número
+        const { data: conversation } = await supabase
+          .from('conversations')
+          .select('phone_number, customer_name')
+          .eq('id', conversationId)
+          .single();
+
+        if (conversation) {
+          // Obtener credenciales de WhatsApp
+          const { data: config } = await supabase.from('config').select('*').limit(1).single();
+          const token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
+          const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+          if (token && phoneId) {
+            const resumeMessage = '¡Hola! 🤖 Nuestro asistente de IA retoma la conversación. ¿En qué más puedo ayudarte?';
+
+            // Enviar por WhatsApp
+            await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                messaging_product: 'whatsapp',
+                to: conversation.phone_number,
+                type: 'text',
+                text: { body: resumeMessage },
+              }),
+            });
+
+            // Guardar en historial
+            await supabase.from('messages').insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: resumeMessage,
+            });
+
+            console.log(`🤖 Mensaje de reanudación enviado a ${conversation.customer_name}`);
+          }
+        }
+      } catch (resumeErr) {
+        console.error('⚠️ Error enviando mensaje de reanudación (no crítico):', resumeErr);
+        // No fallar por esto, la señal ya se insertó
+      }
+    }
+
     return NextResponse.json({ success: true, paused });
   } catch (error) {
     console.error('❌ Error en pause:', error);
