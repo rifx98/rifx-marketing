@@ -1,386 +1,364 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import ContactChannels from '../../components/ContactChannels';
 import TrainCTA from '../../components/TrainCTA';
 
 export default function WhatsAppAI() {
+  const [activeFaq, setActiveFaq] = useState<number | null>(0);
+
   return (
     <>
       <style jsx global>{`
         body { font-family: 'Montserrat', sans-serif; }
         .font-space { font-family: 'Space Grotesk', sans-serif; }
-        .selection-orange::selection { background-color: #f27121; color: white; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0b1229; }
-        ::-webkit-scrollbar-thumb { background: #181e36; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #f27121; }
-        
         .glass { background: rgba(24, 30, 54, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .glass-hover:hover { background: rgba(24, 30, 54, 0.6); border-color: rgba(242, 113, 33, 0.3); }
-        .text-gradient { background: linear-gradient(to right, #ffb692, #f27121); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .glass-hover:hover { background: rgba(24, 30, 54, 0.6); border-color: rgba(37, 211, 102, 0.3); }
+        .text-gradient-wa { background: linear-gradient(to right, #25d366, #128c7e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .text-gradient-orange { background: linear-gradient(to right, #ffb692, #f27121); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        @keyframes float-slow { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        .animate-float { animation: float-slow 4s ease-in-out infinite; }
+        @keyframes typing { 0%, 60%, 100% { opacity: 1; } 30% { opacity: 0; } }
+        .typing-dot { animation: typing 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
       `}</style>
 
-      {/* External Resources */}
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
       <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&display=swap" rel="stylesheet"/>
 
-      <div className="bg-[#0b1229] text-[#dce1ff] selection-orange antialiased overflow-x-hidden min-h-screen">
-
+      <div className="bg-[#0b1229] text-[#dce1ff] antialiased overflow-x-hidden min-h-screen">
         <main className="pt-20">
-          {/* Hero Section */}
-          <section className="relative min-h-[85vh] flex items-center px-6 py-20 max-w-7xl mx-auto">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <div className="z-10">
-                <div className="inline-flex items-center px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-[#ffb692] text-[10px] font-bold tracking-[0.3em] uppercase mb-8">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#f27121] mr-2 animate-pulse"></span>
-                  WhatsApp 2.0 Integration
+
+          {/* ── HERO ── */}
+          <section className="relative min-h-[90vh] flex items-center px-6 py-20 overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-1/3 right-1/4 w-[400px] h-[400px] bg-green-500/10 rounded-full blur-[100px]" />
+              <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-[#f27121]/8 rounded-full blur-[80px]" />
+            </div>
+
+            <div className="max-w-7xl mx-auto w-full grid lg:grid-cols-2 gap-16 items-center z-10">
+              {/* Left: Copy */}
+              <div>
+                <div className="inline-flex items-center px-4 py-2 rounded-full bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-bold tracking-widest uppercase mb-8">
+                  <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse" />
+                  Automatización con Inteligencia Artificial
                 </div>
-                <h1 className="text-5xl md:text-7xl leading-[1] mb-8 text-white font-title">
-                  Vende en <span className="text-gradient">Piloto Automático</span> con IA
+                <h1 className="text-5xl md:text-6xl lg:text-7xl leading-[1.05] mb-6 text-white font-title">
+                  Tu negocio vendiendo<br />
+                  <span className="text-gradient-wa">las 24 horas</span>,<br />
+                  sin que estés presente.
                 </h1>
-                <p className="text-lg text-slate-400 leading-relaxed mb-12 max-w-lg">
-                  Filtre a los curiosos y concéntrese en los compradores. Nuestros agentes de IA califican leads en tiempo real, cerrando ventas y fidelizando clientes sin perder ni un segundo de su tiempo.
+                <p className="text-lg text-slate-400 leading-relaxed mb-10 max-w-lg">
+                  Instalamos un <strong className="text-white">asistente de IA en tu WhatsApp</strong> que responde clientes, califica prospectos y cierra ventas automáticamente — mientras tú duermes, trabajas o descansas.
                 </p>
+
+                <div className="flex flex-wrap gap-4 mb-10">
+                  {[
+                    { icon: '✅', text: 'Respuestas en segundos' },
+                    { icon: '🤖', text: 'IA entrenada con tu negocio' },
+                    { icon: '📲', text: 'WhatsApp + Instagram + Web' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full text-sm text-slate-300">
+                      <span>{item.icon}</span>
+                      <span>{item.text}</span>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex flex-wrap gap-4">
-                  <button onClick={() => document.getElementById('train-cta')?.scrollIntoView({ behavior: 'smooth' })} className="bg-[#f27121] text-white px-10 py-5 rounded-xl font-bold text-base hover:shadow-[0_0_40px_rgba(242,113,33,0.3)] transition-all duration-300">
-                    Sincronizar IA
+                  <button
+                    onClick={() => document.getElementById('train-cta')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="bg-[#25d366] text-white px-10 py-5 rounded-xl font-bold text-base hover:shadow-[0_0_40px_rgba(37,211,102,0.4)] transition-all duration-300 uppercase tracking-widest"
+                  >
+                    Quiero Automatizar mi WhatsApp 🤖
                   </button>
-                  <button className="bg-white/5 border border-white/10 px-10 py-5 rounded-xl font-bold text-base backdrop-blur-md hover:bg-white/10 transition-all">
-                    Ver Demo
-                  </button>
+                  <a
+                    href="#como-funciona"
+                    className="bg-white/5 border border-white/10 px-10 py-5 rounded-xl font-bold text-base hover:bg-white/10 transition-all uppercase tracking-widest text-white"
+                  >
+                    Ver Cómo Funciona
+                  </a>
                 </div>
               </div>
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-tr from-[#f27121]/30 via-transparent to-blue-500/20 blur-[120px]"></div>
-                <div className="relative glass rounded-[2.5rem] p-4 border-white/10 overflow-hidden group">
-                  <img 
-                    alt="AI Interface" 
-                    className="w-full h-auto rounded-[1.8rem] grayscale-[0.2] group-hover:grayscale-0 transition-all duration-700 shadow-2xl" 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAV9rgTrJwGGxUA576fPaedvkn1O4betvvfrU8MNoToz93WFzLz-0R5zy59YUlQkEt3X1m_fme0o0sf1V-N-B9rArfr9bQkb201B9CfUOecxRoPCEZlMHBv_Dv4sSn88mxO96DA6isYvmcm5ED9VsKPlw6MQIq3x3IW_Y_8PXJ72FCP2-Q5MwV2RMi1oeFAJncY5ivCXycBKLSYzFfCqtL7hCEUOVDplsi6cBFnY_LPinx3xUDoHXLsEHXg8R_9QUI4mcw_N8bSLoU" 
-                  />
-                  <div className="absolute bottom-10 left-10 right-10 p-6 glass rounded-2xl border-white/10 transform translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-                    <div className="flex items-center gap-4">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                      <span className="text-xs font-space font-bold uppercase tracking-widest">IA Operativa - 99.9% Uptime</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
 
-          {/* Por qué nos eligen */}
-          <section className="py-32 px-6 max-w-7xl mx-auto">
-            <div className="text-center mb-20">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 font-space tracking-tight">Efectividad Demostrada</h2>
-              <p className="text-slate-400 max-w-2xl mx-auto text-lg">Impulsamos el crecimiento mediante arquitectura de datos optimizada para conversión.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="glass glass-hover p-12 rounded-[2.5rem] transition-all duration-500 flex flex-col items-start group">
-                <div className="bg-orange-500/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-[#f27121] text-3xl">shopping_cart</span>
-                </div>
-                <div className="text-5xl font-bold text-white mb-3 font-space tracking-tighter">30%</div>
-                <h3 className="text-lg font-bold text-[#ffb692] mb-6 font-space uppercase tracking-widest">Recuperación</h3>
-                <p className="text-slate-400 leading-relaxed text-sm">Estrategias de retención automática que rescatan carritos abandonados en tiempo real.</p>
-              </div>
-              <div className="glass glass-hover p-12 rounded-[2.5rem] transition-all duration-500 flex flex-col items-start group">
-                <div className="bg-blue-500/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-blue-400 text-3xl">trending_up</span>
-                </div>
-                <div className="text-5xl font-bold text-white mb-3 font-space tracking-tighter">+100%</div>
-                <h3 className="text-lg font-bold text-blue-400 mb-6 font-space uppercase tracking-widest">Crecimiento</h3>
-                <p className="text-slate-400 leading-relaxed text-sm">Escale su volumen operativo sin necesidad de ampliar su infraestructura humana.</p>
-              </div>
-              <div className="glass glass-hover p-12 rounded-[2.5rem] transition-all duration-500 flex flex-col items-start group">
-                <div className="bg-emerald-500/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-10 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-emerald-400 text-3xl">bolt</span>
-                </div>
-                <div className="text-5xl font-bold text-white mb-3 font-space tracking-tighter">24/7</div>
-                <h3 className="text-lg font-bold text-emerald-400 mb-6 font-space uppercase tracking-widest">Ubicuidad</h3>
-                <p className="text-slate-400 leading-relaxed text-sm">Respuesta instantánea garantizada. La inmediatez es el factor decisivo en la venta moderna.</p>
-              </div>
-            </div>
-          </section>
-
-          {/* Filtro Anti-Curiosos Section */}
-          <section className="py-32 px-6 relative overflow-hidden">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-500/5 blur-[120px] rounded-full pointer-events-none"></div>
-            <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
-              <div className="order-2 lg:order-1 relative">
-                <div className="glass p-8 rounded-[2.5rem] border-white/10 relative z-10">
-                  <div className="flex flex-col gap-6">
-                    <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-red-500 text-xl">person_off</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white mb-1">El "Curioso" (Window Shopper)</h4>
-                        <p className="text-xs text-slate-400">Pregunta precio y desaparece. Consume el 70% del tiempo de su equipo de ventas.</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-center py-2">
-                      <div className="h-10 w-0.5 bg-gradient-to-b from-[#f27121] to-transparent"></div>
-                    </div>
-                    <div className="flex items-start gap-4 p-4 rounded-2xl bg-[#f27121]/10 border border-[#f27121]/30">
-                      <div className="w-10 h-10 rounded-full bg-[#f27121] flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(242,113,33,0.4)]">
-                        <span className="material-symbols-outlined text-white text-xl">psychology</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white mb-1">Filtro AstraCloud AI</h4>
-                        <p className="text-xs text-slate-200 uppercase tracking-widest font-bold">Calificación en 3 segundos</p>
-                        <p className="text-xs text-slate-300 mt-1 italic">"Detectamos intención de compra, presupuesto y urgencia automáticamente."</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-center py-2">
-                       <span className="material-symbols-outlined text-emerald-500 animate-bounce">keyboard_double_arrow_down</span>
-                    </div>
-                    <div className="flex items-start gap-4 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-white text-xl">payments</span>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white mb-1">Comprador Calificado</h4>
-                        <p className="text-xs text-slate-400">Lead listo para el cierre. El sistema solo le notifica cuando hay dinero sobre la mesa.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="order-1 lg:order-2">
-                <span className="text-[#f27121] font-bold uppercase tracking-widest text-xs mb-4 block">Blindaje Comercial</span>
-                <h2 className="text-4xl md:text-5xl font-bold text-white mb-8 font-space leading-tight">
-                  Deje de perder el tiempo con <span className="text-gradient">quien no va a comprar</span>
-                </h2>
-                <p className="text-lg text-slate-400 leading-relaxed mb-8">
-                  El mayor costo oculto de un negocio es el tiempo dedicado a personas que solo "están mirando". Nuestra IA implementa un sistema de <strong>Lead Scoring</strong> instantáneo que:
-                </p>
-                <ul className="space-y-6">
-                  <li className="flex items-start gap-4">
-                    <span className="material-symbols-outlined text-[#f27121]">verified</span>
-                    <p className="text-slate-300"><strong className="text-white">Identifica la intención:</strong> Separa las dudas generales de las consultas de compra directa en la primera interacción.</p>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <span className="material-symbols-outlined text-[#f27121]">timer_off</span>
-                    <p className="text-slate-300"><strong className="text-white">Elimina el desgaste:</strong> Su equipo ya no tendrá que responder 100 veces al día "¿qué precio tiene?". La IA lo hace y solo le pasa los prospectos que aceptan el valor.</p>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <span className="material-symbols-outlined text-[#f27121]">rocket_launch</span>
-                    <p className="text-slate-300"><strong className="text-white">Aumenta el ROI:</strong> Al enfocarse solo en leads calificados, su tasa de conversión se dispara sin aumentar su carga de trabajo.</p>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          {/* Cómo funciona */}
-          <section className="py-32 bg-[#080f24]/50">
-            <div className="max-w-7xl mx-auto px-6">
-              <div className="text-center mb-24">
-                <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 font-space tracking-tight">Metodología Astra</h2>
-                <p className="text-slate-400 text-lg">Tres fases críticas para la automatización total.</p>
-              </div>
-                <div className="grid md:grid-cols-3 gap-12">
-                  <div className="relative flex flex-col items-start text-left glass p-8 rounded-3xl group hover:border-[#f27121]/50 transition-all">
-                    <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-xl font-bold text-[#f27121] mb-6 border border-orange-500/20 group-hover:scale-110 transition-transform">
-                      01
-                    </div>
-                    <h3 className="text-2xl font-bold text-white mb-4 font-space">Sincronización</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-4">
-                      Integración total con su CRM, inventario y base de conocimientos. No es un chatbot genérico; es una extensión de su cerebro comercial que conoce sus productos al detalle.
-                    </p>
-                  </div>
-                  <div className="relative flex flex-col items-start text-left glass p-8 rounded-3xl group border-[#f27121]/40 bg-[#181e36]/60 transition-all">
-                    <div className="w-12 h-12 rounded-xl bg-[#f27121] flex items-center justify-center text-xl font-bold text-white mb-6 shadow-[0_0_20px_rgba(242,113,33,0.3)]">
-                      02
-                    </div>
-                    <h3 className="text-2xl font-bold text-white mb-4 font-space">Entrenamiento Gen-AI</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-4">
-                      Configuramos agentes con procesamiento de lenguaje natural (NLP) que imitan el tono de su marca. Detectan ironías, urgencias y objeciones de venta para rebatirlas con argumentos sólidos.
-                    </p>
-                  </div>
-                  <div className="relative flex flex-col items-start text-left glass p-8 rounded-3xl group hover:border-[#f27121]/50 transition-all">
-                    <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-xl font-bold text-[#f27121] mb-6 border border-orange-500/20 group-hover:scale-110 transition-transform">
-                      03
-                    </div>
-                    <h3 className="text-2xl font-bold text-white mb-4 font-space">Escalado Infinito</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-4">
-                      Atienda a 10, 100 o 1,000 personas al mismo tiempo sin que la calidad disminuya. Analizamos cada dato para optimizar el flujo y maximizar el Ticket Promedio de sus ventas.
-                    </p>
-                  </div>
-                </div>
-            </div>
-          </section>
-
-          {/* Ahorro de Tiempo Section */}
-          <section className="py-32 px-6">
-            <div className="max-w-7xl mx-auto">
-              <div className="grid lg:grid-cols-2 gap-16 items-center">
-                <div>
-                  <h2 className="text-4xl font-bold text-white mb-8 font-space tracking-tight">Recupere el control de su <span className="text-[#f27121]">agenda</span></h2>
-                  <p className="text-slate-400 text-lg mb-10 leading-relaxed">
-                    Un lead "curioso" puede tomarle de 15 a 20 minutos de mensajes de ida y vuelta. Multiplique eso por 30 leads al día y habrá perdido toda su jornada sin cerrar una sola venta.
-                  </p>
-                  <div className="space-y-4">
-                    <div className="glass p-6 rounded-2xl border-l-4 border-red-500/50">
-                      <h4 className="text-white font-bold mb-2 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-red-500">error</span> Gestión Manual
-                      </h4>
-                      <p className="text-slate-400 text-sm">Respuesta lenta, pérdida de leads por falta de atención inmediata y agotamiento mental resolviendo dudas básicas repetitivas.</p>
-                    </div>
-                    <div className="glass p-6 rounded-2xl border-l-4 border-emerald-500/50">
-                      <h4 className="text-white font-bold mb-2 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-emerald-500">auto_awesome</span> Automatización Astra
-                      </h4>
-                      <p className="text-slate-400 text-sm">Respuesta en milisegundos, calificación automática y redirección al equipo de ventas solo cuando el lead está listo para pagar.</p>
-                    </div>
-                  </div>
-                </div>
+              {/* Right: WhatsApp Chat mockup */}
+              <div className="animate-float">
                 <div className="relative">
-                   <div className="glass p-1 rounded-3xl overflow-hidden shadow-2xl">
-                      <div className="bg-[#0b1229] p-8">
-                        <div className="flex items-center justify-between mb-8">
-                           <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Estadísticas de Eficiencia</span>
-                           <span className="text-[#f27121] text-xs font-bold tracking-[0.2em]">LIVE DATA</span>
-                        </div>
-                        <div className="space-y-8">
-                          <div>
-                            <div className="flex justify-between mb-2">
-                               <span className="text-sm text-white font-bold">Tiempo Ahorrado</span>
-                               <span className="text-[#f27121] font-bold">85%</span>
-                            </div>
-                            <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                               <div className="h-full bg-gradient-to-r from-[#f27121] to-orange-400 w-[85%] rounded-full shadow-[0_0_10px_rgba(242,113,33,0.5)]"></div>
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex justify-between mb-2">
-                               <span className="text-sm text-white font-bold">Velocidad de Respuesta</span>
-                               <span className="text-blue-400 font-bold">120x más rápido</span>
-                            </div>
-                            <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                               <div className="h-full bg-blue-500 w-[95%] rounded-full"></div>
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex justify-between mb-2">
-                               <span className="text-sm text-white font-bold">Leads Calificados</span>
-                               <span className="text-emerald-400 font-bold">+40%</span>
-                            </div>
-                            <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                               <div className="h-full bg-emerald-500 w-[40%] rounded-full"></div>
-                            </div>
-                          </div>
+                  <div className="absolute -inset-4 bg-gradient-to-tr from-green-500/15 to-transparent rounded-[3rem] blur-[40px]" />
+                  <div className="relative bg-[#111b21] rounded-[2rem] overflow-hidden shadow-2xl border border-white/10 max-w-sm mx-auto">
+                    {/* Chat header */}
+                    <div className="bg-[#202c33] px-5 py-4 flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#25d366] rounded-full flex items-center justify-center text-white font-bold text-sm">IA</div>
+                      <div>
+                        <p className="text-white font-bold text-sm">Asistente RIFX</p>
+                        <p className="text-green-400 text-xs flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse inline-block" />
+                          en línea • 24/7
+                        </p>
+                      </div>
+                    </div>
+                    {/* Messages */}
+                    <div className="p-4 space-y-3 bg-[#0b141a] min-h-[300px]">
+                      <div className="flex justify-start">
+                        <div className="bg-[#202c33] text-white text-sm px-4 py-3 rounded-2xl rounded-tl-sm max-w-[85%] leading-relaxed">
+                          Hola! 👋 Estoy interesado en sus servicios. ¿Cuánto cuesta?
                         </div>
                       </div>
-                   </div>
+                      <div className="flex justify-end">
+                        <div className="bg-[#005c4b] text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm max-w-[85%] leading-relaxed">
+                          ¡Hola! Con gusto te ayudo 😊 Para darte el mejor precio, ¿cuál es tu objetivo principal: más ventas, más clientes o automatizar tu atención?
+                        </div>
+                      </div>
+                      <div className="flex justify-start">
+                        <div className="bg-[#202c33] text-white text-sm px-4 py-3 rounded-2xl rounded-tl-sm max-w-[85%]">
+                          Quiero más ventas y automatizar
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <div className="bg-[#005c4b] text-white text-sm px-4 py-3 rounded-2xl rounded-tr-sm max-w-[85%] leading-relaxed">
+                          Perfecto! Tenemos exactamente lo que necesitas. Te agendo una llamada de 20 min con un especialista para mostrarte cómo otros negocios duplicaron sus ventas 🚀
+                          <br /><br />
+                          ¿Cuándo prefieres: mañana por la mañana o por la tarde?
+                        </div>
+                      </div>
+                      {/* Typing indicator */}
+                      <div className="flex justify-start">
+                        <div className="bg-[#202c33] px-4 py-3 rounded-2xl flex gap-1 items-center">
+                          <span className="w-2 h-2 bg-slate-400 rounded-full typing-dot" />
+                          <span className="w-2 h-2 bg-slate-400 rounded-full typing-dot" />
+                          <span className="w-2 h-2 bg-slate-400 rounded-full typing-dot" />
+                        </div>
+                      </div>
+                    </div>
+                    {/* Badge */}
+                    <div className="bg-[#202c33] px-5 py-3 flex items-center justify-between">
+                      <span className="text-slate-500 text-xs">Respondido automáticamente por IA</span>
+                      <span className="text-green-400 text-xs font-bold">✓ En 3 segundos</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Planes Estelares */}
-          <section className="py-32 px-6 max-w-7xl mx-auto">
-            <div className="text-center mb-20">
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 font-space tracking-tight">Modelos de Inversión</h2>
-              <p className="text-slate-400 text-lg">Soluciones escalables para cada etapa de su negocio.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-stretch">
-              {/* Free */}
-              <div className="glass p-10 rounded-[2rem] flex flex-col border-white/5 hover:border-white/20 transition-all">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-6 block">Sandbox</span>
-                <div className="text-4xl font-bold text-white mb-10 font-space">$0<span className="text-sm font-normal text-slate-500 ml-1">/14d</span></div>
-                <ul className="space-y-5 mb-12 flex-1">
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 1 Agente IA</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 200 Sesiones</li>
-                </ul>
-                <button className="w-full py-4 glass border-white/10 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-widest transition-all">Empezar</button>
-              </div>
-              {/* Start */}
-              <div className="glass p-10 rounded-[2rem] flex flex-col border-white/5 hover:border-white/20 transition-all">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-6 block">Starter</span>
-                <div className="text-4xl font-bold text-white mb-10 font-space">$49<span className="text-sm font-normal text-slate-500 ml-1">/mes</span></div>
-                <ul className="space-y-5 mb-12 flex-1">
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 1 Agente IA</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 1k Sesiones</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 3 Miembros</li>
-                </ul>
-                <button className="w-full py-4 glass border-orange-500/20 text-[#ffb692] hover:bg-orange-500/10 rounded-xl text-xs font-bold uppercase tracking-widest transition-all">Elegir</button>
-              </div>
-              {/* Advanced (Featured) */}
-              <div className="glass p-10 rounded-[2rem] flex flex-col border-[#f27121] bg-[#181e36]/60 relative z-10 shadow-2xl shadow-orange-900/10 scale-[1.03]">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#f27121] text-white text-[9px] font-black px-5 py-1.5 rounded-full uppercase tracking-[0.2em]">Más Popular</div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#ffb692] mb-6 block">Professional</span>
-                <div className="text-4xl font-bold text-white mb-10 font-space">$109<span className="text-sm font-normal text-slate-400 ml-1">/mes</span></div>
-                <ul className="space-y-5 mb-12 flex-1">
-                  <li className="flex items-center gap-3 text-sm text-white font-medium"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 1 Agente IA</li>
-                  <li className="flex items-center gap-3 text-sm text-white font-medium"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 10k Sesiones</li>
-                  <li className="flex items-center gap-3 text-sm text-white font-medium"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 5 Miembros</li>
-                </ul>
-                <button className="w-full py-4 bg-[#f27121] text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:brightness-110 transition-all">Contratar</button>
-              </div>
-              {/* Plus */}
-              <div className="glass p-10 rounded-[2rem] flex flex-col border-white/5 hover:border-white/20 transition-all">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-6 block">Advanced</span>
-                <div className="text-4xl font-bold text-white mb-10 font-space">$189<span className="text-sm font-normal text-slate-500 ml-1">/mes</span></div>
-                <ul className="space-y-5 mb-12 flex-1">
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 1 Agente IA</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 20k Sesiones</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 5 Miembros</li>
-                </ul>
-                <button className="w-full py-4 glass border-white/10 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-widest transition-all">Elegir</button>
-              </div>
-              {/* Master */}
-              <div className="glass p-10 rounded-[2rem] flex flex-col border-white/5 hover:border-white/20 transition-all">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-6 block">Enterprise</span>
-                <div className="text-4xl font-bold text-white mb-10 font-space">$399<span className="text-sm font-normal text-slate-500 ml-1">/mes</span></div>
-                <ul className="space-y-5 mb-12 flex-1">
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 5 Agentes IA</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 50k Sesiones</li>
-                  <li className="flex items-center gap-3 text-sm text-slate-400"><span className="material-symbols-outlined text-[#f27121] text-lg">check</span> 10 Miembros</li>
-                </ul>
-                <button className="w-full py-4 glass border-white/10 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-widest transition-all">Elegir</button>
+          {/* ── ESTADÍSTICAS ── */}
+          <section className="py-16 border-y border-white/5 bg-[#080f24]/50">
+            <div className="max-w-6xl mx-auto px-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                {[
+                  { value: '24/7', label: 'Disponibilidad', icon: '⏰' },
+                  { value: '< 5 seg', label: 'Tiempo de respuesta', icon: '⚡' },
+                  { value: '+300%', label: 'Más leads calificados', icon: '🎯' },
+                  { value: '85%', label: 'Tiempo ahorrado en atención', icon: '⏱️' },
+                ].map((s, i) => (
+                  <div key={i} className="flex flex-col items-center gap-2">
+                    <span className="text-3xl">{s.icon}</span>
+                    <p className="text-3xl font-black text-white">{s.value}</p>
+                    <p className="text-slate-400 text-xs uppercase tracking-widest">{s.label}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </section>
 
-          {/* FAQ Section */}
-          <section className="py-32 bg-[#080f24]/30">
-            <div className="max-w-3xl mx-auto px-6">
+          {/* ── QUÉ HACE LA IA ── */}
+          <section className="py-24 px-6 max-w-6xl mx-auto">
+            <div className="text-center mb-16">
+              <span className="text-green-400 font-bold uppercase tracking-widest text-xs">CAPACIDADES</span>
+              <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 mb-4 font-space tracking-tight">
+                Tu asistente IA puede hacer <span className="text-gradient-wa">todo esto</span>
+              </h2>
+              <p className="text-slate-400 max-w-2xl mx-auto">Y aprende más de tu negocio con cada conversación.</p>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                { icon: '💬', title: 'Atender Clientes', desc: 'Responde preguntas frecuentes, precios, horarios y disponibilidad de forma instantánea, sin que tú tengas que hacerlo.' },
+                { icon: '🎯', title: 'Calificar Leads', desc: 'Detecta automáticamente si un contacto tiene intención de compra real. Solo te pasa los prospectos listos para cerrar.' },
+                { icon: '📅', title: 'Agendar Citas', desc: 'Coordina reuniones, consultas o visitas directamente en tu calendario sin intervención humana.' },
+                { icon: '🛒', title: 'Cerrar Ventas', desc: 'Presenta tu catálogo, envía cotizaciones personalizadas y guía al cliente hasta el pago de forma automática.' },
+                { icon: '🔔', title: 'Recordatorios', desc: 'Envía seguimientos automáticos a prospectos que no han respondido. Recupera ventas que parecían perdidas.' },
+                { icon: '🌐', title: 'Multi-plataforma', desc: 'Funciona en WhatsApp, Instagram Direct, Messenger y el chat de tu página web, todo desde un solo sistema.' },
+              ].map((item, i) => (
+                <div key={i} className="glass glass-hover p-8 rounded-3xl transition-all duration-300 group flex flex-col">
+                  <div className="text-4xl mb-5">{item.icon}</div>
+                  <h3 className="text-white font-bold text-lg mb-3">{item.title}</h3>
+                  <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── CÓMO FUNCIONA ── */}
+          <section id="como-funciona" className="py-24 bg-[#080f24]/50">
+            <div className="max-w-6xl mx-auto px-6">
               <div className="text-center mb-16">
-                <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 font-space tracking-tight">Resolución de Consultas</h2>
-                <p className="text-slate-400">Detalles técnicos y operativos de nuestra arquitectura de IA.</p>
+                <span className="text-green-400 font-bold uppercase tracking-widest text-xs">PROCESO</span>
+                <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight">
+                  Listo en <span className="text-gradient-orange">menos de 1 semana</span>
+                </h2>
+                <p className="text-slate-400 mt-3 max-w-xl mx-auto">Nos encargamos de toda la configuración. Tú solo apruebas y empiezas a vender.</p>
+              </div>
+              <div className="grid md:grid-cols-4 gap-6">
+                {[
+                  { step: '01', icon: '🤝', title: 'Consulta Inicial', desc: 'Entendemos tu negocio, tus productos, tu proceso de ventas y los mensajes más frecuentes que recibes.' },
+                  { step: '02', icon: '🧠', title: 'Entrenamiento de la IA', desc: 'Configuramos y entrenamos el asistente con el conocimiento de tu empresa, tono de comunicación y flujos de venta.' },
+                  { step: '03', icon: '🔗', title: 'Conexión y Pruebas', desc: 'Conectamos la IA a tus canales (WhatsApp, Instagram, etc.), hacemos pruebas exhaustivas y ajustes finales.' },
+                  { step: '04', icon: '🚀', title: 'Lanzamiento y Monitoreo', desc: 'Activamos el sistema y monitoreamos el rendimiento las primeras semanas para optimizar las respuestas.' },
+                ].map((item, i) => (
+                  <div key={i} className="glass glass-hover p-8 rounded-3xl transition-all duration-300 flex flex-col group relative overflow-hidden">
+                    <div className="absolute top-4 right-4 text-5xl font-black text-white/5 font-space">{item.step}</div>
+                    <div className="text-4xl mb-5">{item.icon}</div>
+                    <h3 className="text-white font-bold text-lg mb-3">{item.title}</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ── MANUAL vs IA ── */}
+          <section className="py-24 px-6 max-w-5xl mx-auto">
+            <div className="text-center mb-16">
+              <span className="text-green-400 font-bold uppercase tracking-widest text-xs">COMPARATIVA</span>
+              <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight">
+                Atención Manual vs. <span className="text-gradient-wa">IA Automatizada</span>
+              </h2>
+            </div>
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Manual */}
+              <div className="glass p-10 rounded-3xl border-red-500/20 opacity-80">
+                <div className="flex items-center gap-3 mb-8">
+                  <span className="text-2xl">😓</span>
+                  <h3 className="text-xl font-bold text-slate-400">Sin Automatización</h3>
+                </div>
+                <ul className="space-y-5">
+                  {[
+                    ['Horario de atención', 'Solo cuando estás disponible'],
+                    ['Tiempo de respuesta', '30 min a varias horas'],
+                    ['Capacidad', 'Máx. 20-30 chats/día'],
+                    ['Leads perdidos', 'Muchos por respuesta tardía'],
+                    ['Costo operativo', 'Alto (personal dedicado)'],
+                  ].map(([label, val], i) => (
+                    <li key={i} className="flex justify-between border-b border-white/5 pb-4">
+                      <span className="text-slate-500 text-sm font-bold">{label}</span>
+                      <span className="text-red-400 font-bold text-sm">{val}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {/* IA */}
+              <div className="glass p-10 rounded-3xl border-green-500/30 bg-[#0d1f16]/60 shadow-[0_0_60px_rgba(37,211,102,0.1)] relative">
+                <div className="absolute -top-4 right-8 bg-[#25d366] text-white text-[10px] font-black px-5 py-2 rounded-full uppercase tracking-[0.2em]">⭐ Recomendado</div>
+                <div className="flex items-center gap-3 mb-8">
+                  <span className="text-2xl">🤖</span>
+                  <h3 className="text-xl font-bold text-white">Con IA de RIFX</h3>
+                </div>
+                <ul className="space-y-5">
+                  {[
+                    ['Horario de atención', '24 horas, 7 días ✅'],
+                    ['Tiempo de respuesta', 'Menos de 5 segundos ✅'],
+                    ['Capacidad', 'Ilimitada simultánea ✅'],
+                    ['Leads perdidos', 'Casi cero con seguimiento ✅'],
+                    ['Costo operativo', 'Fijo y predecible ✅'],
+                  ].map(([label, val], i) => (
+                    <li key={i} className="flex justify-between border-b border-green-500/10 pb-4">
+                      <span className="text-green-300/70 text-sm font-bold">{label}</span>
+                      <span className="text-white font-bold text-sm">{val}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* ── CASOS DE USO ── */}
+          <section className="py-24 bg-[#080f24]/40">
+            <div className="max-w-6xl mx-auto px-6">
+              <div className="text-center mb-16">
+                <span className="text-green-400 font-bold uppercase tracking-widest text-xs">IDEAL PARA</span>
+                <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight">
+                  ¿Para qué tipo de negocio <span className="text-gradient-wa">funciona?</span>
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                  { icon: '🏥', name: 'Clínicas y Médicos', desc: 'Agendamiento de citas 24/7' },
+                  { icon: '🏠', name: 'Inmobiliarias', desc: 'Calificación de compradores' },
+                  { icon: '🛍️', name: 'Tiendas Online', desc: 'Atención y cierre de ventas' },
+                  { icon: '💆', name: 'Salones y Spas', desc: 'Reservas automáticas' },
+                  { icon: '🏋️', name: 'Gimnasios', desc: 'Captación de membresías' },
+                  { icon: '🍕', name: 'Restaurantes', desc: 'Pedidos y reservaciones' },
+                  { icon: '🎓', name: 'Academias', desc: 'Inscripciones y consultas' },
+                  { icon: '🔧', name: 'Servicios técnicos', desc: 'Cotizaciones automáticas' },
+                  { icon: '🚗', name: 'Concesionarias', desc: 'Pre-calificación de clientes' },
+                ].map((item, i) => (
+                  <div key={i} className="glass glass-hover p-6 rounded-2xl flex items-center gap-4 transition-all duration-300 group">
+                    <span className="text-3xl">{item.icon}</span>
+                    <div>
+                      <p className="text-white font-bold text-sm">{item.name}</p>
+                      <p className="text-slate-400 text-xs">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ── FAQ ── */}
+          <section className="py-24">
+            <div className="max-w-3xl mx-auto px-6">
+              <div className="text-center mb-12">
+                <span className="text-green-400 font-bold uppercase tracking-widest text-xs">PREGUNTAS FRECUENTES</span>
+                <h2 className="text-3xl md:text-4xl font-bold text-white mt-2 font-space tracking-tight">¿Tienes Dudas?</h2>
               </div>
               <div className="space-y-4">
-                <div className="glass rounded-2xl overflow-hidden group border-white/5">
-                  <button className="w-full px-8 py-6 flex items-center justify-between text-left transition-all hover:bg-white/5 focus:bg-white/5">
-                    <span className="font-bold text-white text-lg font-space group-hover:text-[#f27121]">¿Cómo garantiza AstraCloud la precisión de las respuestas?</span>
-                    <span className="material-symbols-outlined text-slate-500 transition-transform group-focus:rotate-180">expand_more</span>
-                  </button>
-                  <div className="max-h-0 group-focus-within:max-h-40 overflow-hidden transition-all duration-300">
-                    <div className="px-8 pb-8 text-slate-400 leading-relaxed text-sm">
-                      Utilizamos modelos de lenguaje de última generación entrenados específicamente con el contexto de su negocio, asegurando coherencia y precisión en cada interacción multicanal.
+                {[
+                  {
+                    q: '¿Necesito saber de tecnología para usar esto?',
+                    a: 'No. Nosotros nos encargamos de toda la configuración técnica. Tú solo nos das información sobre tu negocio y apruebas las respuestas. El día a día es tan simple como usar WhatsApp normalmente.'
+                  },
+                  {
+                    q: '¿La IA suena robótica o natural?',
+                    a: 'La entrenamos con el tono y estilo de comunicación de tu marca. Puede sonar formal, amigable o como prefieras. La mayoría de los clientes no saben que están hablando con un sistema automático.'
+                  },
+                  {
+                    q: '¿Qué pasa si el cliente hace una pregunta que la IA no sabe?',
+                    a: 'En ese caso, el sistema te notifica y transfiere la conversación a un agente humano automáticamente. Tú siempre tienes el control final cuando se necesita.'
+                  },
+                  {
+                    q: '¿Cuánto tiempo tarda la implementación?',
+                    a: 'Entre 3 y 7 días hábiles dependiendo de la complejidad de tu negocio. Casos simples pueden estar listos en 48 horas. Incluye configuración, pruebas y capacitación.'
+                  },
+                  {
+                    q: '¿Puedo ver las conversaciones que tiene la IA?',
+                    a: 'Sí, tienes acceso total a un panel donde puedes ver todas las conversaciones en tiempo real, revisar el historial y hacer ajustes en las respuestas cuando lo necesites.'
+                  },
+                ].map((faq, i) => (
+                  <div key={i} className={`glass rounded-2xl overflow-hidden transition-all duration-300 border ${activeFaq === i ? 'border-green-500/40 bg-white/5' : 'border-white/5 hover:border-white/20'}`}>
+                    <button
+                      onClick={() => setActiveFaq(activeFaq === i ? null : i)}
+                      className="w-full px-8 py-6 flex items-center justify-between text-left outline-none group"
+                    >
+                      <span className={`font-bold text-base font-space transition-colors ${activeFaq === i ? 'text-green-400' : 'text-white group-hover:text-green-300'}`}>
+                        {faq.q}
+                      </span>
+                      <span className={`material-symbols-outlined transition-transform duration-300 ml-4 flex-shrink-0 ${activeFaq === i ? 'rotate-180 text-green-400' : 'text-slate-500'}`}>
+                        expand_more
+                      </span>
+                    </button>
+                    <div className={`transition-all duration-400 ease-in-out overflow-hidden ${activeFaq === i ? 'max-h-48 opacity-100' : 'max-h-0 opacity-0'}`}>
+                      <div className="px-8 pb-6 text-slate-400 leading-relaxed text-sm border-t border-white/5 pt-4">
+                        {faq.a}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="glass rounded-2xl overflow-hidden group border-white/5">
-                  <button className="w-full px-8 py-6 flex items-center justify-between text-left transition-all hover:bg-white/5">
-                    <span className="font-bold text-white text-lg font-space group-hover:text-[#f27121]">¿Es posible integrar con CRMs personalizados?</span>
-                    <span className="material-symbols-outlined text-slate-500">expand_more</span>
-                  </button>
-                </div>
-                <div className="glass rounded-2xl overflow-hidden group border-white/5">
-                  <button className="w-full px-8 py-6 flex items-center justify-between text-left transition-all hover:bg-white/5">
-                    <span className="font-bold text-white text-lg font-space group-hover:text-[#f27121]">¿Qué medidas de seguridad de datos aplican?</span>
-                    <span className="material-symbols-outlined text-slate-500">expand_more</span>
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
           </section>
 
-          <TrainCTA title={<>Automatiza tus<br />conversaciones</>} subtitle="Implementa IA en tu canal de WhatsApp" />
+          <TrainCTA title={<>¿Listo para Vender<br />las 24 Horas del Día?</>} subtitle="Configura tu asistente de IA hoy — sin conocimientos técnicos" />
         </main>
         <ContactChannels onlyModal={true} />
       </div>
