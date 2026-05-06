@@ -1,61 +1,88 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase';
 
 // Endpoint temporal para agregar la columna panel_password a la tabla config
-// ELIMINAR DESPUÉS DE EJECUTAR
+// Usa la API REST de Supabase directamente con la service role key
 export async function GET() {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    // Intentar agregar la columna usando rpc con SQL directo
-    const { error } = await supabase.rpc('exec_sql', {
-      sql: `ALTER TABLE config ADD COLUMN IF NOT EXISTS panel_password TEXT DEFAULT '';`
+    // Ejecutar SQL via Supabase REST API (endpoint /rest/v1/rpc o directo via /pg)
+    const sql = `ALTER TABLE config ADD COLUMN IF NOT EXISTS panel_password TEXT DEFAULT '';`;
+    
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: sql }),
     });
 
-    if (error) {
-      // Si rpc no existe, intentar otro enfoque: 
-      // simplemente hacer un update con el campo y ver si funciona
-      console.log('RPC no disponible, intentando enfoque alternativo...');
-      
-      // Probar si la columna ya existe haciendo un select
-      const { data: testData, error: testError } = await supabase
-        .from('config')
-        .select('panel_password')
-        .limit(1);
+    // Si el RPC no funciona, intentar via el endpoint de management
+    // Alternativa: usar pg directamente a través del endpoint SQL de Supabase
+    const pgRes = await fetch(`${supabaseUrl}/pg`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: sql }),
+    });
 
-      if (testError && testError.message.includes('panel_password')) {
-        // La columna no existe — necesitamos crearla via SQL Editor de Supabase
+    // Tercer intento: simplemente hacer un UPDATE con el campo panel_password
+    // Si la columna no existe, esto fallará. Si existe, pasará limpio.
+    const testRes = await fetch(`${supabaseUrl}/rest/v1/config?select=id&limit=1`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+    });
+    const configs = await testRes.json();
+    
+    if (configs && configs.length > 0) {
+      // Intentar actualizar con panel_password para ver si el campo existe
+      const updateRes = await fetch(`${supabaseUrl}/rest/v1/config?id=eq.${configs[0].id}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ panel_password: '' }),
+      });
+
+      if (updateRes.ok) {
+        return NextResponse.json({
+          success: true,
+          message: '✅ La columna panel_password ya existe y funciona correctamente.',
+        });
+      } else {
+        const errText = await updateRes.text();
         return NextResponse.json({
           success: false,
-          message: 'La columna panel_password no existe. Ejecuta este SQL en Supabase SQL Editor:',
-          sql: "ALTER TABLE config ADD COLUMN panel_password TEXT DEFAULT '';",
-          instructions: [
-            '1. Ve a https://supabase.com/dashboard',
-            '2. Selecciona tu proyecto',
-            '3. Ve a SQL Editor (icono de código)',
-            '4. Pega el SQL de arriba',
-            '5. Haz clic en "Run"',
-          ]
+          message: 'La columna panel_password NO existe aún.',
+          error: errText,
+          manual_fix: {
+            instructions: 'Ejecuta este SQL en Supabase Dashboard > SQL Editor:',
+            sql: "ALTER TABLE config ADD COLUMN panel_password TEXT DEFAULT '';",
+            url: `https://supabase.com/dashboard/project/enbezuxcljmdsmtzqktp/sql`,
+          }
         });
       }
-
-      // Si no hay error, la columna ya existe
-      return NextResponse.json({
-        success: true,
-        message: '✅ La columna panel_password ya existe en la tabla config.',
-        data: testData,
-      });
     }
 
     return NextResponse.json({
-      success: true,
-      message: '✅ Columna panel_password agregada correctamente.',
+      success: false,
+      message: 'No se encontró la tabla config',
     });
   } catch (err: any) {
     return NextResponse.json({
       success: false,
       error: err.message,
-      fallback_sql: "ALTER TABLE config ADD COLUMN panel_password TEXT DEFAULT '';",
     }, { status: 500 });
   }
 }
