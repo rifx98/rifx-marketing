@@ -80,13 +80,13 @@ export default function HomeClient() {
             {/* Left side text */}
             <div className="w-full lg:w-1/2">
               <span className="text-rocket-orange font-bold uppercase tracking-widest text-xs lg:text-sm">QUIÉNES SOMOS</span>
-              <h2 className="text-3xl lg:text-4xl font-black text-space-navy mt-2 mb-4">Nuestra Misión Estelar</h2>
-              <p className="text-lg lg:text-xl text-rocket-orange font-semibold mb-6">Misión: <span className="text-space-navy">Tu Éxito es Realeza.</span></p>
+              <h2 className="text-3xl lg:text-4xl font-black text-space-navy mt-2 mb-4">Impulsamos Marcas que Dominan su Mercado</h2>
+              <p className="text-lg lg:text-xl text-rocket-orange font-semibold mb-6">Estrategia + Creatividad + Tecnología = <span className="text-space-navy">Resultados Imparables.</span></p>
               <p className="text-gray-600 leading-relaxed mb-8 text-sm md:text-base">
-                Usamos tecnología y creatividad avanzada para llevarte a nuevos arbitros. Comprometidos con el impacto visual y la conversión directa.
+                Somos una agencia de marketing digital especializada en escalar negocios a través de campañas de alto rendimiento, automatización con inteligencia artificial y experiencias digitales que convierten visitantes en clientes. No hacemos marketing genérico — diseñamos sistemas de crecimiento a medida para cada marca.
               </p>
               <Link className="inline-block bg-rocket-orange text-white px-8 py-3 rounded-full font-bold shadow-lg hover-rocket-orange transition text-base" href="/sobre-nosotros">
-                Conócenos 🚀
+                Descubre Nuestra Historia 🚀
               </Link>
             </div>
             {/* Right side image (Control Room) */}
