@@ -121,9 +121,9 @@
 
   /* Motion Graphics Cinematic Intro */
   @keyframes erupt-flare {
-    0% { transform: scale(0); opacity: 0; filter: blur(20px); }
-    30% { transform: scale(1.5); opacity: 1; filter: blur(5px); }
-    100% { transform: scale(3.5); opacity: 0.4; filter: blur(15px); }
+    0% { transform: translate3d(0,0,0) scale(0); opacity: 0; filter: blur(10px); }
+    30% { transform: translate3d(0,0,0) scale(1.2); opacity: 1; filter: blur(2px); }
+    100% { transform: translate3d(0,0,0) scale(2.8); opacity: 0.3; filter: blur(8px); }
   }
 
   @keyframes text-3d-fly {
@@ -133,15 +133,15 @@
   }
 
   @keyframes logo-3d-fly {
-    0% { transform: perspective(1000px) translate3d(0, 0, 600px) scale(2.5); opacity: 0; filter: blur(15px); }
-    40% { opacity: 1; filter: blur(5px); }
+    0% { transform: perspective(1000px) translate3d(0, 0, 500px) scale(2); opacity: 0; filter: blur(8px); }
+    40% { opacity: 1; filter: blur(3px); }
     100% { transform: perspective(1000px) translate3d(0, 0, 0) scale(1); opacity: 1; filter: blur(0); }
   }
 
   @keyframes particle-float {
-    0% { transform: translate(0, 0) scale(0); opacity: 0; }
+    0% { transform: translate3d(0, 0, 0) scale(0); opacity: 0; }
     50% { opacity: 0.8; }
-    100% { transform: translate(var(--tw-translate-x), var(--tw-translate-y)) scale(1); opacity: 0; }
+    100% { transform: translate3d(var(--tw-translate-x), var(--tw-translate-y), 0) scale(1); opacity: 0; }
   }
 
   @keyframes marketing-slide-up {
