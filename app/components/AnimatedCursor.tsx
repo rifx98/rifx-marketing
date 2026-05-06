@@ -6,12 +6,25 @@ export default function AnimatedCursor() {
   const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
   const [isClient, setIsClient] = useState(false);
   const [isPropulsing, setIsPropulsing] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    // Hide default cursors
+
+    // Solo mostrar en escritorio (no táctil y pantalla > 768px)
+    const checkDesktop = () => {
+      const hasPointer = window.matchMedia('(pointer: fine)').matches;
+      const isWide = window.innerWidth >= 768;
+      const result = hasPointer && isWide;
+      setIsDesktop(result);
+      return result;
+    };
+
+    if (!checkDesktop()) return; // Si es móvil, no hacer nada
+
+    // Hide default cursors only on desktop
     const style = document.createElement('style');
-    style.innerHTML = `* { cursor: none !important; }`;
+    style.innerHTML = `@media (pointer: fine) and (min-width: 768px) { * { cursor: none !important; } }`;
     document.head.appendChild(style);
 
     const updateCursor = (e: MouseEvent) => {
@@ -27,14 +40,18 @@ export default function AnimatedCursor() {
       }, 150);
     };
 
+    const handleResize = () => checkDesktop();
+
     window.addEventListener('mousemove', updateCursor);
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('wheel', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
     
     return () => {
       window.removeEventListener('mousemove', updateCursor);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('wheel', handleScroll);
+      window.removeEventListener('resize', handleResize);
       clearTimeout(scrollTimeout);
       if (document.head.contains(style)) {
         document.head.removeChild(style);
@@ -42,7 +59,8 @@ export default function AnimatedCursor() {
     };
   }, []);
 
-  if (!isClient) return null;
+  // No renderizar en móvil ni en SSR
+  if (!isClient || !isDesktop) return null;
 
   return (
     <div 
