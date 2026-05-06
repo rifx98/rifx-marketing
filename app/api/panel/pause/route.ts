@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
           const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
 
           if (token && phoneId) {
-            const resumeMessage = '¡Hola! 🤖 Nuestro asistente de IA retoma la conversación. ¿En qué más puedo ayudarte?';
+            const resumeMessage = '¡Hola de nuevo! 👋 Gracias por tu paciencia. Nuestro equipo de asistencia especializada está de vuelta para ayudarte. ¿En qué podemos servirte? Estamos aquí para lo que necesites. ✨';
 
             // Enviar por WhatsApp
             await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {

@@ -203,7 +203,7 @@ export default function PanelClient() {
               setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
             }
             // Filtrar señales para no mostrarlas en el chat
-            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__');
+            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__');
             // Solo actualizar si los mensajes realmente cambiaron
             setChatMessages(prev => {
               const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
@@ -231,7 +231,7 @@ export default function PanelClient() {
             setIsHumanMode(false);
           }
           // Filtrar señales
-          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__');
+          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__');
           setChatMessages(visibleMessages);
         }
         setLoadingMessages(false);

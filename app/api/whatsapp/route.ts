@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2.7 Detectar solicitud de hablar con un humano → insertar alerta
+    // 2.7 Detectar solicitud de hablar con un humano (sistema de 3 intentos)
     const msgLowerHuman = customerMessage.toLowerCase();
     const humanRequestKeywords = [
       'hablar con un humano', 'hablar con una persona', 'hablar con alguien',
@@ -137,14 +137,37 @@ export async function POST(req: NextRequest) {
     ];
 
     const wantsHuman = humanRequestKeywords.some(kw => msgLowerHuman.includes(kw));
+    let humanAskCount = 0;
+    let forceHumanEscalation = false;
+
     if (wantsHuman) {
-      // Insertar señal de alerta para el panel
-      await supabase.from('messages').insert({
-        conversation_id: conversation.id,
-        role: 'assistant',
-        content: '__HUMAN_REQUEST__',
-      });
-      console.log(`🚨 ${customerName} (${customerPhone}) solicita hablar con un HUMANO`);
+      // Contar cuántas veces ha pedido hablar con humano
+      const { data: prevAsks } = await supabase
+        .from('messages')
+        .select('content')
+        .eq('conversation_id', conversation.id)
+        .in('content', ['__HUMAN_ASK__', '__HUMAN_REQUEST__']);
+
+      humanAskCount = (prevAsks || []).length;
+
+      if (humanAskCount < 2) {
+        // 1ra o 2da vez: registrar intento, la IA insistirá que puede ayudar
+        await supabase.from('messages').insert({
+          conversation_id: conversation.id,
+          role: 'assistant',
+          content: '__HUMAN_ASK__',
+        });
+        console.log(`💬 ${customerName} pidió humano (intento ${humanAskCount + 1}/3) — IA insistirá`);
+      } else {
+        // 3ra+ vez: escalar a humano real, insertar alerta para el panel
+        await supabase.from('messages').insert({
+          conversation_id: conversation.id,
+          role: 'assistant',
+          content: '__HUMAN_REQUEST__',
+        });
+        forceHumanEscalation = true;
+        console.log(`🚨 ${customerName} (${customerPhone}) pidió humano 3+ veces — ALERTA ACTIVADA`);
+      }
     }
 
     // 3. Cargar historial de mensajes (últimos 10, sin mensajes de error)
@@ -167,7 +190,8 @@ export async function POST(req: NextRequest) {
         !errorPatterns.some(p => m.content.includes(p)) &&
         m.content !== '__SYSTEM_PAUSE__' && 
         m.content !== '__SYSTEM_RESUME__' &&
-        m.content !== '__HUMAN_REQUEST__'
+        m.content !== '__HUMAN_REQUEST__' &&
+        m.content !== '__HUMAN_ASK__'
       );
 
     // Limitar a los últimos 10 mensajes limpios para no exceder el contexto
@@ -175,8 +199,16 @@ export async function POST(req: NextRequest) {
 
     // 4. Obtener configuración (prompt de la IA)
     const { data: config } = await supabase.from('config').select('*').limit(1).single();
-    const aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
+    let aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
     const groqKey = config?.openai_key || process.env.GROQ_API_KEY;
+
+    // 4.1 Si el cliente pidió humano, inyectar instrucción especial al prompt
+    if (wantsHuman && !forceHumanEscalation) {
+      aiPrompt += `\n\n[INSTRUCCIÓN ESPECIAL]: El cliente ha pedido hablar con un humano. NO lo transfieras todavía. Responde de forma empática y profesional, diciéndole que tú como asistente especializado de RIFX puedes resolver su consulta de forma inmediata. Destaca que tienes acceso a toda la información de los servicios y que puedes ayudarle ahora mismo sin tiempos de espera. Sé persuasivo pero respetuoso. No menciones que eres un bot o IA.`;
+    }
+    if (forceHumanEscalation) {
+      aiPrompt += `\n\n[INSTRUCCIÓN ESPECIAL]: El cliente ha insistido múltiples veces en hablar con un humano. Responde de forma profesional diciendo que respetas su preferencia y que un asesor especializado de RIFX se pondrá en contacto con él en breve. Pide disculpas por las molestias y agradece su paciencia. Sé breve y cálido.`;
+    }
 
     if (!groqKey) {
       console.error('❌ No hay API Key de Groq configurada');
