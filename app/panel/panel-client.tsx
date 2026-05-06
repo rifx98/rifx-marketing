@@ -854,8 +854,9 @@ export default function PanelClient() {
                   {(() => {
                     const isHumanMode = selectedChat.status.startsWith('paused_') || selectedChat.status.includes('paused');
                     return (
-                  <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
-                    <div className="flex items-center gap-3">
+                      <>
+                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
+                          <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isHumanMode ? 'bg-gradient-to-tr from-orange-500 to-amber-500' : 'bg-gradient-to-tr from-purple-600 to-blue-600'}`}>
                         <User className="w-5 h-5 text-white" />
                       </div>
@@ -1077,9 +1078,11 @@ export default function PanelClient() {
                           <Zap className="w-4 h-4 text-white" />
                         </div>
                       </>
+                      </>
                     )}
                   </div>
-                  );
+                      </>
+                    );
                   })()}
                 </motion.div>
               </motion.div>
