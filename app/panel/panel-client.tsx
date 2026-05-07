@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, 
@@ -272,6 +273,18 @@ export default function PanelClient() {
     }
   }, [chatMessages]);
 
+  // Block body scroll when chat modal is open on mobile
+  useEffect(() => {
+    if (selectedChat) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedChat]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -485,14 +498,15 @@ export default function PanelClient() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans selection:bg-purple-500/30">
+    <>
+    <div className="min-h-screen max-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden">
       
       {/* Sidebar Navigation */}
       <motion.aside 
         initial={{ x: -50, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full md:w-64 bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 backdrop-blur-xl flex flex-col z-20 sticky top-0 md:h-screen"
+        className="w-full md:w-64 bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 backdrop-blur-xl flex flex-col z-20 shrink-0 md:h-screen"
       >
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -504,7 +518,7 @@ export default function PanelClient() {
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2 flex md:flex-col overflow-x-auto md:overflow-visible">
+        <nav className="flex-1 px-4 py-2 md:py-6 space-y-0 md:space-y-2 flex md:flex-col overflow-x-auto md:overflow-visible">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
@@ -551,7 +565,7 @@ export default function PanelClient() {
       </motion.aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-10 relative overflow-y-auto h-screen">
+      <main className="flex-1 p-4 md:p-10 relative overflow-y-auto min-h-0">
         {/* Background Decorative Elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
           <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px]" />
@@ -737,9 +751,9 @@ export default function PanelClient() {
                   )}
                 </AnimatePresence>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 {/* Column 1: Chateando */}
-                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[70vh]">
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[35vh] md:h-[70vh]">
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-200 flex items-center gap-2">
                       <MessageSquare className="w-4 h-4 text-pink-400" />
@@ -772,7 +786,7 @@ export default function PanelClient() {
                 </div>
 
                 {/* Column 2: Interesados */}
-                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[70vh]">
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[35vh] md:h-[70vh]">
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-200 flex items-center gap-2">
                       <Zap className="w-4 h-4 text-yellow-400" />
@@ -805,7 +819,7 @@ export default function PanelClient() {
                 </div>
 
                 {/* Column 3: Compradores */}
-                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[70vh]">
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[35vh] md:h-[70vh]">
                   <div className="p-4 border-b border-white/10 flex items-center justify-between">
                     <h3 className="font-semibold text-gray-200 flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -1136,258 +1150,10 @@ export default function PanelClient() {
             )}
           </AnimatePresence>
 
-          {/* ----------------- CHAT MODAL ----------------- */}
-          <AnimatePresence>
-            {selectedChat && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-              >
-                <motion.div
-                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                  className="bg-[#0f0f0f] border border-white/10 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[600px]"
-                >
-                  {/* Header */}
-                  {(() => {
-                    return (
-                      <>
-                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
-                          <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isHumanMode ? 'bg-gradient-to-tr from-orange-500 to-amber-500' : 'bg-gradient-to-tr from-purple-600 to-blue-600'}`}>
-                        <User className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-white">{selectedChat.name}</h3>
-                        <p className={`text-xs flex items-center gap-1 ${isHumanMode ? 'text-orange-400' : 'text-emerald-400'}`}>
-                          <span className={`w-2 h-2 rounded-full animate-pulse ${isHumanMode ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
-                          {isHumanMode ? '👤 Modo Humano (IA pausada)' : '🤖 IA respondiendo'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={async () => {
-                          const newPaused = !isHumanMode;
-                          
-                          const resPatch = await fetch('/api/panel/pause', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ conversationId: selectedChat!.id, paused: newPaused }),
-                          });
-                          
-                          if (resPatch.ok) {
-                            setIsHumanMode(newPaused);
-                          } else {
-                            const errData = await resPatch.json();
-                            alert(`Error al cambiar modo: ${errData.error}`);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          isHumanMode
-                            ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
-                            : 'bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30'
-                        }`}
-                      >
-                        {isHumanMode ? '🤖 Devolver a IA' : '👤 Tomar Control'}
-                      </button>
-                      <button 
-                        onClick={() => setSelectedChat(null)}
-                        className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                      >
-                        <X className="w-5 h-5 text-gray-400" />
-                      </button>
-                    </div>
-                  </div>
+          {/* Chat modal rendered via portal to document.body - see bottom of component */}
 
-                  {/* Chat Area — Mensajes Reales */}
-                  <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20" ref={chatContainerRef}>
-                    {loadingMessages ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-                          <p className="text-sm text-gray-500">Cargando mensajes...</p>
-                        </div>
-                      </div>
-                    ) : chatMessages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-sm text-gray-500">No hay mensajes aún</p>
-                      </div>
-                    ) : (
-                      chatMessages.map((msg: any, idx: number) => {
-                        const time = new Date(msg.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
-                        const isUser = msg.role === 'user';
-                        // Show date separator
-                        const msgDate = new Date(msg.created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' });
-                        const prevDate = idx > 0 ? new Date(chatMessages[idx-1].created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' }) : null;
-                        const showDate = idx === 0 || msgDate !== prevDate;
+          {/* ----------------- CHART MODAL ----------------- */}
 
-                        return (
-                          <React.Fragment key={msg.id || idx}>
-                            {showDate && (
-                              <p className="text-xs text-center text-gray-600 my-3 select-none">{msgDate}</p>
-                            )}
-                            <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`p-3 rounded-2xl max-w-[80%] text-sm whitespace-pre-wrap ${
-                                isUser
-                                  ? 'bg-purple-600/20 border border-purple-500/30 text-white rounded-tr-sm'
-                                  : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm'
-                              }`}>
-                                {msg.content}
-                                <p className={`text-[10px] mt-1 ${isUser ? 'text-purple-400/60 text-right' : 'text-gray-600'}`}>
-                                  {time} {!isUser && '• IA'}
-                                </p>
-                              </div>
-                            </div>
-                          </React.Fragment>
-                        );
-                      })
-                    )}
-                    <div className="flex items-center gap-2 pt-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <p className="text-xs text-gray-500">Actualizando en vivo cada 5s</p>
-                    </div>
-                  </div>
-
-                  {/* Status Change Buttons */}
-                  <div className="px-4 pt-3 pb-1 border-t border-white/10 bg-white/[0.01]">
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Mover a:</p>
-                    <div className="flex gap-2">
-                      {!selectedChat.status.includes('chatting') && (
-                        <button
-                          onClick={async () => {
-                            await fetch('/api/panel/conversations', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: selectedChat!.id, status: 'chatting' }),
-                            });
-                            setSelectedChat({ ...selectedChat!, status: 'chatting' });
-                            // Refrescar lista
-                            const res = await fetch('/api/panel/conversations');
-                            const data = await res.json();
-                            setConversationsData(data);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/20 transition-colors text-pink-400 text-xs font-medium"
-                        >
-                          <MessageSquare className="w-3 h-3" /> Chateando
-                        </button>
-                      )}
-                      {!selectedChat.status.includes('interested') && (
-                        <button
-                          onClick={async () => {
-                            await fetch('/api/panel/conversations', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: selectedChat!.id, status: 'interested' }),
-                            });
-                            setSelectedChat({ ...selectedChat!, status: 'interested' });
-                            const res = await fetch('/api/panel/conversations');
-                            const data = await res.json();
-                            setConversationsData(data);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors text-yellow-400 text-xs font-medium"
-                        >
-                          <Zap className="w-3 h-3" /> Interesado
-                        </button>
-                      )}
-                      {!selectedChat.status.includes('bought') && (
-                        <button
-                          onClick={async () => {
-                            await fetch('/api/panel/conversations', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: selectedChat!.id, status: 'bought' }),
-                            });
-                            setSelectedChat({ ...selectedChat!, status: 'bought' });
-                            const res = await fetch('/api/panel/conversations');
-                            const data = await res.json();
-                            setConversationsData(data);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors text-emerald-400 text-xs font-medium"
-                        >
-                          <CheckCircle2 className="w-3 h-3" /> Compró
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Input area */}
-                  <div className="p-4 border-t border-white/5 bg-white/[0.01] flex gap-2 items-center">
-                    {isHumanMode ? (
-                      <>
-                        <input 
-                          type="text" 
-                          value={manualMsg}
-                          onChange={(e) => setManualMsg(e.target.value)}
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && manualMsg.trim() && !sendingMsg) {
-                              setSendingMsg(true);
-                              await fetch('/api/panel/send-message', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
-                              });
-                              setManualMsg('');
-                              // Refrescar mensajes
-                              const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
-                              const data = await res.json();
-                              if (data.messages) setChatMessages(data.messages);
-                              setSendingMsg(false);
-                            }
-                          }}
-                          placeholder="Escribe tu mensaje..." 
-                          className="flex-1 bg-black/50 border border-orange-500/30 rounded-xl px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500/60 focus:outline-none"
-                          disabled={sendingMsg}
-                        />
-                        <button
-                          onClick={async () => {
-                            if (!manualMsg.trim() || sendingMsg) return;
-                            setSendingMsg(true);
-                            await fetch('/api/panel/send-message', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
-                            });
-                            setManualMsg('');
-                            const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
-                            const data = await res.json();
-                            if (data.messages) setChatMessages(data.messages);
-                            setSendingMsg(false);
-                          }}
-                          disabled={sendingMsg || !manualMsg.trim()}
-                          className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {sendingMsg ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <Zap className="w-4 h-4 text-white" />
-                          )}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <input 
-                          type="text" 
-                          placeholder="La IA está respondiendo automáticamente... (clic en 'Tomar Control' para escribir)" 
-                          className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
-                          readOnly
-                        />
-                        <div className="w-10 h-10 rounded-xl bg-purple-600/50 flex items-center justify-center opacity-50 cursor-not-allowed">
-                          <Zap className="w-4 h-4 text-white" />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* ----------------- CHART MODAL ----------------- */}
           <AnimatePresence>
@@ -1576,5 +1342,259 @@ export default function PanelClient() {
         </div>
       </main>
     </div>
+
+    {/* ----------------- CHAT MODAL (Portal to body) ----------------- */}
+    {typeof document !== 'undefined' && createPortal(
+      <AnimatePresence>
+        {selectedChat && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-4 bg-black/80 backdrop-blur-sm"
+            style={{ isolation: 'isolate' }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-[#0f0f0f] w-full md:max-w-lg md:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[100dvh] md:h-[600px] md:border md:border-white/10"
+            >
+              {/* Header */}
+              <div className="p-3 md:p-4 border-b border-white/10 flex justify-between items-center bg-[#0f0f0f] safe-area-top shrink-0">
+                <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                  {/* Mobile back arrow */}
+                  <button 
+                    onClick={() => setSelectedChat(null)}
+                    className="md:hidden p-1.5 hover:bg-white/10 rounded-lg transition-colors shrink-0"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${isHumanMode ? 'bg-gradient-to-tr from-orange-500 to-amber-500' : 'bg-gradient-to-tr from-purple-600 to-blue-600'}`}>
+                    <User className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-white text-sm md:text-base truncate">{selectedChat.name}</h3>
+                    <p className={`text-[10px] md:text-xs flex items-center gap-1 ${isHumanMode ? 'text-orange-400' : 'text-emerald-400'}`}>
+                      <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full animate-pulse ${isHumanMode ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
+                      <span className="truncate">{isHumanMode ? '👤 Modo Humano (IA pausada)' : '🤖 IA respondiendo'}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+                  <button
+                    onClick={async () => {
+                      const newPaused = !isHumanMode;
+                      const resPatch = await fetch('/api/panel/pause', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ conversationId: selectedChat!.id, paused: newPaused }),
+                      });
+                      if (resPatch.ok) {
+                        setIsHumanMode(newPaused);
+                      } else {
+                        const errData = await resPatch.json();
+                        alert(`Error al cambiar modo: ${errData.error}`);
+                      }
+                    }}
+                    className={`px-2.5 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all whitespace-nowrap ${
+                      isHumanMode
+                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                        : 'bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30'
+                    }`}
+                  >
+                    {isHumanMode ? '🤖 Devolver a IA' : '👤 Tomar Control'}
+                  </button>
+                  <button 
+                    onClick={() => setSelectedChat(null)}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Chat Area */}
+              <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20" ref={chatContainerRef}>
+                {loadingMessages ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                      <p className="text-sm text-gray-500">Cargando mensajes...</p>
+                    </div>
+                  </div>
+                ) : chatMessages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-sm text-gray-500">No hay mensajes aún</p>
+                  </div>
+                ) : (
+                  chatMessages.map((msg: any, idx: number) => {
+                    const time = new Date(msg.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+                    const isUser = msg.role === 'user';
+                    const msgDate = new Date(msg.created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' });
+                    const prevDate = idx > 0 ? new Date(chatMessages[idx-1].created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' }) : null;
+                    const showDate = idx === 0 || msgDate !== prevDate;
+                    return (
+                      <React.Fragment key={msg.id || idx}>
+                        {showDate && (
+                          <p className="text-xs text-center text-gray-600 my-3 select-none">{msgDate}</p>
+                        )}
+                        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`p-3 rounded-2xl max-w-[80%] text-sm whitespace-pre-wrap ${
+                            isUser
+                              ? 'bg-purple-600/20 border border-purple-500/30 text-white rounded-tr-sm'
+                              : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm'
+                          }`}>
+                            {msg.content}
+                            <p className={`text-[10px] mt-1 ${isUser ? 'text-purple-400/60 text-right' : 'text-gray-600'}`}>
+                              {time} {!isUser && '• IA'}
+                            </p>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })
+                )}
+                <div className="flex items-center gap-2 pt-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-xs text-gray-500">Actualizando en vivo cada 5s</p>
+                </div>
+              </div>
+
+              {/* Status Change Buttons */}
+              <div className="px-3 md:px-4 pt-2 md:pt-3 pb-1 border-t border-white/10 bg-[#0f0f0f] shrink-0">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 md:mb-2">Mover a:</p>
+                <div className="flex gap-1.5 md:gap-2">
+                  {!selectedChat.status.includes('chatting') && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/panel/conversations', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: selectedChat!.id, status: 'chatting' }),
+                        });
+                        setSelectedChat({ ...selectedChat!, status: 'chatting' });
+                        const res = await fetch('/api/panel/conversations');
+                        const data = await res.json();
+                        setConversationsData(data);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/20 transition-colors text-pink-400 text-xs font-medium"
+                    >
+                      <MessageSquare className="w-3 h-3" /> Chateando
+                    </button>
+                  )}
+                  {!selectedChat.status.includes('interested') && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/panel/conversations', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: selectedChat!.id, status: 'interested' }),
+                        });
+                        setSelectedChat({ ...selectedChat!, status: 'interested' });
+                        const res = await fetch('/api/panel/conversations');
+                        const data = await res.json();
+                        setConversationsData(data);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors text-yellow-400 text-xs font-medium"
+                    >
+                      <Zap className="w-3 h-3" /> Interesado
+                    </button>
+                  )}
+                  {!selectedChat.status.includes('bought') && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/panel/conversations', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: selectedChat!.id, status: 'bought' }),
+                        });
+                        setSelectedChat({ ...selectedChat!, status: 'bought' });
+                        const res = await fetch('/api/panel/conversations');
+                        const data = await res.json();
+                        setConversationsData(data);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors text-emerald-400 text-xs font-medium"
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Compró
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Input area */}
+              <div className="p-3 md:p-4 border-t border-white/5 bg-[#0f0f0f] flex gap-2 items-center safe-area-bottom shrink-0">
+                {isHumanMode ? (
+                  <>
+                    <input 
+                      type="text" 
+                      value={manualMsg}
+                      onChange={(e) => setManualMsg(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && manualMsg.trim() && !sendingMsg) {
+                          setSendingMsg(true);
+                          await fetch('/api/panel/send-message', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
+                          });
+                          setManualMsg('');
+                          const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
+                          const data = await res.json();
+                          if (data.messages) setChatMessages(data.messages);
+                          setSendingMsg(false);
+                        }
+                      }}
+                      placeholder="Escribe tu mensaje..." 
+                      className="flex-1 bg-black/50 border border-orange-500/30 rounded-xl px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500/60 focus:outline-none"
+                      disabled={sendingMsg}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!manualMsg.trim() || sendingMsg) return;
+                        setSendingMsg(true);
+                        await fetch('/api/panel/send-message', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
+                        });
+                        setManualMsg('');
+                        const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
+                        const data = await res.json();
+                        if (data.messages) setChatMessages(data.messages);
+                        setSendingMsg(false);
+                      }}
+                      disabled={sendingMsg || !manualMsg.trim()}
+                      className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {sendingMsg ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Zap className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input 
+                      type="text" 
+                      placeholder="La IA está respondiendo... (clic 'Tomar Control' para escribir)" 
+                      className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+                      readOnly
+                    />
+                    <div className="w-10 h-10 rounded-xl bg-purple-600/50 flex items-center justify-center opacity-50 cursor-not-allowed">
+                      <Zap className="w-4 h-4 text-white" />
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
+
+    </>
   );
 }

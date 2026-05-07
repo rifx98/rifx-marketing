@@ -54,6 +54,12 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover' as const,
+};
+
 import Header from './components/Header';
 import Footer from './components/Footer';
 import AnimatedCursor from './components/AnimatedCursor';
