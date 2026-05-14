@@ -73,7 +73,11 @@ export default function PanelClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'billing' | 'playground'>('dashboard');
+  const [language, setLanguage] = useState<'es'|'en'>('es');
+  const [showWhatsappPanel, setShowWhatsappPanel] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState('trial');
+  const [showPlanConfirm, setShowPlanConfirm] = useState<any>(null);
   const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -396,7 +400,7 @@ export default function PanelClient() {
   // ========== LOGIN SCREEN ==========
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 font-sans relative overflow-hidden">
+      <div className="min-h-screen bg-[#050505] text-slate-800 flex items-center justify-center p-6 font-sans relative overflow-hidden">
         {/* Background Glow */}
         <div className="absolute top-[-30%] right-[-20%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-[-30%] left-[-20%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[130px] pointer-events-none" />
@@ -410,7 +414,7 @@ export default function PanelClient() {
           {/* Logo */}
           <div className="flex flex-col items-center mb-10">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
-              <Bot className="w-8 h-8 text-white" />
+              <Bot className="w-8 h-8 text-slate-800" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">RIFX Panel</h1>
             <p className="text-sm text-gray-500 mt-1">Panel de Control IA — WhatsApp Sales Bot</p>
@@ -435,7 +439,7 @@ export default function PanelClient() {
                     value={loginUser}
                     onChange={(e) => setLoginUser(e.target.value)}
                     placeholder="Escribe tu usuario"
-                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
                     required
                   />
                 </div>
@@ -450,7 +454,7 @@ export default function PanelClient() {
                     value={loginPass}
                     onChange={(e) => setLoginPass(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-10 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-10 pr-12 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
                     required
                   />
                   <button
@@ -474,12 +478,105 @@ export default function PanelClient() {
                     <X className="w-4 h-4" /> {loginError}
                   </motion.p>
                 )}
-              </AnimatePresence>
+    
+            {/* ----------------- TAB: BILLING ----------------- */}
+            {activeTab === 'billing' && (
+              <motion.div key="billing" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="space-y-8">
+                <div className="text-center max-w-2xl mx-auto mb-8">
+                  <h2 className="text-3xl font-extrabold text-primary font-headline mb-3">{language === 'en' ? 'Choose Your Plan' : 'Escoge tu Plan'}</h2>
+                  <p className="text-slate-500">{language === 'en' ? 'Scale your business with the right plan' : 'Escala tu negocio con el plan ideal'}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                  {[
+                    { id: 'trial', name: 'Prueba', price: 0, period: '14 dias', contacts: 200, bots: 1, members: 1, storage: '1 GB', popular: false },
+                    { id: 'start', name: 'Start', price: 49, period: '/mes', contacts: 1000, bots: 2, members: 3, storage: '5 GB', popular: false },
+                    { id: 'advanced', name: 'Advanced', price: 99, period: '/mes', contacts: 5000, bots: 5, members: 5, storage: '15 GB', popular: true },
+                    { id: 'plus', name: 'Plus', price: 199, period: '/mes', contacts: 20000, bots: 10, members: 10, storage: '50 GB', popular: false },
+                    { id: 'master', name: 'Master', price: 499, period: '/mes', contacts: 100000, bots: 50, members: 25, storage: '200 GB', popular: false },
+                  ].map((plan) => (
+                    <div key={plan.id} className={`relative bg-white rounded-2xl border ${plan.popular ? 'border-primary-container shadow-lg shadow-primary-container/10 ring-2 ring-primary-container/20' : 'border-slate-200 shadow-sm'} p-6 flex flex-col transition-all hover:shadow-md`}>
+                      {plan.popular && (<div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-container text-white text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-wider">{language === 'en' ? 'Most Popular' : 'Mas Popular'}</div>)}
+                      <h3 className="text-lg font-extrabold text-primary mb-1">{plan.name}</h3>
+                      <div className="flex items-baseline gap-1 mb-4"><span className="text-3xl font-black text-slate-800">${plan.price}</span><span className="text-sm text-slate-400 font-medium">{plan.period}</span></div>
+                      <div className="space-y-2.5 flex-1 mb-6">
+                        <div className="flex items-center gap-2 text-sm text-slate-600"><span className="material-symbols-outlined text-primary-container text-base">group</span><span>{plan.contacts.toLocaleString()} contactos</span></div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600"><span className="material-symbols-outlined text-primary-container text-base">smart_toy</span><span>{plan.bots} bots IA</span></div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600"><span className="material-symbols-outlined text-primary-container text-base">people</span><span>{plan.members} miembros</span></div>
+                        <div className="flex items-center gap-2 text-sm text-slate-600"><span className="material-symbols-outlined text-primary-container text-base">cloud</span><span>{plan.storage}</span></div>
+                      </div>
+                      <button onClick={() => setShowPlanConfirm(plan)} className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all ${currentPlan === plan.id ? 'bg-slate-100 text-slate-400 cursor-default' : plan.popular ? 'bg-primary-container text-white hover:bg-primary-container/90 shadow-sm' : 'bg-slate-100 text-primary hover:bg-primary-container hover:text-white'}`} disabled={currentPlan === plan.id}>
+                        {currentPlan === plan.id ? (language === 'en' ? 'Current Plan' : 'Plan Actual') : (language === 'en' ? 'Select' : 'Seleccionar')}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <AnimatePresence>
+                  {showPlanConfirm && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+                      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 border border-slate-200">
+                        <h3 className="text-xl font-extrabold text-primary mb-2">{language === 'en' ? 'Confirm Plan' : 'Confirmar Plan'}</h3>
+                        <p className="text-slate-500 text-sm mb-6">{language === 'en' ? `Subscribe to ${showPlanConfirm.name} for $${showPlanConfirm.price}${showPlanConfirm.period}` : `Suscribirte al plan ${showPlanConfirm.name} por $${showPlanConfirm.price}${showPlanConfirm.period}`}</p>
+                        <div className="bg-slate-50 rounded-xl p-4 mb-6 space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-slate-500">Contactos</span><span className="font-bold text-slate-800">{showPlanConfirm.contacts.toLocaleString()}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Bots IA</span><span className="font-bold text-slate-800">{showPlanConfirm.bots}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Miembros</span><span className="font-bold text-slate-800">{showPlanConfirm.members}</span></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Almacenamiento</span><span className="font-bold text-slate-800">{showPlanConfirm.storage}</span></div>
+                        </div>
+                        <div className="flex gap-3">
+                          <button onClick={() => setShowPlanConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
+                          <button onClick={() => { setCurrentPlan(showPlanConfirm.id); setShowPlanConfirm(null); }} className="flex-1 py-2.5 rounded-xl bg-primary-container text-white text-sm font-bold hover:bg-primary-container/90 shadow-sm transition-all">{language === 'en' ? 'Confirm' : 'Confirmar Pago'}</button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+
+            {/* ----------------- TAB: PLAYGROUND IA ----------------- */}
+            {activeTab === 'playground' && (
+              <motion.div key="playground" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="space-y-6">
+                <div className="grid grid-cols-12 gap-6 h-[calc(100vh-180px)]">
+                  <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+                    <div className="bg-primary-container p-4 text-white flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-white/20 p-2 rounded-lg"><span className="material-symbols-outlined">smart_toy</span></div>
+                        <div><h3 className="font-bold">{language === 'en' ? 'AI Test Console' : 'Consola de Pruebas IA'}</h3><p className="text-xs text-white/70">{language === 'en' ? 'Test your AI agent' : 'Prueba tu agente IA'}</p></div>
+                      </div>
+                    </div>
+                    <div className="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-4">
+                      <div className="flex justify-start"><div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[75%] shadow-sm"><p className="text-sm text-slate-700">{language === 'en' ? 'Hello! I am your AI assistant. How can I help you?' : '\u00a1Hola! Soy tu asistente IA. \u00bfEn qu\u00e9 puedo ayudarte?'}</p><p className="text-[10px] text-slate-400 mt-1">AI Agent</p></div></div>
+                    </div>
+                    <div className="p-4 border-t border-slate-100 bg-white flex gap-3">
+                      <input type="text" placeholder={language === 'en' ? 'Type a test message...' : 'Escribe un mensaje de prueba...'} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-primary-container/50 focus:ring-1 focus:ring-primary-container/30 transition-all" />
+                      <button className="px-5 py-3 bg-primary-container text-white rounded-xl font-bold text-sm hover:bg-primary-container/90 transition-all shadow-sm flex items-center gap-2"><span className="material-symbols-outlined text-lg">send</span></button>
+                    </div>
+                  </div>
+                  <div className="col-span-12 lg:col-span-4 space-y-4">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                      <h4 className="font-bold text-primary mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-primary-container">tune</span>{language === 'en' ? 'Model Settings' : 'Configuraci\u00f3n del Modelo'}</h4>
+                      <div className="space-y-3">
+                        <div><label className="text-xs font-semibold text-slate-500 mb-1 block">{language === 'en' ? 'Provider' : 'Proveedor'}</label><select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-primary-container/50"><option>Groq (Llama 3)</option><option>OpenAI (GPT-4)</option><option>Google (Gemini Pro)</option></select></div>
+                        <div><label className="text-xs font-semibold text-slate-500 mb-1 block">{language === 'en' ? 'Temperature' : 'Temperatura'}</label><input type="range" min="0" max="100" defaultValue="70" className="w-full accent-primary-container" /><div className="flex justify-between text-[10px] text-slate-400"><span>{language === 'en' ? 'Precise' : 'Preciso'}</span><span>{language === 'en' ? 'Creative' : 'Creativo'}</span></div></div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                      <h4 className="font-bold text-primary mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-primary-container">security</span>{language === 'en' ? 'Guardrails' : 'Seguridad'}</h4>
+                      <div className="space-y-3">
+                        {[{label: language === 'en' ? 'Block explicit content' : 'Bloquear contenido expl\u00edcito', checked: true},{label: language === 'en' ? 'Limit to business topics' : 'Limitar a temas de negocio', checked: true},{label: language === 'en' ? 'Auto-escalate to human' : 'Auto-escalar a humano', checked: false}].map((g, i) => (<label key={i} className="flex items-center gap-3 cursor-pointer"><input type="checkbox" defaultChecked={g.checked} className="w-4 h-4 rounded accent-primary-container" /><span className="text-sm text-slate-600">{g.label}</span></label>))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
 
               <button
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-slate-800 rounded-xl font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
               >
                 {isLoggingIn ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -499,70 +596,77 @@ export default function PanelClient() {
 
   return (
     <>
-    <div className="min-h-screen max-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden">
+    {/* Google Material Symbols */}
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    
+    <div className="min-h-screen max-h-screen bg-background text-on-surface flex font-body selection:bg-primary-container/20 overflow-hidden">
       
-      {/* Sidebar Navigation */}
-      <motion.aside 
-        initial={{ x: -50, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full md:w-64 bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 backdrop-blur-xl flex flex-col z-20 shrink-0 md:h-screen"
-      >
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <Bot className="w-6 h-6 text-white" />
+      {/* Sidebar */}
+      <aside className="w-64 bg-crm-surface-container-low border-r border-outline-variant/20 flex flex-col h-screen shrink-0 fixed z-30">
+        <div className="p-6 flex items-center gap-3 border-b border-outline-variant/10">
+          <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center shadow-lg shadow-primary-container/20">
+            <span className="material-symbols-outlined text-slate-800 text-xl">smart_toy</span>
           </div>
           <div>
-            <h1 className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">RIFX Panel</h1>
-            <p className="text-xs text-purple-400 font-medium">IA Sales Bot</p>
+            <h1 className="font-extrabold text-lg tracking-tight text-primary font-headline">Chatea Pro</h1>
+            <p className="text-[10px] text-primary-container font-bold tracking-widest uppercase">CRM Platform</p>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 py-2 md:py-6 space-y-0 md:space-y-2 flex md:flex-col overflow-x-auto md:overflow-visible">
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
-              activeTab === 'dashboard' 
-                ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span className="font-medium">Resumen</span>
+        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+          <button onClick={() => setActiveTab('dashboard')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'dashboard' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+            <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>dashboard</span>
+            <span>{language === 'en' ? 'Dashboard' : 'Panel'}</span>
           </button>
-
-          <button
-            onClick={() => setActiveTab('crm')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
-              activeTab === 'crm' 
-                ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium">Contactos (CRM)</span>
+          <button onClick={() => setActiveTab('crm')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'crm' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+            <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>group</span>
+            <span>{language === 'en' ? 'Users' : 'Usuarios'}</span>
           </button>
-          
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
-              activeTab === 'settings' 
-                ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Settings className="w-5 h-5" />
-            <span className="font-medium">Configuración API</span>
+          <button onClick={() => setActiveTab('settings')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'settings' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+            <span className="material-symbols-outlined">settings</span>
+            <span>{language === 'en' ? 'Settings' : 'Configuraciones'}</span>
+          </button>
+          <button onClick={() => setActiveTab('billing')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'billing' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+            <span className="material-symbols-outlined">payments</span>
+            <span>{language === 'en' ? 'Plans & Billing' : 'Pagos'}</span>
+          </button>
+          <button onClick={() => setActiveTab('playground')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'playground' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+            <span className="material-symbols-outlined">smart_toy</span>
+            <span>{language === 'en' ? 'AI Playground' : 'Playground IA'}</span>
           </button>
         </nav>
 
-        <div className="p-4 hidden md:block">
-          <Link href="/" className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all w-full">
-            <LogOut className="w-5 h-5" />
-            <span className="font-medium">Volver a la Web</span>
+        <div className="p-4 border-t border-outline-variant/10">
+          <Link href="/" className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-primary hover:bg-white/50 transition-all w-full text-sm">
+            <span className="material-symbols-outlined text-lg">logout</span>
+            <span className="font-medium">{language === 'en' ? 'Back to Site' : 'Volver a la Web'}</span>
           </Link>
         </div>
-      </motion.aside>
+      </aside>
+
+      {/* TopAppBar */}
+      <div className="fixed top-0 left-64 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-outline-variant/15 z-20 flex items-center justify-between px-8">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-extrabold text-primary font-headline tracking-tight">
+            {activeTab === 'dashboard' && (language === 'en' ? 'Dashboard' : 'Panel Principal')}
+            {activeTab === 'crm' && (language === 'en' ? 'Users & CRM' : 'Usuarios & CRM')}
+            {activeTab === 'settings' && (language === 'en' ? 'Settings' : 'Configuraciones')}
+            {activeTab === 'billing' && (language === 'en' ? 'Plans & Billing' : 'Pagos & Suscripciones')}
+            {activeTab === 'playground' && (language === 'en' ? 'AI Playground' : 'Playground IA')}
+          </h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setLanguage(language === 'es' ? 'en' : 'es')} className="px-2.5 py-1.5 bg-crm-surface-container-low border border-outline-variant/20 rounded-lg text-[11px] font-bold text-primary-container hover:bg-crm-surface-container transition-colors flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-sm">translate</span>
+            {language === 'es' ? 'ES' : 'EN'}
+          </button>
+          <div className="relative">
+            <span className="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+            {humanAlerts.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-error text-slate-800 text-[9px] font-bold flex items-center justify-center rounded-full">{humanAlerts.length}</span>}
+          </div>
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <main className="flex-1 p-4 md:p-10 relative overflow-y-auto min-h-0">
@@ -603,99 +707,180 @@ export default function PanelClient() {
                 transition={{ duration: 0.4 }}
                 className="space-y-6"
               >
-                {/* Metrics Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div 
-                    onClick={() => setShowChartModal(true)}
-                    className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-purple-500/30 transition-all cursor-pointer"
-                  >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all" />
-                    <div className="flex justify-between items-start mb-4 relative z-10">
-                      <div>
-                        <p className="text-gray-400 text-sm font-medium mb-1">Ingresos Generados (IA)</p>
-                        <h3 className="text-3xl font-bold text-white">${statsData?.totalRevenue || 0}</h3>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                        <TrendingUp className="w-5 h-5 text-emerald-400" />
-                      </div>
-                    </div>
-                    <p className="text-xs text-emerald-400 flex items-center gap-1">
-                      <span className="font-bold">Total histórico</span>
-                    </p>
-                  </div>
-
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-blue-500/30 transition-all">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all" />
-                    <div className="flex justify-between items-start mb-4 relative z-10">
-                      <div>
-                        <p className="text-gray-400 text-sm font-medium mb-1">Ventas Cerradas</p>
-                        <h3 className="text-3xl font-bold text-white">{statsData?.totalSales || 0}</h3>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                {/* MainContent Grid */}
+                <div className="grid grid-cols-12 gap-6">
+                  {/* LeftPromoBanner */}
+                  <section className="col-span-12 lg:col-span-3">
+                    <div className="relative rounded-2xl overflow-hidden bg-white shadow-sm border border-slate-100 h-full min-h-[600px] flex flex-col">
+                      <div className="h-full w-full relative bg-cover bg-center" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCkFYKNPmbOfDrJR4jvreG_YAPMRT6PP7fnlw6HOCUOsp_07W4lfKECuFOFvYiQimv7oQJVF3mJFDgl7qUROOStziAkQTW2x3ZNFDZTJ5KivlAzS3pz7t66XaKXadK_n4asnSMe75p9QXMAYGkOYs9xPZqK9gDhBsv6Qg306ADaOTsis2-EkWk5jOiHvptmIGfd0_hVGXOEAWX-UQBCgUEBk0tIGZ3jzifT5-w-vUw8XGQmVYsOckh8gwz9K7Yxy9TQWdIpelgZRWGz')", backgroundPosition: 'left center'}}>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent lg:hidden"></div>
+                        <div className="relative z-10 p-8 flex flex-col h-full justify-between">
+                          <div className="space-y-4">
+                            <span className="inline-block bg-red-600 text-slate-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Nuevo</span>
+                            <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">
+                              \u00a1Ya est\u00e1 disponible la nueva <span className="text-primary-container">Academia Chatea Pro V2!</span>
+                            </h2>
+                            <p className="text-slate-700 text-lg">Aprende a manejar la herramienta <span className="font-bold underline decoration-primary-container">como un experto</span>.</p>
+                          </div>
+                          <div className="mt-auto">
+                            <button className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-slate-50 transition-all flex items-center gap-2">
+                              Ir a la academia
+                              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" fillRule="evenodd"></path></svg>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-xs text-blue-400 flex items-center gap-1">
-                      Completamente automáticas
-                    </p>
-                  </div>
+                  </section>
 
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-pink-500/30 transition-all">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-3xl group-hover:bg-pink-500/20 transition-all" />
-                    <div className="flex justify-between items-start mb-4 relative z-10">
-                      <div>
-                        <p className="text-gray-400 text-sm font-medium mb-1">Conversaciones Activas</p>
-                        <h3 className="text-3xl font-bold text-white">{statsData?.activeConversations || 0}</h3>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center">
-                        <MessageSquare className="w-5 h-5 text-pink-400" />
-                      </div>
-                    </div>
-                    <p className="text-xs text-pink-400 flex items-center gap-1">
-                      La IA está negociando ahora
-                    </p>
-                  </div>
-                </div>
-
-                {/* Sales Feed */}
-                <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md">
-                  <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.01]">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <Zap className="w-5 h-5 text-yellow-400" />
-                      Muro de Ventas Recientes
-                    </h3>
-                    <span className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">
-                      En Vivo
-                    </span>
-                  </div>
-                  <div className="p-0">
-                    {(statsData?.recentSales || mockSales).map((sale: any, index: number) => (
-                      <motion.div 
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        key={sale.id} 
-                        className="flex items-center justify-between p-6 border-b border-white/5 hover:bg-white/[0.03] transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-gray-800 to-gray-700 flex items-center justify-center border border-white/10">
-                            <User className="w-6 h-6 text-gray-300" />
+                  {/* RightDashboardArea */}
+                  <section className="col-span-12 lg:col-span-9 space-y-6">
+                    {/* ExpertTeamSection */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                      <div className="bg-primary-container p-4 flex justify-between items-center text-slate-800">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-white/20 p-2 rounded-lg">
+                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
                           </div>
                           <div>
-                            <p className="font-semibold text-white">{sale.customer}</p>
-                            <p className="text-sm text-gray-400">{sale.service}</p>
+                            <h3 className="font-bold text-lg leading-none">Equipo de Expertos IA</h3>
+                            <p className="text-xs text-slate-800/80 mt-1">0 de 4 expertos activos</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-emerald-400 flex items-center gap-1 justify-end">
-                            <CreditCard className="w-4 h-4" />
-                            +${sale.amount}
-                          </p>
-                          <p className="text-xs text-gray-500">{sale.time}</p>
+                      </div>
+                      {/* Plan Info Bar */}
+                      <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          <div className="bg-primary-container/20 text-primary-container p-1.5 rounded">
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                          </div>
+                          <div className="text-xs">
+                            <p className="font-semibold text-slate-600">Plan actual</p>
+                            <p className="text-primary-container">Prueba gratuita (14 d\u00edas)</p>
+                          </div>
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-slate-800 leading-none">14 / <span className="text-slate-400 font-normal">14</span></p>
+                            <p className="text-[10px] text-slate-500 uppercase tracking-tight">d\u00edas usados</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="bg-primary-container/10 px-2 py-1 rounded text-[10px] font-bold text-primary-container border border-primary-container/20">1/200</div>
+                            <div className="bg-green-50 px-2 py-1 rounded text-[10px] font-bold text-green-600 border border-green-100">1/1</div>
+                            <div className="bg-orange-50 px-2 py-1 rounded text-[10px] font-bold text-orange-600 border border-orange-100">0/1.0 GB</div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Expert Cards */}
+                      <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        {[
+                          {name:'Experta en ventas WhatsApp', img:'AB6AXuDWSe1_L4wZI5vciZ440fFRXGRX_Jy9mCsJqKWeDk4HE-Ljl3Gu1E5Pv7_L5NcYJqr2ETTpZFeExyCE2XypIEK2vjXJ0SCDYSJq2e6JfyCMI1LiPfaGw-Rc7j5TAylDR9nwUkBTwNbCNVnfE-Vc3MP-d0zr9TEtqCyQ8oWyL8YTEdNqstELBp_-riW1gRIx0nsqFnvVXus0zVvMi-eEMcgGTj2vSQ5OntWsKkBqzkLYJ0jOJrd9yO6AC96gavZF11KkwhvPXDVE5YNa', online:true},
+                          {name:'Experto en log\u00edstica', img:'AB6AXuBarYnXjTbS-YJFpfnLAYCtwnxMj4ecyo7lrGhGhkFAUtOluIPILBVpU9s63y6cW4s4lP4roXHMufp8eRBhm9RUVHPxC3cg8rWAbH5PnPjYIn_DSTgbolwSjPY1h_8tkVvEHCoOA7w0CWds5V9KapKNkkL2WPLYK_nhweD_by8E8fCUJRTw51XISU4En28JsnHZJRL9c262ihr6zZc44qvxfM0aPZbmQkEHOHvu_FgXciisI5QLgbr7Fn3B3Lb4oKTrGQeoaDrxd3ns', online:false},
+                          {name:'Especialista en carritos', img:'AB6AXuDw1TVF3SLRu-VMyIJGiH1m5ts4tKm4LYiPHm4oxOyzu3eZ_T6mp7gbMK1PN5IaC9_tDFYa3xZJoovjUvZg8iCJMP_kOlN5-m9zgjdYRo-U3LC3iIN38ckThN3YvkwB2ufNpLclTsPRElladsSOymDJYSApwZt1bcyG9Y4l_O17x3T0dcXG6tAXzDx21fulMb7Ife5-VDGCD7DiKXVMZBDR1EV7e-RLU_uKmpb4mA_pBVEcgwJ6bYZ_P0KPerwVqyi0AC1o6aH42daD', online:true},
+                          {name:'Mediadora de comentarios', img:'AB6AXuC1YTh3EdBAV_bv7N9aDXXB4YN4CgT4dUWwGTMvsPQesCRs_6YrPjx0uQKlZaivH1UYEwHBjzm6RR8Z2yImFDqmeDTukmPil6BBLbJzstpdCzuXxpsSk6GxYtJ4ak2QExlzDvVUEtlXnYtSq_qHXrhHTEo732Sm8qtAxRNcl_xxYh7WQ1zHQsDR6eXrqLTR4bNRzDvRw90ND0ODSVcSrkaliCv_GTtiJ9v0CUnnM_9_xwIhh-1bxMhpg9ymyIw4DaUREtW32ruDnX7J', online:true},
+                        ].map((expert, i) => (
+                          <div key={i} className="bg-crm-surface-container-low border border-slate-200 rounded-xl p-6 text-center hover:shadow-md transition-shadow">
+                            <div className="relative w-20 h-20 mx-auto mb-4">
+                              <img alt={expert.name} className="rounded-full w-full h-full object-cover border-2 border-white shadow-sm" src={`https://lh3.googleusercontent.com/aida-public/${expert.img}`} />
+                              <span className={`absolute bottom-1 right-1 w-4 h-4 ${expert.online ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full`}></span>
+                            </div>
+                            <h4 className="text-sm font-bold text-slate-800">{expert.name}</h4>
+                            <p className={`text-xs font-medium mt-1 ${expert.online ? 'text-primary-container' : 'text-slate-400'}`}>{expert.online ? 'Disponible' : 'Desconectado'}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {/* CTA Bar */}
+                      <div className="bg-primary-container/5 px-6 py-4 border-t border-slate-100 flex justify-between items-center">
+                        <div className="flex items-center gap-2 text-primary">
+                          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" fillRule="evenodd"></path></svg>
+                          <span className="text-sm font-semibold">Te faltan 4 expertos para optimizar tu flujo</span>
+                        </div>
+                        <button className="bg-primary text-slate-800 px-6 py-2 rounded-lg text-sm font-bold hover:bg-primary/90 shadow-sm transition-all flex items-center gap-2">
+                          Completar equipo
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Updates */}
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px]">
+                        <div className="bg-secondary p-4 flex justify-between items-center text-slate-800 rounded-t-2xl">
+                          <div>
+                            <h3 className="font-bold text-lg leading-none">Actualizaciones</h3>
+                            <p className="text-xs text-slate-800/70 mt-1">Nuevas funciones disponibles</p>
+                          </div>
+                          <div className="relative">
+                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                            <span className="absolute -top-1 -right-1 bg-white text-secondary text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">4</span>
+                          </div>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+                          <div className="border border-secondary/20 bg-secondary/5 rounded-xl p-4">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="bg-secondary/10 text-secondary text-[10px] font-bold px-2 py-0.5 rounded uppercase">Video soluci\u00f3n</span>
+                              <span className="text-[10px] text-slate-400 font-medium uppercase">30 ene 2026</span>
+                            </div>
+                            <h5 className="text-sm font-bold text-slate-800 mb-1">Error de m\u00e9todo de pago en Meta</h5>
+                            <p className="text-xs text-slate-600">Hemos publicado un video instructivo para solucionar el error com\u00fan de validaci\u00f3n de tarjetas...</p>
+                          </div>
+                          <div className="border border-secondary/20 bg-secondary/5 rounded-xl p-4">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="bg-secondary/10 text-secondary text-[10px] font-bold px-2 py-0.5 rounded uppercase">Nuevo</span>
+                              <span className="text-[10px] text-slate-400 font-medium uppercase">20 ene 2026</span>
+                            </div>
+                            <h5 className="text-sm font-bold text-slate-800 mb-1">Panel de notificaciones de ventas</h5>
+                            <p className="text-xs text-slate-600">Recibe alertas autom\u00e1ticas en tiempo real cada vez que un cliente complete un pago.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Trainings */}
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px]">
+                        <div className="bg-primary-container p-4 flex justify-between items-center text-slate-800 rounded-t-2xl">
+                          <div>
+                            <h3 className="font-bold text-lg leading-none">Capacitaciones</h3>
+                            <p className="text-xs text-slate-800/70 mt-1">Pr\u00f3ximas sesiones importantes</p>
+                          </div>
+                          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+                          <div className="border border-primary-container/10 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
+                            <h5 className="text-sm font-bold text-slate-800 mb-2">Primeros pasos de Chatea PRO</h5>
+                            <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                              <div className="flex items-center gap-1.5">
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                                <span>Lunes a Viernes</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                                <span>03:00 p.m. \u2022 60 min</span>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex justify-end">
+                              <button className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">Ingresar <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg></button>
+                            </div>
+                          </div>
+                          <div className="border border-primary-container/10 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
+                            <h5 className="text-sm font-bold text-slate-800 mb-2">Preguntas y respuestas con soporte</h5>
+                            <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                              <div className="flex items-center gap-1.5">
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                                <span>Martes y Jueves</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                                <span>04:30 p.m. \u2022 45 min</span>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex justify-end">
+                              <button className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">Ingresar <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg></button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
                 </div>
               </motion.div>
             )}
@@ -734,7 +919,7 @@ export default function PanelClient() {
                             <div className="flex items-center gap-3">
                               <AlertTriangle className="w-4 h-4 text-orange-400" />
                               <div>
-                                <p className="text-sm font-medium text-white">{alert.name}</p>
+                                <p className="text-sm font-medium text-slate-800">{alert.name}</p>
                                 <p className="text-[10px] text-gray-400">Solicitó a las {alert.time}</p>
                               </div>
                             </div>
@@ -897,13 +1082,13 @@ export default function PanelClient() {
                               type={showWhatsappKey ? "text" : "password"} 
                               value={configData.whatsapp_token || ''}
                               onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
-                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono text-sm"
+                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono text-sm"
                               placeholder="Escribe tu API Key aquí..."
                             />
                             <button
                               type="button"
                               onClick={() => setShowWhatsappKey(!showWhatsappKey)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-800 transition-colors"
                             >
                               {showWhatsappKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
@@ -915,7 +1100,7 @@ export default function PanelClient() {
                             type="text" 
                             value={configData.whatsapp_phone_id || ''}
                             onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all"
+                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all"
                           />
                         </div>
                       </div>
@@ -935,13 +1120,13 @@ export default function PanelClient() {
                               type={showOpenAiKey ? "text" : "password"} 
                               value={configData.openai_key || ''}
                               onChange={e => setConfigData({...configData, openai_key: e.target.value})}
-                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
+                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
                               placeholder="sk-..."
                             />
                             <button
                               type="button"
                               onClick={() => setShowOpenAiKey(!showOpenAiKey)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-800 transition-colors"
                             >
                               {showOpenAiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                             </button>
@@ -956,7 +1141,7 @@ export default function PanelClient() {
                             rows={5}
                             value={configData.ai_prompt || ''}
                             onChange={e => setConfigData({...configData, ai_prompt: e.target.value})}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all resize-y text-sm leading-relaxed"
+                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all resize-y text-sm leading-relaxed"
                           />
                         </div>
                       </div>
@@ -990,7 +1175,7 @@ export default function PanelClient() {
                       <button 
                         type="submit" 
                         disabled={isSaving}
-                        className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+                        className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-slate-800 rounded-xl font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
                       >
                         {isSaving ? (
                           <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1053,13 +1238,13 @@ export default function PanelClient() {
                             type={showCurrentPw ? "text" : "password"}
                             value={currentPassword}
                             onChange={e => setCurrentPassword(e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
                             placeholder="Ingresa tu contraseña actual"
                           />
                           <button
                             type="button"
                             onClick={() => setShowCurrentPw(!showCurrentPw)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-800 transition-colors"
                           >
                             {showCurrentPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                           </button>
@@ -1074,13 +1259,13 @@ export default function PanelClient() {
                             type={showNewPw ? "text" : "password"}
                             value={newPassword}
                             onChange={e => setNewPassword(e.target.value)}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
                             placeholder="Mínimo 6 caracteres"
                           />
                           <button
                             type="button"
                             onClick={() => setShowNewPw(!showNewPw)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-slate-800 transition-colors"
                           >
                             {showNewPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                           </button>
@@ -1094,7 +1279,7 @@ export default function PanelClient() {
                           type="password"
                           value={confirmPassword}
                           onChange={e => setConfirmPassword(e.target.value)}
-                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-slate-800 placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
                           placeholder="Repite la nueva contraseña"
                         />
                       </div>
@@ -1104,7 +1289,7 @@ export default function PanelClient() {
                         <button 
                           type="submit"
                           disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
-                          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-800 rounded-xl font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
                           {changingPassword ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1162,18 +1347,18 @@ export default function PanelClient() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
               >
                 <motion.div
                   initial={{ scale: 0.95, opacity: 0, y: 20 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
                   exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                  className="bg-[#0f0f0f] border border-white/10 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col p-6"
+                  className="bg-white border border-white/10 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col p-6"
                 >
                   {/* Header */}
                   <div className="flex justify-between items-center mb-6">
                     <div>
-                      <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                      <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                          <TrendingUp className="text-emerald-400 w-6 h-6"/> Ingresos Generados
                       </h3>
                       <p className="text-gray-400 text-sm mt-1">Navega por el calendario y observa tu rendimiento diario</p>
@@ -1191,11 +1376,11 @@ export default function PanelClient() {
                     <div className="bg-black/40 border border-white/10 rounded-xl p-4 md:w-64 shrink-0">
                       {/* Month Navigation */}
                       <div className="flex items-center justify-between mb-4">
-                        <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else { setCalMonth(calMonth - 1); } setSelectedDay(null); }} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white">
+                        <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else { setCalMonth(calMonth - 1); } setSelectedDay(null); }} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-slate-800">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                         </button>
-                        <span className="text-sm font-bold text-white">{MONTH_NAMES[calMonth]} {calYear}</span>
-                        <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else { setCalMonth(calMonth + 1); } setSelectedDay(null); }} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white">
+                        <span className="text-sm font-bold text-slate-800">{MONTH_NAMES[calMonth]} {calYear}</span>
+                        <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else { setCalMonth(calMonth + 1); } setSelectedDay(null); }} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-slate-800">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
                       </div>
@@ -1223,9 +1408,9 @@ export default function PanelClient() {
                                 onClick={() => setSelectedDay(isSelected ? null : day)}
                                 className={`w-full aspect-square rounded-md text-xs font-medium flex items-center justify-center transition-all
                                   ${isSelected 
-                                    ? 'bg-purple-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]' 
+                                    ? 'bg-purple-500 text-slate-800 shadow-[0_0_10px_rgba(168,85,247,0.5)]' 
                                     : hasData 
-                                      ? 'bg-white/5 text-gray-300 hover:bg-purple-500/20 hover:text-white' 
+                                      ? 'bg-white/5 text-gray-300 hover:bg-purple-500/20 hover:text-slate-800' 
                                       : 'text-gray-600 cursor-default'
                                   }`}
                               >
@@ -1243,7 +1428,7 @@ export default function PanelClient() {
                         return (
                           <div className="mt-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
                             <p className="text-xs text-gray-400">{selectedDay} {MONTH_NAMES[calMonth]} {calYear}</p>
-                            <p className="text-xl font-bold text-white mt-1">${amount ?? 0}</p>
+                            <p className="text-xl font-bold text-slate-800 mt-1">${amount ?? 0}</p>
                           </div>
                         );
                       })()}
@@ -1358,10 +1543,10 @@ export default function PanelClient() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-[#0f0f0f] w-full md:max-w-lg md:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[100dvh] md:h-[600px] md:border md:border-white/10"
+              className="bg-white w-full md:max-w-lg md:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[100dvh] md:h-[600px] md:border md:border-white/10"
             >
               {/* Header */}
-              <div className="p-3 md:p-4 border-b border-white/10 flex justify-between items-center bg-[#0f0f0f] safe-area-top shrink-0">
+              <div className="p-3 md:p-4 border-b border-white/10 flex justify-between items-center bg-white safe-area-top shrink-0">
                 <div className="flex items-center gap-2 md:gap-3 min-w-0">
                   {/* Mobile back arrow */}
                   <button 
@@ -1371,10 +1556,10 @@ export default function PanelClient() {
                     <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${isHumanMode ? 'bg-gradient-to-tr from-orange-500 to-amber-500' : 'bg-gradient-to-tr from-purple-600 to-blue-600'}`}>
-                    <User className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                    <User className="w-4 h-4 md:w-5 md:h-5 text-slate-800" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-bold text-white text-sm md:text-base truncate">{selectedChat.name}</h3>
+                    <h3 className="font-bold text-slate-800 text-sm md:text-base truncate">{selectedChat.name}</h3>
                     <p className={`text-[10px] md:text-xs flex items-center gap-1 ${isHumanMode ? 'text-orange-400' : 'text-emerald-400'}`}>
                       <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full animate-pulse ${isHumanMode ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
                       <span className="truncate">{isHumanMode ? '👤 Modo Humano (IA pausada)' : '🤖 IA respondiendo'}</span>
@@ -1442,7 +1627,7 @@ export default function PanelClient() {
                         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                           <div className={`p-3 rounded-2xl max-w-[80%] text-sm whitespace-pre-wrap ${
                             isUser
-                              ? 'bg-purple-600/20 border border-purple-500/30 text-white rounded-tr-sm'
+                              ? 'bg-purple-600/20 border border-purple-500/30 text-slate-800 rounded-tr-sm'
                               : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm'
                           }`}>
                             {msg.content}
@@ -1462,7 +1647,7 @@ export default function PanelClient() {
               </div>
 
               {/* Status Change Buttons */}
-              <div className="px-3 md:px-4 pt-2 md:pt-3 pb-1 border-t border-white/10 bg-[#0f0f0f] shrink-0">
+              <div className="px-3 md:px-4 pt-2 md:pt-3 pb-1 border-t border-white/10 bg-white shrink-0">
                 <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 md:mb-2">Mover a:</p>
                 <div className="flex gap-1.5 md:gap-2">
                   {!selectedChat.status.includes('chatting') && (
@@ -1523,7 +1708,7 @@ export default function PanelClient() {
               </div>
 
               {/* Input area */}
-              <div className="p-3 md:p-4 border-t border-white/5 bg-[#0f0f0f] flex gap-2 items-center safe-area-bottom shrink-0">
+              <div className="p-3 md:p-4 border-t border-white/5 bg-white flex gap-2 items-center safe-area-bottom shrink-0">
                 {isHumanMode ? (
                   <>
                     <input 
@@ -1546,7 +1731,7 @@ export default function PanelClient() {
                         }
                       }}
                       placeholder="Escribe tu mensaje..." 
-                      className="flex-1 bg-black/50 border border-orange-500/30 rounded-xl px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500/60 focus:outline-none"
+                      className="flex-1 bg-black/50 border border-orange-500/30 rounded-xl px-4 py-2 text-sm text-slate-800 placeholder-gray-500 focus:border-orange-500/60 focus:outline-none"
                       disabled={sendingMsg}
                     />
                     <button
@@ -1570,7 +1755,7 @@ export default function PanelClient() {
                       {sendingMsg ? (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       ) : (
-                        <Zap className="w-4 h-4 text-white" />
+                        <Zap className="w-4 h-4 text-slate-800" />
                       )}
                     </button>
                   </>
@@ -1583,7 +1768,7 @@ export default function PanelClient() {
                       readOnly
                     />
                     <div className="w-10 h-10 rounded-xl bg-purple-600/50 flex items-center justify-center opacity-50 cursor-not-allowed">
-                      <Zap className="w-4 h-4 text-white" />
+                      <Zap className="w-4 h-4 text-slate-800" />
                     </div>
                   </>
                 )}
