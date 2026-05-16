@@ -39,10 +39,85 @@ export async function POST(req: NextRequest) {
     const customerPhone = messageData.from; // ej: "593984111222"
     const customerMessage = messageData.text.body;
     const customerName = value?.contacts?.[0]?.profile?.name || 'Cliente';
+    // Extract the WhatsApp Phone Number ID from Meta's webhook payload
+    const webhookPhoneId = value?.metadata?.phone_number_id || '';
 
     console.log(`📩 Mensaje de ${customerName} (${customerPhone}): ${customerMessage}`);
+    console.log(`📞 Webhook phone_number_id: ${webhookPhoneId}`);
 
     const supabase = createSupabaseAdmin();
+
+    // 0. Resolve tenant config using the webhook phone_number_id
+    //    This ensures we always load the correct tenant's config in multi-tenant setups
+    let config: Record<string, any> | null = null;
+    let tenantId: string | null = null;
+
+    // Strategy 1: Match by whatsapp_phone_id from the webhook
+    if (webhookPhoneId) {
+      const { data: matchedConfig } = await supabase
+        .from('config')
+        .select('*')
+        .eq('whatsapp_phone_id', webhookPhoneId)
+        .limit(1)
+        .single();
+      if (matchedConfig) {
+        config = matchedConfig;
+        tenantId = matchedConfig.tenant_id || null;
+        console.log(`✅ Config encontrada por phone_id ${webhookPhoneId} → tenant: ${tenantId}`);
+      }
+    }
+
+    // Strategy 2: If the customer already has a conversation, use its tenant_id
+    if (!config) {
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('tenant_id')
+        .eq('phone_number', customerPhone)
+        .single();
+      if (existingConv?.tenant_id) {
+        const { data: tenantConfig } = await supabase
+          .from('config')
+          .select('*')
+          .eq('tenant_id', existingConv.tenant_id)
+          .limit(1)
+          .single();
+        if (tenantConfig) {
+          config = tenantConfig;
+          tenantId = tenantConfig.tenant_id || null;
+          console.log(`✅ Config encontrada por tenant de conversación existente → tenant: ${tenantId}`);
+        }
+      }
+    }
+
+    // Strategy 3: Fallback — pick the first config that has whatsapp_token set
+    if (!config) {
+      const { data: fallbackConfig } = await supabase
+        .from('config')
+        .select('*')
+        .not('whatsapp_token', 'is', null)
+        .not('whatsapp_token', 'eq', '')
+        .limit(1)
+        .single();
+      if (fallbackConfig) {
+        config = fallbackConfig;
+        tenantId = fallbackConfig.tenant_id || null;
+        console.log(`⚠️ Config fallback (primera con token): tenant: ${tenantId}`);
+      }
+    }
+
+    // Strategy 4: Absolute fallback — first row
+    if (!config) {
+      const { data: anyConfig } = await supabase
+        .from('config')
+        .select('*')
+        .limit(1)
+        .single();
+      config = anyConfig;
+      tenantId = anyConfig?.tenant_id || null;
+      console.log(`⚠️ Config absolute fallback → tenant: ${tenantId}`);
+    }
+
+    console.log(`🏢 Tenant resuelto: ${tenantId || '(ninguno)'} | Config ID: ${config?.id || '(ninguna)'}`);
 
     // 1. Buscar o crear conversación
     let { data: conversation } = await supabase
@@ -52,17 +127,25 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!conversation) {
+      const insertData: any = { phone_number: customerPhone, customer_name: customerName, status: 'chatting' };
+      if (tenantId) insertData.tenant_id = tenantId;
       const { data: newConv } = await supabase
         .from('conversations')
-        .insert({ phone_number: customerPhone, customer_name: customerName, status: 'chatting' })
+        .insert(insertData)
         .select()
         .single();
       conversation = newConv;
+      console.log(`📝 Nueva conversación creada para ${customerName} (${customerPhone}) con tenant: ${tenantId || '(sin tenant)'}`);
     } else {
-      // Actualizar nombre y timestamp
+      // Actualizar nombre, timestamp, y asignar tenant_id si falta
+      const updateData: any = { customer_name: customerName, updated_at: new Date().toISOString() };
+      if (tenantId && !conversation.tenant_id) {
+        updateData.tenant_id = tenantId;
+        console.log(`🔧 Asignando tenant_id a conversación existente de ${customerName}`);
+      }
       await supabase
         .from('conversations')
-        .update({ customer_name: customerName, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', conversation.id);
     }
 
@@ -197,10 +280,29 @@ export async function POST(req: NextRequest) {
     // Limitar a los últimos 10 mensajes limpios para no exceder el contexto
     const history = cleanHistory.slice(-10);
 
-    // 4. Obtener configuración (prompt de la IA)
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    // 4. Obtener configuración (ya resuelta arriba, reusar `config`)
     let aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
-    const groqKey = config?.openai_key || process.env.GROQ_API_KEY;
+
+    // Decode extended config for AI keys + model settings
+    let extConfig = { openai_key: '', gemini_key: '', groq_key: '', model_selection: 'gpt-4o', confidence_threshold: 0.85 };
+    try { 
+      const p = JSON.parse(config?.openai_key || '{}');
+      extConfig = { ...extConfig, ...p };
+    } catch { 
+      extConfig.openai_key = config?.openai_key || '';
+    }
+
+    // Determine which provider & model to use
+    const selectedModel = extConfig.model_selection || 'gpt-4o';
+    const isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
+    const isGemini = selectedModel.startsWith('gemini');
+    const isOpenAI = !isGroq && !isGemini;
+
+    // Resolve API key based on provider
+    let apiKey = '';
+    if (isGroq) apiKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
+    else if (isGemini) apiKey = extConfig.gemini_key || process.env.GEMINI_API_KEY || '';
+    else apiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
 
     // 4.1 Si el cliente pidió humano, inyectar instrucción especial al prompt
     if (wantsHuman && !forceHumanEscalation) {
@@ -210,21 +312,17 @@ export async function POST(req: NextRequest) {
       aiPrompt += `\n\n[INSTRUCCIÓN ESPECIAL]: El cliente ha insistido múltiples veces en hablar con un humano. Responde de forma profesional diciendo que respetas su preferencia y que un asesor especializado de RIFX se pondrá en contacto con él en breve. Pide disculpas por las molestias y agradece su paciencia. Sé breve y cálido.`;
     }
 
-    if (!groqKey) {
-      console.error('❌ No hay API Key de Groq configurada');
+    if (!apiKey || apiKey.length < 10) {
+      console.error(`❌ No hay API Key configurada para el proveedor (modelo: ${selectedModel})`);
       await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config);
-      return NextResponse.json({ error: 'No Groq key' }, { status: 500 });
+      return NextResponse.json({ error: 'No AI key configured' }, { status: 500 });
     }
 
-    // 5. Enviar a Groq (compatible con SDK de OpenAI)
-    console.log(`🔑 Usando API key: ${groqKey.substring(0, 8)}...${groqKey.substring(groqKey.length - 4)}`);
+    // 5. Enviar al proveedor de IA seleccionado
+    console.log(`🤖 Modelo seleccionado: ${selectedModel} (${isGroq ? 'Groq' : isGemini ? 'Gemini' : 'OpenAI'})`);
+    console.log(`🔑 Usando API key: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
     console.log(`📝 Prompt del sistema: ${aiPrompt.substring(0, 80)}...`);
     console.log(`💬 Historial: ${(rawHistory || []).length} total, ${history.length} después de filtrar`);
-
-    const groq = new OpenAI({
-      apiKey: groqKey,
-      baseURL: 'https://api.groq.com/openai/v1',
-    });
 
     const chatMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: aiPrompt },
@@ -236,23 +334,43 @@ export async function POST(req: NextRequest) {
 
     let aiResponse: string;
     try {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: chatMessages,
-        max_tokens: 500,
-        temperature: 0.7,
-      });
+      if (isGemini) {
+        // Google Gemini via REST API
+        const geminiMessages = chatMessages.map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.role === 'system' ? `[System Instructions]: ${m.content}` : m.content }],
+        }));
+        const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: geminiMessages, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+        });
+        const gemData = await gemRes.json();
+        aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        // OpenAI / Groq (both use OpenAI SDK)
+        const client = new OpenAI({
+          apiKey,
+          baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
+        });
+        const completion = await client.chat.completions.create({
+          model: selectedModel,
+          messages: chatMessages,
+          max_tokens: 500,
+          temperature: 0.7,
+        });
+        aiResponse = completion.choices[0]?.message?.content || '';
+      }
 
-      aiResponse = completion.choices[0]?.message?.content || '';
-      console.log(`✅ Groq respondió: ${aiResponse.substring(0, 80)}...`);
+      console.log(`✅ IA respondió (${selectedModel}): ${(aiResponse || '').substring(0, 80)}...`);
 
       if (!aiResponse) {
-        console.error('⚠️ Groq devolvió respuesta vacía. Choices:', JSON.stringify(completion.choices));
+        console.error(`⚠️ ${selectedModel} devolvió respuesta vacía`);
         aiResponse = 'Disculpa, estoy procesando mucha información. ¿Podrías repetir tu pregunta? 🙏';
       }
-    } catch (groqError: any) {
-      console.error('❌ Error de Groq API:', groqError?.message || groqError);
-      console.error('❌ Detalles:', JSON.stringify(groqError?.error || groqError?.response?.data || 'sin detalles'));
+    } catch (aiError: any) {
+      console.error(`❌ Error de IA (${selectedModel}):`, aiError?.message || aiError);
+      console.error('❌ Detalles:', JSON.stringify(aiError?.error || aiError?.response?.data || 'sin detalles'));
       aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
     }
 
@@ -312,8 +430,12 @@ export async function POST(req: NextRequest) {
 // ============================================
 
 async function sendWhatsAppMessage(to: string, text: string, config: Record<string, string> | null) {
-  const token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-  const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
+  let token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
+  let phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  // Si los tokens de la DB son cortos o parecen de prueba, forzamos usar el .env
+  if (token && token.length < 20) token = process.env.WHATSAPP_TOKEN;
+  if (phoneId && phoneId.length < 5) phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!token || !phoneId) {
     console.error('❌ Faltan credenciales de WhatsApp');
