@@ -238,6 +238,17 @@ export default function PanelClient() {
   const campaignFileRef = React.useRef<HTMLInputElement>(null);
   const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
 
+  // === Facebook Marketing API ===
+  const [fbCampaigns, setFbCampaigns] = useState<any[]>([]);
+  const [fbInsights, setFbInsights] = useState<any>(null);
+  const [fbLoading, setFbLoading] = useState(false);
+  const [fbError, setFbError] = useState<string | null>(null);
+  const loadFbCampaigns = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/campaigns?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbCampaigns(d.campaigns||[]); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
+  const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbInsights(d); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
+  const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await fetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else alert(d.error); } catch(e:any){alert(e.message)} };
+  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await fetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else alert(d.error); } catch(e:any){alert(e.message)} };
+
+
   const handleGenerateCampaign = async () => {
     if (!campaignDesc) return;
     setIsGeneratingCampaign(true);
@@ -4438,7 +4449,15 @@ export default function PanelClient() {
             {/* ===== SUB-TAB: CAMPAIGNS OVERVIEW ===== */}
             {campaignSubTab === 'campaigns' && (
               <div className="space-y-6">
-                {/* Filter Bar */}
+                {/* Load from Facebook + Filters */}
+                <div className="flex items-center gap-3 mb-4">
+                  <button onClick={() => loadFbCampaigns()} disabled={fbLoading} className="flex items-center gap-2 px-5 py-2.5 text-white font-semibold rounded-lg text-sm disabled:opacity-50 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                    <span className="material-symbols-outlined text-sm">{fbLoading ? 'sync' : 'cloud_download'}</span>
+                    {fbLoading ? (language === 'en' ? 'Loading...' : 'Cargando...') : (language === 'en' ? 'Load from Facebook' : 'Cargar de Facebook')}
+                  </button>
+                  {fbError && <span className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">{fbError}</span>}
+                  {fbCampaigns.length > 0 && <span className="text-sm text-[#006947] bg-[#006947]/10 px-3 py-1 rounded-lg font-semibold">{fbCampaigns.length} {language === 'en' ? 'campaigns loaded' : 'campañas cargadas'}</span>}
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-2" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
@@ -4447,24 +4466,6 @@ export default function PanelClient() {
                         <option>{language === 'en' ? 'All' : 'Todos'}</option>
                         <option>{language === 'en' ? 'Active' : 'Activas'}</option>
                         <option>{language === 'en' ? 'Paused' : 'Pausadas'}</option>
-                        <option>{language === 'en' ? 'Completed' : 'Completadas'}</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-2" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <span className="text-[12px] font-semibold text-[#414754] mr-2 uppercase tracking-wider">{language === 'en' ? 'Date:' : 'Fecha:'}</span>
-                      <select className="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-[#0b1c30]">
-                        <option>{language === 'en' ? 'Last 30 days' : 'Ultimos 30 dias'}</option>
-                        <option>{language === 'en' ? 'This month' : 'Este mes'}</option>
-                        <option>{language === 'en' ? 'This year' : 'Este año'}</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-2" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <span className="text-[12px] font-semibold text-[#414754] mr-2 uppercase tracking-wider">{language === 'en' ? 'Platform:' : 'Plataforma:'}</span>
-                      <select className="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-[#0b1c30]">
-                        <option>{language === 'en' ? 'All' : 'Todas'}</option>
-                        <option>Facebook</option>
-                        <option>Instagram</option>
-                        <option>Google Ads</option>
                       </select>
                     </div>
                   </div>
@@ -4477,10 +4478,10 @@ export default function PanelClient() {
                 {/* Stats Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[
-                    { label: language === 'en' ? 'Total Campaigns' : 'Total Campañas', value: '24', trend: '+2 este mes', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
-                    { label: language === 'en' ? 'Total Spent' : 'Gasto Total', value: '$12,450', trend: 'Pacing: 82%', pacing: 82 },
-                    { label: language === 'en' ? 'Average CPC' : 'CPC Promedio', value: '$0.84', trend: '-12% vs prev', trendIcon: 'trending_down', trendColor: 'text-[#006947]' },
-                    { label: language === 'en' ? 'Conversions' : 'Conversiones', value: '1,102', trend: '+5.4% ROI', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
+                    { label: language === 'en' ? 'Total Campaigns' : 'Total Campañas', value: String(fbCampaigns.length || 0), trend: 'Facebook Ads', trendIcon: 'campaign', trendColor: 'text-[#006947]' },
+                    { label: language === 'en' ? 'Total Spent' : 'Gasto Total', value: '$' + fbCampaigns.reduce((s:number,c:any) => s + parseFloat(c.insights?.spend||'0'), 0).toFixed(2), trend: fbCampaigns.length > 0 ? 'Datos reales' : 'Carga campañas', pacing: fbCampaigns.length > 0 ? 100 : 0 },
+                    { label: language === 'en' ? 'Average CPC' : 'CPC Promedio', value: '$' + (fbCampaigns.length > 0 ? (fbCampaigns.reduce((s:number,c:any) => s + parseFloat(c.insights?.cpc||'0'), 0) / fbCampaigns.length).toFixed(2) : '0.00'), trend: 'Facebook API', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
+                    { label: language === 'en' ? 'Total Clicks' : 'Total Clicks', value: String(fbCampaigns.reduce((s:number,c:any) => s + parseInt(c.insights?.clicks||'0'), 0)), trend: 'Real-time', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
                   ].map((s, i) => (
                     <div key={i} className="bg-white p-6 rounded-lg border border-[#c1c6d6] hover:border-[#0058bc] transition-colors" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                       <p className="text-[12px] font-semibold text-[#414754] mb-1 uppercase tracking-wider">{s.label}</p>
@@ -4513,11 +4514,11 @@ export default function PanelClient() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#c1c6d6]">
-                      {[
-  { name: 'Summer Promo 2024', platform: 'Facebook', category: 'Retail', status: 'active', budgetDay: '$50.00', budgetTotal: '$1,500', resultValue: '12,400', resultLabel: 'Impresiones', costValue: '$0.45', costLabel: 'CPC', date: '12 May 2024', img: 'campaign' },
-  { name: 'Retargeting Lead Gen', platform: 'Google', category: 'Services', status: 'paused', budgetDay: '$120.00', budgetTotal: '$3,600', resultValue: '8,902', resultLabel: 'Clicks', costValue: '$1.12', costLabel: 'CPL', date: '08 May 2024', img: 'ads_click' },
-  { name: 'Brand Awareness IG', platform: 'Instagram', category: 'Lifestyle', status: 'active', budgetDay: '$25.00', budgetTotal: '$750', resultValue: '45,600', resultLabel: 'Impresiones', costValue: '$0.18', costLabel: 'CPM', date: '01 May 2024', img: 'auto_awesome' },
-].map((row, i) => (
+                      {(fbCampaigns.length > 0 ? fbCampaigns.map((c:any) => ({
+  name: c.name || 'Sin nombre', platform: 'Facebook', category: c.objective || 'TRAFFIC', status: c.status === 'ACTIVE' ? 'active' : 'paused', budgetDay: '$' + (c.daily_budget || '0.00'), budgetTotal: '$' + (c.lifetime_budget || '--'), resultValue: c.insights?.impressions || '0', resultLabel: language === 'en' ? 'Impressions' : 'Impresiones', costValue: '$' + (c.insights?.cpc || '0.00'), costLabel: 'CPC', date: c.created_time ? new Date(c.created_time).toLocaleDateString() : '--', img: 'campaign', id: c.id, rawStatus: c.status,
+})) : [
+  { name: language === 'en' ? 'No campaigns loaded' : 'Sin campañas cargadas', platform: 'Facebook', category: '--', status: 'paused', budgetDay: '--', budgetTotal: '--', resultValue: '--', resultLabel: '--', costValue: '--', costLabel: '--', date: '--', img: 'info', id: '', rawStatus: '' },
+]).map((row, i) => (
                         <tr key={i} className="hover:bg-[#f8f9ff] transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4">
@@ -4551,9 +4552,9 @@ export default function PanelClient() {
                           <td className="px-6 py-4"><p className="text-sm">{row.date}</p></td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <button className="p-2 text-[#414754] hover:text-[#0058bc] hover:bg-[#0058bc]/10 rounded transition-colors"><span className="material-symbols-outlined text-lg">edit</span></button>
-                              <button className="p-2 text-[#414754] hover:text-[#006947] hover:bg-[#006947]/10 rounded transition-colors"><span className="material-symbols-outlined text-lg">{row.status === 'active' ? 'pause' : 'play_arrow'}</span></button>
-                              <button className="p-2 text-[#414754] hover:text-[#ba1a1a] hover:bg-[#ba1a1a]/10 rounded transition-colors"><span className="material-symbols-outlined text-lg">delete</span></button>
+                              <button className="p-2 text-[#414754] hover:text-[#0058bc] hover:bg-[#0058bc]/10 rounded transition-colors" onClick={() => setCampaignSubTab('creative')}><span className="material-symbols-outlined text-lg">edit</span></button>
+                              <button className="p-2 text-[#414754] hover:text-[#006947] hover:bg-[#006947]/10 rounded transition-colors" onClick={() => row.id && toggleFbCampaign(row.id, row.rawStatus || 'PAUSED')}><span className="material-symbols-outlined text-lg">{row.status === 'active' ? 'pause' : 'play_arrow'}</span></button>
+                              <button className="p-2 text-[#414754] hover:text-[#ba1a1a] hover:bg-[#ba1a1a]/10 rounded transition-colors" onClick={() => row.id && deleteFbCampaign(row.id)}><span className="material-symbols-outlined text-lg">delete</span></button>
                             </div>
                           </td>
                         </tr>
@@ -4562,7 +4563,7 @@ export default function PanelClient() {
                   </table>
                   {/* Pagination */}
                   <div className="bg-[#eff4ff] px-6 py-4 flex items-center justify-between border-t border-[#c1c6d6]">
-                    <p className="text-[12px] font-semibold text-[#414754]">{language === 'en' ? 'Showing 1-3 of 24 campaigns' : 'Mostrando 1-3 de 24 campañas'}</p>
+                    <p className="text-[12px] font-semibold text-[#414754]">{language === 'en' ? `Showing ${fbCampaigns.length} campaigns from Facebook` : `Mostrando ${fbCampaigns.length} campañas de Facebook`}</p>
                     <div className="flex items-center gap-2">
                       <button className="p-1 rounded hover:bg-[#dce9ff] transition-colors disabled:opacity-50" disabled><span className="material-symbols-outlined">chevron_left</span></button>
                       <div className="flex items-center gap-1">
@@ -4771,7 +4772,7 @@ export default function PanelClient() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                   <div>
                     <h3 className="text-2xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Performance Summary' : 'Resumen de Rendimiento'}</h3>
-                    <p className="text-sm text-[#414754]">{language === 'en' ? 'Data updated 2 minutes ago' : 'Datos actualizados hace 2 minutos'}</p>
+                    <p className="text-sm text-[#414754]">{fbInsights ? (language === 'en' ? 'Live data from Facebook API' : 'Datos en vivo de Facebook API') : (language === 'en' ? 'Click Load to fetch real data' : 'Haz clic en Cargar para datos reales')}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center bg-[#eff4ff] border border-[#c1c6d6] rounded-lg px-4 py-2 gap-3">
@@ -4779,6 +4780,10 @@ export default function PanelClient() {
                       <span className="text-sm font-medium">1 Oct - 31 Oct, 2024</span>
                       <span className="material-symbols-outlined text-[#414754]">expand_more</span>
                     </div>
+                    <button onClick={() => loadFbInsights()} disabled={fbLoading} className="px-5 py-2 text-white font-semibold rounded-lg text-sm flex items-center gap-2 disabled:opacity-50 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                      <span className="material-symbols-outlined text-sm">{fbLoading ? 'sync' : 'cloud_download'}</span>
+                      {fbLoading ? (language === 'en' ? 'Loading...' : 'Cargando...') : (language === 'en' ? 'Load from Facebook' : 'Cargar de Facebook')}
+                    </button>
                     <button className="bg-white border border-[#c1c6d6] text-[#0b1c30] px-6 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-[#eff4ff] transition-colors">
                       <span className="material-symbols-outlined">download</span>
                       {language === 'en' ? 'Export' : 'Exportar'}
@@ -4789,10 +4794,10 @@ export default function PanelClient() {
                 {/* KPI Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[
-                    { label: 'ROAS Total', value: '4.82x', change: '+12.5%', positive: true, bars: [40,60,50,70,90,85] },
-                    { label: language === 'en' ? 'Conversion Value' : 'Valor de Conversion', value: '$124,500', change: '+8.1%', positive: true, bars: [30,50,40,80,70,100] },
-                    { label: language === 'en' ? 'Average CPA' : 'CPA Promedio', value: '$14.20', change: '-2.4%', positive: false, bars: [80,70,90,60,50,40] },
-                    { label: 'CTR Global', value: '3.14%', change: '+0.4%', positive: true, bars: [40,45,55,60,65,70] },
+                    { label: 'ROAS Total', value: (fbInsights?.kpis?.roas || '0.00') + 'x', change: fbInsights ? 'Facebook API' : '--', positive: true, bars: [40,60,50,70,90,85] },
+                    { label: language === 'en' ? 'Total Spend' : 'Gasto Total', value: '$' + (fbInsights?.kpis?.spend || '0.00'), change: fbInsights ? (language === 'en' ? 'Real data' : 'Datos reales') : '--', positive: true, bars: [30,50,40,80,70,100] },
+                    { label: language === 'en' ? 'Average CPA' : 'CPA Promedio', value: '$' + (fbInsights?.kpis?.cpa || '0.00'), change: fbInsights ? 'CPC: $' + (fbInsights?.kpis?.cpc || '0.00') : '--', positive: false, bars: [80,70,90,60,50,40] },
+                    { label: 'CTR Global', value: (fbInsights?.kpis?.ctr || '0.00') + '%', change: fbInsights ? (fbInsights?.kpis?.clicks || '0') + ' clicks' : '--', positive: true, bars: [40,45,55,60,65,70] },
                   ].map((kpi, i) => (
                     <div key={i} className="bg-white p-6 rounded-xl border border-[#c1c6d6] flex flex-col gap-4" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                       <div className="flex justify-between items-start">
