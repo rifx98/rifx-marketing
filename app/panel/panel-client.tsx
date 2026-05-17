@@ -253,24 +253,26 @@ export default function PanelClient() {
     setFbPublishing(true);
     try {
       const caption = campaignResult?.caption || campaignDesc;
+      const cfg = campaignResult?.campaign_config || {};
+      const aud = campaignResult?.target_audience || {};
       const r = await fetch('/api/panel/facebook/publish', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           campaign_name: (campaignResult?.hook || caption).substring(0, 50),
           message: caption + (campaignResult?.hashtags ? '\n' + campaignResult.hashtags : ''),
-          daily_budget: 500,
-          objective: 'OUTCOME_TRAFFIC',
+          daily_budget: (cfg.daily_budget_usd || 5) * 100,
+          objective: cfg.objective || 'OUTCOME_TRAFFIC',
           link_url: 'https://rifx.online',
           countries: ['EC'],
-          age_min: 18,
-          age_max: 55,
-          call_to_action: 'LEARN_MORE',
+          age_min: aud.age_min || 18,
+          age_max: aud.age_max || 55,
+          call_to_action: cfg.call_to_action || 'LEARN_MORE',
           status: 'PAUSED'
         })
       });
       const d = await r.json();
       if (d.success) {
-        alert(language === 'en' ? 'Campaign published to Facebook! (Status: PAUSED)' : '¡Campaña publicada en Facebook! (Estado: PAUSADA)');
+        alert(language === 'en' ? 'Campaign published to Facebook! (Status: PAUSED)' : '\u00a1Campa\u00f1a publicada en Facebook! (Estado: PAUSADA)');
         loadFbCampaigns();
         setCampaignSubTab('campaigns');
       } else { alert('Error: ' + (d.error || 'Error desconocido')); }
@@ -4677,29 +4679,90 @@ export default function PanelClient() {
                   </div>
                 </section>
 
-                {/* Performance Estimation Card */}
+                {/* AdGenius AI Results */}
                 <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                   <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-[#006947]">analytics</span>
-                    <h4 className="text-xl font-semibold">{language === 'en' ? 'Performance Estimation' : 'Estimación de Rendimiento'}</h4>
+                    <span className="material-symbols-outlined text-[#0058bc]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                    <h4 className="text-xl font-semibold">RIFX AdGenius</h4>
+                    {campaignResult?.copy_framework && <span className="bg-[#0058bc]/10 text-[#0058bc] text-[10px] font-bold px-2 py-0.5 rounded-full">{campaignResult.copy_framework}</span>}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-4 bg-[#eff4ff] rounded-lg">
-                      <p className="text-[11px] font-semibold text-[#414754] uppercase">Reach {language === 'en' ? 'Estimated' : 'Estimado'}</p>
-                      <p className="text-2xl font-bold mt-1">{campaignResult ? '12k - 18k' : '--'}</p>
-                      <div className="w-full bg-[#c1c6d6] h-1 rounded-full mt-2 overflow-hidden"><div className="bg-[#0058bc] h-full transition-all duration-500" style={{ width: campaignResult ? '65%' : '0%' }}></div></div>
+
+                  {!campaignResult ? (
+                    <div className="text-center py-8 text-[#414754]">
+                      <span className="material-symbols-outlined text-4xl text-[#c1c6d6] block mb-2">psychology</span>
+                      <p className="text-sm">{language === 'en' ? 'Generate content with AI to see professional recommendations' : 'Genera contenido con IA para ver recomendaciones profesionales'}</p>
                     </div>
-                    <div className="p-4 bg-[#eff4ff] rounded-lg">
-                      <p className="text-[11px] font-semibold text-[#414754] uppercase">Engagement</p>
-                      <p className="text-2xl font-bold mt-1">{campaignResult ? '4.2%' : '--'}</p>
-                      <div className="w-full bg-[#c1c6d6] h-1 rounded-full mt-2 overflow-hidden"><div className="bg-[#006947] h-full transition-all duration-500" style={{ width: campaignResult ? '45%' : '0%' }}></div></div>
+                  ) : (
+                    <div className="space-y-5">
+                      {/* Hook Variants for A/B Testing */}
+                      {campaignResult.hook_variants?.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-[#414754] uppercase tracking-wider mb-2">Hooks para A/B Testing</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {campaignResult.hook_variants.map((h: string, i: number) => (
+                              <div key={i} className="flex items-center gap-2 p-2.5 bg-[#eff4ff] rounded-lg border border-[#c1c6d6] cursor-pointer hover:border-[#0058bc] transition-colors" onClick={() => setCampaignDesc(h)}>
+                                <span className="text-[10px] font-bold text-white bg-[#0058bc] w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">{String.fromCharCode(65+i)}</span>
+                                <span className="text-sm">{h}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Audience + Config Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Target Audience */}
+                        {campaignResult.target_audience && (
+                          <div className="p-4 bg-[#eff4ff] rounded-lg">
+                            <p className="text-[11px] font-bold text-[#414754] uppercase tracking-wider mb-2 flex items-center gap-1"><span className="material-symbols-outlined text-sm">people</span> Audiencia Sugerida</p>
+                            <div className="space-y-1.5 text-sm">
+                              <p><span className="font-semibold">Edad:</span> {campaignResult.target_audience.age_min} - {campaignResult.target_audience.age_max} {language === 'en' ? 'years' : 'años'}</p>
+                              <p><span className="font-semibold">Género:</span> {campaignResult.target_audience.gender === 'all' ? 'Todos' : campaignResult.target_audience.gender}</p>
+                              {campaignResult.target_audience.interests?.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {campaignResult.target_audience.interests.map((int: string, i: number) => (
+                                    <span key={i} className="bg-white text-[#0058bc] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#0058bc]/20">{int}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Campaign Config */}
+                        {campaignResult.campaign_config && (
+                          <div className="p-4 bg-[#eff4ff] rounded-lg">
+                            <p className="text-[11px] font-bold text-[#414754] uppercase tracking-wider mb-2 flex items-center gap-1"><span className="material-symbols-outlined text-sm">tune</span> Config. Recomendada</p>
+                            <div className="space-y-1.5 text-sm">
+                              <p><span className="font-semibold">Objetivo:</span> {campaignResult.campaign_config.objective?.replace('OUTCOME_', '')}</p>
+                              <p><span className="font-semibold">Presupuesto:</span> ${campaignResult.campaign_config.daily_budget_usd}/dia</p>
+                              <p><span className="font-semibold">Formato:</span> {campaignResult.campaign_config.ad_format}</p>
+                              <p><span className="font-semibold">Placement:</span> {campaignResult.campaign_config.placement_recommendation}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Emotional Triggers + A/B Suggestion */}
+                      <div className="flex flex-wrap gap-4">
+                        {campaignResult.emotional_triggers?.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-[#414754] uppercase">Gatillos:</span>
+                            {campaignResult.emotional_triggers.map((t: string, i: number) => (
+                              <span key={i} className="bg-[#006947]/10 text-[#006947] text-[10px] font-semibold px-2.5 py-1 rounded-full">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {campaignResult.a_b_test_suggestion && (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
+                          <span className="material-symbols-outlined text-yellow-600 text-sm mt-0.5">lightbulb</span>
+                          <p className="text-[12px] text-yellow-800"><span className="font-bold">A/B Test:</span> {campaignResult.a_b_test_suggestion}</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="p-4 bg-[#eff4ff] rounded-lg">
-                      <p className="text-[11px] font-semibold text-[#414754] uppercase">{language === 'en' ? 'AI Score' : 'Puntuación IA'}</p>
-                      <p className="text-2xl font-bold mt-1">{campaignResult ? '8.5/10' : '--'}</p>
-                      <div className="w-full bg-[#c1c6d6] h-1 rounded-full mt-2 overflow-hidden"><div className="h-full transition-all duration-500" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)', width: campaignResult ? '85%' : '0%' }}></div></div>
-                    </div>
-                  </div>
+                  )}
                 </section>
               </div>
 
