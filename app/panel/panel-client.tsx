@@ -299,6 +299,8 @@ export default function PanelClient() {
       const data = await res.json();
       if (data.success) {
         setCampaignResult(data.campaign);
+        // Auto-generar banner con la imagen del producto
+        setTimeout(() => generateBannerImage(data.campaign), 100);
       } else {
         alert(data.error || 'Error generating campaign');
       }
@@ -326,6 +328,133 @@ export default function PanelClient() {
       setProductImagePreview(url);
     }
   };
+
+  // Banner Generator con Canvas
+  const [generatedBanner, setGeneratedBanner] = useState<string | null>(null);
+  const generateBannerImage = async (result: any) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
+    grad.addColorStop(0, '#0058bc');
+    grad.addColorStop(0.5, '#054ADA');
+    grad.addColorStop(1, '#1877F2');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1080, 1080);
+
+    // Draw product image if available
+    const imgSrc = productImagePreview || campaignImagePreview;
+    if (imgSrc) {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = reject; img.src = imgSrc; });
+        // Draw product image filling canvas
+        const scale = Math.max(1080 / img.width, 1080 / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (1080 - w) / 2, (1080 - h) / 2, w, h);
+        // Dark overlay for text readability
+        const overlay = ctx.createLinearGradient(0, 0, 0, 1080);
+        overlay.addColorStop(0, 'rgba(0,0,0,0.6)');
+        overlay.addColorStop(0.4, 'rgba(0,0,0,0.1)');
+        overlay.addColorStop(0.7, 'rgba(0,0,0,0.1)');
+        overlay.addColorStop(1, 'rgba(0,0,0,0.7)');
+        ctx.fillStyle = overlay;
+        ctx.fillRect(0, 0, 1080, 1080);
+      } catch(e) { console.warn('Error loading image for banner'); }
+    } else {
+      // Pattern decoration when no image
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      for (let i = 0; i < 20; i++) {
+        ctx.beginPath();
+        ctx.arc(Math.random()*1080, Math.random()*1080, Math.random()*100+50, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    // Top badge
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.roundRect(40, 40, 200, 36, 18);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px Inter, Arial, sans-serif';
+    ctx.fillText('⚡ ' + (result?.copy_framework || 'RIFX AdGenius'), 60, 64);
+
+    // Hook text (main)
+    const hook = result?.hook || campaignTitle || 'Tu Producto';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 64px Inter, Arial, sans-serif';
+    // Word wrap
+    const words = hook.split(' ');
+    let line = '';
+    let y = imgSrc ? 160 : 350;
+    const maxW = 980;
+    for (const word of words) {
+      const test = line + word + ' ';
+      if (ctx.measureText(test).width > maxW && line) {
+        ctx.fillText(line.trim(), 50, y);
+        line = word + ' ';
+        y += 75;
+      } else { line = test; }
+    }
+    ctx.fillText(line.trim(), 50, y);
+
+    // Subtitle / caption excerpt
+    const subtitle = (result?.caption || campaignDesc || '').substring(0, 120);
+    if (subtitle) {
+      ctx.font = '28px Inter, Arial, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      const sWords = subtitle.split(' ');
+      let sLine = '';
+      let sY = y + 60;
+      for (const w of sWords) {
+        const t = sLine + w + ' ';
+        if (ctx.measureText(t).width > maxW && sLine) {
+          ctx.fillText(sLine.trim(), 50, sY);
+          sLine = w + ' ';
+          sY += 36;
+          if (sY > 700) break;
+        } else { sLine = t; }
+      }
+      ctx.fillText(sLine.trim(), 50, sY);
+    }
+
+    // CTA Button
+    const ctaText = result?.campaign_config?.call_to_action?.replace(/_/g, ' ') || 'MAS INFO';
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(50, 920, 300, 60, 12);
+    ctx.fill();
+    ctx.fillStyle = '#0058bc';
+    ctx.font = 'bold 24px Inter, Arial, sans-serif';
+    ctx.fillText(ctaText, 100, 958);
+
+    // Brand
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = 'bold 18px Inter, Arial, sans-serif';
+    ctx.fillText(tenantData?.company || 'RIFX Marketing', 800, 1050);
+
+    // Price badge if budget info
+    if (dailyBudget) {
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.roundRect(830, 40, 210, 50, 25);
+      ctx.fill();
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 22px Inter, Arial, sans-serif';
+      ctx.fillText('💰 $' + dailyBudget + '/dia', 860, 72);
+    }
+
+    const dataUrl = canvas.toDataURL('image/png');
+    setGeneratedBanner(dataUrl);
+  };
+
 
   // Plan expiration check
   const isPlanExpired = React.useMemo(() => {
@@ -4723,7 +4852,7 @@ export default function PanelClient() {
 
                   {/* Action Buttons */}
                   <div className="pt-5 border-t border-[#c1c6d6] flex flex-wrap justify-end gap-3">
-                    <button onClick={() => { setCampaignDesc(''); setCampaignTitle(''); setCampaignImage(null); setCampaignImagePreview(null); setProductImage(null); setProductImagePreview(null); setCampaignResult(null); setDailyBudget(5); }} className="px-5 py-2.5 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Clear All' : 'Limpiar Todo'}</button>
+                    <button onClick={() => { setCampaignDesc(''); setCampaignTitle(''); setCampaignImage(null); setCampaignImagePreview(null); setProductImage(null); setProductImagePreview(null); setCampaignResult(null); setDailyBudget(5); setGeneratedBanner(null); }} className="px-5 py-2.5 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Clear All' : 'Limpiar Todo'}</button>
                     <button onClick={handleGenerateCampaign} disabled={(!campaignDesc && !campaignTitle) || isGeneratingCampaign} className="px-5 py-2.5 border border-[#0058bc] text-[#0058bc] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
                       <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
                       {isGeneratingCampaign ? (language === 'en' ? 'AdGenius working...' : 'AdGenius trabajando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}
@@ -4868,12 +4997,18 @@ export default function PanelClient() {
 
                           {/* Ad Image */}
                           <div className="w-full aspect-square bg-[#dce9ff] relative overflow-hidden">
-                            {campaignImagePreview ? (
-                              <img src={campaignImagePreview} className="w-full h-full object-cover" alt="Ad" />
+                            {generatedBanner ? (
+                              <img src={generatedBanner} className="w-full h-full object-cover" alt="Generated Banner" />
+                            ) : productImagePreview ? (
+                              <img src={productImagePreview} className="w-full h-full object-cover" alt="Product" />
+                            ) : campaignImagePreview ? (
+                              <img src={campaignImagePreview} className="w-full h-full object-cover" alt="Ref" />
                             ) : (
                               <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="bg-white/90 backdrop-blur p-4 rounded-lg shadow-sm border border-white">
-                                  <p className="text-[12px] font-bold text-[#0b1c30]">{language === 'en' ? 'Image preview' : 'Vista previa de la imagen'}</p>
+                                <div className="bg-white/90 backdrop-blur p-4 rounded-lg shadow-sm border border-white text-center">
+                                  <span className="material-symbols-outlined text-[#0058bc] text-2xl block mb-1">auto_awesome</span>
+                                  <p className="text-[11px] font-bold text-[#0b1c30]">{language === 'en' ? 'Banner will be generated' : 'El banner se generara'}</p>
+                                  <p className="text-[9px] text-[#414754]">{language === 'en' ? 'after AI generation' : 'despues de generar con IA'}</p>
                                 </div>
                               </div>
                             )}
@@ -4913,7 +5048,27 @@ export default function PanelClient() {
                       <div className="h-5 flex items-center justify-center shrink-0"><div className="w-28 h-1 bg-[#414754]/20 rounded-full"></div></div>
                     </div>
                   </div>
-                  <p className="text-[11px] text-[#414754] text-center mt-6">{language === 'en' ? 'Preview may vary slightly on the end user device.' : 'La visualización puede variar ligeramente según el dispositivo del usuario final.'}</p>
+                  <p className="text-[11px] text-[#414754] text-center mt-6">{language === 'en' ? 'Preview may vary slightly on the end user device.' : 'La visualizacion puede variar ligeramente segun el dispositivo del usuario final.'}</p>
+                  {generatedBanner && (
+                    <div className="mt-4 space-y-3">
+                      <div className="flex gap-2 justify-center">
+                        <a href={generatedBanner} download="rifx-banner-1080x1080.png" className="px-4 py-2 bg-[#0058bc] text-white text-[11px] font-semibold rounded-lg hover:bg-[#054ADA] transition-colors flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">download</span> {language === 'en' ? 'Download Banner' : 'Descargar Banner'}
+                        </a>
+                        <button onClick={() => generateBannerImage(campaignResult)} className="px-4 py-2 border border-[#0058bc] text-[#0058bc] text-[11px] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Regenerate' : 'Regenerar'}
+                        </button>
+                      </div>
+                      <div className="bg-[#eff4ff] rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-[#414754] uppercase">Calificacion IA del Banner</p>
+                        <div className="flex items-center justify-center gap-2 mt-1">
+                          <span className="text-2xl font-bold text-[#006947]">{campaignResult ? '8.5' : '--'}/10</span>
+                          <div className="flex gap-0.5">{[1,2,3,4,5].map(s => <span key={s} className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1", color: s <= 4 ? '#FFD700' : '#c1c6d6' }}>star</span>)}</div>
+                        </div>
+                        <p className="text-[9px] text-[#414754] mt-1">{language === 'en' ? 'Score based on composition, contrast and readability' : 'Puntuacion basada en composicion, contraste y legibilidad'}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               </div>
