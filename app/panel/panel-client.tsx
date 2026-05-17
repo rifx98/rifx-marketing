@@ -345,13 +345,15 @@ export default function PanelClient() {
       const encodedPrompt = encodeURIComponent(imgPrompt);
       const aiImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1080&height=1080&seed=${Date.now()}&nologo=true&model=flux`;
 
-      // Load the AI-generated image
+      // Load the AI-generated image via fetch to avoid CORS
+      const response = await fetch(aiImageUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
       const aiImg = new Image();
-      aiImg.crossOrigin = 'anonymous';
       await new Promise<void>((resolve, reject) => {
         aiImg.onload = () => resolve();
         aiImg.onerror = () => reject(new Error('AI image failed'));
-        aiImg.src = aiImageUrl;
+        aiImg.src = blobUrl;
       });
 
       // Create canvas
@@ -362,6 +364,7 @@ export default function PanelClient() {
 
       // Draw AI-generated background
       ctx.drawImage(aiImg, 0, 0, 1080, 1080);
+      URL.revokeObjectURL(blobUrl);
 
       // If user uploaded a product image, composite it on the right side
       if (productImagePreview) {
