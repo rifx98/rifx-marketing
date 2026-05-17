@@ -71,9 +71,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { description } = await req.json();
-    if (!description || description.trim().length === 0) {
-      return NextResponse.json({ error: 'Descripción requerida' }, { status: 400 });
+    const { description, title, daily_budget, has_reference_image, has_product_image } = await req.json();
+    if ((!description || description.trim().length === 0) && (!title || title.trim().length === 0)) {
+      return NextResponse.json({ error: 'Titulo o descripcion requerida' }, { status: 400 });
     }
 
     // Obtener la API Key del tenant o del sistema
@@ -105,7 +105,15 @@ export async function POST(req: NextRequest) {
       baseURL: 'https://api.groq.com/openai/v1',
     });
 
-    console.log(`🚀 RIFX AdGenius generando campaña profesional para: ${description.substring(0, 80)}...`);
+    console.log(`🚀 RIFX AdGenius generando campaña profesional para: ${(title || description || '').substring(0, 80)}...`);
+
+    const userContext = [
+      title ? `TITULO del anuncio: "${title}"` : '',
+      description ? `DESCRIPCION del producto/servicio: "${description}"` : '',
+      daily_budget ? `PRESUPUESTO del usuario: $${daily_budget}/dia` : '',
+      has_reference_image ? 'El usuario subió una PANCARTA DE REFERENCIA - genera recomendaciones de diseño basadas en banners profesionales similares.' : '',
+      has_product_image ? 'El usuario subió una FOTO DEL PRODUCTO - incorpora eso en las sugerencias de creative y recomienda composición visual.' : '',
+    ].filter(Boolean).join('\n');
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
@@ -116,11 +124,11 @@ export async function POST(req: NextRequest) {
         },
         {
           role: 'user',
-          content: `Analiza este producto/servicio y crea una campaña publicitaria profesional completa optimizada para Facebook/Instagram Ads:
+          content: `Crea una campaña publicitaria profesional completa optimizada para Facebook/Instagram Ads basándote en estos datos del usuario:
 
-"${description}"
+${userContext}
 
-Aplica el framework de copywriting más efectivo para este tipo de producto/servicio. Genera un caption que provoque acción inmediata. Incluye recomendaciones de audiencia y presupuesto basadas en la industria.`
+Aplica el framework de copywriting más efectivo. Usa el titulo como base para el hook principal si fue proporcionado. Ajusta las recomendaciones de presupuesto según lo que el usuario indicó. Genera un caption que provoque acción inmediata.`
         }
       ],
       response_format: { type: "json_object" },

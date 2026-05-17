@@ -231,11 +231,16 @@ export default function PanelClient() {
 
   // Campaigns State
   const [campaignDesc, setCampaignDesc] = useState('');
+  const [campaignTitle, setCampaignTitle] = useState('');
   const [campaignImage, setCampaignImage] = useState<File | null>(null);
   const [campaignImagePreview, setCampaignImagePreview] = useState<string | null>(null);
+  const [productImage, setProductImage] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
+  const [dailyBudget, setDailyBudget] = useState(5);
   const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
   const [campaignResult, setCampaignResult] = useState<any>(null);
   const campaignFileRef = React.useRef<HTMLInputElement>(null);
+  const productFileRef = React.useRef<HTMLInputElement>(null);
   const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
 
   // === Facebook Marketing API ===
@@ -260,7 +265,7 @@ export default function PanelClient() {
         body: JSON.stringify({
           campaign_name: (campaignResult?.hook || caption).substring(0, 50),
           message: caption + (campaignResult?.hashtags ? '\n' + campaignResult.hashtags : ''),
-          daily_budget: (cfg.daily_budget_usd || 5) * 100,
+          daily_budget: dailyBudget * 100,
           objective: cfg.objective || 'OUTCOME_TRAFFIC',
           link_url: 'https://rifx.online',
           countries: ['EC'],
@@ -282,14 +287,14 @@ export default function PanelClient() {
 
 
   const handleGenerateCampaign = async () => {
-    if (!campaignDesc) return;
+    if (!campaignDesc && !campaignTitle) return;
     setIsGeneratingCampaign(true);
     setCampaignResult(null);
     try {
       const res = await authFetch('/api/panel/campaigns/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: campaignDesc })
+        body: JSON.stringify({ description: campaignDesc, title: campaignTitle, daily_budget: dailyBudget, has_reference_image: !!campaignImagePreview, has_product_image: !!productImagePreview })
       });
       const data = await res.json();
       if (data.success) {
@@ -311,6 +316,14 @@ export default function PanelClient() {
       setCampaignImage(file);
       const url = URL.createObjectURL(file);
       setCampaignImagePreview(url);
+    }
+  };
+  const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProductImage(file);
+      const url = URL.createObjectURL(file);
+      setProductImagePreview(url);
     }
   };
 
@@ -4618,63 +4631,106 @@ export default function PanelClient() {
                 <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Create New Ad' : 'Crear Nuevo Anuncio'}</h3>
-                    <span className="bg-[#00855b] text-white px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide">FACEBOOK ADS</span>
+                    <span className="bg-[#00855b] text-white px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide">RIFX AdGenius</span>
                   </div>
 
-                  {/* Upload Section */}
-                  <div className="mb-8">
-                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Upload Ad Image' : 'Subir Imagen del Anuncio'}</label>
-                    <input type="file" accept="image/*" className="hidden" ref={campaignFileRef} onChange={handleCampaignImageUpload} />
-                    {campaignImagePreview ? (
-                      <div className="relative w-full h-52 rounded-xl overflow-hidden group border-2 border-[#c1c6d6]">
-                        <img src={campaignImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
-                          <button onClick={() => campaignFileRef.current?.click()} className="px-4 py-2 bg-white text-[#0b1c30] font-semibold text-xs rounded-lg shadow-lg">{language === 'en' ? 'Change' : 'Cambiar'}</button>
-                          <button onClick={() => { setCampaignImage(null); setCampaignImagePreview(null); }} className="px-4 py-2 bg-red-500 text-white font-semibold text-xs rounded-lg shadow-lg">{language === 'en' ? 'Remove' : 'Eliminar'}</button>
-                        </div>
+                  {/* Title */}
+                  <div className="mb-5">
+                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Ad Title' : 'Titulo del Anuncio'}</label>
+                    <input type="text" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value.slice(0,80))} placeholder={language === 'en' ? 'Ex: Summer Sale 50% Off' : 'Ej: Rebajas de Verano 50% Descuento'} className="w-full p-3 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm font-medium focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all" />
+                  </div>
+
+                  {/* Dual Image Upload */}
+                  <div className="mb-5">
+                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Images' : 'Imagenes'}</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Reference Banner */}
+                      <div>
+                        <p className="text-[11px] font-semibold text-[#0058bc] mb-1.5 flex items-center gap-1"><span className="material-symbols-outlined text-sm">photo_library</span> {language === 'en' ? 'Reference Banner' : 'Pancarta de Referencia'}</p>
+                        <input type="file" accept="image/*" className="hidden" ref={campaignFileRef} onChange={handleCampaignImageUpload} />
+                        {campaignImagePreview ? (
+                          <div className="relative w-full h-40 rounded-xl overflow-hidden group border-2 border-[#0058bc]/30">
+                            <img src={campaignImagePreview} alt="Ref" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
+                              <button onClick={() => campaignFileRef.current?.click()} className="px-3 py-1.5 bg-white text-[#0b1c30] font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Change' : 'Cambiar'}</button>
+                              <button onClick={() => { setCampaignImage(null); setCampaignImagePreview(null); }} className="px-3 py-1.5 bg-red-500 text-white font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Remove' : 'Quitar'}</button>
+                            </div>
+                            <div className="absolute top-2 left-2 bg-[#0058bc] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">REF</div>
+                          </div>
+                        ) : (
+                          <div onClick={() => campaignFileRef.current?.click()} className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-[#eff4ff] p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-[#dce9ff] hover:border-[#0058bc] transition-all h-40">
+                            <span className="material-symbols-outlined text-[#0058bc] text-3xl mb-2">image</span>
+                            <p className="text-[11px] font-semibold text-center">{language === 'en' ? 'Upload reference banner' : 'Sube la pancarta de ejemplo'}</p>
+                            <p className="text-[10px] text-[#414754] mt-1">{language === 'en' ? 'The AI will analyze its layout' : 'La IA analizara su diseño'}</p>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div onClick={() => campaignFileRef.current?.click()} className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-[#eff4ff] p-10 flex flex-col items-center justify-center cursor-pointer hover:bg-[#dce9ff] hover:border-[#0058bc] transition-all group">
-                        <div className="w-16 h-16 bg-[#0070eb]/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          <span className="material-symbols-outlined text-[#0058bc] text-4xl">cloud_upload</span>
-                        </div>
-                        <p className="text-base font-semibold text-[#0b1c30]">{language === 'en' ? 'Drag and drop your file here' : 'Arrastra y suelta tu archivo aquí'}</p>
-                        <p className="text-sm text-[#414754] mt-1">{language === 'en' ? 'Supports JPG, PNG (Recommended 1080x1080px)' : 'Soporta JPG, PNG (Recomendado 1080x1080px)'}</p>
-                        <button className="mt-4 px-6 py-2 border border-[#0058bc] text-[#0058bc] rounded-lg font-semibold hover:bg-[#0058bc]/5 transition-colors text-sm">{language === 'en' ? 'Select File' : 'Seleccionar Archivo'}</button>
+                      {/* Product Image */}
+                      <div>
+                        <p className="text-[11px] font-semibold text-[#006947] mb-1.5 flex items-center gap-1"><span className="material-symbols-outlined text-sm">shopping_bag</span> {language === 'en' ? 'Product Image' : 'Imagen del Producto'}</p>
+                        <input type="file" accept="image/*" className="hidden" ref={productFileRef} onChange={handleProductImageUpload} />
+                        {productImagePreview ? (
+                          <div className="relative w-full h-40 rounded-xl overflow-hidden group border-2 border-[#006947]/30">
+                            <img src={productImagePreview} alt="Product" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
+                              <button onClick={() => productFileRef.current?.click()} className="px-3 py-1.5 bg-white text-[#0b1c30] font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Change' : 'Cambiar'}</button>
+                              <button onClick={() => { setProductImage(null); setProductImagePreview(null); }} className="px-3 py-1.5 bg-red-500 text-white font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Remove' : 'Quitar'}</button>
+                            </div>
+                            <div className="absolute top-2 left-2 bg-[#006947] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">PROD</div>
+                          </div>
+                        ) : (
+                          <div onClick={() => productFileRef.current?.click()} className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-[#f0fff4] p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-[#dcfce7] hover:border-[#006947] transition-all h-40">
+                            <span className="material-symbols-outlined text-[#006947] text-3xl mb-2">add_photo_alternate</span>
+                            <p className="text-[11px] font-semibold text-center">{language === 'en' ? 'Upload product photo' : 'Sube la foto del producto'}</p>
+                            <p className="text-[10px] text-[#414754] mt-1">{language === 'en' ? 'Will be used in the final ad' : 'Se usara en el anuncio final'}</p>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Description Section */}
-                  <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[12px] font-semibold text-[#414754] uppercase tracking-widest">{language === 'en' ? 'Product Description' : 'Descripción del Producto'}</label>
-                      <button onClick={handleGenerateCampaign} disabled={!campaignDesc || isGeneratingCampaign} className="flex items-center gap-1.5 text-[#0058bc] font-semibold hover:bg-[#0070eb]/10 px-3 py-1 rounded-lg transition-colors border border-[#0058bc]/20 disabled:opacity-40 disabled:cursor-not-allowed">
-                        <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                        <span className="text-[12px] font-semibold">{isGeneratingCampaign ? (language === 'en' ? 'Generating...' : 'Generando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}</span>
-                      </button>
-                    </div>
+                  <div className="mb-5">
+                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Product Description' : 'Descripcion del Producto'}</label>
                     <textarea
                       value={campaignDesc}
-                      onChange={e => setCampaignDesc(e.target.value.slice(0, 255))}
-                      placeholder={language === 'en' ? 'Enter your ad copy here...' : 'Introduce el copy de tu anuncio aquí...'}
-                      className="w-full h-40 p-4 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all resize-none"
+                      onChange={e => setCampaignDesc(e.target.value.slice(0, 500))}
+                      placeholder={language === 'en' ? 'Describe your product or service in detail...' : 'Describe tu producto o servicio en detalle...'}
+                      className="w-full h-28 p-4 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all resize-none"
                     />
-                    <div className="flex justify-between mt-2">
-                      <span className="text-[11px] text-[#414754]">{campaignDesc.length} / 255 {language === 'en' ? 'characters' : 'caracteres'}</span>
-                      <span className="text-[11px] text-[#414754]">{language === 'en' ? 'Tip: Use emojis for more engagement' : 'Sugerencia: Usa emojis para mayor engagement'}</span>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-[10px] text-[#414754]">{campaignDesc.length}/500</span>
+                      <span className="text-[10px] text-[#414754]">{language === 'en' ? 'The more detail, the better the AI result' : 'Mientras mas detalles, mejor resultado de la IA'}</span>
                     </div>
                   </div>
 
-                  <div className="pt-6 border-t border-[#c1c6d6] flex justify-end gap-4">
-                    <button onClick={() => { setCampaignDesc(''); setCampaignImage(null); setCampaignImagePreview(null); setCampaignResult(null); }} className="px-6 py-3 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Clear' : 'Limpiar'}</button>
-                    <button onClick={handleGenerateCampaign} disabled={!campaignDesc || isGeneratingCampaign} className="px-6 py-3 border border-[#0058bc] text-[#0058bc] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-                      <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                      {isGeneratingCampaign ? (language === 'en' ? 'Generating...' : 'Generando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}
+                  {/* Daily Budget */}
+                  <div className="mb-6">
+                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Daily Budget' : 'Presupuesto Diario'}</label>
+                    <div className="flex items-center gap-4 p-4 bg-[#eff4ff] rounded-xl border border-[#c1c6d6]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-[#0b1c30]">${dailyBudget}</span>
+                        <span className="text-sm text-[#414754]">/dia</span>
+                      </div>
+                      <input type="range" min={1} max={100} value={dailyBudget} onChange={e => setDailyBudget(Number(e.target.value))} className="flex-1 h-2 bg-[#c1c6d6] rounded-lg appearance-none cursor-pointer accent-[#0058bc]" />
+                      <input type="number" min={1} max={1000} value={dailyBudget} onChange={e => setDailyBudget(Math.max(1, Math.min(1000, Number(e.target.value))))} className="w-20 p-2 bg-white border border-[#c1c6d6] rounded-lg text-sm text-center font-semibold focus:ring-2 focus:ring-[#0058bc] outline-none" />
+                    </div>
+                    <div className="flex justify-between mt-1.5">
+                      <span className="text-[10px] text-[#414754]">{language === 'en' ? 'Monthly estimate' : 'Estimado mensual'}: ${(dailyBudget * 30).toLocaleString()}</span>
+                      {campaignResult?.campaign_config?.daily_budget_usd && <span className="text-[10px] text-[#0058bc] font-semibold">IA sugiere: ${campaignResult.campaign_config.daily_budget_usd}/dia</span>}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="pt-5 border-t border-[#c1c6d6] flex flex-wrap justify-end gap-3">
+                    <button onClick={() => { setCampaignDesc(''); setCampaignTitle(''); setCampaignImage(null); setCampaignImagePreview(null); setProductImage(null); setProductImagePreview(null); setCampaignResult(null); setDailyBudget(5); }} className="px-5 py-2.5 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Clear All' : 'Limpiar Todo'}</button>
+                    <button onClick={handleGenerateCampaign} disabled={(!campaignDesc && !campaignTitle) || isGeneratingCampaign} className="px-5 py-2.5 border border-[#0058bc] text-[#0058bc] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
+                      {isGeneratingCampaign ? (language === 'en' ? 'AdGenius working...' : 'AdGenius trabajando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}
                     </button>
-                    <button onClick={publishToFacebook} disabled={fbPublishing || (!campaignResult && !campaignDesc)} className="px-10 py-3 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                    <button onClick={publishToFacebook} disabled={fbPublishing || (!campaignResult && !campaignDesc)} className="px-8 py-2.5 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
                       <span className="material-symbols-outlined text-sm">{fbPublishing ? 'sync' : 'publish'}</span>
-                      {fbPublishing ? (language === 'en' ? 'Publishing...' : 'Publicando...') : (language === 'en' ? 'Publish to Facebook' : 'Publicar en Facebook')}
+                      {fbPublishing ? (language === 'en' ? 'Publishing...' : 'Publicando...') : (language === 'en' ? 'Publish to Facebook' : 'Publicar en Facebook')} · ${dailyBudget}/dia
                     </button>
                   </div>
                 </section>
