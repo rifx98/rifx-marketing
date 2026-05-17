@@ -329,144 +329,196 @@ export default function PanelClient() {
     }
   };
 
-  // Banner Generator con IA (Pollinations AI + Canvas overlay)
+  // Banner Generator profesional (Canvas local - sin API externa)
   const [generatedBanner, setGeneratedBanner] = useState<string | null>(null);
   const [isGeneratingBanner, setIsGeneratingBanner] = useState(false);
+
+  const loadImage = (src: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
 
   const generateBannerImage = async (result: any) => {
     setIsGeneratingBanner(true);
     setGeneratedBanner(null);
 
     try {
-      // Build an image generation prompt from the campaign data
-      const product = campaignTitle || campaignDesc || 'marketing digital';
-      const style = 'professional advertising banner, high-end commercial photography, studio lighting, clean modern design, premium brand aesthetic, 4k quality';
-      const imgPrompt = `${product}, ${style}, no text, no letters, no words, no watermark`;
-      const encodedPrompt = encodeURIComponent(imgPrompt);
-      const aiImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1080&height=1080&seed=${Date.now()}&nologo=true&model=flux`;
-
-      // Load the AI-generated image via fetch to avoid CORS
-      const response = await fetch(aiImageUrl);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const aiImg = new Image();
-      await new Promise<void>((resolve, reject) => {
-        aiImg.onload = () => resolve();
-        aiImg.onerror = () => reject(new Error('AI image failed'));
-        aiImg.src = blobUrl;
-      });
-
-      // Create canvas
       const canvas = document.createElement('canvas');
       canvas.width = 1080;
       canvas.height = 1080;
       const ctx = canvas.getContext('2d')!;
+      const hasRef = !!campaignImagePreview;
+      const hasProd = !!productImagePreview;
 
-      // Draw AI-generated background
-      ctx.drawImage(aiImg, 0, 0, 1080, 1080);
-      URL.revokeObjectURL(blobUrl);
-
-      // If user uploaded a product image, composite it on the right side
-      if (productImagePreview) {
-        try {
-          const prodImg = new Image();
-          prodImg.crossOrigin = 'anonymous';
-          await new Promise<void>((res, rej) => { prodImg.onload = () => res(); prodImg.onerror = rej; prodImg.src = productImagePreview; });
-          // Draw product on right side with shadow
-          const pSize = 420;
-          const px = 620;
-          const py = 340;
-          ctx.save();
-          ctx.shadowColor = 'rgba(0,0,0,0.5)';
-          ctx.shadowBlur = 40;
-          ctx.shadowOffsetX = 10;
-          ctx.shadowOffsetY = 10;
-          ctx.beginPath();
-          ctx.roundRect(px, py, pSize, pSize, 20);
-          ctx.clip();
-          const pScale = Math.max(pSize / prodImg.width, pSize / prodImg.height);
-          const pw = prodImg.width * pScale;
-          const ph = prodImg.height * pScale;
-          ctx.drawImage(prodImg, px + (pSize - pw)/2, py + (pSize - ph)/2, pw, ph);
-          ctx.restore();
-          // White border
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.roundRect(px, py, pSize, pSize, 20);
-          ctx.stroke();
-        } catch(e) { /* product image optional */ }
+      // ===== STEP 1: BACKGROUND =====
+      if (hasRef) {
+        // Use reference banner as background (stretched to fill)
+        const refImg = await loadImage(campaignImagePreview!);
+        const scale = Math.max(1080 / refImg.width, 1080 / refImg.height);
+        const w = refImg.width * scale;
+        const h = refImg.height * scale;
+        ctx.drawImage(refImg, (1080 - w) / 2, (1080 - h) / 2, w, h);
+      } else {
+        // Premium gradient background when no reference
+        const g1 = ctx.createLinearGradient(0, 0, 1080, 1080);
+        g1.addColorStop(0, '#0a1628');
+        g1.addColorStop(0.3, '#0d2137');
+        g1.addColorStop(0.6, '#0058bc');
+        g1.addColorStop(1, '#1877F2');
+        ctx.fillStyle = g1;
+        ctx.fillRect(0, 0, 1080, 1080);
+        // Decorative circles
+        ctx.globalAlpha = 0.06;
+        ctx.fillStyle = '#ffffff';
+        [[200, 800, 300], [900, 200, 250], [500, 500, 400], [100, 300, 180]].forEach(([x,y,r]) => {
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+        // Diagonal light streaks
+        ctx.save();
+        ctx.globalAlpha = 0.03;
+        ctx.fillStyle = '#ffffff';
+        ctx.translate(540, 540);
+        ctx.rotate(-0.4);
+        for (let i = -5; i < 5; i++) {
+          ctx.fillRect(i * 120, -800, 40, 1600);
+        }
+        ctx.restore();
+        ctx.globalAlpha = 1;
       }
 
-      // Gradient overlay for text readability (left side)
-      const overlay = ctx.createLinearGradient(0, 0, 700, 0);
-      overlay.addColorStop(0, 'rgba(0,0,0,0.75)');
-      overlay.addColorStop(0.6, 'rgba(0,0,0,0.4)');
-      overlay.addColorStop(1, 'rgba(0,0,0,0.05)');
-      ctx.fillStyle = overlay;
+      // ===== STEP 2: OVERLAY FOR TEXT READABILITY =====
+      // Left-side dark gradient
+      const leftOverlay = ctx.createLinearGradient(0, 0, 700, 0);
+      leftOverlay.addColorStop(0, hasRef ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.3)');
+      leftOverlay.addColorStop(0.5, hasRef ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.1)');
+      leftOverlay.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = leftOverlay;
       ctx.fillRect(0, 0, 1080, 1080);
 
       // Bottom gradient
-      const bottomGrad = ctx.createLinearGradient(0, 800, 0, 1080);
+      const bottomGrad = ctx.createLinearGradient(0, 780, 0, 1080);
       bottomGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      bottomGrad.addColorStop(1, 'rgba(0,0,0,0.6)');
+      bottomGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
       ctx.fillStyle = bottomGrad;
-      ctx.fillRect(0, 800, 1080, 280);
+      ctx.fillRect(0, 780, 1080, 300);
 
+      // ===== STEP 3: PRODUCT IMAGE (prominent, right side) =====
+      if (hasProd) {
+        const prodImg = await loadImage(productImagePreview!);
+        const pW = 480;
+        const pH = 520;
+        const px = 560;
+        const py = 280;
+
+        // Shadow behind product
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 50;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 15;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(px, py, pW, pH, 24);
+        ctx.fill();
+        ctx.restore();
+
+        // White card background
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(px, py, pW, pH, 24);
+        ctx.fill();
+
+        // Clip and draw product image with padding
+        ctx.save();
+        const pad = 12;
+        ctx.beginPath();
+        ctx.roundRect(px + pad, py + pad, pW - pad*2, pH - pad*2, 16);
+        ctx.clip();
+        const pScale = Math.max((pW - pad*2) / prodImg.width, (pH - pad*2) / prodImg.height);
+        const pw = prodImg.width * pScale;
+        const ph = prodImg.height * pScale;
+        ctx.drawImage(prodImg, px + pad + ((pW - pad*2) - pw)/2, py + pad + ((pH - pad*2) - ph)/2, pw, ph);
+        ctx.restore();
+
+        // Subtle border
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(px, py, pW, pH, 24);
+        ctx.stroke();
+      }
+
+      // ===== STEP 4: ACCENT ELEMENTS =====
       // Top accent bar
-      const accentGrad = ctx.createLinearGradient(0, 0, 300, 0);
-      accentGrad.addColorStop(0, '#0058bc');
-      accentGrad.addColorStop(1, 'rgba(0,88,188,0)');
+      ctx.fillStyle = '#0058bc';
+      ctx.fillRect(0, 0, 1080, 5);
+      const accentGrad = ctx.createLinearGradient(0, 5, 400, 5);
+      accentGrad.addColorStop(0, '#FFD700');
+      accentGrad.addColorStop(1, 'rgba(255,215,0,0)');
       ctx.fillStyle = accentGrad;
-      ctx.fillRect(0, 0, 1080, 6);
+      ctx.fillRect(0, 5, 400, 3);
 
       // Framework badge
       ctx.fillStyle = 'rgba(0,88,188,0.9)';
       ctx.beginPath();
-      ctx.roundRect(50, 50, 180, 34, 17);
+      ctx.roundRect(50, 45, 190, 36, 18);
       ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px Inter, system-ui, sans-serif';
-      ctx.fillText('\u26a1 ' + (result?.copy_framework || 'RIFX AdGenius'), 70, 72);
+      ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+      ctx.fillText('\u26a1 ' + (result?.copy_framework || 'RIFX AdGenius'), 68, 69);
 
-      // Hook text with text shadow
+      // ===== STEP 5: TEXT OVERLAYS =====
+      const maxTextW = hasProd ? 500 : 950;
+
+      // Hook (main title)
       const hook = result?.hook || campaignTitle || 'Tu Producto';
-      ctx.shadowColor = 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = 12;
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.shadowBlur = 15;
       ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowOffsetY = 3;
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 58px Inter, system-ui, sans-serif';
+      ctx.font = 'bold 54px Inter, system-ui, sans-serif';
       const words = hook.split(' ');
       let line = '';
-      let y = 180;
-      const maxW = productImagePreview ? 550 : 900;
+      let y = 170;
       for (const word of words) {
         const test = line + word + ' ';
-        if (ctx.measureText(test).width > maxW && line) {
+        if (ctx.measureText(test).width > maxTextW && line) {
           ctx.fillText(line.trim(), 50, y);
           line = word + ' ';
-          y += 68;
+          y += 64;
         } else { line = test; }
       }
       ctx.fillText(line.trim(), 50, y);
 
-      // Caption excerpt
+      // Accent line below hook
+      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+      const acLine = ctx.createLinearGradient(50, 0, 250, 0);
+      acLine.addColorStop(0, '#FFD700');
+      acLine.addColorStop(1, 'rgba(255,215,0,0)');
+      ctx.fillStyle = acLine;
+      ctx.fillRect(50, y + 15, 200, 4);
+
+      // Caption text
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
       ctx.shadowBlur = 8;
-      const caption = (result?.caption || campaignDesc || '').substring(0, 100);
+      const caption = (result?.caption || campaignDesc || '').substring(0, 120);
       if (caption) {
-        ctx.font = '24px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = '22px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
         const cWords = caption.split(' ');
         let cLine = '';
-        let cY = y + 55;
+        let cY = y + 50;
         for (const w of cWords) {
           const t = cLine + w + ' ';
-          if (ctx.measureText(t).width > maxW && cLine) {
+          if (ctx.measureText(t).width > maxTextW && cLine) {
             ctx.fillText(cLine.trim(), 50, cY);
             cLine = w + ' ';
-            cY += 32;
-            if (cY > 600) break;
+            cY += 30;
+            if (cY > 650) break;
           } else { cLine = t; }
         }
         ctx.fillText(cLine.trim(), 50, cY);
@@ -478,56 +530,60 @@ export default function PanelClient() {
       ctx.shadowOffsetX = 0;
       ctx.shadowOffsetY = 0;
 
-      // CTA Button
+      // ===== STEP 6: CTA BUTTON =====
       const ctaLabel = result?.campaign_config?.call_to_action?.replace(/_/g, ' ') || 'MAS INFO';
-      const ctaGrad = ctx.createLinearGradient(50, 920, 310, 980);
+      const ctaGrad = ctx.createLinearGradient(50, 0, 310, 0);
       ctaGrad.addColorStop(0, '#0058bc');
       ctaGrad.addColorStop(1, '#1877F2');
       ctx.fillStyle = ctaGrad;
       ctx.beginPath();
-      ctx.roundRect(50, 930, 260, 56, 28);
+      ctx.roundRect(50, 925, 250, 52, 26);
       ctx.fill();
+      // CTA glow
+      ctx.shadowColor = '#0058bc';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = ctaGrad;
+      ctx.beginPath();
+      ctx.roundRect(50, 925, 250, 52, 26);
+      ctx.fill();
+      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+      // CTA text
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 20px Inter, system-ui, sans-serif';
+      ctx.font = 'bold 19px Inter, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(ctaLabel, 180, 964);
+      ctx.fillText(ctaLabel, 175, 957);
       ctx.textAlign = 'left';
 
-      // Brand name
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = '600 16px Inter, system-ui, sans-serif';
-      const brand = tenantData?.company || 'RIFX Marketing';
-      const brandW = ctx.measureText(brand).width;
-      ctx.fillText(brand, 1080 - brandW - 40, 1050);
-
-      // Budget badge
+      // Budget badge (top right)
       if (dailyBudget) {
         ctx.fillStyle = '#FFD700';
         ctx.beginPath();
-        ctx.roundRect(1080 - 200, 50, 160, 40, 20);
+        ctx.roundRect(880, 45, 155, 38, 19);
         ctx.fill();
         ctx.fillStyle = '#000000';
-        ctx.font = 'bold 18px Inter, system-ui, sans-serif';
+        ctx.font = 'bold 17px Inter, system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('$' + dailyBudget + '/dia', 1080 - 120, 76);
+        ctx.fillText('$' + dailyBudget + '/dia', 958, 70);
         ctx.textAlign = 'left';
       }
 
-      const dataUrl = canvas.toDataURL('image/png', 0.95);
-      setGeneratedBanner(dataUrl);
+      // Brand (bottom right)
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.font = '600 15px Inter, system-ui, sans-serif';
+      const brand = tenantData?.company || 'RIFX Marketing';
+      const bW = ctx.measureText(brand).width;
+      ctx.fillText(brand, 1080 - bW - 40, 1050);
+
+      // Hashtags (bottom left)
+      if (result?.hashtags) {
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '13px Inter, system-ui, sans-serif';
+        ctx.fillText(result.hashtags.substring(0, 60), 50, 1050);
+      }
+
+      setGeneratedBanner(canvas.toDataURL('image/png', 0.95));
     } catch (err) {
-      console.error('Error generating AI banner:', err);
-      alert(language === 'en' ? 'Error generating image, retrying...' : 'Error generando imagen, reintentando...');
-      // Fallback: simple gradient banner
-      const canvas = document.createElement('canvas');
-      canvas.width = 1080; canvas.height = 1080;
-      const ctx = canvas.getContext('2d')!;
-      const g = ctx.createLinearGradient(0,0,1080,1080);
-      g.addColorStop(0,'#0058bc'); g.addColorStop(1,'#1877F2');
-      ctx.fillStyle = g; ctx.fillRect(0,0,1080,1080);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 56px Inter, sans-serif';
-      ctx.fillText(result?.hook || campaignTitle || 'Tu Producto', 50, 500);
-      setGeneratedBanner(canvas.toDataURL('image/png'));
+      console.error('Error generating banner:', err);
     } finally {
       setIsGeneratingBanner(false);
     }
