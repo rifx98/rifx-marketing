@@ -4928,19 +4928,19 @@ export default function PanelClient() {
                   <div className="lg:col-span-5 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                     <h4 className="text-xl font-semibold text-[#0b1c30] mb-6">{language === 'en' ? 'Platform Breakdown' : 'Desglose por Plataforma'}</h4>
                     <div className="space-y-6">
-                      {[
-                        { name: 'Facebook News Feed', pct: 45 },
-                        { name: 'Instagram Stories', pct: 32 },
-                        { name: 'Audience Network', pct: 15 },
-                        { name: 'Messenger', pct: 8 },
-                      ].map((p, i) => (
+                      {(fbInsights?.platformBreakdown?.length > 0 ? fbInsights.platformBreakdown : [
+                        { platform: 'facebook', percentage: 0 },
+                        { platform: 'instagram', percentage: 0 },
+                        { platform: 'audience_network', percentage: 0 },
+                        { platform: 'messenger', percentage: 0 },
+                      ]).map((p: any, i: number) => (
                         <div key={i}>
                           <div className="flex justify-between mb-2">
-                            <span className="text-sm font-medium">{p.name}</span>
-                            <span className="text-sm text-[#414754]">{p.pct}%</span>
+                            <span className="text-sm font-medium capitalize">{p.platform === 'facebook' ? 'Facebook News Feed' : p.platform === 'instagram' ? 'Instagram Stories' : p.platform === 'audience_network' ? 'Audience Network' : p.platform === 'messenger' ? 'Messenger' : p.platform}</span>
+                            <span className="text-sm text-[#414754]">{p.percentage}%</span>
                           </div>
                           <div className="h-2 bg-[#e5eeff] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#0058bc] rounded-full" style={{ width: p.pct+'%' }} />
+                            <div className="h-full bg-[#0058bc] rounded-full transition-all duration-500" style={{ width: p.percentage+'%' }} />
                           </div>
                         </div>
                       ))}
@@ -4964,11 +4964,11 @@ export default function PanelClient() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#c1c6d6]">
-                          {[
-                            { name: 'Video_Demo_V1', campaign: language === 'en' ? 'Global Campaign' : 'Campaña Global', engagement: '8.4%', conv: '1,240', roas: '5.2x', icon: 'videocam' },
-                            { name: 'Banner_Promo_New', campaign: 'Retargeting', engagement: '5.1%', conv: '890', roas: '4.1x', icon: 'image' },
-                            { name: 'Static_Test_Purple', campaign: 'Lookalike 1%', engagement: '3.9%', conv: '450', roas: '3.8x', icon: 'palette' },
-                          ].map((c, i) => (
+                          {(fbInsights?.topCreatives?.length > 0 ? fbInsights.topCreatives.map((c: any) => ({
+                            name: c.name, campaign: 'CTR: ' + c.ctr + '%', engagement: c.ctr + '%', conv: c.conversions || c.clicks, roas: c.spend !== '0.00' ? ((parseInt(c.clicks||'0') * 2) / parseFloat(c.spend || '1')).toFixed(1) + 'x' : '--', icon: 'campaign'
+                          })) : [
+                            { name: language === 'en' ? 'No creatives yet' : 'Sin creatividades', campaign: '--', engagement: '--', conv: '--', roas: '--', icon: 'info' },
+                          ]).map((c: any, i: number) => (
                             <tr key={i}>
                               <td className="py-4">
                                 <div className="flex items-center gap-3">
