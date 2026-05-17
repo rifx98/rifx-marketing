@@ -329,130 +329,205 @@ export default function PanelClient() {
     }
   };
 
-  // Banner Generator con Canvas
+  // Banner Generator con IA (Pollinations AI + Canvas overlay)
   const [generatedBanner, setGeneratedBanner] = useState<string | null>(null);
+  const [isGeneratingBanner, setIsGeneratingBanner] = useState(false);
+
   const generateBannerImage = async (result: any) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1080;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    setIsGeneratingBanner(true);
+    setGeneratedBanner(null);
 
-    // Background gradient
-    const grad = ctx.createLinearGradient(0, 0, 1080, 1080);
-    grad.addColorStop(0, '#0058bc');
-    grad.addColorStop(0.5, '#054ADA');
-    grad.addColorStop(1, '#1877F2');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1080);
+    try {
+      // Build an image generation prompt from the campaign data
+      const product = campaignTitle || campaignDesc || 'marketing digital';
+      const style = 'professional advertising banner, high-end commercial photography, studio lighting, clean modern design, premium brand aesthetic, 4k quality';
+      const imgPrompt = `${product}, ${style}, no text, no letters, no words, no watermark`;
+      const encodedPrompt = encodeURIComponent(imgPrompt);
+      const aiImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1080&height=1080&seed=${Date.now()}&nologo=true&model=flux`;
 
-    // Draw product image if available
-    const imgSrc = productImagePreview || campaignImagePreview;
-    if (imgSrc) {
-      try {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = reject; img.src = imgSrc; });
-        // Draw product image filling canvas
-        const scale = Math.max(1080 / img.width, 1080 / img.height);
-        const w = img.width * scale;
-        const h = img.height * scale;
-        ctx.drawImage(img, (1080 - w) / 2, (1080 - h) / 2, w, h);
-        // Dark overlay for text readability
-        const overlay = ctx.createLinearGradient(0, 0, 0, 1080);
-        overlay.addColorStop(0, 'rgba(0,0,0,0.6)');
-        overlay.addColorStop(0.4, 'rgba(0,0,0,0.1)');
-        overlay.addColorStop(0.7, 'rgba(0,0,0,0.1)');
-        overlay.addColorStop(1, 'rgba(0,0,0,0.7)');
-        ctx.fillStyle = overlay;
-        ctx.fillRect(0, 0, 1080, 1080);
-      } catch(e) { console.warn('Error loading image for banner'); }
-    } else {
-      // Pattern decoration when no image
-      ctx.fillStyle = 'rgba(255,255,255,0.05)';
-      for (let i = 0; i < 20; i++) {
-        ctx.beginPath();
-        ctx.arc(Math.random()*1080, Math.random()*1080, Math.random()*100+50, 0, Math.PI*2);
-        ctx.fill();
+      // Load the AI-generated image
+      const aiImg = new Image();
+      aiImg.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        aiImg.onload = () => resolve();
+        aiImg.onerror = () => reject(new Error('AI image failed'));
+        aiImg.src = aiImageUrl;
+      });
+
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = 1080;
+      canvas.height = 1080;
+      const ctx = canvas.getContext('2d')!;
+
+      // Draw AI-generated background
+      ctx.drawImage(aiImg, 0, 0, 1080, 1080);
+
+      // If user uploaded a product image, composite it on the right side
+      if (productImagePreview) {
+        try {
+          const prodImg = new Image();
+          prodImg.crossOrigin = 'anonymous';
+          await new Promise<void>((res, rej) => { prodImg.onload = () => res(); prodImg.onerror = rej; prodImg.src = productImagePreview; });
+          // Draw product on right side with shadow
+          const pSize = 420;
+          const px = 620;
+          const py = 340;
+          ctx.save();
+          ctx.shadowColor = 'rgba(0,0,0,0.5)';
+          ctx.shadowBlur = 40;
+          ctx.shadowOffsetX = 10;
+          ctx.shadowOffsetY = 10;
+          ctx.beginPath();
+          ctx.roundRect(px, py, pSize, pSize, 20);
+          ctx.clip();
+          const pScale = Math.max(pSize / prodImg.width, pSize / prodImg.height);
+          const pw = prodImg.width * pScale;
+          const ph = prodImg.height * pScale;
+          ctx.drawImage(prodImg, px + (pSize - pw)/2, py + (pSize - ph)/2, pw, ph);
+          ctx.restore();
+          // White border
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.roundRect(px, py, pSize, pSize, 20);
+          ctx.stroke();
+        } catch(e) { /* product image optional */ }
       }
-    }
 
-    // Top badge
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.beginPath();
-    ctx.roundRect(40, 40, 200, 36, 18);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 14px Inter, Arial, sans-serif';
-    ctx.fillText('⚡ ' + (result?.copy_framework || 'RIFX AdGenius'), 60, 64);
+      // Gradient overlay for text readability (left side)
+      const overlay = ctx.createLinearGradient(0, 0, 700, 0);
+      overlay.addColorStop(0, 'rgba(0,0,0,0.75)');
+      overlay.addColorStop(0.6, 'rgba(0,0,0,0.4)');
+      overlay.addColorStop(1, 'rgba(0,0,0,0.05)');
+      ctx.fillStyle = overlay;
+      ctx.fillRect(0, 0, 1080, 1080);
 
-    // Hook text (main)
-    const hook = result?.hook || campaignTitle || 'Tu Producto';
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 64px Inter, Arial, sans-serif';
-    // Word wrap
-    const words = hook.split(' ');
-    let line = '';
-    let y = imgSrc ? 160 : 350;
-    const maxW = 980;
-    for (const word of words) {
-      const test = line + word + ' ';
-      if (ctx.measureText(test).width > maxW && line) {
-        ctx.fillText(line.trim(), 50, y);
-        line = word + ' ';
-        y += 75;
-      } else { line = test; }
-    }
-    ctx.fillText(line.trim(), 50, y);
+      // Bottom gradient
+      const bottomGrad = ctx.createLinearGradient(0, 800, 0, 1080);
+      bottomGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      bottomGrad.addColorStop(1, 'rgba(0,0,0,0.6)');
+      ctx.fillStyle = bottomGrad;
+      ctx.fillRect(0, 800, 1080, 280);
 
-    // Subtitle / caption excerpt
-    const subtitle = (result?.caption || campaignDesc || '').substring(0, 120);
-    if (subtitle) {
-      ctx.font = '28px Inter, Arial, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      const sWords = subtitle.split(' ');
-      let sLine = '';
-      let sY = y + 60;
-      for (const w of sWords) {
-        const t = sLine + w + ' ';
-        if (ctx.measureText(t).width > maxW && sLine) {
-          ctx.fillText(sLine.trim(), 50, sY);
-          sLine = w + ' ';
-          sY += 36;
-          if (sY > 700) break;
-        } else { sLine = t; }
-      }
-      ctx.fillText(sLine.trim(), 50, sY);
-    }
+      // Top accent bar
+      const accentGrad = ctx.createLinearGradient(0, 0, 300, 0);
+      accentGrad.addColorStop(0, '#0058bc');
+      accentGrad.addColorStop(1, 'rgba(0,88,188,0)');
+      ctx.fillStyle = accentGrad;
+      ctx.fillRect(0, 0, 1080, 6);
 
-    // CTA Button
-    const ctaText = result?.campaign_config?.call_to_action?.replace(/_/g, ' ') || 'MAS INFO';
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.roundRect(50, 920, 300, 60, 12);
-    ctx.fill();
-    ctx.fillStyle = '#0058bc';
-    ctx.font = 'bold 24px Inter, Arial, sans-serif';
-    ctx.fillText(ctaText, 100, 958);
-
-    // Brand
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = 'bold 18px Inter, Arial, sans-serif';
-    ctx.fillText(tenantData?.company || 'RIFX Marketing', 800, 1050);
-
-    // Price badge if budget info
-    if (dailyBudget) {
-      ctx.fillStyle = '#FFD700';
+      // Framework badge
+      ctx.fillStyle = 'rgba(0,88,188,0.9)';
       ctx.beginPath();
-      ctx.roundRect(830, 40, 210, 50, 25);
+      ctx.roundRect(50, 50, 180, 34, 17);
       ctx.fill();
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 22px Inter, Arial, sans-serif';
-      ctx.fillText('💰 $' + dailyBudget + '/dia', 860, 72);
-    }
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+      ctx.fillText('\u26a1 ' + (result?.copy_framework || 'RIFX AdGenius'), 70, 72);
 
-    const dataUrl = canvas.toDataURL('image/png');
-    setGeneratedBanner(dataUrl);
+      // Hook text with text shadow
+      const hook = result?.hook || campaignTitle || 'Tu Producto';
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 58px Inter, system-ui, sans-serif';
+      const words = hook.split(' ');
+      let line = '';
+      let y = 180;
+      const maxW = productImagePreview ? 550 : 900;
+      for (const word of words) {
+        const test = line + word + ' ';
+        if (ctx.measureText(test).width > maxW && line) {
+          ctx.fillText(line.trim(), 50, y);
+          line = word + ' ';
+          y += 68;
+        } else { line = test; }
+      }
+      ctx.fillText(line.trim(), 50, y);
+
+      // Caption excerpt
+      ctx.shadowBlur = 8;
+      const caption = (result?.caption || campaignDesc || '').substring(0, 100);
+      if (caption) {
+        ctx.font = '24px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        const cWords = caption.split(' ');
+        let cLine = '';
+        let cY = y + 55;
+        for (const w of cWords) {
+          const t = cLine + w + ' ';
+          if (ctx.measureText(t).width > maxW && cLine) {
+            ctx.fillText(cLine.trim(), 50, cY);
+            cLine = w + ' ';
+            cY += 32;
+            if (cY > 600) break;
+          } else { cLine = t; }
+        }
+        ctx.fillText(cLine.trim(), 50, cY);
+      }
+
+      // Reset shadow
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // CTA Button
+      const ctaLabel = result?.campaign_config?.call_to_action?.replace(/_/g, ' ') || 'MAS INFO';
+      const ctaGrad = ctx.createLinearGradient(50, 920, 310, 980);
+      ctaGrad.addColorStop(0, '#0058bc');
+      ctaGrad.addColorStop(1, '#1877F2');
+      ctx.fillStyle = ctaGrad;
+      ctx.beginPath();
+      ctx.roundRect(50, 930, 260, 56, 28);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 20px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(ctaLabel, 180, 964);
+      ctx.textAlign = 'left';
+
+      // Brand name
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '600 16px Inter, system-ui, sans-serif';
+      const brand = tenantData?.company || 'RIFX Marketing';
+      const brandW = ctx.measureText(brand).width;
+      ctx.fillText(brand, 1080 - brandW - 40, 1050);
+
+      // Budget badge
+      if (dailyBudget) {
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.roundRect(1080 - 200, 50, 160, 40, 20);
+        ctx.fill();
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 18px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('$' + dailyBudget + '/dia', 1080 - 120, 76);
+        ctx.textAlign = 'left';
+      }
+
+      const dataUrl = canvas.toDataURL('image/png', 0.95);
+      setGeneratedBanner(dataUrl);
+    } catch (err) {
+      console.error('Error generating AI banner:', err);
+      alert(language === 'en' ? 'Error generating image, retrying...' : 'Error generando imagen, reintentando...');
+      // Fallback: simple gradient banner
+      const canvas = document.createElement('canvas');
+      canvas.width = 1080; canvas.height = 1080;
+      const ctx = canvas.getContext('2d')!;
+      const g = ctx.createLinearGradient(0,0,1080,1080);
+      g.addColorStop(0,'#0058bc'); g.addColorStop(1,'#1877F2');
+      ctx.fillStyle = g; ctx.fillRect(0,0,1080,1080);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 56px Inter, sans-serif';
+      ctx.fillText(result?.hook || campaignTitle || 'Tu Producto', 50, 500);
+      setGeneratedBanner(canvas.toDataURL('image/png'));
+    } finally {
+      setIsGeneratingBanner(false);
+    }
   };
 
 
@@ -4997,7 +5072,13 @@ export default function PanelClient() {
 
                           {/* Ad Image */}
                           <div className="w-full aspect-square bg-[#dce9ff] relative overflow-hidden">
-                            {generatedBanner ? (
+                            {isGeneratingBanner ? (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0058bc] to-[#1877F2]">
+                                <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
+                                <p className="text-white font-semibold text-sm">{language === 'en' ? 'AI generating banner...' : 'IA generando pancarta...'}</p>
+                                <p className="text-white/70 text-[10px] mt-1">Pollinations AI + FLUX</p>
+                              </div>
+                            ) : generatedBanner ? (
                               <img src={generatedBanner} className="w-full h-full object-cover" alt="Generated Banner" />
                             ) : productImagePreview ? (
                               <img src={productImagePreview} className="w-full h-full object-cover" alt="Product" />
