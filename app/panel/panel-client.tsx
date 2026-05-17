@@ -247,6 +247,36 @@ export default function PanelClient() {
   const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbInsights(d); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
   const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await fetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else alert(d.error); } catch(e:any){alert(e.message)} };
   const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await fetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else alert(d.error); } catch(e:any){alert(e.message)} };
+  const [fbPublishing, setFbPublishing] = useState(false);
+  const publishToFacebook = async () => {
+    if (!campaignResult && !campaignDesc) { alert(language === 'en' ? 'First generate content with AI' : 'Primero genera contenido con IA'); return; }
+    setFbPublishing(true);
+    try {
+      const caption = campaignResult?.caption || campaignDesc;
+      const r = await fetch('/api/panel/facebook/publish', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          campaign_name: (campaignResult?.hook || caption).substring(0, 50),
+          message: caption + (campaignResult?.hashtags ? '\n' + campaignResult.hashtags : ''),
+          daily_budget: 500,
+          objective: 'OUTCOME_TRAFFIC',
+          link_url: 'https://rifx.online',
+          countries: ['EC'],
+          age_min: 18,
+          age_max: 55,
+          call_to_action: 'LEARN_MORE',
+          status: 'PAUSED'
+        })
+      });
+      const d = await r.json();
+      if (d.success) {
+        alert(language === 'en' ? 'Campaign published to Facebook! (Status: PAUSED)' : '¡Campaña publicada en Facebook! (Estado: PAUSADA)');
+        loadFbCampaigns();
+        setCampaignSubTab('campaigns');
+      } else { alert('Error: ' + (d.error || 'Error desconocido')); }
+    } catch(e:any) { alert('Error: ' + e.message); }
+    finally { setFbPublishing(false); }
+  };
 
 
   const handleGenerateCampaign = async () => {
@@ -4635,9 +4665,14 @@ export default function PanelClient() {
                   </div>
 
                   <div className="pt-6 border-t border-[#c1c6d6] flex justify-end gap-4">
-                    <button onClick={() => { setCampaignDesc(''); setCampaignImage(null); setCampaignImagePreview(null); setCampaignResult(null); }} className="px-6 py-3 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Save Draft' : 'Guardar Borrador'}</button>
-                    <button onClick={handleGenerateCampaign} disabled={!campaignDesc || isGeneratingCampaign} className="px-10 py-3 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-sm" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
-                      {isGeneratingCampaign ? (language === 'en' ? 'Generating...' : 'Generando...') : (language === 'en' ? 'Publish' : 'Publicar')}
+                    <button onClick={() => { setCampaignDesc(''); setCampaignImage(null); setCampaignImagePreview(null); setCampaignResult(null); }} className="px-6 py-3 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Clear' : 'Limpiar'}</button>
+                    <button onClick={handleGenerateCampaign} disabled={!campaignDesc || isGeneratingCampaign} className="px-6 py-3 border border-[#0058bc] text-[#0058bc] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                      {isGeneratingCampaign ? (language === 'en' ? 'Generating...' : 'Generando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}
+                    </button>
+                    <button onClick={publishToFacebook} disabled={fbPublishing || (!campaignResult && !campaignDesc)} className="px-10 py-3 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                      <span className="material-symbols-outlined text-sm">{fbPublishing ? 'sync' : 'publish'}</span>
+                      {fbPublishing ? (language === 'en' ? 'Publishing...' : 'Publicando...') : (language === 'en' ? 'Publish to Facebook' : 'Publicar en Facebook')}
                     </button>
                   </div>
                 </section>
