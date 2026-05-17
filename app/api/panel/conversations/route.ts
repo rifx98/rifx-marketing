@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 
 // ============================================
 // CONVERSACIONES Y MENSAJES PARA EL PANEL
@@ -9,15 +10,14 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 export async function GET(req: NextRequest) {
   try {
     const supabase = createSupabaseAdmin();
+    const tenant = await getTenantFromRequest(req);
     const conversationId = req.nextUrl.searchParams.get('id');
 
     // Si se pide una conversación específica, devolver con sus mensajes
     if (conversationId) {
-      const { data: conversation } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('id', conversationId)
-        .single();
+      let convQuery = supabase.from('conversations').select('*').eq('id', conversationId);
+      if (tenant?.tenantId) convQuery = convQuery.eq('tenant_id', tenant.tenantId);
+      const { data: conversation } = await convQuery.single();
 
       const { data: messages } = await supabase
         .from('messages')
@@ -29,10 +29,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Obtener todas las conversaciones
-    const { data: conversations } = await supabase
-      .from('conversations')
-      .select('*')
-      .order('updated_at', { ascending: false });
+    let allQuery = supabase.from('conversations').select('*').order('updated_at', { ascending: false });
+    if (tenant?.tenantId) allQuery = allQuery.eq('tenant_id', tenant.tenantId);
+    const { data: conversations } = await allQuery;
 
     const chatting = (conversations || []).filter((c) => c.status === 'chatting');
     const interested = (conversations || []).filter((c) => c.status === 'interested');
@@ -45,24 +44,32 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH: Actualizar estado de una conversación
+// PATCH: Actualizar estado, nombre o número de una conversación
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = createSupabaseAdmin();
-    const { id, status } = await req.json();
+    const { id, status, name, phone_number } = await req.json();
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'Faltan id o status' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Falta id' }, { status: 400 });
     }
 
-    const validStatuses = ['chatting', 'interested', 'bought'];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
+    const updates: any = { updated_at: new Date().toISOString() };
+    
+    if (status) {
+      const validStatuses = ['chatting', 'interested', 'bought'];
+      if (!validStatuses.includes(status)) {
+        return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
+      }
+      updates.status = status;
     }
+
+    if (name !== undefined) updates.name = name;
+    if (phone_number !== undefined) updates.phone_number = phone_number;
 
     const { error } = await supabase
       .from('conversations')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(updates)
       .eq('id', id);
 
     if (error) {

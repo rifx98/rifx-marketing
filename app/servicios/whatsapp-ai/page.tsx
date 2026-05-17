@@ -67,12 +67,12 @@ export default function WhatsAppAI() {
                 </div>
 
                 <div className="flex flex-wrap gap-4">
-                  <button
-                    onClick={() => document.getElementById('train-cta')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="bg-[#25d366] text-white px-10 py-5 rounded-xl font-bold text-base hover:shadow-[0_0_40px_rgba(37,211,102,0.4)] transition-all duration-300 uppercase tracking-widest"
+                  <a
+                    href="/panel"
+                    className="bg-[#25d366] text-white px-10 py-5 rounded-xl font-bold text-base hover:shadow-[0_0_40px_rgba(37,211,102,0.4)] transition-all duration-300 uppercase tracking-widest inline-block"
                   >
                     Quiero Automatizar mi WhatsApp 🤖
-                  </button>
+                  </a>
                   <a
                     href="#como-funciona"
                     className="bg-white/5 border border-white/10 px-10 py-5 rounded-xl font-bold text-base hover:bg-white/10 transition-all uppercase tracking-widest text-white"

@@ -1,0 +1,1600 @@
+﻿'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Bot, 
+  Settings, 
+  LayoutDashboard, 
+  MessageSquare, 
+  TrendingUp, 
+  Save, 
+  CheckCircle2, 
+  CreditCard,
+  User,
+  LogOut,
+  BrainCircuit,
+  Zap,
+  Users,
+  Clock,
+  X,
+  Calendar,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Bell,
+  AlertTriangle
+} from 'lucide-react';
+import Link from 'next/link';
+
+// Simulaci├│n de datos de ventas por IA
+const mockSales = [
+  { id: 1, customer: 'Ana Garc├¡a', amount: 850, service: 'Dise├▒o Web Inmersivo', time: 'Hace 5 min', status: 'completed' },
+  { id: 2, customer: 'Carlos L├│pez', amount: 300, service: 'WhatsApp IA', time: 'Hace 45 min', status: 'completed' },
+  { id: 3, customer: 'Empresa XYZ', amount: 1200, service: 'Ecommerce Interestelar', time: 'Hace 2 horas', status: 'completed' },
+];
+
+// Datos simulados de ingresos por d├¡a del mes (Mayo 2026)
+const monthlyIncomeData: Record<string, Record<number, number>> = {
+  '2026-05': {
+    1: 150, 2: 300, 3: 200, 4: 500, 5: 850, 6: 150, 7: 200,
+    8: 400, 9: 620, 10: 330, 11: 720, 12: 180, 13: 90, 14: 450,
+    15: 310, 16: 560, 17: 280, 18: 670, 19: 420, 20: 350, 21: 510,
+    22: 600, 23: 380, 24: 490, 25: 700, 26: 250, 27: 330, 28: 580,
+    29: 410, 30: 530, 31: 620,
+  },
+  '2026-04': {
+    1: 100, 2: 220, 3: 310, 4: 180, 5: 450, 6: 270, 7: 390,
+    8: 500, 9: 340, 10: 620, 11: 150, 12: 480, 13: 210, 14: 370,
+    15: 530, 16: 290, 17: 410, 18: 550, 19: 190, 20: 330, 21: 460,
+    22: 580, 23: 120, 24: 350, 25: 690, 26: 230, 27: 410, 28: 520,
+    29: 310, 30: 440,
+  },
+};
+
+const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+function getDaysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate();
+}
+function getFirstDayOfWeek(year: number, month: number) {
+  const d = new Date(year, month, 1).getDay();
+  return d === 0 ? 6 : d - 1; // Monday = 0
+}
+
+export default function PanelClient() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings'>('dashboard');
+  const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string} | null>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef(0);
+  const [manualMsg, setManualMsg] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
+  const [isHumanMode, setIsHumanMode] = useState(false);
+  const [humanAlerts, setHumanAlerts] = useState<{id: string, name: string, time: string}[]>([]);
+  const [showChartModal, setShowChartModal] = useState(false);
+  const [calMonth, setCalMonth] = useState(4);
+  const [calYear, setCalYear] = useState(2026);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Estados para cambio de contrase├▒a
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+
+  // Estados para datos reales
+  const [conversationsData, setConversationsData] = useState<any>(null);
+  const [statsData, setStatsData] = useState<any>(null);
+  const [configData, setConfigData] = useState<any>({
+    whatsapp_token: '',
+    whatsapp_phone_id: '',
+    openai_key: '',
+    ai_prompt: '',
+    panel_password: '',
+  });
+  const [showWhatsappKey, setShowWhatsappKey] = useState(false);
+  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      // Cargar CRM
+      fetch('/api/panel/conversations')
+        .then(res => res.json())
+        .then(data => {
+          setConversationsData(data);
+          // Detectar alertas de solicitud de humano
+          checkHumanAlerts(data);
+        })
+        .catch(console.error);
+      
+      // Cargar Estad├¡sticas
+      fetch('/api/panel/stats')
+        .then(res => res.json())
+        .then(data => setStatsData(data))
+        .catch(console.error);
+
+      // Cargar Config
+      fetch('/api/panel/config')
+        .then(res => res.json())
+        .then(data => {
+           if (!data.error) {
+             // Solo guardar campos v├ílidos de la DB, no campos extra como hasWhatsappToken
+             setConfigData({
+               whatsapp_token: data.whatsapp_token || '',
+               whatsapp_phone_id: data.whatsapp_phone_id || '',
+               openai_key: data.openai_key || '',
+               payphone_token: data.payphone_token || '',
+               payphone_store_id: data.payphone_store_id || '',
+               ai_prompt: data.ai_prompt || '',
+               panel_password: data.panel_password || '',
+             });
+           }
+        })
+        .catch(console.error);
+
+      // Refrescar cada 10 segundos
+      const interval = setInterval(() => {
+        fetch('/api/panel/conversations').then(res => res.json()).then(data => {
+          setConversationsData(data);
+          checkHumanAlerts(data);
+        });
+        fetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [isLoggedIn]);
+
+  // Funci├│n para detectar solicitudes de humano en las conversaciones
+  const checkHumanAlerts = async (data: any) => {
+    if (!data) return;
+    const allConvs = [...(data.chatting || []), ...(data.interested || []), ...(data.bought || [])];
+    const newAlerts: {id: string, name: string, time: string}[] = [];
+    
+    for (const conv of allConvs) {
+      try {
+        const res = await fetch(`/api/panel/conversations?id=${conv.id}`);
+        const convData = await res.json();
+        if (convData.messages) {
+          const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
+          // Solo alertar si hay solicitud Y la conversaci├│n no est├í ya en modo humano
+          if (hasHumanReq) {
+            // Verificar que no hay un __SYSTEM_PAUSE__ m├ís reciente que el __HUMAN_REQUEST__
+            const lastHumanReq = [...convData.messages].reverse().findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
+            const lastPause = [...convData.messages].reverse().findIndex((m: any) => m.content === '__SYSTEM_PAUSE__');
+            if (lastPause === -1 || lastHumanReq < lastPause) {
+              newAlerts.push({
+                id: conv.id,
+                name: conv.customer_name,
+                time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Silenciar errores individuales
+      }
+    }
+    
+    setHumanAlerts(newAlerts);
+  };
+
+  // Cargar mensajes reales cuando se selecciona un chat
+  React.useEffect(() => {
+    if (!selectedChat?.id) {
+      setChatMessages([]);
+      prevMsgCountRef.current = 0;
+      return;
+    }
+
+    const loadMessages = () => {
+      fetch(`/api/panel/conversations?id=${selectedChat.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.messages) {
+            // Detectar modo humano desde se├▒ales
+            const signals = data.messages.filter((m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__');
+            if (signals.length > 0) {
+              setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
+            }
+            // Filtrar se├▒ales para no mostrarlas en el chat
+            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__');
+            // Solo actualizar si los mensajes realmente cambiaron
+            setChatMessages(prev => {
+              const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
+              const newLastId = visibleMessages.length > 0 ? visibleMessages[visibleMessages.length - 1]?.id : null;
+              if (prev.length === visibleMessages.length && prevLastId === newLastId) {
+                return prev;
+              }
+              return visibleMessages;
+            });
+          }
+        })
+        .catch(console.error);
+    };
+
+    setLoadingMessages(true);
+    fetch(`/api/panel/conversations?id=${selectedChat.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.messages) {
+          // Detectar modo humano
+          const signals = data.messages.filter((m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__');
+          if (signals.length > 0) {
+            setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
+          } else {
+            setIsHumanMode(false);
+          }
+          // Filtrar se├▒ales
+          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__');
+          setChatMessages(visibleMessages);
+        }
+        setLoadingMessages(false);
+      })
+      .catch(() => setLoadingMessages(false));
+
+    // Auto-refrescar cada 5 segundos
+    const msgInterval = setInterval(loadMessages, 5000);
+    return () => clearInterval(msgInterval);
+  }, [selectedChat?.id]);
+
+  // Solo hacer scroll al fondo cuando llegan mensajes NUEVOS
+  useEffect(() => {
+    if (chatMessages.length > 0 && chatMessages.length !== prevMsgCountRef.current) {
+      const container = chatContainerRef.current;
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        const isInitialLoad = prevMsgCountRef.current === 0;
+        if (isNearBottom || isInitialLoad) {
+          setTimeout(() => {
+            container.scrollTop = container.scrollHeight;
+          }, 50);
+        }
+      }
+      prevMsgCountRef.current = chatMessages.length;
+    }
+  }, [chatMessages]);
+
+  // Block body scroll when chat modal is open on mobile
+  useEffect(() => {
+    if (selectedChat) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedChat]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      // Verificar contrase├▒a contra la DB
+      const res = await fetch('/api/panel/config');
+      const config = await res.json();
+      const storedPassword = config.panel_password || 'rifx2026'; // Default si no hay contrase├▒a en DB
+      
+      if (loginUser === 'admin' && loginPass === storedPassword) {
+        setIsLoggedIn(true);
+      } else {
+        setLoginError('Usuario o contrase├▒a incorrectos');
+      }
+    } catch {
+      // Fallback si no se puede conectar a la DB
+      if (loginUser === 'admin' && loginPass === 'rifx2026') {
+        setIsLoggedIn(true);
+      } else {
+        setLoginError('Usuario o contrase├▒a incorrectos');
+      }
+    }
+    setIsLoggingIn(false);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess(false);
+
+    // Validaciones
+    const storedPassword = configData.panel_password || 'rifx2026';
+    if (currentPassword !== storedPassword) {
+      setPasswordError('La contrase├▒a actual no es correcta');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('La nueva contrase├▒a debe tener al menos 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Las contrase├▒as no coinciden');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const res = await fetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ panel_password: newPassword }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setPasswordSuccess(true);
+        setConfigData({ ...configData, panel_password: newPassword });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setTimeout(() => setPasswordSuccess(false), 5000);
+      } else {
+        setPasswordError(result.error || 'Error al cambiar la contrase├▒a');
+      }
+    } catch (err: any) {
+      setPasswordError(err?.message || 'Error de conexi├│n');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSaveError('');
+    setShowSuccess(false);
+    try {
+      // Solo enviar campos v├ílidos de la DB
+      const payload = {
+        whatsapp_token: configData.whatsapp_token,
+        whatsapp_phone_id: configData.whatsapp_phone_id,
+        openai_key: configData.openai_key,
+        payphone_token: configData.payphone_token,
+        payphone_store_id: configData.payphone_store_id,
+        ai_prompt: configData.ai_prompt,
+      };
+      const res = await fetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        setSaveError(result.error || 'Error desconocido al guardar');
+        setTimeout(() => setSaveError(''), 8000);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSaveError(err?.message || 'Error de conexi├│n al guardar');
+      setTimeout(() => setSaveError(''), 8000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ========== LOGIN SCREEN ==========
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 font-sans relative overflow-hidden">
+        {/* Background Glow */}
+        <div className="absolute top-[-30%] right-[-20%] w-[700px] h-[700px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-[-30%] left-[-20%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[130px] pointer-events-none" />
+
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="w-full max-w-md relative z-10"
+        >
+          {/* Logo */}
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
+              <Bot className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">RIFX Panel</h1>
+            <p className="text-sm text-gray-500 mt-1">Panel de Control IA ÔÇö WhatsApp Sales Bot</p>
+          </div>
+
+          {/* Login Card */}
+          <form onSubmit={handleLogin} className="bg-white/[0.03] border border-white/10 rounded-2xl p-8 backdrop-blur-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
+
+            <div className="relative z-10 space-y-6">
+              <div className="flex items-center gap-2 mb-6">
+                <ShieldCheck className="w-5 h-5 text-purple-400" />
+                <h2 className="text-lg font-semibold">Iniciar Sesi├│n</h2>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Usuario</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    value={loginUser}
+                    onChange={(e) => setLoginUser(e.target.value)}
+                    placeholder="Escribe tu usuario"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Contrase├▒a</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPass}
+                    onChange={(e) => setLoginPass(e.target.value)}
+                    placeholder="ÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇóÔÇó"
+                    className="w-full bg-black/50 border border-white/10 rounded-xl pl-10 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <AnimatePresence>
+                {loginError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="text-red-400 text-sm flex items-center gap-1 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg"
+                  >
+                    <X className="w-4 h-4" /> {loginError}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+              >
+                {isLoggingIn ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                {isLoggingIn ? 'Verificando...' : 'Acceder al Panel'}
+              </button>
+            </div>
+          </form>
+
+          <p className="text-center text-xs text-gray-600 mt-6">Protegido con encriptaci├│n de extremo a extremo ­ƒöÆ</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+    <div className="min-h-screen max-h-screen bg-[#050505] text-white flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden">
+      
+      {/* Sidebar Navigation */}
+      <motion.aside 
+        initial={{ x: -50, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full md:w-64 bg-white/[0.02] border-b md:border-b-0 md:border-r border-white/10 backdrop-blur-xl flex flex-col z-20 shrink-0 md:h-screen"
+      >
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <Bot className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">RIFX Panel</h1>
+            <p className="text-xs text-purple-400 font-medium">IA Sales Bot</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-4 py-2 md:py-6 space-y-0 md:space-y-2 flex md:flex-col overflow-x-auto md:overflow-visible">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
+              activeTab === 'dashboard' 
+                ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="font-medium">Resumen</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('crm')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
+              activeTab === 'crm' 
+                ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="font-medium">Contactos (CRM)</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 w-full whitespace-nowrap ${
+              activeTab === 'settings' 
+                ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20 shadow-[0_0_20px_rgba(168,85,247,0.1)]' 
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="font-medium">Configuraci├│n API</span>
+          </button>
+        </nav>
+
+        <div className="p-4 hidden md:block">
+          <Link href="/" className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all w-full">
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Volver a la Web</span>
+          </Link>
+        </div>
+      </motion.aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-4 md:p-10 relative overflow-y-auto min-h-0">
+        {/* Background Decorative Elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[100px]" />
+        </div>
+
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <header className="mb-10 flex justify-between items-end">
+            <motion.div 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <h2 className="text-3xl md:text-4xl font-bold mb-2">
+                {activeTab === 'dashboard' && 'Panel de Ventas IA'}
+                {activeTab === 'crm' && 'Contactos & Leads'}
+                {activeTab === 'settings' && 'Configuraci├│n del Bot'}
+              </h2>
+              <p className="text-gray-400">
+                {activeTab === 'dashboard' && 'Monitoriza las ventas cerradas autom├íticamente por tu agente de WhatsApp.'}
+                {activeTab === 'crm' && 'Da seguimiento a las personas que interact├║an con tu IA en tiempo real.'}
+                {activeTab === 'settings' && 'Ajusta las credenciales de conexi├│n y el comportamiento de tu vendedor IA.'}
+              </p>
+            </motion.div>
+          </header>
+
+          <AnimatePresence mode="wait">
+            {/* ----------------- TAB: DASHBOARD ----------------- */}
+            {activeTab === 'dashboard' && (
+              <motion.div
+                key="dashboard"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-6"
+              >
+                {/* Metrics Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div 
+                    onClick={() => setShowChartModal(true)}
+                    className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-purple-500/30 transition-all cursor-pointer"
+                  >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all" />
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                      <div>
+                        <p className="text-gray-400 text-sm font-medium mb-1">Ingresos Generados (IA)</p>
+                        <h3 className="text-3xl font-bold text-white">${statsData?.totalRevenue || 0}</h3>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5 text-emerald-400" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-emerald-400 flex items-center gap-1">
+                      <span className="font-bold">Total hist├│rico</span>
+                    </p>
+                  </div>
+
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-blue-500/30 transition-all">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all" />
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                      <div>
+                        <p className="text-gray-400 text-sm font-medium mb-1">Ventas Cerradas</p>
+                        <h3 className="text-3xl font-bold text-white">{statsData?.totalSales || 0}</h3>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <CheckCircle2 className="w-5 h-5 text-blue-400" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-blue-400 flex items-center gap-1">
+                      Completamente autom├íticas
+                    </p>
+                  </div>
+
+                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 backdrop-blur-md relative overflow-hidden group hover:border-pink-500/30 transition-all">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-3xl group-hover:bg-pink-500/20 transition-all" />
+                    <div className="flex justify-between items-start mb-4 relative z-10">
+                      <div>
+                        <p className="text-gray-400 text-sm font-medium mb-1">Conversaciones Activas</p>
+                        <h3 className="text-3xl font-bold text-white">{statsData?.activeConversations || 0}</h3>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-pink-500/10 flex items-center justify-center">
+                        <MessageSquare className="w-5 h-5 text-pink-400" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-pink-400 flex items-center gap-1">
+                      La IA est├í negociando ahora
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sales Feed */}
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden backdrop-blur-md">
+                  <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.01]">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-yellow-400" />
+                      Muro de Ventas Recientes
+                    </h3>
+                    <span className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30">
+                      En Vivo
+                    </span>
+                  </div>
+                  <div className="p-0">
+                    {(statsData?.recentSales || mockSales).map((sale: any, index: number) => (
+                      <motion.div 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        key={sale.id} 
+                        className="flex items-center justify-between p-6 border-b border-white/5 hover:bg-white/[0.03] transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-gray-800 to-gray-700 flex items-center justify-center border border-white/10">
+                            <User className="w-6 h-6 text-gray-300" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-white">{sale.customer}</p>
+                            <p className="text-sm text-gray-400">{sale.service}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-emerald-400 flex items-center gap-1 justify-end">
+                            <CreditCard className="w-4 h-4" />
+                            +${sale.amount}
+                          </p>
+                          <p className="text-xs text-gray-500">{sale.time}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ----------------- TAB: CRM / LEADS ----------------- */}
+            {activeTab === 'crm' && (
+              <motion.div
+                key="crm"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+                className="space-y-4"
+              >
+                {/* ­ƒÜ¿ Human Request Alerts */}
+                <AnimatePresence>
+                  {humanAlerts.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="bg-gradient-to-r from-red-500/20 via-orange-500/15 to-red-500/20 border border-red-500/40 rounded-2xl p-4 backdrop-blur-sm"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-8 h-8 rounded-full bg-red-500/30 flex items-center justify-center animate-pulse">
+                          <Bell className="w-4 h-4 text-red-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-red-300 text-sm">­ƒÜ¿ Solicitud de Atenci├│n Humana</h4>
+                          <p className="text-xs text-red-400/70">{humanAlerts.length} cliente{humanAlerts.length > 1 ? 's' : ''} pidiendo hablar con un humano</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {humanAlerts.map((alert) => (
+                          <div key={alert.id} className="flex items-center justify-between bg-black/30 rounded-xl px-4 py-2.5 border border-red-500/20">
+                            <div className="flex items-center gap-3">
+                              <AlertTriangle className="w-4 h-4 text-orange-400" />
+                              <div>
+                                <p className="text-sm font-medium text-white">{alert.name}</p>
+                                <p className="text-[10px] text-gray-400">Solicit├│ a las {alert.time}</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setSelectedChat({id: alert.id, name: alert.name, status: 'chatting'})}
+                              className="px-3 py-1.5 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-xs font-medium text-orange-300 transition-all"
+                            >
+                              ­ƒæñ Atender
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                {/* Column 1: Chateando */}
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[35vh] md:h-[70vh]">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-200 flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-pink-400" />
+                      Chateando Ahora
+                    </h3>
+                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full">{conversationsData?.chatting?.length || 0}</span>
+                  </div>
+                  <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                    {(conversationsData?.chatting || []).map((conv: any) => (
+                      <div 
+                        key={conv.id} 
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status})}
+                        className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-pink-500/30 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center">
+                            <User className="w-4 h-4 text-pink-300" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-[120px]">{conv.customer_name}</p>
+                            <p className="text-xs text-pink-400 flex items-center gap-1"><Clock className="w-3 h-3"/> Activo</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg truncate">
+                          {conv.phone_number}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Column 2: Interesados */}
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[35vh] md:h-[70vh]">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-200 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-yellow-400" />
+                      Interesados (Link de Pago)
+                    </h3>
+                    <span className="bg-white/10 text-xs px-2 py-1 rounded-full">{conversationsData?.interested?.length || 0}</span>
+                  </div>
+                  <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                    {(conversationsData?.interested || []).map((conv: any) => (
+                      <div 
+                        key={conv.id} 
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status})}
+                        className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-yellow-500/30 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                            <User className="w-4 h-4 text-yellow-300" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-[120px]">{conv.customer_name}</p>
+                            <p className="text-xs text-yellow-400">Gener├│ Pago</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg truncate">
+                          {conv.phone_number}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Column 3: Compradores */}
+                <div className="bg-white/[0.02] border border-white/10 rounded-2xl flex flex-col h-[35vh] md:h-[70vh]">
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-200 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      Compraron
+                    </h3>
+                    <span className="bg-emerald-500/20 text-emerald-300 text-xs px-2 py-1 rounded-full">{conversationsData?.bought?.length || 0}</span>
+                  </div>
+                  <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                    {(conversationsData?.bought || []).map((conv: any) => (
+                      <div 
+                        key={conv.id} 
+                        onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status})}
+                        className="bg-white/[0.03] p-4 rounded-xl border border-white/5 hover:border-emerald-500/30 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <User className="w-4 h-4 text-emerald-300" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-[120px]">{conv.customer_name}</p>
+                            <p className="text-xs text-emerald-400">Cliente Cerrado</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 bg-black/40 p-2 rounded-lg truncate">
+                          {conv.phone_number}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ----------------- TAB: SETTINGS ----------------- */}
+            {activeTab === 'settings' && (
+              <motion.div
+                key="settings"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4 }}
+              >
+                <form onSubmit={handleSaveSettings} className="bg-white/[0.02] border border-white/10 rounded-2xl p-8 backdrop-blur-md relative overflow-hidden">
+                  
+                  <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[100px] pointer-events-none" />
+
+                  <div className="space-y-8 relative z-10">
+                    
+                    {/* ÔÜá´©Å Advertencia de APIs */}
+                    <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-amber-300 font-bold text-sm">ÔÜá´©Å Zona Sensible ÔÇö APIs del Chatbot</h4>
+                        <p className="text-amber-400/70 text-xs mt-1 leading-relaxed">
+                          Modificar las API Keys o el Prompt puede hacer que el chatbot de WhatsApp <strong className="text-amber-300">deje de funcionar</strong>. 
+                          Solo cambia estos valores si est├ís seguro de lo que haces. Si tienes dudas, contacta al equipo t├®cnico.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* WhatsApp Section */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-white/10 pb-2">
+                        <MessageSquare className="w-5 h-5 text-green-400" />
+                        Conexi├│n WhatsApp
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp Business API Key</label>
+                          <div className="relative">
+                            <input 
+                              type={showWhatsappKey ? "text" : "password"} 
+                              value={configData.whatsapp_token || ''}
+                              onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
+                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all font-mono text-sm"
+                              placeholder="Escribe tu API Key aqu├¡..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowWhatsappKey(!showWhatsappKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            >
+                              {showWhatsappKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-400 mb-1">N├║mero de Tel├®fono (ID)</label>
+                          <input 
+                            type="text" 
+                            value={configData.whatsapp_phone_id || ''}
+                            onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* AI Section */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-white/10 pb-2">
+                        <BrainCircuit className="w-5 h-5 text-blue-400" />
+                        Cerebro de Inteligencia Artificial
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-400 mb-1">OpenAI API Key (ChatGPT o Groq)</label>
+                          <div className="relative">
+                            <input 
+                              type={showOpenAiKey ? "text" : "password"} 
+                              value={configData.openai_key || ''}
+                              onChange={e => setConfigData({...configData, openai_key: e.target.value})}
+                              className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono text-sm"
+                              placeholder="sk-..."
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowOpenAiKey(!showOpenAiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                            >
+                              {showOpenAiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-400 mb-1 flex justify-between">
+                            <span>Prompt del Vendedor (Instrucciones)</span>
+                            <span className="text-purple-400 text-xs">El n├║cleo de tu IA</span>
+                          </label>
+                          <textarea 
+                            rows={5}
+                            value={configData.ai_prompt || ''}
+                            onChange={e => setConfigData({...configData, ai_prompt: e.target.value})}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-all resize-y text-sm leading-relaxed"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Webhook Section */}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-4 flex items-center gap-2 border-b border-white/10 pb-2">
+                        <CreditCard className="w-5 h-5 text-yellow-400" />
+                        Pasarela de Pago
+                      </h3>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">URL del Webhook (Para recibir notificaciones de pago)</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            readOnly
+                            value="https://rifx-marketing.com/api/webhooks/stripe"
+                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 cursor-not-allowed font-mono text-sm"
+                          />
+                          <button type="button" className="px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl transition-all text-sm font-medium">
+                            Copiar
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Pega esta URL en tu cuenta de Stripe o MercadoPago para que la IA sepa cuando el cliente ha pagado.</p>
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <div className="pt-4 flex items-center gap-4">
+                      <button 
+                        type="submit" 
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+                      >
+                        {isSaving ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Save className="w-5 h-5" />
+                        )}
+                        {isSaving ? 'Guardando...' : 'Guardar Configuraci├│n'}
+                      </button>
+
+                      <AnimatePresence>
+                        {showSuccess && (
+                          <motion.div
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            className="flex items-center gap-2 text-emerald-400 text-sm font-medium"
+                          >
+                            <CheckCircle2 className="w-5 h-5" />
+                            ┬íGuardado con ├®xito!
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Error message */}
+                    <AnimatePresence>
+                      {saveError && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="mt-4 flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl"
+                        >
+                          <X className="w-5 h-5 shrink-0" />
+                          <span><strong>Error al guardar:</strong> {saveError}</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                  </div>
+                </form>
+
+                {/* ­ƒöÉ Cambiar Contrase├▒a */}
+                <form onSubmit={handleChangePassword} className="mt-6 bg-white/[0.02] border border-white/10 rounded-2xl p-8 backdrop-blur-md relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-[400px] h-[400px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
+                  
+                  <div className="relative z-10">
+                    <h3 className="text-xl font-semibold mb-2 flex items-center gap-2 border-b border-white/10 pb-2">
+                      <Lock className="w-5 h-5 text-emerald-400" />
+                      Cambiar Contrase├▒a del Panel
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-6">Cambia tu contrase├▒a de acceso al dashboard de administraci├│n.</p>
+
+                    <div className="space-y-4 max-w-md">
+                      {/* Contrase├▒a actual */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Contrase├▒a Actual</label>
+                        <div className="relative">
+                          <input 
+                            type={showCurrentPw ? "text" : "password"}
+                            value={currentPassword}
+                            onChange={e => setCurrentPassword(e.target.value)}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                            placeholder="Ingresa tu contrase├▒a actual"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentPw(!showCurrentPw)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                          >
+                            {showCurrentPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Nueva contrase├▒a */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Nueva Contrase├▒a</label>
+                        <div className="relative">
+                          <input 
+                            type={showNewPw ? "text" : "password"}
+                            value={newPassword}
+                            onChange={e => setNewPassword(e.target.value)}
+                            className="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                            placeholder="M├¡nimo 6 caracteres"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPw(!showNewPw)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                          >
+                            {showNewPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Confirmar contrase├▒a */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Confirmar Nueva Contrase├▒a</label>
+                        <input 
+                          type="password"
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                          placeholder="Repite la nueva contrase├▒a"
+                        />
+                      </div>
+
+                      {/* Bot├│n + Mensajes */}
+                      <div className="pt-2 space-y-3">
+                        <button 
+                          type="submit"
+                          disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                        >
+                          {changingPassword ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <ShieldCheck className="w-4 h-4" />
+                          )}
+                          {changingPassword ? 'Cambiando...' : 'Cambiar Contrase├▒a'}
+                        </button>
+
+                        <AnimatePresence>
+                          {passwordSuccess && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 rounded-xl"
+                            >
+                              <CheckCircle2 className="w-5 h-5 shrink-0" />
+                              <span>┬íContrase├▒a actualizada correctamente! Usa la nueva contrase├▒a en tu pr├│ximo inicio de sesi├│n.</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <AnimatePresence>
+                          {passwordError && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-4 py-3 rounded-xl"
+                            >
+                              <X className="w-5 h-5 shrink-0" />
+                              <span>{passwordError}</span>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Chat modal rendered via portal to document.body - see bottom of component */}
+
+          {/* ----------------- CHART MODAL ----------------- */}
+
+
+          {/* ----------------- CHART MODAL ----------------- */}
+          <AnimatePresence>
+            {showChartModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                  className="bg-[#0f0f0f] border border-white/10 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col p-6"
+                >
+                  {/* Header */}
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                         <TrendingUp className="text-emerald-400 w-6 h-6"/> Ingresos Generados
+                      </h3>
+                      <p className="text-gray-400 text-sm mt-1">Navega por el calendario y observa tu rendimiento diario</p>
+                    </div>
+                    <button 
+                      onClick={() => setShowChartModal(false)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5 text-gray-400" />
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row gap-6">
+                    {/* ---- Mini Calendar ---- */}
+                    <div className="bg-black/40 border border-white/10 rounded-xl p-4 md:w-64 shrink-0">
+                      {/* Month Navigation */}
+                      <div className="flex items-center justify-between mb-4">
+                        <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else { setCalMonth(calMonth - 1); } setSelectedDay(null); }} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                        <span className="text-sm font-bold text-white">{MONTH_NAMES[calMonth]} {calYear}</span>
+                        <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else { setCalMonth(calMonth + 1); } setSelectedDay(null); }} className="p-1 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                      </div>
+                      {/* Day headers */}
+                      <div className="grid grid-cols-7 gap-1 mb-2">
+                        {DAY_LABELS.map(d => <span key={d} className="text-center text-[10px] text-gray-500 font-bold uppercase">{d}</span>)}
+                      </div>
+                      {/* Day cells */}
+                      <div className="grid grid-cols-7 gap-1">
+                        {(() => {
+                          const totalDays = getDaysInMonth(calYear, calMonth);
+                          const firstDay = getFirstDayOfWeek(calYear, calMonth);
+                          const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
+                          const monthData = monthlyIncomeData[key] || {};
+                          const cells = [];
+                          for (let i = 0; i < firstDay; i++) {
+                            cells.push(<div key={`empty-${i}`} />);
+                          }
+                          for (let day = 1; day <= totalDays; day++) {
+                            const hasData = monthData[day] !== undefined;
+                            const isSelected = selectedDay === day;
+                            cells.push(
+                              <button
+                                key={day}
+                                onClick={() => setSelectedDay(isSelected ? null : day)}
+                                className={`w-full aspect-square rounded-md text-xs font-medium flex items-center justify-center transition-all
+                                  ${isSelected 
+                                    ? 'bg-purple-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]' 
+                                    : hasData 
+                                      ? 'bg-white/5 text-gray-300 hover:bg-purple-500/20 hover:text-white' 
+                                      : 'text-gray-600 cursor-default'
+                                  }`}
+                              >
+                                {day}
+                              </button>
+                            );
+                          }
+                          return cells;
+                        })()}
+                      </div>
+                      {/* Selected day detail */}
+                      {selectedDay && (() => {
+                        const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
+                        const amount = (monthlyIncomeData[key] || {})[selectedDay];
+                        return (
+                          <div className="mt-4 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                            <p className="text-xs text-gray-400">{selectedDay} {MONTH_NAMES[calMonth]} {calYear}</p>
+                            <p className="text-xl font-bold text-white mt-1">${amount ?? 0}</p>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* ---- Line Chart ---- */}
+                    <div className="flex-1 flex flex-col">
+                      {(() => {
+                        const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
+                        const monthData = monthlyIncomeData[key] || {};
+                        const totalDays = getDaysInMonth(calYear, calMonth);
+                        const values = Array.from({ length: totalDays }, (_, i) => monthData[i + 1] ?? 0);
+                        const maxVal = Math.max(...values, 1);
+                        const totalIncome = values.reduce((a, b) => a + b, 0);
+                        const chartW = 500;
+                        const chartH = 200;
+                        const padX = 30;
+                        const padY = 20;
+                        const innerW = chartW - padX * 2;
+                        const innerH = chartH - padY * 2;
+
+                        const points = values.map((v, i) => {
+                          const x = padX + (i / (values.length - 1)) * innerW;
+                          const y = padY + innerH - (v / maxVal) * innerH;
+                          return { x, y, val: v, day: i + 1 };
+                        });
+
+                        const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                        const areaPath = `${linePath} L ${points[points.length - 1].x} ${chartH - padY} L ${points[0].x} ${chartH - padY} Z`;
+
+                        return (
+                          <>
+                            <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full h-48 md:h-56">
+                              <defs>
+                                <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="rgba(168,85,247,0.4)" />
+                                  <stop offset="100%" stopColor="rgba(168,85,247,0)" />
+                                </linearGradient>
+                                <linearGradient id="strokeGrad" x1="0" y1="0" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#a855f7" />
+                                  <stop offset="100%" stopColor="#6366f1" />
+                                </linearGradient>
+                              </defs>
+                              {/* Grid lines */}
+                              {[0, 0.25, 0.5, 0.75, 1].map(pct => {
+                                const y = padY + innerH - pct * innerH;
+                                return <line key={pct} x1={padX} y1={y} x2={chartW - padX} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />;
+                              })}
+                              {/* Y-axis labels */}
+                              {[0, 0.5, 1].map(pct => {
+                                const y = padY + innerH - pct * innerH;
+                                return <text key={`lbl-${pct}`} x={padX - 4} y={y + 3} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize="9">${Math.round(maxVal * pct)}</text>;
+                              })}
+                              {/* Gradient fill */}
+                              <path d={areaPath} fill="url(#lineGrad)" />
+                              {/* Line */}
+                              <path d={linePath} fill="none" stroke="url(#strokeGrad)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                              {/* Dots */}
+                              {points.map((p) => (
+                                <g key={p.day}>
+                                  <circle cx={p.x} cy={p.y} r={selectedDay === p.day ? 5 : 3} fill={selectedDay === p.day ? '#a855f7' : '#6366f1'} stroke={selectedDay === p.day ? '#fff' : 'none'} strokeWidth={selectedDay === p.day ? 2 : 0} className="cursor-pointer" onClick={() => setSelectedDay(selectedDay === p.day ? null : p.day)} />
+                                  {selectedDay === p.day && (
+                                    <>
+                                      <line x1={p.x} y1={p.y + 6} x2={p.x} y2={chartH - padY} stroke="rgba(168,85,247,0.3)" strokeWidth="1" strokeDasharray="4 2" />
+                                      <rect x={p.x - 22} y={p.y - 24} width="44" height="18" rx="4" fill="rgba(16,185,129,0.15)" stroke="rgba(16,185,129,0.3)" strokeWidth="0.5" />
+                                      <text x={p.x} y={p.y - 12} textAnchor="middle" fill="#34d399" fontSize="10" fontWeight="bold">${p.val}</text>
+                                    </>
+                                  )}
+                                </g>
+                              ))}
+                              {/* X labels (show some) */}
+                              {points.filter((_, i) => i % Math.ceil(totalDays / 8) === 0 || i === totalDays - 1).map(p => (
+                                <text key={`x-${p.day}`} x={p.x} y={chartH - 4} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="9">{p.day}</text>
+                              ))}
+                            </svg>
+                            <div className="pt-4 flex justify-between items-center border-t border-white/10 mt-2">
+                              <p className="flex flex-col">
+                                <span className="text-[10px] uppercase tracking-widest text-gray-600 mb-1">Total del Mes</span>
+                                <span className="font-bold text-2xl text-white">${totalIncome.toLocaleString()}</span>
+                              </p>
+                              <p className="flex flex-col text-right">
+                                <span className="text-[10px] uppercase tracking-widest text-gray-600 mb-1">Promedio Diario</span>
+                                <span className="font-bold text-xl text-emerald-400">${Math.round(totalIncome / totalDays)}</span>
+                              </p>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </div>
+      </main>
+    </div>
+
+    {/* ----------------- CHAT MODAL (Portal to body) ----------------- */}
+    {typeof document !== 'undefined' && createPortal(
+      <AnimatePresence>
+        {selectedChat && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-4 bg-black/80 backdrop-blur-sm"
+            style={{ isolation: 'isolate' }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-[#0f0f0f] w-full md:max-w-lg md:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[100dvh] md:h-[600px] md:border md:border-white/10"
+            >
+              {/* Header */}
+              <div className="p-3 md:p-4 border-b border-white/10 flex justify-between items-center bg-[#0f0f0f] safe-area-top shrink-0">
+                <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                  {/* Mobile back arrow */}
+                  <button 
+                    onClick={() => setSelectedChat(null)}
+                    className="md:hidden p-1.5 hover:bg-white/10 rounded-lg transition-colors shrink-0"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center shrink-0 ${isHumanMode ? 'bg-gradient-to-tr from-orange-500 to-amber-500' : 'bg-gradient-to-tr from-purple-600 to-blue-600'}`}>
+                    <User className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-white text-sm md:text-base truncate">{selectedChat.name}</h3>
+                    <p className={`text-[10px] md:text-xs flex items-center gap-1 ${isHumanMode ? 'text-orange-400' : 'text-emerald-400'}`}>
+                      <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full animate-pulse ${isHumanMode ? 'bg-orange-400' : 'bg-emerald-400'}`}></span>
+                      <span className="truncate">{isHumanMode ? '­ƒæñ Modo Humano (IA pausada)' : '­ƒñû IA respondiendo'}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+                  <button
+                    onClick={async () => {
+                      const newPaused = !isHumanMode;
+                      const resPatch = await fetch('/api/panel/pause', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ conversationId: selectedChat!.id, paused: newPaused }),
+                      });
+                      if (resPatch.ok) {
+                        setIsHumanMode(newPaused);
+                      } else {
+                        const errData = await resPatch.json();
+                        alert(`Error al cambiar modo: ${errData.error}`);
+                      }
+                    }}
+                    className={`px-2.5 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all whitespace-nowrap ${
+                      isHumanMode
+                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                        : 'bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30'
+                    }`}
+                  >
+                    {isHumanMode ? '­ƒñû Devolver a IA' : '­ƒæñ Tomar Control'}
+                  </button>
+                  <button 
+                    onClick={() => setSelectedChat(null)}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Chat Area */}
+              <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-black/20" ref={chatContainerRef}>
+                {loadingMessages ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                      <p className="text-sm text-gray-500">Cargando mensajes...</p>
+                    </div>
+                  </div>
+                ) : chatMessages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-sm text-gray-500">No hay mensajes a├║n</p>
+                  </div>
+                ) : (
+                  chatMessages.map((msg: any, idx: number) => {
+                    const time = new Date(msg.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+                    const isUser = msg.role === 'user';
+                    const msgDate = new Date(msg.created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' });
+                    const prevDate = idx > 0 ? new Date(chatMessages[idx-1].created_at).toLocaleDateString('es-EC', { day: 'numeric', month: 'short' }) : null;
+                    const showDate = idx === 0 || msgDate !== prevDate;
+                    return (
+                      <React.Fragment key={msg.id || idx}>
+                        {showDate && (
+                          <p className="text-xs text-center text-gray-600 my-3 select-none">{msgDate}</p>
+                        )}
+                        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`p-3 rounded-2xl max-w-[80%] text-sm whitespace-pre-wrap ${
+                            isUser
+                              ? 'bg-purple-600/20 border border-purple-500/30 text-white rounded-tr-sm'
+                              : 'bg-white/5 border border-white/10 text-gray-200 rounded-tl-sm'
+                          }`}>
+                            {msg.content}
+                            <p className={`text-[10px] mt-1 ${isUser ? 'text-purple-400/60 text-right' : 'text-gray-600'}`}>
+                              {time} {!isUser && 'ÔÇó IA'}
+                            </p>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })
+                )}
+                <div className="flex items-center gap-2 pt-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-xs text-gray-500">Actualizando en vivo cada 5s</p>
+                </div>
+              </div>
+
+              {/* Status Change Buttons */}
+              <div className="px-3 md:px-4 pt-2 md:pt-3 pb-1 border-t border-white/10 bg-[#0f0f0f] shrink-0">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 md:mb-2">Mover a:</p>
+                <div className="flex gap-1.5 md:gap-2">
+                  {!selectedChat.status.includes('chatting') && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/panel/conversations', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: selectedChat!.id, status: 'chatting' }),
+                        });
+                        setSelectedChat({ ...selectedChat!, status: 'chatting' });
+                        const res = await fetch('/api/panel/conversations');
+                        const data = await res.json();
+                        setConversationsData(data);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/20 transition-colors text-pink-400 text-xs font-medium"
+                    >
+                      <MessageSquare className="w-3 h-3" /> Chateando
+                    </button>
+                  )}
+                  {!selectedChat.status.includes('interested') && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/panel/conversations', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: selectedChat!.id, status: 'interested' }),
+                        });
+                        setSelectedChat({ ...selectedChat!, status: 'interested' });
+                        const res = await fetch('/api/panel/conversations');
+                        const data = await res.json();
+                        setConversationsData(data);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors text-yellow-400 text-xs font-medium"
+                    >
+                      <Zap className="w-3 h-3" /> Interesado
+                    </button>
+                  )}
+                  {!selectedChat.status.includes('bought') && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/panel/conversations', {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: selectedChat!.id, status: 'bought' }),
+                        });
+                        setSelectedChat({ ...selectedChat!, status: 'bought' });
+                        const res = await fetch('/api/panel/conversations');
+                        const data = await res.json();
+                        setConversationsData(data);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors text-emerald-400 text-xs font-medium"
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Compr├│
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Input area */}
+              <div className="p-3 md:p-4 border-t border-white/5 bg-[#0f0f0f] flex gap-2 items-center safe-area-bottom shrink-0">
+                {isHumanMode ? (
+                  <>
+                    <input 
+                      type="text" 
+                      value={manualMsg}
+                      onChange={(e) => setManualMsg(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && manualMsg.trim() && !sendingMsg) {
+                          setSendingMsg(true);
+                          await fetch('/api/panel/send-message', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
+                          });
+                          setManualMsg('');
+                          const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
+                          const data = await res.json();
+                          if (data.messages) setChatMessages(data.messages);
+                          setSendingMsg(false);
+                        }
+                      }}
+                      placeholder="Escribe tu mensaje..." 
+                      className="flex-1 bg-black/50 border border-orange-500/30 rounded-xl px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-orange-500/60 focus:outline-none"
+                      disabled={sendingMsg}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!manualMsg.trim() || sendingMsg) return;
+                        setSendingMsg(true);
+                        await fetch('/api/panel/send-message', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ conversationId: selectedChat!.id, message: manualMsg.trim() }),
+                        });
+                        setManualMsg('');
+                        const res = await fetch(`/api/panel/conversations?id=${selectedChat!.id}`);
+                        const data = await res.json();
+                        if (data.messages) setChatMessages(data.messages);
+                        setSendingMsg(false);
+                      }}
+                      disabled={sendingMsg || !manualMsg.trim()}
+                      className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {sendingMsg ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Zap className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input 
+                      type="text" 
+                      placeholder="La IA est├í respondiendo... (clic 'Tomar Control' para escribir)" 
+                      className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+                      readOnly
+                    />
+                    <div className="w-10 h-10 rounded-xl bg-purple-600/50 flex items-center justify-center opacity-50 cursor-not-allowed">
+                      <Zap className="w-4 h-4 text-white" />
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
+
+    </>
+  );
+}

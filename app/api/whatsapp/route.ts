@@ -283,6 +283,46 @@ export async function POST(req: NextRequest) {
     // 4. Obtener configuración (ya resuelta arriba, reusar `config`)
     let aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
 
+    // 4.0 Cargar Base de Conocimiento del tenant
+    if (tenantId) {
+      try {
+        const kbIndexPath = `${tenantId}/index.json`;
+        const { data: kbData } = await supabase.storage
+          .from('knowledge-base')
+          .download(kbIndexPath);
+        
+        if (kbData) {
+          const kbText = await kbData.text();
+          const kbEntries = JSON.parse(kbText);
+          const activeEntries = kbEntries.filter((e: any) => e.active && e.content);
+          
+          if (activeEntries.length > 0) {
+            // Build knowledge context (limit total to ~30K chars to avoid token overflow)
+            let kbContext = '\n\n[BASE DE CONOCIMIENTO — Usa esta información para responder preguntas del cliente]:\n';
+            let totalChars = 0;
+            const maxKbChars = 30000;
+            
+            for (const entry of activeEntries) {
+              if (totalChars + entry.content.length > maxKbChars) {
+                const remaining = maxKbChars - totalChars;
+                if (remaining > 200) {
+                  kbContext += `\n--- ${entry.file_name} ---\n${entry.content.substring(0, remaining)}...\n`;
+                }
+                break;
+              }
+              kbContext += `\n--- ${entry.file_name} ---\n${entry.content}\n`;
+              totalChars += entry.content.length;
+            }
+            
+            aiPrompt += kbContext;
+            console.log(`📚 KB: ${activeEntries.length} archivos activos inyectados (${totalChars} chars) para tenant ${tenantId}`);
+          }
+        }
+      } catch (kbErr) {
+        console.log(`📚 KB: Sin base de conocimiento para tenant ${tenantId} (${kbErr})`);
+      }
+    }
+
     // Decode extended config for AI keys + model settings
     let extConfig = { openai_key: '', gemini_key: '', groq_key: '', model_selection: 'gpt-4o', confidence_threshold: 0.85 };
     try { 

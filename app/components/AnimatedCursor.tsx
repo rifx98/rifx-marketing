@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function AnimatedCursor() {
+  const pathname = usePathname();
   const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
   const [isClient, setIsClient] = useState(false);
   const [isPropulsing, setIsPropulsing] = useState(false);
@@ -20,7 +22,7 @@ export default function AnimatedCursor() {
       return result;
     };
 
-    if (!checkDesktop()) return; // Si es móvil, no hacer nada
+    if (!checkDesktop() || pathname?.startsWith('/panel')) return; // Si es móvil o panel, no hacer nada
 
     // Hide default cursors only on desktop
     const style = document.createElement('style');
@@ -57,10 +59,10 @@ export default function AnimatedCursor() {
         document.head.removeChild(style);
       }
     };
-  }, []);
+  }, [pathname]);
 
-  // No renderizar en móvil ni en SSR
-  if (!isClient || !isDesktop) return null;
+  // No renderizar en móvil, ni en SSR, ni en el panel
+  if (!isClient || !isDesktop || pathname?.startsWith('/panel')) return null;
 
   return (
     <div 

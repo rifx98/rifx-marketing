@@ -28,7 +28,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
-import Script from 'next/script';
 
 // Simulación de datos de ventas por IA
 const mockSales = [
@@ -85,17 +84,13 @@ function formatRelativeTime(dateString: string | undefined, lang: string) {
 
 export default function PanelClient() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginUser, setLoginUser] = useState(''); // now used as email
+  const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerEmail, setRegisterEmail] = useState('');
-  const [registerCompany, setRegisterCompany] = useState('');
-  const [registerOwner, setRegisterOwner] = useState('');
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [tenantData, setTenantData] = useState<any>(null);
   
   const [testMessages, setTestMessages] = useState<any[]>([
     { role: 'assistant', content: '¡Hola! Soy el asistente de clasificación. Escribe un mensaje de usuario para ver cómo lo categorizo.' }
@@ -114,9 +109,10 @@ export default function PanelClient() {
   const [botHumanHandoff, setBotHumanHandoff] = useState(true);
   const [botProfanityFilter, setBotProfanityFilter] = useState(true);
   const [botTopicLocks, setBotTopicLocks] = useState(false);
-  const [botKnowledgeFiles, setBotKnowledgeFiles] = useState<{id?: string, name: string, type: string, size: string, active: boolean}[]>([]);
-  const [kbLoading, setKbLoading] = useState(false);
-  const [kbUploading, setKbUploading] = useState(false);
+  const [botKnowledgeFiles, setBotKnowledgeFiles] = useState<{name: string, type: string, size: string, active: boolean}[]>([
+    { name: 'Product_Guide_2024.pdf', type: 'pdf', size: '2.4 MB', active: true },
+    { name: 'Customer_FAQs_v1.csv', type: 'csv', size: '540 KB', active: true },
+  ]);
   const botKbFileRef = React.useRef<HTMLInputElement>(null);
   const [botPreviewMessages, setBotPreviewMessages] = useState<{role: 'bot' | 'user', content: string, time: string, isKb?: boolean}[]>([
     { role: 'bot', content: '¡Hola! Soy Alpha-One. ¿En qué puedo ayudarte hoy con nuestro portafolio de servicios?', time: '10:12 AM' },
@@ -137,158 +133,17 @@ export default function PanelClient() {
         if (cfg.botRole) setBotRole(cfg.botRole);
         if (cfg.botTone) setBotTone(cfg.botTone);
         if (cfg.botTemperature !== undefined) setBotTemperature(cfg.botTemperature);
-        if (cfg.botModelSelected) setBotModelSelected(cfg.botModelSelected);
         if (cfg.botHumanHandoff !== undefined) setBotHumanHandoff(cfg.botHumanHandoff);
         if (cfg.botProfanityFilter !== undefined) setBotProfanityFilter(cfg.botProfanityFilter);
         if (cfg.botTopicLocks !== undefined) setBotTopicLocks(cfg.botTopicLocks);
       }
     } catch {}
   }, []);
-
-  // Auto-save playground config whenever any setting changes
-  const playgroundLoaded = React.useRef(false);
-  React.useEffect(() => {
-    // Skip the first render (initial state, before localStorage is loaded)
-    if (!playgroundLoaded.current) {
-      playgroundLoaded.current = true;
-      return;
-    }
-    try {
-      const playgroundConfig = { botName, botRole, botTone, botTemperature, botModelSelected, botHumanHandoff, botProfanityFilter, botTopicLocks };
-      localStorage.setItem('rifx_playground_config', JSON.stringify(playgroundConfig));
-      console.log('Playground config auto-guardado:', playgroundConfig.botModelSelected);
-    } catch (e) { console.error('Error auto-saving playground config:', e); }
-  }, [botName, botRole, botTone, botTemperature, botModelSelected, botHumanHandoff, botProfanityFilter, botTopicLocks]);
-
-  // === Knowledge Base Management Functions ===
-  const fetchKBFiles = React.useCallback(async () => {
-    setKbLoading(true);
-    try {
-      const res = await authFetch('/api/panel/knowledge');
-      const data = await res.json();
-      if (data.files) {
-        setBotKnowledgeFiles(data.files.map((f: any) => ({
-          id: f.id, name: f.file_name, type: f.file_type, size: f.file_size, active: f.active,
-        })));
-      }
-    } catch (e) { console.error('Error fetching KB files:', e); }
-    setKbLoading(false);
-  }, []);
-
-  const uploadKBFile = async (file: File) => {
-    setKbUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await authFetch('/api/panel/knowledge', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.success) {
-        await fetchKBFiles(); // Reload the list
-        console.log(`KB subido: ${file.name} (${data.extractedChars} chars extraídos)`);
-      } else {
-        alert(`Error: ${data.error}`);
-      }
-    } catch (e) { console.error('Error uploading KB file:', e); alert('Error al subir archivo'); }
-    setKbUploading(false);
-  };
-
-  const toggleKBFile = async (id: string, active: boolean) => {
-    try {
-      setBotKnowledgeFiles(prev => prev.map(f => f.id === id ? { ...f, active } : f));
-      await authFetch('/api/panel/knowledge', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, active }),
-      });
-    } catch (e) { console.error('Error toggling KB file:', e); }
-  };
-
-  const deleteKBFile = async (id: string) => {
-    try {
-      setBotKnowledgeFiles(prev => prev.filter(f => f.id !== id));
-      await authFetch('/api/panel/knowledge', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-    } catch (e) { console.error('Error deleting KB file:', e); }
-  };
-
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns'>('dashboard');
-
-  // Load KB files when playground tab opens
-  const kbLoadedRef = React.useRef(false);
-  React.useEffect(() => {
-    if (activeTab === 'playground' && isLoggedIn && !kbLoadedRef.current) {
-      kbLoadedRef.current = true;
-      fetchKBFiles();
-    }
-  }, [activeTab, isLoggedIn, fetchKBFiles]);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing'>('dashboard');
   const [currentPlan, setCurrentPlan] = useState<'trial' | 'start' | 'advanced' | 'plus' | 'master'>('trial');
   const [planExpiry, setPlanExpiry] = useState<string>('');
   const [subscriptionData, setSubscriptionData] = useState<any[]>([]);
   const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);
-
-  // Campaigns State
-  const [campaignDesc, setCampaignDesc] = useState('');
-  const [campaignImage, setCampaignImage] = useState<File | null>(null);
-  const [campaignImagePreview, setCampaignImagePreview] = useState<string | null>(null);
-  const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
-  const [campaignResult, setCampaignResult] = useState<any>(null);
-  const campaignFileRef = React.useRef<HTMLInputElement>(null);
-  const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
-
-  const handleGenerateCampaign = async () => {
-    if (!campaignDesc) return;
-    setIsGeneratingCampaign(true);
-    setCampaignResult(null);
-    try {
-      const res = await authFetch('/api/panel/campaigns/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: campaignDesc })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCampaignResult(data.campaign);
-      } else {
-        alert(data.error || 'Error generating campaign');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Error connecting to server');
-    } finally {
-      setIsGeneratingCampaign(false);
-    }
-  };
-
-  const handleCampaignImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCampaignImage(file);
-      const url = URL.createObjectURL(file);
-      setCampaignImagePreview(url);
-    }
-  };
-
-  // Plan expiration check
-  const isPlanExpired = React.useMemo(() => {
-    if (!tenantData?.planExpiresAt) return false;
-    return new Date(tenantData.planExpiresAt).getTime() < Date.now();
-  }, [tenantData?.planExpiresAt]);
-
-  // Force redirect to billing when plan is expired
-  React.useEffect(() => {
-    if (isPlanExpired && activeTab !== 'billing') {
-      setActiveTab('billing');
-    }
-  }, [isPlanExpired, activeTab]);
-
-  // Guarded setActiveTab -- blocks navigation when plan is expired
-  const safeSetActiveTab = (tab: typeof activeTab) => {
-    if (isPlanExpired && tab !== 'billing') return;
-    setActiveTab(tab);
-  };
   const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string, phone_number?: string, created_at?: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -309,7 +164,7 @@ export default function PanelClient() {
     if (selectedFile) formData.append('file', selectedFile);
 
     try {
-      await authFetch('/api/panel/send-message', {
+      await fetch('/api/panel/send-message', {
         method: 'POST',
         body: formData,
       });
@@ -328,34 +183,6 @@ export default function PanelClient() {
     }
     setSendingMsg(false);
   };
-
-  const handleUpgradePlan = async (plan: string) => {
-    try {
-      setShowPlanConfirm(null);
-      // Create Lemon Squeezy checkout session
-      const res = await authFetch('/api/panel/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan })
-      });
-      const data = await res.json();
-      if (res.ok && data.checkoutUrl) {
-        // Open Lemon Squeezy checkout overlay or redirect
-        if (typeof window !== 'undefined' && (window as any).LemonSqueezy) {
-          (window as any).LemonSqueezy.Url.Open(data.checkoutUrl);
-        } else {
-          // Fallback: redirect to checkout page
-          window.open(data.checkoutUrl, '_blank');
-        }
-      } else {
-        alert(language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'));
-      }
-    } catch (e) {
-      console.error(e);
-      alert(language === 'en' ? 'Error connecting to payment gateway' : 'Error al conectar con la pasarela de pagos');
-    }
-  };
-
   const [isHumanMode, setIsHumanMode] = useState(false);
   const [isEditingContact, setIsEditingContact] = useState(false);
   const [editName, setEditName] = useState('');
@@ -379,31 +206,6 @@ export default function PanelClient() {
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
 
-  // Admin Panel States
-  const [adminData, setAdminData] = useState<any>(null);
-  const [adminLoading, setAdminLoading] = useState(false);
-  const [adminTab, setAdminTab] = useState<'overview' | 'tenants' | 'announcements'>('overview');
-  const [newAnnTitle, setNewAnnTitle] = useState('');
-  const [newAnnMessage, setNewAnnMessage] = useState('');
-  const [newAnnType, setNewAnnType] = useState<'info' | 'update' | 'warning' | 'promo'>('info');
-  const [showAnnForm, setShowAnnForm] = useState(false);
-  const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
-  const [editingTenantPlan, setEditingTenantPlan] = useState('trial');
-  const [adminActionLoading, setAdminActionLoading] = useState(false);
-  const [platformAnnouncements, setPlatformAnnouncements] = useState<any[]>([]);
-  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(false);
-  const [currentPopupAnnIndex, setCurrentPopupAnnIndex] = useState(0);
-  const [currentBannerAnnIndex, setCurrentBannerAnnIndex] = useState(0);
-  const [annImageFile, setAnnImageFile] = useState<File | null>(null);
-  const [annImagePreview, setAnnImagePreview] = useState<string>('');
-  const [annImageUploading, setAnnImageUploading] = useState(false);
-  const [newAnnBtnText, setNewAnnBtnText] = useState('');
-  const [newAnnBtnUrl, setNewAnnBtnUrl] = useState('');
-  const annImageInputRef = useRef<HTMLInputElement>(null);
-  const [annAiLoading, setAnnAiLoading] = useState(false);
-  const [annAiImproved, setAnnAiImproved] = useState<{ title: string; message: string } | null>(null);
-  const [annShowPreview, setAnnShowPreview] = useState(false);
-
   // Estados para datos reales
   const [conversationsData, setConversationsData] = useState<any>(null);
   const [statsData, setStatsData] = useState<any>(null);
@@ -421,15 +223,12 @@ export default function PanelClient() {
     admin_name: 'Alexander Thorne',
     admin_email: 'a.thorne@rifx-sovereign.io',
     confidence_threshold: 0.85,
-    model_selection: 'gpt-4o',
+    model_selection: 'Sovereign-Alpha (Default)',
     auto_classification: true,
     email_alerts: true,
     push_notifications: false,
     daily_briefing: true,
   });
-  const originalConfigRef = React.useRef<any>(null);
-  const configDataRef = React.useRef(configData);
-  React.useEffect(() => { configDataRef.current = configData; }, [configData]);
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
   const [showWhatsappPanel, setShowWhatsappPanel] = useState(false);
   const [showBulkPanel, setShowBulkPanel] = useState(false);
@@ -438,9 +237,9 @@ export default function PanelClient() {
   const [selectAllContacts, setSelectAllContacts] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<{id: string, title: string, content: string}[]>([
-    { id: '1', title: 'Promoción de Lunes', content: '¡Hola {Nombre}! Empezamos la semana con una oferta especial solo para ti. Escr\u00EDbenos para m\u00E1s info.' },
-    { id: '2', title: 'Seguimiento', content: 'Hola {Nombre}, queríamos saber si pudiste revisar nuestra propuesta. Estamos aquí para ayudarte. ' },
-    { id: '3', title: 'Recordatorio Demo', content: '¡Hola {Nombre}! Solo un recordatorio de que tienes una demo pendiente con nosotros. ¿Te parece bien agendar?' },
+    { id: '1', title: 'Promoción de Lunes', content: '¡Hola {Nombre}! 🎉 Empezamos la semana con una oferta especial solo para ti. Escríbenos para más info. 🚀' },
+    { id: '2', title: 'Seguimiento', content: 'Hola {Nombre}, queríamos saber si pudiste revisar nuestra propuesta. Estamos aquí para ayudarte. 😊' },
+    { id: '3', title: 'Recordatorio Demo', content: '¡Hola {Nombre}! Solo un recordatorio de que tienes una demo pendiente con nosotros. ¿Te parece bien agendar? 📅' },
   ]);
   const [templateTitle, setTemplateTitle] = useState('');
   const [sendDelay, setSendDelay] = useState(3);
@@ -509,33 +308,6 @@ export default function PanelClient() {
   const [aiCreditsStatus, setAiCreditsStatus] = useState<'idle' | 'active' | 'low' | 'exhausted' | 'error'>('idle');
   const [aiCreditsMsg, setAiCreditsMsg] = useState('');
 
-  // Analytics states
-  const [analyticsRange, setAnalyticsRange] = useState<'30d' | '90d'>('30d');
-  const [showHeaderCalendar, setShowHeaderCalendar] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportStartDate, setExportStartDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]; });
-  const [exportEndDate, setExportEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [analyticsCalMonth, setAnalyticsCalMonth] = useState(new Date().getMonth());
-  const [analyticsCalYear, setAnalyticsCalYear] = useState(new Date().getFullYear());
-  const [hoveredChartIdx, setHoveredChartIdx] = useState<number | null>(null);
-
-  // Segments states
-  const [showNewSegmentModal, setShowNewSegmentModal] = useState(false);
-  const [newSegName, setNewSegName] = useState('');
-  const [newSegDescription, setNewSegDescription] = useState('');
-  const [newSegColor, setNewSegColor] = useState('violet');
-  const [newSegKeywords, setNewSegKeywords] = useState('');
-  const [newSegConfidence, setNewSegConfidence] = useState(80);
-  const [customSegments, setCustomSegments] = useState<{id: string, name: string, description: string, color: string, keywords: string[], confidence: number, createdAt: string}[]>(() => {
-    if (typeof window !== 'undefined') {
-      try { return JSON.parse(localStorage.getItem('rifx_custom_segments') || '[]'); } catch { return []; }
-    }
-    return [];
-  });
-  const [segDetailView, setSegDetailView] = useState<'interested' | 'chatting' | 'bought' | string>('interested');
-  const [segTablePage, setSegTablePage] = useState(1);
-  const [segViewMode, setSegViewMode] = useState<'live' | 'archive'>('live');
-
   const handleVerifyWhatsApp = async (silentOrEvent: boolean | React.MouseEvent = false) => {
     const silent = typeof silentOrEvent === 'boolean' ? silentOrEvent : false;
     if (!configData.whatsapp_token || !configData.whatsapp_phone_id) {
@@ -564,25 +336,16 @@ export default function PanelClient() {
   };
 
   const handleClearMemory = async () => {
-    if (!confirm(language === 'en' ? 'Are you sure? This will permanently delete ALL conversations and messages. This action cannot be undone.' : 'Esta seguro? Esto eliminara TODAS las conversaciones y mensajes permanentemente. Esta accion no se puede deshacer.')) {
-      return;
-    }
     setMemoryClearing(true);
     setMemoryClearSuccess(false);
     try {
-      const res = await authFetch('/api/panel/memory', { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        setConversationsData(null);
-        setStatsData(null);
-        setMemoryUsage({ totalMessages: 0, totalConversations: 0, oldestDays: 0 });
-        setMemoryClearSuccess(true);
-        setTimeout(() => setMemoryClearSuccess(false), 5000);
-      } else {
-        alert(data.error || 'Error al borrar memoria');
-      }
+      // Clear local conversation cache and test history
+      setConversationsData(null);
+      setStatsData(null);
+      setMemoryClearSuccess(true);
+      setTimeout(() => setMemoryClearSuccess(false), 5000);
     } catch {
-      alert(language === 'en' ? 'Network error clearing memory' : 'Error de red al borrar memoria');
+      // silent fail
     } finally {
       setMemoryClearing(false);
     }
@@ -591,9 +354,7 @@ export default function PanelClient() {
   const handleVerifyAiKey = async (silentOrEvent: boolean | React.MouseEvent = false) => {
     const silent = typeof silentOrEvent === 'boolean' ? silentOrEvent : false;
     const providerMap = { openai: 'openai_key', gemini: 'gemini_key', groq: 'groq_key' } as const;
-    // Use ref to always get the latest config data (avoids stale closures)
-    const latestConfig = configDataRef.current;
-    const key = latestConfig[providerMap[selectedAiProvider]];
+    const key = configData[providerMap[selectedAiProvider]];
     if (!key || key.trim() === '') {
       if (!silent) {
         setAiKeyStatus('error');
@@ -667,16 +428,9 @@ export default function PanelClient() {
       if (!silent) setAiKeyVerifying(false);
     }
   };
-  // Helper: fetch with auth token
-  const authFetch = (url: string, options: RequestInit = {}) => {
-    const token = authToken || localStorage.getItem('rifx_token');
-    const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(url, { ...options, headers });
-  };
 
   const fetchConversations = () => {
-    authFetch('/api/panel/conversations')
+    fetch('/api/panel/conversations')
       .then(res => res.json())
       .then(data => {
         setConversationsData(data);
@@ -686,11 +440,11 @@ export default function PanelClient() {
   };
 
   const fetchConfig = React.useCallback(() => {
-    authFetch('/api/panel/config')
+    fetch('/api/panel/config')
       .then(res => res.json())
       .then(data => {
-          if (!data.error) {
-            const parsed = {
+         if (!data.error) {
+           setConfigData({
              whatsapp_token: data.whatsapp_token || '',
              whatsapp_phone_id: data.whatsapp_phone_id || '',
              bulk_wa_token: data.bulk_wa_token || '',
@@ -706,16 +460,14 @@ export default function PanelClient() {
              alert_email: data.alert_email || '',
              admin_name: data.admin_name || 'Alexander Thorne',
              admin_email: data.admin_email || 'a.thorne@rifx-sovereign.io',
-             confidence_threshold: data.confidence_threshold ?? 0.85,
-             model_selection: data.model_selection || 'gpt-4o',
+             confidence_threshold: data.confidence_threshold || 0.85,
+             model_selection: data.model_selection || 'Sovereign-Alpha (Default)',
              auto_classification: data.auto_classification !== undefined ? data.auto_classification : true,
              email_alerts: data.email_alerts !== undefined ? data.email_alerts : true,
              push_notifications: data.push_notifications !== undefined ? data.push_notifications : false,
              daily_briefing: data.daily_briefing !== undefined ? data.daily_briefing : true,
-            };
-            setConfigData(parsed);
-            originalConfigRef.current = { ...parsed };
-          }
+           });
+         }
       })
       .catch(console.error);
   }, []);
@@ -733,7 +485,7 @@ export default function PanelClient() {
       fetchConversations();
       
       // Cargar Estadísticas
-      authFetch('/api/panel/stats')
+      fetch('/api/panel/stats')
         .then(res => res.json())
         .then(data => setStatsData(data))
         .catch(console.error);
@@ -743,46 +495,37 @@ export default function PanelClient() {
 
       // Refrescar cada 10 segundos
       const interval = setInterval(() => {
-        authFetch('/api/panel/conversations').then(res => res.json()).then(data => {
+        fetch('/api/panel/conversations').then(res => res.json()).then(data => {
           setConversationsData(data);
           checkHumanAlerts(data);
         });
-        authFetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
+        fetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
       }, 10000);
       return () => clearInterval(interval);
     }
   }, [isLoggedIn]);
 
-  // Auto-verify AI key whenever config loads or provider changes (works like WhatsApp - always shows status)
-  const aiAutoVerifyKeyRef = React.useRef('');
+  // Auto-verify API connections when settings tab is opened
+  const autoVerifiedRef = React.useRef(false);
   React.useEffect(() => {
-    if (!isLoggedIn) return;
-    const currentKey = selectedAiProvider === 'openai' ? configData.openai_key : selectedAiProvider === 'gemini' ? configData.gemini_key : configData.groq_key;
-    const verifySignature = `${selectedAiProvider}:${currentKey}`;
-    // Only re-verify if provider or key changed
-    if (currentKey && currentKey.length > 5 && aiAutoVerifyKeyRef.current !== verifySignature) {
-      aiAutoVerifyKeyRef.current = verifySignature;
+    if (activeTab === 'settings' && isLoggedIn && !autoVerifiedRef.current) {
+      autoVerifiedRef.current = true;
+      // Small delay to ensure config data is loaded
       const timer = setTimeout(() => {
+        handleVerifyWhatsApp(true);
         handleVerifyAiKey(true);
-      }, 600);
+      }, 800);
       return () => clearTimeout(timer);
     }
-  }, [isLoggedIn, selectedAiProvider, configData.openai_key, configData.gemini_key, configData.groq_key]);
-
-  // Auto-verify WhatsApp when settings tab opens
-  const waAutoVerifiedRef = React.useRef(false);
-  React.useEffect(() => {
-    if (activeTab === 'settings' && isLoggedIn && !waAutoVerifiedRef.current) {
-      waAutoVerifiedRef.current = true;
-      const timer = setTimeout(() => { handleVerifyWhatsApp(true); }, 800);
-      return () => clearTimeout(timer);
+    if (activeTab !== 'settings') {
+      autoVerifiedRef.current = false;
     }
-  }, [activeTab, isLoggedIn, configData.whatsapp_token, configData.whatsapp_phone_id]);
+  }, [activeTab, isLoggedIn, configData.whatsapp_token, configData.whatsapp_phone_id, selectedAiProvider]);
 
   // Fetch memory usage when settings tab opens
   React.useEffect(() => {
     if (activeTab === 'settings' && isLoggedIn) {
-      authFetch('/api/panel/stats').then(r => r.json()).then(data => {
+      fetch('/api/panel/stats').then(r => r.json()).then(data => {
         const totalConvs = data.total || data.conversations || 0;
         const totalMsgs = data.total_messages || data.messages || (totalConvs * 15);
         setMemoryUsage({ totalMessages: totalMsgs, totalConversations: totalConvs, oldestDays: data.oldest_days || 0 });
@@ -948,289 +691,32 @@ export default function PanelClient() {
     setLoginError('');
     setIsLoggingIn(true);
     try {
+      // Verificar contraseña contra la DB
+      const res = await fetch('/api/panel/config');
+      const config = await res.json();
       if (isRegistering) {
-        // Register new tenant
-        const res = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: registerEmail || loginUser,
-            password: loginPass,
-            companyName: registerCompany || 'Mi Empresa',
-            ownerName: registerOwner || '',
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setLoginError(data.error || 'Error al registrarse');
-          setIsLoggingIn(false);
-          return;
-        }
-        localStorage.setItem('rifx_token', data.token);
-        setAuthToken(data.token);
-        setTenantData(data.tenant);
         setIsLoggedIn(true);
         setIsRegistering(false);
-      } else {
-        // Login existing tenant
-        const res = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: loginUser, password: loginPass }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setLoginError(data.error || 'Email o contraseña incorrectos');
-          setIsLoggingIn(false);
-          return;
-        }
-        localStorage.setItem('rifx_token', data.token);
-        setAuthToken(data.token);
-        setTenantData(data.tenant);
-        setCurrentPlan(data.tenant.plan || 'trial');
-        setIsLoggedIn(true);
+        return;
       }
-    } catch (err: any) {
-      setLoginError('Error de conexión. Intenta de nuevo.');
+
+      const storedPassword = config.panel_password || 'rifx2026'; // Default si no hay contraseña en DB
+      
+      if (loginUser === 'admin' && loginPass === storedPassword) {
+        setIsLoggedIn(true);
+      } else {
+        setLoginError('Usuario o contraseña incorrectos');
+      }
+    } catch {
+      // Fallback si no se puede conectar a la DB
+      if (loginUser === 'admin' && loginPass === 'rifx2026') {
+        setIsLoggedIn(true);
+      } else {
+        setLoginError('Usuario o contraseña incorrectos');
+      }
     }
     setIsLoggingIn(false);
   };
-
-  // Auto-login from stored token
-  React.useEffect(() => {
-    const token = localStorage.getItem('rifx_token');
-    if (token) {
-      setAuthToken(token);
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          // Quick login from token
-          setTenantData({ id: payload.tenantId, email: payload.email, plan: payload.plan, isAdmin: payload.isAdmin });
-          setCurrentPlan(payload.plan || 'trial');
-          setIsLoggedIn(true);
-          // Then fetch fresh data from DB
-          fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => {
-              if (data) {
-                setTenantData(data);
-                setCurrentPlan(data.plan || 'trial');
-              }
-            })
-            .catch(() => {});
-        } else {
-          localStorage.removeItem('rifx_token');
-        }
-      } catch { localStorage.removeItem('rifx_token'); }
-    }
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('rifx_token');
-    setAuthToken(null);
-    setTenantData(null);
-    setIsLoggedIn(false);
-    setLoginUser('');
-    setLoginPass('');
-  };
-
-  // ============ ADMIN PANEL FUNCTIONS ============
-  const loadAdminData = async () => {
-    if (!tenantData?.isAdmin) return;
-    setAdminLoading(true);
-    try {
-      const res = await authFetch('/api/admin/dashboard');
-      if (res.ok) {
-        const data = await res.json();
-        setAdminData(data);
-      }
-    } catch (e) { console.error('Error cargando admin data:', e); }
-    setAdminLoading(false);
-  };
-
-  const handleCreateAnnouncement = async () => {
-    if (!newAnnTitle.trim() || !newAnnMessage.trim()) return;
-    setAdminActionLoading(true);
-    try {
-      let imageUrl = '';
-      
-      // Upload image first if provided
-      if (annImageFile) {
-        setAnnImageUploading(true);
-        const formData = new FormData();
-        formData.append('image', annImageFile);
-        const uploadRes = await authFetch('/api/admin/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          imageUrl = uploadData.imageUrl;
-        }
-        setAnnImageUploading(false);
-      }
-      
-      const res = await authFetch('/api/admin/dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'create_announcement', 
-          title: newAnnTitle, 
-          message: newAnnMessage, 
-          type: newAnnType,
-          image_url: imageUrl || null,
-          button_text: newAnnBtnText || null,
-          button_url: newAnnBtnUrl || null,
-        }),
-      });
-      if (res.ok) {
-        setNewAnnTitle(''); setNewAnnMessage(''); setShowAnnForm(false);
-        setAnnImageFile(null); setAnnImagePreview('');
-        setNewAnnBtnText(''); setNewAnnBtnUrl('');
-        loadAdminData();
-      }
-    } catch (e) { console.error(e); }
-    setAdminActionLoading(false);
-  };
-
-  // IA: Mejorar anuncio antes de publicar
-  const handleImproveAnnouncement = async () => {
-    if (!newAnnTitle.trim() && !newAnnMessage.trim()) return;
-    setAnnAiLoading(true);
-    setAnnAiImproved(null);
-    try {
-      const res = await authFetch('/api/admin/improve-announcement', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newAnnTitle,
-          message: newAnnMessage,
-          type: newAnnType,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        if (data.improved) {
-          setAnnAiImproved(data.improved);
-          setAnnShowPreview(true);
-        }
-      } else {
-        alert('Error de IA: ' + (data.error || 'Respuesta fallida del servidor'));
-        console.error('Error IA API:', data);
-      }
-    } catch (e: any) { 
-      console.error('Error mejorando anuncio:', e); 
-      alert('Error mejorando anuncio: ' + e?.message);
-    }
-    setAnnAiLoading(false);
-  };
-
-  // Aprobar mejora de IA y aplicar al formulario
-  const handleApproveAiAnnouncement = () => {
-    if (annAiImproved) {
-      setNewAnnTitle(annAiImproved.title);
-      setNewAnnMessage(annAiImproved.message);
-      setAnnAiImproved(null);
-      setAnnShowPreview(false);
-    }
-  };
-
-
-  const handleAnnImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAnnImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setAnnImagePreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleDeleteAnnouncement = async (id: string) => {
-    setAdminActionLoading(true);
-    try {
-      await authFetch('/api/admin/dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete_announcement', announcementId: id }),
-      });
-      loadAdminData();
-    } catch (e) { console.error(e); }
-    setAdminActionLoading(false);
-  };
-
-  const handleToggleAnnouncement = async (id: string, isActive: boolean) => {
-    try {
-      await authFetch('/api/admin/dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle_announcement', announcementId: id, isActive }),
-      });
-      loadAdminData();
-    } catch (e) { console.error(e); }
-  };
-
-  const handleUpdateTenantPlan = async (targetTenantId: string, plan: string) => {
-    setAdminActionLoading(true);
-    try {
-      await authFetch('/api/admin/dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update_tenant_plan', targetTenantId, plan }),
-      });
-      setEditingTenantId(null);
-      loadAdminData();
-    } catch (e) { console.error(e); }
-    setAdminActionLoading(false);
-  };
-
-  const handleToggleAdmin = async (targetTenantId: string, isAdmin: boolean) => {
-    try {
-      await authFetch('/api/admin/dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle_admin', targetTenantId, isAdmin }),
-      });
-      loadAdminData();
-    } catch (e) { console.error(e); }
-  };
-
-  // Fetch announcements for user dashboard
-  const fetchAnnouncements = async () => {
-    try {
-      const res = await authFetch('/api/announcements');
-      if (res.ok) {
-        const data = await res.json();
-        const anns = data.announcements || [];
-        setPlatformAnnouncements(anns);
-        
-        // Show popup if there is at least one announcement not dismissed
-        if (anns.length > 0) {
-          const hasUnseen = anns.some((ann: any) => !sessionStorage.getItem(`rifx_ann_dismissed_${ann.id}`));
-          if (hasUnseen) {
-            setCurrentPopupAnnIndex(0);
-            setShowAnnouncementPopup(true);
-          }
-        }
-      }
-    } catch {}
-  };
-
-  const dismissAnnouncementPopup = () => {
-    platformAnnouncements.forEach(ann => {
-      sessionStorage.setItem(`rifx_ann_dismissed_${ann.id}`, 'true');
-    });
-    setShowAnnouncementPopup(false);
-  };
-
-  React.useEffect(() => {
-    if (activeTab === 'admin' && tenantData?.isAdmin) { loadAdminData(); }
-    if (activeTab === 'dashboard' && isLoggedIn) { fetchAnnouncements(); }
-  }, [activeTab, tenantData?.isAdmin]);
-
-  React.useEffect(() => {
-    if (isLoggedIn) { fetchAnnouncements(); }
-  }, [isLoggedIn]);
 
   const handleTestChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1242,7 +728,7 @@ export default function PanelClient() {
     setIsTestingAi(true);
 
     try {
-      const res = await authFetch('/api/panel/test-ai', {
+      const res = await fetch('/api/panel/test-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -1323,7 +809,7 @@ export default function PanelClient() {
     if (ids.length === 0) return;
     setIsLoadingScores(true);
     try {
-      const res = await authFetch('/api/panel/contact-scores', {
+      const res = await fetch('/api/panel/contact-scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactIds: ids })
@@ -1350,156 +836,6 @@ export default function PanelClient() {
       (c.customer_name || '').toLowerCase().includes(q) || (c.phone_number || '').includes(q)
     );
   }, [allContacts, bulkSearch]);
-
-  // === Analytics Computed Data ===
-  const revenueChartData = React.useMemo(() => {
-    const days = analyticsRange === '90d' ? 90 : 30;
-    const data: { date: string; label: string; amount: number }[] = [];
-    const dailyIncome = statsData?.dailyIncome || {};
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      const label = d.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric' });
-      data.push({ date: key, label, amount: dailyIncome[key] || 0 });
-    }
-    return data;
-  }, [statsData?.dailyIncome, analyticsRange, language]);
-
-  const revenueSvgData = React.useMemo(() => {
-    if (revenueChartData.length === 0) return { line: '', area: '', points: [] as {x:number,y:number,amount:number,label:string}[] };
-    const maxVal = Math.max(...revenueChartData.map(d => d.amount), 100);
-    const w = 800, h = 200, pad = 10;
-    const pts = revenueChartData.map((d, i) => ({
-      x: revenueChartData.length === 1 ? w / 2 : (i / (revenueChartData.length - 1)) * w,
-      y: pad + (h - 2 * pad) * (1 - d.amount / maxVal),
-      amount: d.amount,
-      label: d.label,
-    }));
-    const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-    const area = line + ` L${w},${h} L0,${h} Z`;
-    return { line, area, points: pts };
-  }, [revenueChartData]);
-
-  const periodRevenue = React.useMemo(() => revenueChartData.reduce((s, d) => s + d.amount, 0), [revenueChartData]);
-
-  const conversionRate = React.useMemo(() => {
-    const total = allContacts.length || 1;
-    const sales = statsData?.totalSales || 0;
-    return Math.round((sales / total) * 1000) / 10;
-  }, [allContacts.length, statsData?.totalSales]);
-
-  const analyticsCalDays = React.useMemo(() => {
-    const dim = getDaysInMonth(analyticsCalYear, analyticsCalMonth);
-    const first = getFirstDayOfWeek(analyticsCalYear, analyticsCalMonth);
-    const dailyIncome = statsData?.dailyIncome || {};
-    const days: (null | { day: number; amount: number; date: string })[] = [];
-    for (let i = 0; i < first; i++) days.push(null);
-    for (let d = 1; d <= dim; d++) {
-      const key = `${analyticsCalYear}-${String(analyticsCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      days.push({ day: d, amount: dailyIncome[key] || 0, date: key });
-    }
-    return days;
-  }, [analyticsCalYear, analyticsCalMonth, statsData?.dailyIncome]);
-
-  const calMonthTotal = React.useMemo(() => analyticsCalDays.filter(Boolean).reduce((s, d) => s + (d?.amount || 0), 0), [analyticsCalDays]);
-
-  const handleExportExcel = () => {
-    const dailyIncome = statsData?.dailyIncome || {};
-    const start = new Date(exportStartDate);
-    const end = new Date(exportEndDate);
-    const BOM = '\uFEFF';
-    let csv = BOM;
-    csv += 'RIFX CRM - Reporte de Ventas\n';
-    csv += `Periodo: ${exportStartDate} al ${exportEndDate}\n`;
-    csv += `Generado: ${new Date().toLocaleString('es')}\n\n`;
-    csv += 'Fecha,Ingresos ($),Estado\n';
-    let totalAmount = 0;
-    const current = new Date(start);
-    while (current <= end) {
-      const key = current.toISOString().split('T')[0];
-      const amount = dailyIncome[key] || 0;
-      csv += `${key},$${amount.toFixed(2)},${amount > 0 ? 'Con ventas' : 'Sin ventas'}\n`;
-      totalAmount += amount;
-      current.setDate(current.getDate() + 1);
-    }
-    csv += `\nTOTAL,$${totalAmount.toFixed(2)},\n`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `RIFX_Ventas_${exportStartDate}_${exportEndDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setShowExportModal(false);
-  };
-
-  // Persist custom segments
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rifx_custom_segments', JSON.stringify(customSegments));
-    }
-  }, [customSegments]);
-
-  const handleCreateSegment = () => {
-    if (!newSegName.trim()) return;
-    const seg = {
-      id: Date.now().toString(),
-      name: newSegName.trim(),
-      description: newSegDescription.trim(),
-      color: newSegColor,
-      keywords: newSegKeywords.split(',').map(k => k.trim()).filter(Boolean),
-      confidence: newSegConfidence,
-      createdAt: new Date().toISOString(),
-    };
-    setCustomSegments(prev => [...prev, seg]);
-    setNewSegName(''); setNewSegDescription(''); setNewSegKeywords(''); setNewSegConfidence(80); setNewSegColor('violet');
-    setShowNewSegmentModal(false);
-  };
-
-  const handleDeleteSegment = (id: string) => {
-    setCustomSegments(prev => prev.filter(s => s.id !== id));
-  };
-
-  const segDetailContacts = React.useMemo(() => {
-    if (segDetailView === 'interested') return conversationsData?.interested || [];
-    if (segDetailView === 'chatting') return conversationsData?.chatting || [];
-    if (segDetailView === 'bought') return conversationsData?.bought || [];
-    // Custom segment: match contacts by keywords in their conversation
-    return allContacts;
-  }, [segDetailView, conversationsData, allContacts]);
-
-  const segDetailLabel = React.useMemo(() => {
-    if (segDetailView === 'interested') return language === 'en' ? 'Interested' : 'Interesados';
-    if (segDetailView === 'chatting') return language === 'en' ? 'Undecided' : 'Indecisos';
-    if (segDetailView === 'bought') return language === 'en' ? 'Curious' : 'Curiosos';
-    const seg = customSegments.find(s => s.id === segDetailView);
-    return seg?.name || '';
-  }, [segDetailView, language, customSegments]);
-
-  const SEG_ROWS = 8;
-  const totalSegPages = Math.max(1, Math.ceil(segDetailContacts.length / SEG_ROWS));
-  const pagedSegContacts = segDetailContacts.slice((segTablePage - 1) * SEG_ROWS, segTablePage * SEG_ROWS);
-
-  const handleExportSegmentCSV = () => {
-    const contacts = segDetailContacts;
-    const BOM = '\uFEFF';
-    let csv = BOM;
-    csv += `RIFX CRM - Segmento: ${segDetailLabel}\n`;
-    csv += `Generado: ${new Date().toLocaleString('es')}\n`;
-    csv += `Total contactos: ${contacts.length}\n\n`;
-    csv += 'Nombre,Teléfono,Estado,Última Actividad\n';
-    contacts.forEach((c: any) => {
-      csv += `${c.customer_name || 'Sin nombre'},${c.phone_number || ''},${c.status || ''},${c.updated_at || c.created_at || ''}\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `RIFX_Segmento_${segDetailLabel}_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleSelectAll = (checked: boolean) => {
     setSelectAllContacts(checked);
@@ -1566,7 +902,7 @@ export default function PanelClient() {
         .replace(/\{Empresa\}/g, 'RIFX');
 
       try {
-        const res = await authFetch('/api/panel/send-message', {
+        const res = await fetch('/api/panel/send-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: contact.phone_number, message: msg, bulk: true })
@@ -1622,7 +958,7 @@ export default function PanelClient() {
 
     setChangingPassword(true);
     try {
-      const res = await authFetch('/api/panel/config', {
+      const res = await fetch('/api/panel/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ panel_password: newPassword }),
@@ -1645,7 +981,7 @@ export default function PanelClient() {
     }
   };
 
-  const handleSaveSettings = async (e: React.FormEvent | React.MouseEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setSaveError('');
@@ -1664,13 +1000,16 @@ export default function PanelClient() {
         payphone_store_id: configData.payphone_store_id,
         ai_prompt: configData.ai_prompt,
         media_retention_days: Number(configData.media_retention_days) || 0,
-        alert_email: configData.alert_email,
+        admin_name: configData.admin_name,
+        admin_email: configData.admin_email,
+        confidence_threshold: Number(configData.confidence_threshold),
         model_selection: configData.model_selection,
-        confidence_threshold: configData.confidence_threshold,
-        auto_classification: configData.auto_classification,
+        auto_classification: !!configData.auto_classification,
+        email_alerts: !!configData.email_alerts,
+        push_notifications: !!configData.push_notifications,
+        daily_briefing: !!configData.daily_briefing,
       };
-      console.log('Enviando config payload:', Object.keys(payload));
-      const res = await authFetch('/api/panel/config', {
+      const res = await fetch('/api/panel/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1678,21 +1017,14 @@ export default function PanelClient() {
       const result = await res.json();
       if (res.ok && result.success) {
         setShowSuccess(true);
-        // Recargar config para confirmar que se guardó
-        fetchConfig();
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
-        const errMsg = result.error || 'Error desconocido al guardar';
-        setSaveError(errMsg);
-        console.error('X  Error guardando config:', errMsg);
-        alert('Error guardando configuración: ' + errMsg);
+        setSaveError(result.error || 'Error desconocido al guardar');
         setTimeout(() => setSaveError(''), 8000);
       }
     } catch (err: any) {
       console.error(err);
-      const errMsg = err?.message || 'Error de conexión al guardar';
-      setSaveError(errMsg);
-      alert('Error de conexión: ' + errMsg);
+      setSaveError(err?.message || 'Error de conexión al guardar');
       setTimeout(() => setSaveError(''), 8000);
     } finally {
       setIsSaving(false);
@@ -1832,52 +1164,36 @@ export default function PanelClient() {
 
             <form onSubmit={handleLogin} className="space-y-5">
               {isRegistering && (
-                <>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Nombre de tu Empresa</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Correo</label>
                   <div className="relative group">
                     <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-600 group-focus-within:text-brand-blue transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                     </span>
                     <input 
-                      type="text" 
-                      value={registerCompany}
-                      onChange={(e) => setRegisterCompany(e.target.value)}
+                      type="email" 
+                      value={registerEmail}
+                      onChange={(e) => setRegisterEmail(e.target.value)}
                       className="w-full pl-11 pr-4 py-3 rounded-xl glass-input text-sm text-white placeholder-gray-600 focus:ring-0" 
-                      placeholder="Mi Empresa S.A." 
+                      placeholder="correo@ejemplo.com" 
+                      required={isRegistering}
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Tu Nombre</label>
-                  <div className="relative group">
-                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-600 group-focus-within:text-brand-blue transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                    </span>
-                    <input 
-                      type="text" 
-                      value={registerOwner}
-                      onChange={(e) => setRegisterOwner(e.target.value)}
-                      className="w-full pl-11 pr-4 py-3 rounded-xl glass-input text-sm text-white placeholder-gray-600 focus:ring-0" 
-                      placeholder="Juan Pérez" 
-                    />
-                  </div>
-                </div>
-                </>
               )}
 
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Email</label>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Usuario</label>
                 <div className="relative group">
                   <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-600 group-focus-within:text-brand-blue transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                   </span>
                   <input 
-                    type="email" 
+                    type="text" 
                     value={loginUser}
                     onChange={(e) => setLoginUser(e.target.value)}
                     className="w-full pl-11 pr-4 py-3 rounded-xl glass-input text-sm text-white placeholder-gray-600 focus:ring-0" 
-                    placeholder="correo@ejemplo.com" 
+                    placeholder="admin" 
                     required
                   />
                 </div>
@@ -1946,16 +1262,7 @@ export default function PanelClient() {
             </form>
 
             <div className="mt-10 pt-6 border-t border-white/[0.04]">
-              {!isRegistering ? (
-                <button type="button" onClick={() => setIsRegistering(true)} className="w-full text-center text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
-                  ¿No tienes cuenta? <span className="text-brand-blue">Crear Cuenta Gratis</span>
-                </button>
-              ) : (
-                <button type="button" onClick={() => setIsRegistering(false)} className="w-full text-center text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
-                  ¿Ya tienes cuenta? <span className="text-brand-blue">Iniciar Sesión</span>
-                </button>
-              )}
-              <div className="flex items-center gap-3 text-[10px] text-gray-600 uppercase tracking-wider mt-4">
+              <div className="flex items-center gap-3 text-[10px] text-gray-600 uppercase tracking-wider">
                 <svg className="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
                 Conexion segura con cifrado de extremo a extremo
               </div>
@@ -2016,62 +1323,39 @@ export default function PanelClient() {
           </div>
         </div>
         <nav className="flex-1 flex flex-col gap-1">
-          <button onClick={() => safeSetActiveTab('dashboard')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'dashboard' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+          <button onClick={() => setActiveTab('dashboard')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'dashboard' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined">dashboard</span>
             <span>{language === 'en' ? 'Dashboard' : 'Panel Principal'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
           </button>
-          <button onClick={() => safeSetActiveTab('crm')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'crm' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+          <button onClick={() => setActiveTab('crm')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'crm' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>group</span>
             <span>{language === 'en' ? 'Users' : 'Usuarios'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
           </button>
-          <button onClick={() => safeSetActiveTab('settings')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'settings' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+          <button onClick={() => setActiveTab('settings')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'settings' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined">settings</span>
             <span>{language === 'en' ? 'Settings' : 'Configuraciones'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
           </button>
-          <button onClick={() => safeSetActiveTab('billing')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'billing' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300 ${isPlanExpired ? 'ring-2 ring-red-400/50 rounded-lg' : ''}`}>
+          <button onClick={() => setActiveTab('billing')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'billing' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined">payments</span>
             <span>{language === 'en' ? 'Plans & Billing' : 'Pagos'}</span>
-            {isPlanExpired && <span className="text-[9px] ml-auto bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold animate-pulse">!</span>}
           </button>
         
-          <button onClick={() => safeSetActiveTab('playground')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'playground' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+          <button onClick={() => setActiveTab('playground')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'playground' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined">smart_toy</span>
             <span>{language === 'en' ? 'AI Playground' : 'Playground IA'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
           </button>
-          <button onClick={() => safeSetActiveTab('campaigns')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'campaigns' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">campaign</span>
-            <span>{language === 'en' ? 'Ad Campaigns' : 'Pautas Publicitarias'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('segments')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'segments' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+          <button onClick={() => setActiveTab('segments')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'segments' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined">pie_chart</span>
             <span>{language === 'en' ? 'Segments' : 'Segmentos'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
           </button>
-          <button onClick={() => safeSetActiveTab('analytics')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'analytics' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
+          <button onClick={() => setActiveTab('analytics')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'analytics' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
             <span className="material-symbols-outlined">monitoring</span>
             <span>{language === 'en' ? 'Analytics' : 'Análisis'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
           </button>
-
-          {tenantData?.isAdmin && (
-            <>
-              <div className="my-2 border-t border-slate-200/50"></div>
-              <button onClick={() => safeSetActiveTab('admin')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'admin' ? 'bg-gradient-to-r from-amber-50 to-orange-50 text-orange-700 rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-orange-500/70 hover:text-orange-600 font-medium'} transition-all duration-300`}>
-                <span className="material-symbols-outlined">admin_panel_settings</span>
-                <span>{language === 'en' ? 'Admin Panel' : 'Panel Admin'}</span>
-                {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-              </button>
-            </>
-          )}
 </nav>
         <div className="mt-auto flex flex-col gap-4">
           <div className="pt-4 border-t border-slate-200/50 flex flex-col gap-1">
-            <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-error transition-colors text-sm w-full text-left">
+            <button onClick={() => setIsLoggedIn(false)} className="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-error transition-colors text-sm w-full text-left">
               <span className="material-symbols-outlined text-lg">logout</span>
               {language === 'en' ? 'Logout' : 'Cerrar Sesión'}
             </button>
@@ -2164,8 +1448,8 @@ export default function PanelClient() {
 
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <p className="text-xs font-bold text-primary">{tenantData?.companyName || tenantData?.email?.split('@')[0] || 'Admin'}</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-tighter">{tenantData?.plan ? `Plan ${tenantData.plan}` : 'Administrator'}</p>
+              <p className="text-xs font-bold text-primary">Admin</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-tighter">Administrator</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white border-2 border-white shadow-sm">
                <span className="material-symbols-outlined">admin_panel_settings</span>
@@ -2185,289 +1469,254 @@ export default function PanelClient() {
             transition={{ duration: 0.4 }}
             className="space-y-6"
           >
-            {/* MainContent Grid */}
-            <div className="grid grid-cols-12 gap-6">
-              {/* LeftPromoBanner -- Dynamic from Announcements */}
-              <section className="col-span-12 lg:col-span-3">
-                <div className="relative rounded-2xl overflow-hidden bg-white shadow-sm border border-slate-100 h-full min-h-[600px] flex flex-col">
-                  {(() => {
-                    const bannerAnn = platformAnnouncements[currentBannerAnnIndex];
-                    const typeBadge: Record<string, { label: string; color: string }> = {
-                      info: { label: 'Info', color: 'bg-blue-600' },
-                      update: { label: 'Nuevo', color: 'bg-violet-600' },
-                      warning: { label: 'Aviso Importante', color: 'bg-red-600' },
-                      promo: { label: 'Promo', color: 'bg-emerald-600' },
-                    };
-                    const badge = typeBadge[bannerAnn?.type] || typeBadge.update;
-                    
-                    if (bannerAnn) {
-                      return (
-                        <div className="h-full w-full relative flex flex-col">
-                          {/* Image area */}
-                          {bannerAnn.image_url ? (
-                            <div className="relative w-full h-[280px] flex-shrink-0">
-                              <img src={bannerAnn.image_url} alt={bannerAnn.title} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white" />
-                            </div>
-                          ) : (
-                            <div className="relative w-full h-[200px] flex-shrink-0 bg-gradient-to-br from-primary-container via-blue-600 to-indigo-700 flex items-center justify-center">
-                              <span className="material-symbols-outlined text-white/30 text-[120px]">campaign</span>
-                              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white" />
-                            </div>
-                          )}
-                          {/* Carousel controls if multiple announcements */}
-                          {platformAnnouncements.length > 1 && (
-                            <div className="absolute top-4 right-4 flex gap-2 z-20">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setCurrentBannerAnnIndex((prev) => (prev > 0 ? prev - 1 : platformAnnouncements.length - 1)); }}
-                                className="w-8 h-8 rounded-full bg-black/30 backdrop-blur text-white flex items-center justify-center hover:bg-black/50 transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-sm">chevron_left</span>
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setCurrentBannerAnnIndex((prev) => (prev < platformAnnouncements.length - 1 ? prev + 1 : 0)); }}
-                                className="w-8 h-8 rounded-full bg-black/30 backdrop-blur text-white flex items-center justify-center hover:bg-black/50 transition-colors"
-                              >
-                                <span className="material-symbols-outlined text-sm">chevron_right</span>
-                              </button>
-                            </div>
-                          )}
-                          {/* Content */}
-                          <div className="relative z-10 p-8 flex flex-col flex-1 justify-between -mt-8">
-                            <div className="space-y-4">
-                              <div className="flex justify-between items-center">
-                                <span className={`inline-block ${badge.color} text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider`}>{badge.label}</span>
-                                {platformAnnouncements.length > 1 && (
-                                  <div className="flex gap-1">
-                                    {platformAnnouncements.map((_, idx) => (
-                                      <div key={idx} className={`w-1.5 h-1.5 rounded-full ${idx === currentBannerAnnIndex ? 'bg-primary-container' : 'bg-slate-300'}`} />
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">{bannerAnn.title}</h2>
-                              <p className="text-slate-600 text-sm leading-relaxed">{bannerAnn.message}</p>
-                            </div>
-                            {bannerAnn.button_text && (
-                              <div className="mt-auto pt-6">
-                                <button onClick={() => bannerAnn.button_url && window.open(bannerAnn.button_url, '_blank')} className="bg-primary-container text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:opacity-90 transition-all flex items-center gap-2 w-full justify-center">
-                                  {bannerAnn.button_text}
-                                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" fillRule="evenodd"></path></svg>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    // Fallback: default promo
-                    return (
-                      <div className="h-full w-full relative bg-gradient-to-br from-indigo-600 via-blue-700 to-primary-container flex flex-col">
-                        <div className="relative z-10 p-8 flex flex-col h-full justify-between">
-                          <div className="space-y-4">
-                            <span className="inline-block bg-white/20 backdrop-blur text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">RIFX CRM</span>
-                            <h2 className="text-3xl font-extrabold text-white leading-tight">
-                              Tu CRM inteligente con <span className="text-amber-300">IA integrada</span>
-                            </h2>
-                            <p className="text-white/80 text-sm">Automatiza tus ventas, gestiona contactos y escala tu negocio con inteligencia artificial</p>
-                          </div>
-                          <div className="mt-auto pt-6">
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                              <p className="text-white/60 text-[10px] uppercase tracking-wider font-bold mb-1">Plan Actual</p>
-                              <p className="text-white text-lg font-black capitalize">{
-                                (tenantData?.plan || currentPlan) === 'trial' ? 'Prueba Gratuita' 
-                                : `Chatea Pro ${(tenantData?.plan || currentPlan || 'trial').charAt(0).toUpperCase() + (tenantData?.plan || currentPlan || 'trial').slice(1)}`
-                              }</p>
-                              {tenantData?.planExpiresAt && (() => {
-                                const dl = Math.max(0, Math.ceil((new Date(tenantData.planExpiresAt).getTime() - Date.now()) / (1000*60*60*24)));
-                                return <p className={`text-xs mt-1 ${dl <= 3 ? 'text-amber-300 font-bold' : 'text-white/60'}`}>{dl > 0 ? `${dl} d\u00edas restantes` : 'Plan expirado'}</p>;
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </section>
+            {/* Hero Stats & Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6">
+              <div className="max-w-2xl">
+                <h2 className="text-4xl font-extrabold tracking-tighter text-primary font-headline mb-2">Operational Command</h2>
+                <p className="text-slate-500 leading-relaxed max-w-lg">Manage your automated WhatsApp ecosystem. Coordinate lead classification and bulk interactions through Sovereign's neural orchestration.</p>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowWhatsappPanel(!showWhatsappPanel)}
+                  className={`px-6 py-3 font-bold text-xs rounded-md border transition-all active:scale-[0.98] flex items-center gap-2 ${showWhatsappPanel ? 'bg-primary-container text-white border-primary-container shadow-lg shadow-primary-container/20' : 'bg-crm-surface-container-low text-primary-container border-outline-variant/20 hover:bg-crm-surface-container-high'}`}
+                >
+                  <span className="material-symbols-outlined text-sm">link</span>
+                  {language === 'es' ? 'Conexión WhatsApp' : 'WhatsApp Connection'}
+                </button>
+              </div>
+            </div>
 
-              {/* RightDashboardArea */}
-              <section className="col-span-12 lg:col-span-9 space-y-6">
-                {/* ExpertTeamSection */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                  {/* Plan Info Bar */}
-                  {(() => {
-                    const plan = tenantData?.plan || currentPlan || 'trial';
-                    const planNames: Record<string, string> = { trial: 'Prueba Gratuita (14 d\u00edas)', start: 'Chatea Pro Start', advanced: 'Chatea Pro Advanced', plus: 'Chatea Pro Plus', master: 'Chatea Pro Master' };
-                    const planDays: Record<string, number> = { trial: 14, start: 30, advanced: 30, plus: 30, master: 30 };
-                    const planContacts: Record<string, number> = { trial: 200, start: 1000, advanced: 10000, plus: 20000, master: 50000 };
-                    const planBots: Record<string, number> = { trial: 1, start: 1, advanced: 1, plus: 1, master: 5 };
-                    const planMembers: Record<string, number> = { trial: 1, start: 5, advanced: 5, plus: 5, master: 10 };
-                    const planStorage: Record<string, string> = { trial: '100 MB', start: '250 MB', advanced: '500 MB', plus: '1.0 GB', master: '2.0 GB' };
-
-                    // Calculate days remaining
-                    const expiresAt = tenantData?.planExpiresAt ? new Date(tenantData.planExpiresAt) : null;
-                    const totalDays = planDays[plan] || 14;
-                    let daysUsed = totalDays;
-                    let daysLeft = 0;
-                    if (expiresAt) {
-                      const now = new Date();
-                      daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-                      daysUsed = Math.max(0, totalDays - daysLeft);
-                    }
-                    const progressPercent = Math.min(100, (daysUsed / totalDays) * 100);
-                    const isExpired = daysLeft <= 0;
-                    const isExpiringSoon = daysLeft <= 3 && daysLeft > 0;
-
-                    // Format expiration date
-                    const expiresStr = expiresAt ? expiresAt.toLocaleDateString('es-EC', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
-
-                    // Contact count
-                    const contactCount = allContacts?.length || 0;
-                    const maxContacts = planContacts[plan] || 200;
-                    const storageUsed = tenantData?.storageUsedBytes ? `${(tenantData.storageUsedBytes / (1024*1024)).toFixed(1)} MB` : '0 MB';
-
-                    return (
-                      <div className={`px-6 py-3 border-b border-slate-100 ${isExpired ? 'bg-gradient-to-r from-red-500 to-red-600' : isExpiringSoon ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-primary-container to-blue-600'}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                          <div className="flex items-center gap-2">
-                            <div className="bg-white/20 p-1.5 rounded">
-                              <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                            </div>
-                            <div className="text-xs text-white">
-                              <p className="font-semibold">Plan actual</p>
-                              <p className="text-white/80">{planNames[plan] || plan}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-6">
-                            <div className="text-right text-white">
-                              <p className="text-lg font-bold leading-none">{daysUsed} / <span className="font-normal opacity-70">{totalDays}</span></p>
-                              <p className="text-[10px] uppercase tracking-tight opacity-70">{isExpired ? 'plan expirado' : 'd\u00edas usados'}</p>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Progress bar */}
-                        <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all duration-500 ${isExpired ? 'bg-red-300' : isExpiringSoon ? 'bg-amber-300' : progressPercent > 75 ? 'bg-orange-400' : 'bg-emerald-400'}`} style={{width: `${progressPercent}%`}}></div>
-                        </div>
-                        <div className="flex items-center justify-between mt-1.5">
-                          <p className="text-[10px] text-white/70">
-                            {isExpired 
-                              ? <><span className="text-white font-bold">Tu plan ha expirado.</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Renovar ahora</span></>
-                              : <>Tu plan {plan === 'trial' ? 'de prueba' : ''} expira el {expiresStr} · <span className="font-bold text-white">{daysLeft} {daysLeft === 1 ? 'd\u00eda' : 'd\u00edas'} restantes</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Ver planes</span></>
-                            }
-                          </p>
-                          <div className="flex gap-2">
-                            <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">{contactCount}/{maxContacts.toLocaleString()}</div>
-                            <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">– {planBots[plan]}</div>
-                            <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20"> {planMembers[plan]}</div>
-                            <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">{storageUsed}/{planStorage[plan]}</div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  {/* Expert Cards */}
-                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {[
-                      {name:'Experta en ventas por WhatsApp', img:'AB6AXuDWSe1_L4wZI5vciZ440fFRXGRX_Jy9mCsJqKWeDk4HE-Ljl3Gu1E5Pv7_L5NcYJqr2ETTpZFeExyCE2XypIEK2vjXJ0SCDYSJq2e6JfyCMI1LiPfaGw-Rc7j5TAylDR9nwUkBTwNbCNVnfE-Vc3MP-d0zr9TEtqCyQ8oWyL8YTEdNqstELBp_-riW1gRIx0nsqFnvVXus0zVvMi-eEMcgGTj2vSQ5OntWsKkBqzkLYJ0jOJrd9yO6AC96gavZF11KkwhvPXDVE5YNa', online:true},
-                      {name:'Experto en logística', img:'AB6AXuBarYnXjTbS-YJFpfnLAYCtwnxMj4ecyo7lrGhGhkFAUtOluIPILBVpU9s63y6cW4s4lP4roXHMufp8eRBhm9RUVHPxC3cg8rWAbH5PnPjYIn_DSTgbolwSjPY1h_8tkVvEHCoOA7w0CWds5V9KapKNkkL2WPLYK_nhweD_by8E8fCUJRTw51XISU4En28JsnHZJRL9c262ihr6zZc44qvxfM0aPZbmQkEHOHvu_FgXciisI5QLgbr7Fn3B3Lb4oKTrGQeoaDrxd3ns', online:true},
-                      {name:'Especialista en recuperar carritos', img:'AB6AXuDw1TVF3SLRu-VMyIJGiH1m5ts4tKm4LYiPHm4oxOyzu3eZ_T6mp7gbMK1PN5IaC9_tDFYa3xZJoovjUvZg8iCJMP_kOlN5-m9zgjdYRo-U3LC3iIN38ckThN3YvkwB2ufNpLclTsPRElladsSOymDJYSApwZt1bcyG9Y4l_O17x3T0dcXG6tAXzDx21fulMb7Ife5-VDGCD7DiKXVMZBDR1EV7e-RLU_uKmpb4mA_pBVEcgwJ6bYZ_P0KPerwVqyi0AC1o6aH42daD', online:true},
-                      {name:'Mediadora de comentarios', img:'AB6AXuC1YTh3EdBAV_bv7N9aDXXB4YN4CgT4dUWwGTMvsPQesCRs_6YrPjx0uQKlZaivH1UYEwHBjzm6RR8Z2yImFDqmeDTukmPil6BBLbJzstpdCzuXxpsSk6GxYtJ4ak2QExlzDvVUEtlXnYtSq_qHXrhHTEo732Sm8qtAxRNcl_xxYh7WQ1zHQsDR6eXrqLTR4bNRzDvRw90ND0ODSVcSrkaliCv_GTtiJ9v0CUnnM_9_xwIhh-1bxMhpg9ymyIw4DaUREtW32ruDnX7J', online:true},
-                    ].map((expert, i) => (
-                      <div key={i} className="bg-crm-surface-container-low border border-slate-200 rounded-xl p-6 text-center hover:shadow-md transition-shadow group">
-                        <div className="relative w-20 h-20 mx-auto mb-4">
-                          <img alt={expert.name} className="rounded-full w-full h-full object-cover border-2 border-white shadow-sm group-hover:scale-105 transition-transform" src={`https://lh3.googleusercontent.com/aida-public/${expert.img}`} />
-                          <span className={`absolute bottom-1 right-1 w-4 h-4 ${expert.online ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full`}></span>
-                        </div>
-                        <h4 className="text-sm font-bold text-slate-800">{expert.name}</h4>
-                        <p className={`text-xs font-medium mt-1 ${expert.online ? 'text-primary-container' : 'text-slate-400'}`}>{expert.online ? 'Disponible' : 'Desconectado'}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {/* CTA Bar */}
-                  <div className="bg-primary-container/5 px-6 py-4 border-t border-slate-100 flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-primary">
-                      <svg className="h-5 w-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" fillRule="evenodd"></path></svg>
-                      <span className="text-sm font-semibold">Te faltan 4 expertos para optimizar tu flujo</span>
+            {/* WhatsApp Connection Panel */}
+            {showWhatsappPanel && (
+              <div className="bg-white/70 backdrop-blur-xl border border-slate-200/50 rounded-xl p-6 mb-2 animate-in slide-in-from-top duration-300">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-500 rounded-lg">
+                      <span className="material-symbols-outlined text-white text-lg">chat</span>
                     </div>
-                    <button onClick={() => setActiveTab('billing')} className="bg-primary-container text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-primary-container/90 shadow-sm transition-all flex items-center gap-2">
-                      Completar
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                    <div>
+                      <h3 className="text-sm font-bold text-primary">{language === 'es' ? 'Conexión WhatsApp Business' : 'WhatsApp Business Connection'}</h3>
+                      <p className="text-[10px] text-slate-400">{language === 'es' ? 'Configura tus credenciales de la API de Meta' : 'Configure your Meta API credentials'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowWhatsappPanel(false)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">WhatsApp Business API Key</label>
+                    <div className="relative">
+                      <input 
+                        type={showWhatsappKey ? "text" : "password"} 
+                        value={configData.whatsapp_token || ''}
+                        onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
+                        className="w-full bg-white border border-slate-200 rounded-lg pl-4 pr-12 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all font-mono"
+                        placeholder="EAAxxxxxxx..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowWhatsappKey(!showWhatsappKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">{showWhatsappKey ? 'visibility_off' : 'visibility'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{language === 'es' ? 'Número de Teléfono (ID)' : 'Phone Number (ID)'}</label>
+                    <input 
+                      type="text" 
+                      value={configData.whatsapp_phone_id || ''}
+                      onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all font-mono"
+                      placeholder="1234567890..."
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${configData.whatsapp_token && configData.whatsapp_phone_id ? 'bg-emerald-500 animate-pulse' : 'bg-red-400'}`}></span>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {configData.whatsapp_token && configData.whatsapp_phone_id 
+                        ? (language === 'es' ? 'Credenciales configuradas' : 'Credentials configured') 
+                        : (language === 'es' ? 'Sin configurar' : 'Not configured')}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={(e) => handleSaveSettings(e as any)}
+                    className="px-5 py-2 bg-emerald-500 text-white font-bold text-xs rounded-lg hover:bg-emerald-600 transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-sm">save</span>
+                    {language === 'es' ? 'Guardar Conexión' : 'Save Connection'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+
+
+
+            {/* Bento Layout Content */}
+            <div className="grid grid-cols-12 gap-6">
+              {/* Main Table Section */}
+              <div className="col-span-12 lg:col-span-8 space-y-6">
+                <div className="bg-crm-surface-container-lowest rounded-xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-slate-100">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold text-primary font-headline">Conversation Registry</h3>
+                    <div className="flex gap-2">
+                      <span className="px-3 py-1 bg-crm-surface-container text-slate-500 text-[10px] font-bold rounded-full uppercase tracking-tighter">Live Updates</span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-separate border-spacing-y-2">
+                      <thead>
+                        <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                          <th className="pb-4 px-4">{language === 'es' ? 'Contacto' : 'Contact'}</th>
+                          <th className="pb-4 px-4">{language === 'es' ? 'Estado' : 'Status'}</th>
+                          <th className="pb-4 px-4">{language === 'es' ? 'Ãšltima Actividad' : 'Last Activity'}</th>
+                          <th className="pb-4 px-4 text-right">{language === 'es' ? 'Acciones' : 'Actions'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Dynamic Data from conversationsData */}
+                        {((conversationsData?.chatting || []).concat(conversationsData?.interested || []).concat(conversationsData?.bought || [])).slice(0, 5).map((conv: any, i: number) => {
+                          const isChatting = conv.status === 'chatting';
+                          const isInterested = conv.status === 'interested';
+                          return (
+                            <tr key={conv.id || i} className="group hover:bg-crm-surface transition-all duration-300">
+                              <td className="bg-crm-surface-container-low py-4 px-4 rounded-l-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${isChatting ? 'bg-primary-container/10 text-primary-container' : isInterested ? 'bg-secondary-container/20 text-secondary' : 'bg-slate-200 text-slate-500'}`}>
+                                    {conv.customer_name?.substring(0, 2).toUpperCase() || 'CX'}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-primary">{conv.customer_name || 'Desconocido'}</p>
+                                    <p className="text-[11px] text-slate-400">{conv.phone_number}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="bg-crm-surface-container-low py-4 px-4">
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold text-white ${isChatting ? 'bg-primary-container' : isInterested ? 'bg-secondary' : 'bg-outline'}`}>
+                                  {isChatting && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>}
+                                  {isChatting ? (language === 'es' ? 'Interesado' : 'Interested') : isInterested ? (language === 'es' ? 'Indeciso' : 'Undecided') : (language === 'es' ? 'Curioso' : 'Curious')}
+                                </span>
+                              </td>
+                              <td className="bg-crm-surface-container-low py-4 px-4">
+                                <p className="text-xs text-slate-600 font-medium">{formatRelativeTime(conv.created_at, language)}</p>
+                              </td>
+                              <td className="bg-crm-surface-container-low py-4 px-4 rounded-r-lg text-right">
+                                <button className="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">more_vert</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {/* Fallback Mock Data if empty */}
+                        {(!conversationsData || Object.keys(conversationsData).length === 0) && (
+                          <tr className="group hover:bg-crm-surface transition-all duration-300">
+                            <td className="bg-crm-surface-container-low py-4 px-4 rounded-l-lg" colSpan={4}>
+                              <div className="flex justify-center p-4">
+                                <p className="text-sm text-slate-500">No hay datos de conversaciones recientes.</p>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Section Side Panel */}
+              <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+                {/* Stats Card */}
+                <div className="bg-primary p-6 rounded-xl text-white overflow-hidden relative">
+                  <div className="relative z-10">
+                    <p className="text-xs font-bold text-on-primary-container uppercase tracking-widest mb-4">Sentiment Mix</p>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-xs mb-1 font-medium">
+                          <span>Conversion Ready</span>
+                          <span>{conversationsData?.interested?.length || 0} Leads</span>
+                        </div>
+                        <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-full bg-white w-[64%]"></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs mb-1 font-medium">
+                          <span>Nurturing Required</span>
+                          <span>{conversationsData?.chatting?.length || 0} Activos</span>
+                        </div>
+                        <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div className="h-full bg-white/50 w-[22%]"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
+                </div>
+
+                {/* Chat de Pruebas */}
+                <div className="bg-white/70 backdrop-blur-xl border border-slate-200/50 rounded-xl p-6 flex flex-col h-[480px]">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary-container rounded-lg">
+                        <span className="material-symbols-outlined text-white text-lg">psychology</span>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-primary">Chat de Pruebas AI</h3>
+                        <p className="text-[10px] text-slate-400">Neural Classification Test</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleResetTestChat}
+                      className="p-2 text-slate-400 hover:text-primary-container hover:bg-primary-container/10 rounded-lg transition-all"
+                      title="Reset Chat"
+                    >
+                      <span className="material-symbols-outlined text-sm">refresh</span>
                     </button>
                   </div>
-                </div>
 
-                {/* Bottom two cards row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Actualizaciones */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
-                    <div className="bg-orange-500 p-4 flex justify-between items-center text-white rounded-t-2xl">
-                      <div>
-                        <h3 className="font-bold text-lg leading-none">Actualizaciones</h3>
-                        <p className="text-xs text-white/80 mt-1">Nuevas funciones disponibles</p>
-                      </div>
-                      <div className="relative">
-                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                        <span className="absolute -top-1 -right-1 bg-white text-orange-500 text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">4</span>
-                      </div>
-                    </div>
-                    <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                      <div className="border border-orange-200 bg-orange-50 rounded-xl p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Video solución</span>
-                          <span className="text-[10px] text-slate-400 font-medium">10 mar 2026</span>
+                  <div className="flex-1 space-y-4 overflow-y-auto mb-4 pr-2">
+                    {testMessages.map((m, idx) => (
+                      <div key={idx} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} gap-1`}>
+                        <div className={`${m.role === 'user' ? 'bg-primary-container text-white rounded-br-sm' : 'bg-crm-surface-container-high text-on-surface rounded-bl-sm'} px-4 py-2 rounded-xl text-xs leading-relaxed max-w-[85%]`}>
+                          {m.content}
                         </div>
-                        <h5 className="text-sm font-bold text-slate-800 mb-1">Video instructivo para solucionar el error del método de pago en Meta</h5>
-                        <p className="text-xs text-slate-600">La solución para añadir el método de pago a nivel del BM. A continuación el paso a paso...</p>
+                        <span className={`text-[9px] text-slate-400 ${m.role === 'user' ? 'mr-1' : 'ml-1'}`}>
+                          {m.role === 'user' ? 'Tú (Simulado)' : 'AI Assistant'}
+                        </span>
                       </div>
-                      <div className="border border-orange-200 bg-orange-50 rounded-xl p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Nuevo</span>
-                          <span className="text-[10px] text-slate-400 font-medium">20 ene 2026</span>
-                        </div>
-                        <h5 className="text-sm font-bold text-slate-800 mb-1">Nuevo panel de notificaciones de ventas</h5>
-                        <p className="text-xs text-slate-600">Recibe alertas automáticas en WhatsApp cuando se complete una venta o surja una novedad importante.</p>
-                      </div>
-                    </div>
+                    ))}
+
+
                   </div>
 
-                  {/* Capacitaciones */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
-                    <div className="bg-primary-container p-4 flex justify-between items-center text-white rounded-t-2xl">
-                      <div>
-                        <h3 className="font-bold text-lg leading-none">Capacitaciones</h3>
-                        <p className="text-xs text-white/80 mt-1">Próximas sesiones importantes</p>
-                      </div>
-                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                    </div>
-                    <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                      <div className="border border-blue-100 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
-                        <h5 className="text-sm font-bold text-slate-800 mb-2">Primeros pasos de Chatea PRO</h5>
-                        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">calendar_today</span><span>Todos los días de lunes a viernes</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">schedule</span><span>03:00 p.m.</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">timer</span><span>Dura: 60 min</span></div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <button className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">Ingresar <span className="material-symbols-outlined text-xs">open_in_new</span></button>
-                        </div>
-                      </div>
-                      <div className="border border-blue-100 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
-                        <h5 className="text-sm font-bold text-slate-800 mb-2">Preguntas y respuestas con Chatea PRO</h5>
-                        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">calendar_today</span><span>Todos los días de lunes a viernes</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">schedule</span><span>03:30 p.m.</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">timer</span><span>Dura: 50 min</span></div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <button className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">Ingresar <span className="material-symbols-outlined text-xs">open_in_new</span></button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <form onSubmit={handleTestChatSubmit} className="relative mt-auto">
+                    <input 
+                      className="w-full pl-4 pr-12 py-3 bg-white border border-outline-variant/30 rounded-lg text-xs focus:ring-2 focus:ring-primary-container/20 focus:border-primary-container outline-none transition-all text-black" 
+                      placeholder="Escribe un mensaje de prueba..." 
+                      type="text"
+                      value={testInput}
+                      onChange={(e) => setTestInput(e.target.value)}
+                      disabled={isTestingAi}
+                    />
+                    <button 
+                      type="submit"
+                      disabled={isTestingAi || !testInput.trim()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center bg-primary text-white rounded-md hover:bg-primary-container transition-colors disabled:opacity-50"
+                    >
+                      {isTestingAi ? (
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined text-sm">send</span>
+                      )}
+                    </button>
+                  </form>
                 </div>
-              </section>
+              </div>
             </div>
           </motion.div>
         )}
@@ -2734,7 +1983,7 @@ export default function PanelClient() {
                               ? (newContact.countryCode || '+593').replace('+', '') + (newContact.testPhone || '').replace(/^0+/, '')
                               : (newContact.countryCode || '+593').replace('+', '') + newContact.phone.replace(/^0+/, '');
                             try {
-                              const res = await authFetch('/api/panel/add-contact', {
+                              const res = await fetch('/api/panel/add-contact', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
@@ -2824,7 +2073,7 @@ export default function PanelClient() {
                     if (isEvaluatingAi) return;
                     setIsEvaluatingAi(true);
                     try {
-                      const res = await authFetch('/api/panel/ai-confidence', { method: 'POST' });
+                      const res = await fetch('/api/panel/ai-confidence', { method: 'POST' });
                       const data = await res.json();
                       setAiConfidence(data.score);
                       setAiConfidenceReason(data.reason || '');
@@ -2868,7 +2117,7 @@ export default function PanelClient() {
                     setIsLoadingPredictions(true);
                     setShowPredictions(true);
                     try {
-                      const res = await authFetch('/api/panel/predictions', { method: 'POST' });
+                      const res = await fetch('/api/panel/predictions', { method: 'POST' });
                       const data = await res.json();
                       setPredictions(data.predictions || []);
                     } catch (err) { console.error(err); }
@@ -3009,7 +2258,7 @@ export default function PanelClient() {
                       <tr className="bg-crm-surface-container-low/30 border-b border-slate-50">
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'User Identity' : 'Identidad del Usuario'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Status & Intent' : 'Estado e Intención'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Última Interacción'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Ãšltima Interacción'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Score' : 'Puntaje IA'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
                       </tr>
@@ -3053,7 +2302,7 @@ export default function PanelClient() {
                               <p className="text-xs text-on-surface font-medium mb-1 truncate max-w-[180px]">
                                 {isActive 
                                   ? (language === 'es' ? ' Conversando ahora' : ' Chatting now')
-                                  : (language === 'es' ? 'Última actividad' : 'Last activity')}
+                                  : (language === 'es' ? 'Ãšltima actividad' : 'Last activity')}
                               </p>
                               <p className="text-[10px] text-slate-400">
                                 {lastDate ? new Date(lastDate).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '\u2014'}
@@ -3214,7 +2463,7 @@ export default function PanelClient() {
                         <div className="space-y-0">
                           {[
                             { icon: 'mail', iconBg: 'bg-primary-container', color: 'text-white', title: language === 'en' ? 'Message Received' : 'Mensaje Recibido', desc: language === 'en' ? '"Active interaction detected..."' : '"Interacci\u00F3n activa detectada..."', time: language === 'en' ? 'Today' : 'Hoy' },
-                            { icon: 'label', iconBg: 'bg-amber-400', color: 'text-white', title: language === 'en' ? 'Segment Updated' : 'Segmento Actualizado', desc: `Status  ${selectedChat.status}`, time: selectedChat.created_at ? new Date(selectedChat.created_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : '' },
+                            { icon: 'label', iconBg: 'bg-amber-400', color: 'text-white', title: language === 'en' ? 'Segment Updated' : 'Segmento Actualizado', desc: `Status → ${selectedChat.status}`, time: selectedChat.created_at ? new Date(selectedChat.created_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : '' },
                             { icon: 'smart_toy', iconBg: 'bg-slate-200', color: 'text-slate-500', title: language === 'en' ? 'AI Classified' : 'IA Clasificado', desc: language === 'en' ? 'Auto-categorized by neural engine' : 'Auto-categorizado por motor neuronal', time: selectedChat.created_at ? new Date(selectedChat.created_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : '' },
                           ].map((item, idx) => (
                             <div key={idx} className={`flex gap-3 relative ${idx < 2 ? 'pb-4' : ''}`}>
@@ -3373,30 +2622,16 @@ export default function PanelClient() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Model Selection' : 'Selección de Modelo IA'}</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Neural Model Selection' : 'Selección de Modelo Neuronal'}</label>
                     <select 
-                      className="w-full bg-white border border-slate-100 rounded-xl text-xs font-bold py-3 px-4 focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
+                      className="w-full bg-white border border-slate-100 rounded-xl text-xs font-bold py-3 px-4 focus:ring-2 focus:ring-primary-container/20 appearance-none"
                       value={configData.model_selection}
                       onChange={e => setConfigData({...configData, model_selection: e.target.value})}
                     >
-                      <optgroup label="OpenAI">
-                        <option value="gpt-4o">GPT-4o (Recomendado)</option>
-                        <option value="gpt-4o-mini">GPT-4o Mini (Rápido)</option>
-                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Económico)</option>
-                      </optgroup>
-                      <optgroup label="Google Gemini">
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Rápido)</option>
-                      </optgroup>
-                      <optgroup label="Groq (Ultra Rápido)">
-                        <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
-                        <option value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</option>
-                        <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                      </optgroup>
+                      <option>Sovereign-Alpha (Default)</option>
+                      <option>GPT-4o Omniscience</option>
+                      <option>Claude 3.5 Sonnet Precision</option>
                     </select>
-                    <p className="text-[9px] text-slate-400 mt-1">{language === 'en' ? 'Requires the corresponding API key configured above' : 'Requiere la API key del proveedor correspondiente'}</p>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-50">
                     <div className="flex flex-col">
@@ -3417,163 +2652,152 @@ export default function PanelClient() {
               </section>
 
               {/* AI Provider API Keys Configuration */}
-              <section className="col-span-12 lg:col-span-5 bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden">
-                {/* Decorative background accent */}
-                <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-[0.03]" style={{
-                  background: selectedAiProvider === 'openai' ? '#10a37f' : selectedAiProvider === 'gemini' ? '#1a73e8' : '#f55036',
-                  transform: 'translate(30%, -30%)',
-                }} />
-
-                {/* Header with live status */}
-                <div className="flex items-center justify-between mb-7">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all duration-300 ${
-                      selectedAiProvider === 'openai' ? 'bg-[#10a37f]/10' :
-                      selectedAiProvider === 'gemini' ? 'bg-[#1a73e8]/10' :
-                      'bg-[#f55036]/10'
-                    }`}>
-                      <span className={`material-symbols-outlined text-xl transition-all duration-300 ${
-                        selectedAiProvider === 'openai' ? 'text-[#10a37f]' :
-                        selectedAiProvider === 'gemini' ? 'text-[#1a73e8]' :
-                        'text-[#f55036]'
-                      }`} style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold font-headline">{language === 'en' ? 'AI Provider' : 'Proveedor de IA'}</h3>
-                      <p className="text-[10px] text-slate-400 font-semibold">{language === 'en' ? 'Select and configure your provider' : 'Seleccione y configure su proveedor'}</p>
-                    </div>
+              <section className="col-span-12 lg:col-span-5 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-indigo-50 flex items-center justify-center rounded-xl">
+                    <span className="material-symbols-outlined text-indigo-600">vpn_key</span>
                   </div>
-                  {/* Always-visible live status badge */}
-                  {(() => {
-                    const currentKey = selectedAiProvider === 'openai' ? configData.openai_key : selectedAiProvider === 'gemini' ? configData.gemini_key : configData.groq_key;
-                    const hasKey = currentKey && currentKey.length > 5;
-                    const isOk = aiKeyStatus === 'success';
-                    const isErr = aiKeyStatus === 'error';
-                    const isPending = hasKey && !isOk && !isErr;
-                    return (
-                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${
-                        isOk ? 'bg-emerald-50 border-emerald-200' :
-                        isErr ? 'bg-red-50 border-red-200' :
-                        isPending ? 'bg-amber-50 border-amber-200' :
-                        'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                          isOk ? 'bg-emerald-500 animate-pulse' :
-                          isErr ? 'bg-red-500' :
-                          isPending ? 'bg-amber-400 animate-pulse' :
-                          'bg-slate-300'
-                        }`} />
-                        <span className={`text-[9px] font-black uppercase tracking-wider ${
-                          isOk ? 'text-emerald-600' :
-                          isErr ? 'text-red-600' :
-                          isPending ? 'text-amber-600' :
-                          'text-slate-400'
-                        }`}>
-                          {isOk ? (language === 'en' ? 'Active' : 'Activo') :
-                           isErr ? 'Error' :
-                           isPending ? (language === 'en' ? 'Pending' : 'Pendiente') :
-                           'Offline'}
-                        </span>
+                  <div>
+                    <h3 className="text-xl font-bold font-headline">{language === 'en' ? 'AI Provider' : 'Proveedor de IA'}</h3>
+                    <p className="text-xs text-slate-500 font-medium">{language === 'en' ? 'Select and configure one active provider' : 'Seleccione y configure un proveedor activo'}</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {/* OpenAI */}
+                  <div 
+                    onClick={() => { setSelectedAiProvider('openai'); setAiKeyStatus('idle'); }}
+                    className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${selectedAiProvider === 'openai' ? 'border-[#10a37f] bg-[#10a37f]/5 shadow-md shadow-[#10a37f]/10' : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'}`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedAiProvider === 'openai' ? 'border-[#10a37f]' : 'border-slate-300'}`}>
+                          {selectedAiProvider === 'openai' && <div className="w-2.5 h-2.5 rounded-full bg-[#10a37f]" />}
+                        </div>
+                        <span className="text-sm font-bold text-slate-800">OpenAI (ChatGPT)</span>
                       </div>
-                    );
-                  })()}
+                      {selectedAiProvider === 'openai' && configData.openai_key && aiKeyStatus === 'success' && (
+                        <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                          {language === 'en' ? 'Connected' : 'Conectado'}
+                        </span>
+                      )}
+                    </div>
+                    {selectedAiProvider === 'openai' && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
+                        <div className="relative">
+                          <input 
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-10 text-xs font-mono font-bold text-slate-600 focus:ring-2 focus:ring-[#10a37f]/20 focus:border-[#10a37f]" 
+                            type={showAiApiKey ? 'text' : 'password'} 
+                            placeholder="sk-..."
+                            value={configData.openai_key || ''}
+                            onChange={e => { setConfigData({...configData, openai_key: e.target.value}); setAiKeyStatus('idle'); }}
+                          />
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setShowAiApiKey(!showAiApiKey); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                            <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Gemini */}
+                  <div 
+                    onClick={() => { setSelectedAiProvider('gemini'); setAiKeyStatus('idle'); }}
+                    className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${selectedAiProvider === 'gemini' ? 'border-[#1a73e8] bg-[#1a73e8]/5 shadow-md shadow-[#1a73e8]/10' : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'}`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedAiProvider === 'gemini' ? 'border-[#1a73e8]' : 'border-slate-300'}`}>
+                          {selectedAiProvider === 'gemini' && <div className="w-2.5 h-2.5 rounded-full bg-[#1a73e8]" />}
+                        </div>
+                        <span className="text-sm font-bold text-slate-800">Google Gemini</span>
+                      </div>
+                      {selectedAiProvider === 'gemini' && configData.gemini_key && aiKeyStatus === 'success' && (
+                        <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                          {language === 'en' ? 'Connected' : 'Conectado'}
+                        </span>
+                      )}
+                    </div>
+                    {selectedAiProvider === 'gemini' && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
+                        <div className="relative">
+                          <input 
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-10 text-xs font-mono font-bold text-slate-600 focus:ring-2 focus:ring-[#1a73e8]/20 focus:border-[#1a73e8]" 
+                            type={showAiApiKey ? 'text' : 'password'} 
+                            placeholder="AIzaSy..."
+                            value={configData.gemini_key || ''}
+                            onChange={e => { setConfigData({...configData, gemini_key: e.target.value}); setAiKeyStatus('idle'); }}
+                          />
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setShowAiApiKey(!showAiApiKey); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                            <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Groq */}
+                  <div 
+                    onClick={() => { setSelectedAiProvider('groq'); setAiKeyStatus('idle'); }}
+                    className={`relative p-4 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${selectedAiProvider === 'groq' ? 'border-[#f55036] bg-[#f55036]/5 shadow-md shadow-[#f55036]/10' : 'border-slate-100 bg-slate-50/50 hover:border-slate-200'}`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedAiProvider === 'groq' ? 'border-[#f55036]' : 'border-slate-300'}`}>
+                          {selectedAiProvider === 'groq' && <div className="w-2.5 h-2.5 rounded-full bg-[#f55036]" />}
+                        </div>
+                        <span className="text-sm font-bold text-slate-800">Groq</span>
+                      </div>
+                      {selectedAiProvider === 'groq' && configData.groq_key && aiKeyStatus === 'success' && (
+                        <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                          {language === 'en' ? 'Connected' : 'Conectado'}
+                        </span>
+                      )}
+                    </div>
+                    {selectedAiProvider === 'groq' && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
+                        <div className="relative">
+                          <input 
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 pr-10 text-xs font-mono font-bold text-slate-600 focus:ring-2 focus:ring-[#f55036]/20 focus:border-[#f55036]" 
+                            type={showAiApiKey ? 'text' : 'password'} 
+                            placeholder="gsk_..."
+                            value={configData.groq_key || ''}
+                            onChange={e => { setConfigData({...configData, groq_key: e.target.value}); setAiKeyStatus('idle'); }}
+                          />
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setShowAiApiKey(!showAiApiKey); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                            <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Custom Provider Selector */}
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Active Provider' : 'Proveedor Activo'}</label>
-                    <div className="relative">
-                      <select
-                        value={selectedAiProvider}
-                        onChange={e => { setSelectedAiProvider(e.target.value as any); setAiKeyStatus('idle'); setAiCreditsStatus('idle'); setTimeout(() => handleVerifyAiKey(true), 300); }}
-                        className={`w-full bg-white border-2 rounded-2xl text-sm font-bold py-4 pl-12 pr-10 focus:ring-2 appearance-none cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${
-                          selectedAiProvider === 'openai' ? 'border-[#10a37f]/30 focus:border-[#10a37f] focus:ring-[#10a37f]/20' :
-                          selectedAiProvider === 'gemini' ? 'border-[#1a73e8]/30 focus:border-[#1a73e8] focus:ring-[#1a73e8]/20' :
-                          'border-[#f55036]/30 focus:border-[#f55036] focus:ring-[#f55036]/20'
-                        }`}
-                      >
-                        <option value="openai">OpenAI (GPT-4o)</option>
-                        <option value="gemini">Google Gemini</option>
-                        <option value="groq">Groq (Ultra R{'\u00e1'}pido)</option>
-                      </select>
-                      {/* Icon overlay */}
-                      <div className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                        selectedAiProvider === 'openai' ? 'bg-[#10a37f]/10' :
-                        selectedAiProvider === 'gemini' ? 'bg-[#1a73e8]/10' :
-                        'bg-[#f55036]/10'
-                      }`}>
-                        <span className={`material-symbols-outlined text-sm ${
-                          selectedAiProvider === 'openai' ? 'text-[#10a37f]' :
-                          selectedAiProvider === 'gemini' ? 'text-[#1a73e8]' :
-                          'text-[#f55036]'
-                        }`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                          {selectedAiProvider === 'openai' ? 'psychology' : selectedAiProvider === 'gemini' ? 'auto_awesome' : 'bolt'}
-                        </span>
-                      </div>
-                      {/* Dropdown arrow */}
-                      <span className="material-symbols-outlined text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-base">expand_more</span>
-                    </div>
-                  </div>
-
-                  {/* API Key Input */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">API Key</label>
-                    <div className="relative group">
-                      <input 
-                        className={`w-full bg-white border-2 rounded-2xl px-4 py-4 pr-20 text-xs font-mono font-bold text-slate-600 transition-all duration-300 focus:ring-2 shadow-sm group-hover:shadow-md ${
-                          aiKeyStatus === 'success' ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-200/40' :
-                          aiKeyStatus === 'error' ? 'border-red-300 focus:border-red-400 focus:ring-red-200/40' :
-                          'border-slate-200 focus:border-primary-container focus:ring-primary-container/20'
-                        }`}
-                        type={showAiApiKey ? 'text' : 'password'} 
-                        placeholder={selectedAiProvider === 'openai' ? 'sk-proj-...' : selectedAiProvider === 'gemini' ? 'AIzaSy...' : 'gsk_...'}
-                        value={selectedAiProvider === 'openai' ? (configData.openai_key || '') : selectedAiProvider === 'gemini' ? (configData.gemini_key || '') : (configData.groq_key || '')}
-                        onChange={e => {
-                          const key = selectedAiProvider === 'openai' ? 'openai_key' : selectedAiProvider === 'gemini' ? 'gemini_key' : 'groq_key';
-                          setConfigData({...configData, [key]: e.target.value});
-                          setAiKeyStatus('idle');
-                          setAiCreditsStatus('idle');
-                        }}
-                      />
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                        {aiKeyStatus === 'success' && <span className="material-symbols-outlined text-emerald-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>}
-                        {aiKeyStatus === 'error' && <span className="material-symbols-outlined text-red-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>}
-                        <button type="button" onClick={() => setShowAiApiKey(!showAiApiKey)} className="text-slate-400 hover:text-slate-600 transition-colors p-0.5">
-                          <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Verify Button */}
+                {/* Verify Button + Status */}
+                <div className="mt-6 space-y-3">
                   <button 
                     onClick={handleVerifyAiKey}
                     disabled={aiKeyVerifying}
-                    className={`w-full py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg ${
+                    className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
                       aiKeyStatus === 'success' 
-                        ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:bg-emerald-600' 
+                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
                         : aiKeyStatus === 'error'
-                          ? 'bg-red-500 text-white shadow-red-500/25 hover:bg-red-600'
-                          : `text-white shadow-slate-900/20 hover:opacity-90 ${
-                              selectedAiProvider === 'openai' ? 'bg-gradient-to-r from-[#10a37f] to-[#0d8c6d]' :
-                              selectedAiProvider === 'gemini' ? 'bg-gradient-to-r from-[#1a73e8] to-[#1557b0]' :
-                              'bg-gradient-to-r from-[#f55036] to-[#d4402a]'
-                            }`
+                          ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
+                          : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'
                     }`}
                   >
                     {aiKeyVerifying ? (
                       <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</>
                     ) : aiKeyStatus === 'success' ? (
-                      <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span> {language === 'en' ? 'Verified' : 'Verificado'}</>
+                      <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Verified' : 'Verificado'}</>
                     ) : aiKeyStatus === 'error' ? (
-                      <><span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Retry Verification' : 'Reintentar Verificaci\u00f3n'}</>
+                      <><span className="material-symbols-outlined text-sm">error</span> {language === 'en' ? 'Verification Failed' : 'Verificaci\u00F3n Fallida'}</>
                     ) : (
-                      <><span className="material-symbols-outlined text-sm">shield</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexi\u00f3n'}</>
+                      <><span className="material-symbols-outlined text-sm">verified</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexi\u00F3n'}</>
                     )}
                   </button>
-
-                  {/* Status detail message */}
                   {aiKeyStatusMsg && aiKeyStatus !== 'idle' && (
                     <motion.p 
                       initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
@@ -3582,47 +2806,56 @@ export default function PanelClient() {
                       {aiKeyStatusMsg}
                     </motion.p>
                   )}
+                </div>
 
-                  {/* Credits / Status Card */}
-                  <div className={`p-4 rounded-2xl border flex items-center gap-3 transition-all duration-300 ${
-                    aiCreditsStatus === 'active' ? 'bg-emerald-50/80 border-emerald-200/60' :
-                    aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'bg-red-50/80 border-red-200/60' :
-                    aiCreditsStatus === 'low' ? 'bg-amber-50/80 border-amber-200/60' :
-                    'bg-slate-50/80 border-slate-100'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      aiCreditsStatus === 'active' ? 'bg-emerald-100' :
-                      aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'bg-red-100' :
-                      aiCreditsStatus === 'low' ? 'bg-amber-100' :
-                      'bg-slate-100'
-                    }`}>
-                      <span className={`material-symbols-outlined text-sm ${
-                        aiCreditsStatus === 'active' ? 'text-emerald-600' :
-                        aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'text-red-600' :
-                        aiCreditsStatus === 'low' ? 'text-amber-600' :
-                        'text-slate-400'
-                      }`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                        {aiCreditsStatus === 'active' ? 'check_circle' :
-                         aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'error' :
-                         aiCreditsStatus === 'low' ? 'warning' : 'help'}
-                      </span>
-                    </div>
+                {/* AI Status Indicator */}
+                <div className={`mt-4 p-4 rounded-xl border flex items-center justify-between ${
+                  aiCreditsStatus === 'active' ? 'bg-emerald-50 border-emerald-200' :
+                  aiCreditsStatus === 'exhausted' ? 'bg-red-50 border-red-200' :
+                  aiCreditsStatus === 'low' ? 'bg-amber-50 border-amber-200' :
+                  aiCreditsStatus === 'error' ? 'bg-red-50 border-red-200' :
+                  'bg-slate-50 border-slate-100'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      aiCreditsStatus === 'active' ? 'bg-emerald-500 animate-pulse' :
+                      aiCreditsStatus === 'exhausted' ? 'bg-red-500' :
+                      aiCreditsStatus === 'low' ? 'bg-amber-500 animate-pulse' :
+                      aiCreditsStatus === 'error' ? 'bg-red-500' :
+                      'bg-slate-300'
+                    }`} />
                     <div>
-                      <p className={`text-[9px] font-black uppercase tracking-widest ${
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${
                         aiCreditsStatus === 'active' ? 'text-emerald-700' :
-                        aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'text-red-700' :
+                        aiCreditsStatus === 'exhausted' ? 'text-red-700' :
+                        aiCreditsStatus === 'error' ? 'text-red-700' :
                         'text-slate-400'
-                      }`}>{language === 'en' ? 'AI Status' : 'Estado de IA'}</p>
-                      <p className={`text-[10px] font-medium ${
+                      }`}>
+                        {language === 'en' ? 'AI Status' : 'Estado de IA'}
+                      </p>
+                      <p className={`text-xs font-medium ${
                         aiCreditsStatus === 'active' ? 'text-emerald-600' :
-                        aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'text-red-600' :
+                        aiCreditsStatus === 'exhausted' ? 'text-red-600' :
+                        aiCreditsStatus === 'error' ? 'text-red-600' :
                         'text-slate-400'
-                      }`}>{aiCreditsMsg || (language === 'en' ? 'Click verify to check' : 'Verifique la conexi\u00f3n')}</p>
+                      }`}>
+                        {aiCreditsMsg || (language === 'en' ? 'Click verify to check status' : 'Haz clic en verificar para ver estado')}
+                      </p>
                     </div>
                   </div>
+                  <span className={`material-symbols-outlined text-lg ${
+                    aiCreditsStatus === 'active' ? 'text-emerald-500' :
+                    aiCreditsStatus === 'exhausted' ? 'text-red-500' :
+                    aiCreditsStatus === 'error' ? 'text-red-500' :
+                    'text-slate-300'
+                  }`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {aiCreditsStatus === 'active' ? 'check_circle' :
+                     aiCreditsStatus === 'exhausted' ? 'error' :
+                     aiCreditsStatus === 'error' ? 'warning' :
+                     'radio_button_unchecked'}
+                  </span>
                 </div>
               </section>
-
 
               {/* WhatsApp Configuration */}
               <section className="col-span-12 lg:col-span-7 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
@@ -3777,7 +3010,7 @@ export default function PanelClient() {
                     <span className={`w-2 h-2 rounded-full mr-2 ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`}></span>
                     {configData.bulk_wa_token && configData.bulk_wa_phone_id
                       ? (language === 'en' ? 'Bulk number configured' : 'N\u00FAmero masivo configurado')
-                      : (language === 'en' ? 'Not configured -- will use main number' : 'No configurado -- usar\u00E1 n\u00FAmero principal')}
+                      : (language === 'en' ? 'Not configured — will use main number' : 'No configurado — usar\u00E1 n\u00FAmero principal')}
                   </div>
                 </div>
               </section>
@@ -4026,61 +3259,52 @@ export default function PanelClient() {
               </section>
             </div>
 
-            {/* Sticky Action Bar -- Discard only shows when changes exist, Apply always visible */}
-            {(() => {
-              const hasChanges = originalConfigRef.current && JSON.stringify(configData) !== JSON.stringify(originalConfigRef.current);
-              return (
-                <div className="fixed bottom-10 right-10 flex items-center gap-4 z-50">
-                  <AnimatePresence>
-                    {showSuccess && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="bg-emerald-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm"
-                      >
-                        <span className="material-symbols-outlined">check_circle</span>
-                        {language === 'en' ? 'Parameters synchronized successfully!' : '\u00a1Par\u00e1metros sincronizados con \u00e9xito!'}
-                      </motion.div>
-                    )}
-                    {saveError && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="bg-red-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm"
-                      >
-                        <span className="material-symbols-outlined">error</span>
-                        {saveError}
-                      </motion.div>
-                    )}
-                    {hasChanges && (
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        onClick={discardChanges}
-                        className="px-8 py-4 bg-white text-slate-700 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
-                      >
-                        {language === 'en' ? 'Discard Changes' : 'Descartar Cambios'}
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                  <button 
-                    onClick={handleSaveSettings}
-                    disabled={isSaving}
-                    className="px-10 py-4 bg-gradient-to-br from-primary-container to-primary text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-[0_12px_24px_rgba(0,0,128,0.3)] hover:opacity-90 transition-all active:scale-95 flex items-center gap-3"
+            {/* Sticky Action Bar */}
+            <div className="fixed bottom-10 right-10 flex items-center gap-4 z-50">
+              <AnimatePresence>
+                {showSuccess && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="bg-emerald-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm"
                   >
-                    {isSaving ? (
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <span className="material-symbols-outlined text-sm">sync_saved_locally</span>
-                    )}
-                    {language === 'en' ? 'Apply Parameters' : 'Aplicar Par\u00e1metros'}
-                  </button>
-                </div>
-              );
-            })()}
+                    <span className="material-symbols-outlined">check_circle</span>
+                    {language === 'en' ? 'Parameters synchronized successfully!' : '¡Parámetros sincronizados con éxito!'}
+                  </motion.div>
+                )}
+                {saveError && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="bg-red-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm"
+                  >
+                    <span className="material-symbols-outlined">error</span>
+                    {saveError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              <button 
+                onClick={discardChanges}
+                className="px-8 py-4 bg-white text-slate-700 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
+              >
+                {language === 'en' ? 'Discard Changes' : 'Descartar Cambios'}
+              </button>
+              <button 
+                onClick={handleSaveSettings}
+                disabled={isSaving}
+                className="px-10 py-4 bg-gradient-to-br from-primary-container to-primary text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-[0_12px_24px_rgba(0,0,128,0.3)] hover:opacity-90 transition-all active:scale-95 flex items-center gap-3"
+              >
+                {isSaving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-sm">sync_saved_locally</span>
+                )}
+                {language === 'en' ? 'Apply Parameters' : 'Aplicar Parámetros'}
+              </button>
+            </div>
           </motion.div>
         )}
 
@@ -4182,25 +3406,12 @@ export default function PanelClient() {
                   <section className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6 flex justify-between items-center">
                       {language === 'en' ? 'Knowledge Base' : 'Base de Conocimiento'}
-                      {kbUploading ? (
-                        <span className="text-[9px] font-bold text-amber-500 animate-pulse">
-                          {language === 'en' ? 'Uploading...' : 'Subiendo...'}
-                        </span>
-                      ) : (
-                        <button onClick={() => botKbFileRef.current?.click()} className="text-primary-container hover:opacity-70 transition-opacity" title={language === 'en' ? 'Upload file' : 'Subir archivo'}><span className="material-symbols-outlined text-lg">upload_file</span></button>
-                      )}
+                      <button onClick={() => botKbFileRef.current?.click()} className="text-primary-container hover:opacity-70 transition-opacity" title={language === 'en' ? 'Upload file' : 'Subir archivo'}><span className="material-symbols-outlined text-lg">upload_file</span></button>
                     </h3>
-                    <input ref={botKbFileRef} type="file" accept=".pdf,.csv,.txt" multiple className="hidden" onChange={e => { const files = e.target.files; if (files) { Array.from(files).forEach(f => uploadKBFile(f)); e.target.value = ''; }}} />
+                    <input ref={botKbFileRef} type="file" accept=".pdf,.csv,.txt,.doc,.docx" multiple className="hidden" onChange={e => { const files = e.target.files; if (files) { Array.from(files).forEach(f => { const ext = f.name.split('.').pop()?.toLowerCase() || 'txt'; const size = f.size > 1048576 ? `${(f.size / 1048576).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB`; setBotKnowledgeFiles(prev => [...prev, { name: f.name, type: ext, size, active: true }]); }); e.target.value = ''; }}} />
                     <div className="space-y-3 overflow-y-auto max-h-48 pr-1 flex-1">
-                      {kbLoading && <div className="text-center py-6"><span className="text-[10px] text-slate-400 animate-pulse">{language === 'en' ? 'Loading files...' : 'Cargando archivos...'}</span></div>}
-                      {!kbLoading && botKnowledgeFiles.length === 0 && (
-                        <div className="text-center py-6">
-                          <span className="material-symbols-outlined text-slate-300 text-3xl">folder_open</span>
-                          <p className="text-[10px] text-slate-400 mt-2">{language === 'en' ? 'No files uploaded yet' : 'Aún no hay archivos subidos'}</p>
-                        </div>
-                      )}
                       {botKnowledgeFiles.map((file, idx) => (
-                        <div key={file.id || idx} className="p-3 bg-white rounded-xl flex items-center justify-between group shadow-sm border border-slate-50 hover:shadow-md transition-shadow">
+                        <div key={idx} className="p-3 bg-white rounded-xl flex items-center justify-between group shadow-sm border border-slate-50 hover:shadow-md transition-shadow">
                           <div className="flex items-center space-x-3 overflow-hidden flex-1">
                             <span className="material-symbols-outlined text-lg" style={{ color: file.type === 'pdf' ? '#dc2626' : file.type === 'csv' ? '#16a34a' : '#3b82f6' }}>{file.type === 'pdf' ? 'picture_as_pdf' : file.type === 'csv' ? 'table_chart' : 'description'}</span>
                             <div className="min-w-0">
@@ -4209,16 +3420,16 @@ export default function PanelClient() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => file.id && deleteKBFile(file.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600"><span className="material-symbols-outlined text-sm">delete</span></button>
-                            <button onClick={() => file.id && toggleKBFile(file.id, !file.active)} className={`w-8 h-4 rounded-full relative transition-colors ${file.active ? 'bg-emerald-500' : 'bg-slate-300'}`}><div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${file.active ? 'right-[2px]' : 'left-[2px]'}`} /></button>
+                            <button onClick={() => setBotKnowledgeFiles(prev => prev.filter((_, i) => i !== idx))} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600"><span className="material-symbols-outlined text-sm">delete</span></button>
+                            <button onClick={() => setBotKnowledgeFiles(prev => prev.map((f, i) => i === idx ? { ...f, active: !f.active } : f))} className={`w-8 h-4 rounded-full relative transition-colors ${file.active ? 'bg-emerald-500' : 'bg-slate-300'}`}><div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${file.active ? 'right-[2px]' : 'left-[2px]'}`} /></button>
                           </div>
                         </div>
                       ))}
                     </div>
                     {/* Drop zone */}
-                    <button onClick={() => botKbFileRef.current?.click()} disabled={kbUploading} className={`mt-4 w-full border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-primary-container/40 hover:bg-primary-container/5 transition-all cursor-pointer group ${kbUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                      <span className="material-symbols-outlined text-slate-300 group-hover:text-primary-container text-2xl">{kbUploading ? 'hourglass_top' : 'cloud_upload'}</span>
-                      <p className="text-[10px] text-slate-400 font-bold mt-1">{kbUploading ? (language === 'en' ? 'Processing file...' : 'Procesando archivo...') : (language === 'en' ? 'Drop or click to upload PDF, CSV, TXT' : 'Arrastra o haz clic para subir PDF, CSV, TXT')}</p>
+                    <button onClick={() => botKbFileRef.current?.click()} className="mt-4 w-full border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-primary-container/40 hover:bg-primary-container/5 transition-all cursor-pointer group">
+                      <span className="material-symbols-outlined text-slate-300 group-hover:text-primary-container text-2xl">cloud_upload</span>
+                      <p className="text-[10px] text-slate-400 font-bold mt-1">{language === 'en' ? 'Drop or click to upload PDF, CSV, TXT' : 'Arrastra o haz clic para subir PDF, CSV, TXT'}</p>
                     </button>
                   </section>
                 </div>
@@ -4332,7 +3543,7 @@ export default function PanelClient() {
                       setBotPreviewInput('');
                       setIsTestingAi(true);
                       try {
-                        const res = await authFetch('/api/panel/test-ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg, history: botPreviewMessages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })), botName, botRole, botTone, temperature: botTemperature, humanHandoff: botHumanHandoff, profanityFilter: botProfanityFilter, topicLocks: botTopicLocks }) });
+                        const res = await fetch('/api/panel/test-ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg, history: botPreviewMessages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })), botName, botRole, botTone, temperature: botTemperature, humanHandoff: botHumanHandoff, profanityFilter: botProfanityFilter, topicLocks: botTopicLocks }) });
                         const data = await res.json();
                         if (data.response) {
                           const respTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -4365,7 +3576,7 @@ export default function PanelClient() {
               <button
                 onClick={() => {
                   try {
-                    const playgroundConfig = { botName, botRole, botTone, botTemperature, botModelSelected, botHumanHandoff, botProfanityFilter, botTopicLocks };
+                    const playgroundConfig = { botName, botRole, botTone, botTemperature, botHumanHandoff, botProfanityFilter, botTopicLocks };
                     localStorage.setItem('rifx_playground_config', JSON.stringify(playgroundConfig));
                     setShowSuccess(true);
                     setTimeout(() => setShowSuccess(false), 3000);
@@ -4382,581 +3593,6 @@ export default function PanelClient() {
             </div>
           </motion.div>
         )}
-
-        {activeTab === 'campaigns' && (
-          <motion.div
-            key="campaigns"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-8"
-          >
-            {/* Sub-Navigation */}
-            <header className="mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-[#0b1c30] mb-1" style={{ fontFamily: 'Inter' }}>
-                    {campaignSubTab === 'campaigns' ? (language === 'en' ? 'Campaigns' : 'Campañas') : campaignSubTab === 'creative' ? 'Creative Lab' : (language === 'en' ? 'Analytics' : 'Analíticas')}
-                  </h2>
-                  <p className="text-sm text-[#414754]">
-                    {campaignSubTab === 'campaigns' 
-                      ? (language === 'en' ? 'Manage and monitor your active ad campaigns.' : 'Gestiona y monitorea tus campañas publicitarias activas.')
-                      : campaignSubTab === 'creative'
-                      ? (language === 'en' ? 'Design and preview your Facebook ads with high-precision AI assistance.' : 'Diseña y previsualiza tus anuncios de Facebook con asistencia de IA.')
-                      : (language === 'en' ? 'Track performance metrics across all your campaigns.' : 'Rastrea las metricas de rendimiento de todas tus campañas.')}
-                  </p>
-                </div>
-                {campaignSubTab === 'campaigns' && (
-                  <button onClick={() => setCampaignSubTab('creative')} className="px-5 py-2.5 text-white font-semibold rounded-lg shadow-lg text-sm flex items-center gap-2 hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
-                    <span className="material-symbols-outlined text-sm">add</span>
-                    {language === 'en' ? 'New Campaign' : 'Nueva Campaña'}
-                  </button>
-                )}
-              </div>
-              <nav className="flex gap-1 bg-[#eff4ff] p-1 rounded-xl border border-[#c1c6d6]">
-                {([
-                  { key: 'campaigns' as const, icon: 'campaign', label: language === 'en' ? 'Campaigns' : 'Campañas' },
-                  { key: 'creative' as const, icon: 'brush', label: 'Creative Lab' },
-                  { key: 'analytics' as const, icon: 'monitoring', label: language === 'en' ? 'Analytics' : 'Analíticas' },
-                ]).map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setCampaignSubTab(tab.key)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all ${
-                      campaignSubTab === tab.key
-                        ? 'bg-white text-[#0b1c30] shadow-sm border border-[#c1c6d6]'
-                        : 'text-[#414754] hover:text-[#0b1c30] hover:bg-white/50'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-lg">{tab.icon}</span>
-                    {tab.label}
-                  </button>
-                ))}
-              </nav>
-            </header>
-
-            {/* ===== SUB-TAB: CAMPAIGNS OVERVIEW ===== */}
-            {campaignSubTab === 'campaigns' && (
-              <div className="space-y-6">
-                {/* Filter Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-2" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <span className="text-[12px] font-semibold text-[#414754] mr-2 uppercase tracking-wider">{language === 'en' ? 'Status:' : 'Estado:'}</span>
-                      <select className="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-[#0b1c30]">
-                        <option>{language === 'en' ? 'All' : 'Todos'}</option>
-                        <option>{language === 'en' ? 'Active' : 'Activas'}</option>
-                        <option>{language === 'en' ? 'Paused' : 'Pausadas'}</option>
-                        <option>{language === 'en' ? 'Completed' : 'Completadas'}</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-2" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <span className="text-[12px] font-semibold text-[#414754] mr-2 uppercase tracking-wider">{language === 'en' ? 'Date:' : 'Fecha:'}</span>
-                      <select className="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-[#0b1c30]">
-                        <option>{language === 'en' ? 'Last 30 days' : 'Ultimos 30 dias'}</option>
-                        <option>{language === 'en' ? 'This month' : 'Este mes'}</option>
-                        <option>{language === 'en' ? 'This year' : 'Este año'}</option>
-                      </select>
-                    </div>
-                    <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-2" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <span className="text-[12px] font-semibold text-[#414754] mr-2 uppercase tracking-wider">{language === 'en' ? 'Platform:' : 'Plataforma:'}</span>
-                      <select className="bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer text-[#0b1c30]">
-                        <option>{language === 'en' ? 'All' : 'Todas'}</option>
-                        <option>Facebook</option>
-                        <option>Instagram</option>
-                        <option>Google Ads</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button className="flex items-center gap-2 text-[#0058bc] font-semibold hover:bg-[#0058bc]/5 px-4 py-2 rounded-lg transition-colors">
-                    <span className="material-symbols-outlined">filter_list</span>
-                    {language === 'en' ? 'Advanced Filters' : 'Filtros Avanzados'}
-                  </button>
-                </div>
-
-                {/* Stats Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {[
-                    { label: language === 'en' ? 'Total Campaigns' : 'Total Campañas', value: '24', trend: '+2 este mes', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
-                    { label: language === 'en' ? 'Total Spent' : 'Gasto Total', value: '$12,450', trend: 'Pacing: 82%', pacing: 82 },
-                    { label: language === 'en' ? 'Average CPC' : 'CPC Promedio', value: '$0.84', trend: '-12% vs prev', trendIcon: 'trending_down', trendColor: 'text-[#006947]' },
-                    { label: language === 'en' ? 'Conversions' : 'Conversiones', value: '1,102', trend: '+5.4% ROI', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
-                  ].map((s, i) => (
-                    <div key={i} className="bg-white p-6 rounded-lg border border-[#c1c6d6] hover:border-[#0058bc] transition-colors" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <p className="text-[12px] font-semibold text-[#414754] mb-1 uppercase tracking-wider">{s.label}</p>
-                      <h3 className="text-3xl font-bold text-[#0b1c30] tracking-tight">{s.value}</h3>
-                      <div className="mt-4 flex items-center gap-1">
-                        {s.trendIcon && <span className={`material-symbols-outlined text-[16px] ${s.trendColor}`}>{s.trendIcon}</span>}
-                        <span className={`text-[12px] font-semibold ${s.trendColor || 'text-[#414754]'}`}>{s.trend}</span>
-                        {s.pacing && (
-                          <div className="ml-2 w-full h-1.5 bg-[#e5eeff] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#0058bc] rounded-full" style={{ width: s.pacing + '%' }} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Campaigns Table */}
-                <div className="bg-white rounded-lg border border-[#c1c6d6] overflow-hidden" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-[#eff4ff] border-b border-[#c1c6d6]">
-                      <tr>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Campaign' : 'Campaña'}</th>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Status' : 'Estado'}</th>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Budget' : 'Presupuesto'}</th>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider text-right">{language === 'en' ? 'Results' : 'Resultados'}</th>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider text-right">{language === 'en' ? 'Cost/Res' : 'Costo/Res'}</th>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Date' : 'Fecha'}</th>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#c1c6d6]">
-                      {[
-  { name: 'Summer Promo 2024', platform: 'Facebook', category: 'Retail', status: 'active', budgetDay: '$50.00', budgetTotal: '$1,500', resultValue: '12,400', resultLabel: 'Impresiones', costValue: '$0.45', costLabel: 'CPC', date: '12 May 2024', img: 'campaign' },
-  { name: 'Retargeting Lead Gen', platform: 'Google', category: 'Services', status: 'paused', budgetDay: '$120.00', budgetTotal: '$3,600', resultValue: '8,902', resultLabel: 'Clicks', costValue: '$1.12', costLabel: 'CPL', date: '08 May 2024', img: 'ads_click' },
-  { name: 'Brand Awareness IG', platform: 'Instagram', category: 'Lifestyle', status: 'active', budgetDay: '$25.00', budgetTotal: '$750', resultValue: '45,600', resultLabel: 'Impresiones', costValue: '$0.18', costLabel: 'CPM', date: '01 May 2024', img: 'auto_awesome' },
-].map((row, i) => (
-                        <tr key={i} className="hover:bg-[#f8f9ff] transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 rounded bg-[#dce9ff] overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                <span className="material-symbols-outlined text-[#0058bc]">{row.img}</span>
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold text-[#0b1c30]">{row.name}</p>
-                                <p className="text-[11px] text-[#414754]">{row.platform} · {row.category}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${row.status === 'active' ? 'bg-[#6ffbbe]/30 text-[#005236]' : 'bg-[#dce9ff] text-[#414754]'}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${row.status === 'active' ? 'bg-[#006947]' : 'bg-[#727785]'}`} />
-                              {row.status === 'active' ? (language === 'en' ? 'Active' : 'Activa') : (language === 'en' ? 'Paused' : 'Pausada')}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-semibold text-[#0b1c30]">{row.budgetDay}/{language === 'en' ? 'day' : 'dia'}</p>
-                            <p className="text-[11px] text-[#414754]">Total: {row.budgetTotal}</p>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <p className="text-sm font-bold">{row.resultValue}</p>
-                            <p className="text-[11px] text-[#414754]">{row.resultLabel}</p>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <p className="text-sm font-bold text-[#0058bc]">{row.costValue}</p>
-                            <p className="text-[11px] text-[#414754]">{row.costLabel}</p>
-                          </td>
-                          <td className="px-6 py-4"><p className="text-sm">{row.date}</p></td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button className="p-2 text-[#414754] hover:text-[#0058bc] hover:bg-[#0058bc]/10 rounded transition-colors"><span className="material-symbols-outlined text-lg">edit</span></button>
-                              <button className="p-2 text-[#414754] hover:text-[#006947] hover:bg-[#006947]/10 rounded transition-colors"><span className="material-symbols-outlined text-lg">{row.status === 'active' ? 'pause' : 'play_arrow'}</span></button>
-                              <button className="p-2 text-[#414754] hover:text-[#ba1a1a] hover:bg-[#ba1a1a]/10 rounded transition-colors"><span className="material-symbols-outlined text-lg">delete</span></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {/* Pagination */}
-                  <div className="bg-[#eff4ff] px-6 py-4 flex items-center justify-between border-t border-[#c1c6d6]">
-                    <p className="text-[12px] font-semibold text-[#414754]">{language === 'en' ? 'Showing 1-3 of 24 campaigns' : 'Mostrando 1-3 de 24 campañas'}</p>
-                    <div className="flex items-center gap-2">
-                      <button className="p-1 rounded hover:bg-[#dce9ff] transition-colors disabled:opacity-50" disabled><span className="material-symbols-outlined">chevron_left</span></button>
-                      <div className="flex items-center gap-1">
-                        <button className="w-8 h-8 rounded bg-[#0058bc] text-white font-bold text-[12px]">1</button>
-                        <button className="w-8 h-8 rounded hover:bg-[#dce9ff] transition-colors text-[12px]">2</button>
-                        <button className="w-8 h-8 rounded hover:bg-[#dce9ff] transition-colors text-[12px]">3</button>
-                      </div>
-                      <button className="p-1 rounded hover:bg-[#dce9ff] transition-colors"><span className="material-symbols-outlined">chevron_right</span></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ===== SUB-TAB: CREATIVE LAB ===== */}
-            {campaignSubTab === 'creative' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Ad Creation Form */}
-              <div className="lg:col-span-7 space-y-6">
-                <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Create New Ad' : 'Crear Nuevo Anuncio'}</h3>
-                    <span className="bg-[#00855b] text-white px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide">FACEBOOK ADS</span>
-                  </div>
-
-                  {/* Upload Section */}
-                  <div className="mb-8">
-                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Upload Ad Image' : 'Subir Imagen del Anuncio'}</label>
-                    <input type="file" accept="image/*" className="hidden" ref={campaignFileRef} onChange={handleCampaignImageUpload} />
-                    {campaignImagePreview ? (
-                      <div className="relative w-full h-52 rounded-xl overflow-hidden group border-2 border-[#c1c6d6]">
-                        <img src={campaignImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
-                          <button onClick={() => campaignFileRef.current?.click()} className="px-4 py-2 bg-white text-[#0b1c30] font-semibold text-xs rounded-lg shadow-lg">{language === 'en' ? 'Change' : 'Cambiar'}</button>
-                          <button onClick={() => { setCampaignImage(null); setCampaignImagePreview(null); }} className="px-4 py-2 bg-red-500 text-white font-semibold text-xs rounded-lg shadow-lg">{language === 'en' ? 'Remove' : 'Eliminar'}</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div onClick={() => campaignFileRef.current?.click()} className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-[#eff4ff] p-10 flex flex-col items-center justify-center cursor-pointer hover:bg-[#dce9ff] hover:border-[#0058bc] transition-all group">
-                        <div className="w-16 h-16 bg-[#0070eb]/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                          <span className="material-symbols-outlined text-[#0058bc] text-4xl">cloud_upload</span>
-                        </div>
-                        <p className="text-base font-semibold text-[#0b1c30]">{language === 'en' ? 'Drag and drop your file here' : 'Arrastra y suelta tu archivo aquí'}</p>
-                        <p className="text-sm text-[#414754] mt-1">{language === 'en' ? 'Supports JPG, PNG (Recommended 1080x1080px)' : 'Soporta JPG, PNG (Recomendado 1080x1080px)'}</p>
-                        <button className="mt-4 px-6 py-2 border border-[#0058bc] text-[#0058bc] rounded-lg font-semibold hover:bg-[#0058bc]/5 transition-colors text-sm">{language === 'en' ? 'Select File' : 'Seleccionar Archivo'}</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Description Section */}
-                  <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-[12px] font-semibold text-[#414754] uppercase tracking-widest">{language === 'en' ? 'Product Description' : 'Descripción del Producto'}</label>
-                      <button onClick={handleGenerateCampaign} disabled={!campaignDesc || isGeneratingCampaign} className="flex items-center gap-1.5 text-[#0058bc] font-semibold hover:bg-[#0070eb]/10 px-3 py-1 rounded-lg transition-colors border border-[#0058bc]/20 disabled:opacity-40 disabled:cursor-not-allowed">
-                        <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                        <span className="text-[12px] font-semibold">{isGeneratingCampaign ? (language === 'en' ? 'Generating...' : 'Generando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}</span>
-                      </button>
-                    </div>
-                    <textarea
-                      value={campaignDesc}
-                      onChange={e => setCampaignDesc(e.target.value.slice(0, 255))}
-                      placeholder={language === 'en' ? 'Enter your ad copy here...' : 'Introduce el copy de tu anuncio aquí...'}
-                      className="w-full h-40 p-4 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all resize-none"
-                    />
-                    <div className="flex justify-between mt-2">
-                      <span className="text-[11px] text-[#414754]">{campaignDesc.length} / 255 {language === 'en' ? 'characters' : 'caracteres'}</span>
-                      <span className="text-[11px] text-[#414754]">{language === 'en' ? 'Tip: Use emojis for more engagement' : 'Sugerencia: Usa emojis para mayor engagement'}</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-[#c1c6d6] flex justify-end gap-4">
-                    <button onClick={() => { setCampaignDesc(''); setCampaignImage(null); setCampaignImagePreview(null); setCampaignResult(null); }} className="px-6 py-3 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Save Draft' : 'Guardar Borrador'}</button>
-                    <button onClick={handleGenerateCampaign} disabled={!campaignDesc || isGeneratingCampaign} className="px-10 py-3 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-sm" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
-                      {isGeneratingCampaign ? (language === 'en' ? 'Generating...' : 'Generando...') : (language === 'en' ? 'Publish' : 'Publicar')}
-                    </button>
-                  </div>
-                </section>
-
-                {/* Performance Estimation Card */}
-                <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-[#006947]">analytics</span>
-                    <h4 className="text-xl font-semibold">{language === 'en' ? 'Performance Estimation' : 'Estimación de Rendimiento'}</h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-4 bg-[#eff4ff] rounded-lg">
-                      <p className="text-[11px] font-semibold text-[#414754] uppercase">Reach {language === 'en' ? 'Estimated' : 'Estimado'}</p>
-                      <p className="text-2xl font-bold mt-1">{campaignResult ? '12k - 18k' : '--'}</p>
-                      <div className="w-full bg-[#c1c6d6] h-1 rounded-full mt-2 overflow-hidden"><div className="bg-[#0058bc] h-full transition-all duration-500" style={{ width: campaignResult ? '65%' : '0%' }}></div></div>
-                    </div>
-                    <div className="p-4 bg-[#eff4ff] rounded-lg">
-                      <p className="text-[11px] font-semibold text-[#414754] uppercase">Engagement</p>
-                      <p className="text-2xl font-bold mt-1">{campaignResult ? '4.2%' : '--'}</p>
-                      <div className="w-full bg-[#c1c6d6] h-1 rounded-full mt-2 overflow-hidden"><div className="bg-[#006947] h-full transition-all duration-500" style={{ width: campaignResult ? '45%' : '0%' }}></div></div>
-                    </div>
-                    <div className="p-4 bg-[#eff4ff] rounded-lg">
-                      <p className="text-[11px] font-semibold text-[#414754] uppercase">{language === 'en' ? 'AI Score' : 'Puntuación IA'}</p>
-                      <p className="text-2xl font-bold mt-1">{campaignResult ? '8.5/10' : '--'}</p>
-                      <div className="w-full bg-[#c1c6d6] h-1 rounded-full mt-2 overflow-hidden"><div className="h-full transition-all duration-500" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)', width: campaignResult ? '85%' : '0%' }}></div></div>
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              {/* Right Column: Live Preview - Facebook Phone Mockup */}
-              <div className="lg:col-span-5">
-                <div className="bg-white rounded-xl border border-[#c1c6d6] p-6 sticky top-24" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Real-Time Preview' : 'Vista Previa en Tiempo Real'}</h3>
-                    <div className="flex gap-2">
-                      <button className="p-2 rounded-lg bg-[#d2e0fe] text-[#55637d]"><span className="material-symbols-outlined text-lg">smartphone</span></button>
-                      <button className="p-2 rounded-lg text-[#414754] hover:bg-[#dce9ff] transition-colors"><span className="material-symbols-outlined text-lg">desktop_windows</span></button>
-                    </div>
-                  </div>
-
-                  {/* Mobile Mockup */}
-                  <div className="relative mx-auto w-[300px] bg-[#213145] rounded-[36px] p-3 shadow-2xl border-4 border-[#727785]" style={{ aspectRatio: '9/18.5' }}>
-                    <div className="w-full h-full bg-white rounded-[28px] overflow-hidden flex flex-col relative">
-                      {/* Facebook Header */}
-                      <div className="px-3 py-2.5 border-b border-[#e5eeff] flex items-center justify-between shrink-0">
-                        <h5 className="text-[#1877F2] font-bold text-lg tracking-tight">facebook</h5>
-                        <div className="flex gap-3">
-                          <span className="material-symbols-outlined text-[#414754] text-lg">search</span>
-                          <span className="material-symbols-outlined text-[#414754] text-lg">menu</span>
-                        </div>
-                      </div>
-
-                      {/* Feed */}
-                      <div className="flex-1 overflow-y-auto bg-[#F0F2F5]" style={{ scrollbarWidth: 'none' }}>
-                        <div className="bg-white mt-2 pb-2">
-                          {/* Post Header */}
-                          <div className="flex items-center px-3 py-2.5 justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-9 h-9 bg-[#0070eb] rounded-full flex items-center justify-center text-white font-bold text-xs">R</div>
-                              <div>
-                                <p className="text-[12px] font-bold text-[#0b1c30] flex items-center gap-1">{tenantData?.company || 'RIFX'} <span className="material-symbols-outlined text-[12px] text-[#0058bc]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></p>
-                                <p className="text-[10px] text-[#414754]">{language === 'en' ? 'Sponsored' : 'Publicidad'} · 1h · <span className="material-symbols-outlined text-[8px]">public</span></p>
-                              </div>
-                            </div>
-                            <span className="material-symbols-outlined text-[#414754] text-lg">more_horiz</span>
-                          </div>
-
-                          {/* Ad Copy */}
-                          <div className="px-3 pb-2">
-                            <p className="text-[13px] text-[#0b1c30] leading-snug">{campaignResult ? campaignResult.caption : (campaignDesc || (language === 'en' ? 'Your ad copy will appear here...' : 'El copy de tu anuncio aparecerá aquí...'))}</p>
-                            {campaignResult && <p className="text-[#0058bc] text-[12px] mt-1">{campaignResult.hashtags}</p>}
-                          </div>
-
-                          {/* Ad Image */}
-                          <div className="w-full aspect-square bg-[#dce9ff] relative overflow-hidden">
-                            {campaignImagePreview ? (
-                              <img src={campaignImagePreview} className="w-full h-full object-cover" alt="Ad" />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="bg-white/90 backdrop-blur p-4 rounded-lg shadow-sm border border-white">
-                                  <p className="text-[12px] font-bold text-[#0b1c30]">{language === 'en' ? 'Image preview' : 'Vista previa de la imagen'}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* CTA Bar */}
-                          <div className="px-3 py-2.5 bg-white flex items-center justify-between border-t border-[#e5eeff]">
-                            <div>
-                              <p className="text-[10px] text-[#414754] uppercase tracking-tighter">{tenantData?.company || 'RIFX'}</p>
-                              <p className="text-[11px] font-bold">{campaignResult?.hook || (language === 'en' ? 'Power your ads with AI' : 'Potencia tus anuncios con IA')}</p>
-                            </div>
-                            <button className="bg-[#dce9ff] text-[#0b1c30] font-bold py-1 px-3 rounded text-[11px]">{language === 'en' ? 'Learn more' : 'Más información'}</button>
-                          </div>
-
-                          {/* Engagement */}
-                          <div className="px-3 py-2 flex items-center justify-between border-t border-[#e5eeff]">
-                            <div className="flex items-center gap-1">
-                              <div className="flex -space-x-1">
-                                <span className="w-4 h-4 bg-[#0058bc] rounded-full flex items-center justify-center border border-white"><span className="material-symbols-outlined text-[9px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>thumb_up</span></span>
-                                <span className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border border-white"><span className="material-symbols-outlined text-[9px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span></span>
-                              </div>
-                              <span className="text-[10px] text-[#414754] ml-1">128</span>
-                            </div>
-                            <span className="text-[10px] text-[#414754]">12 {language === 'en' ? 'comments' : 'comentarios'} · 8 {language === 'en' ? 'shares' : 'compartidos'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Mobile Nav */}
-                      <div className="h-10 bg-white border-t border-[#e5eeff] flex items-center justify-around shrink-0">
-                        <span className="material-symbols-outlined text-[#1877F2] text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">ondemand_video</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">store</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">notifications</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">menu</span>
-                      </div>
-                      <div className="h-5 flex items-center justify-center shrink-0"><div className="w-28 h-1 bg-[#414754]/20 rounded-full"></div></div>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-[#414754] text-center mt-6">{language === 'en' ? 'Preview may vary slightly on the end user device.' : 'La visualización puede variar ligeramente según el dispositivo del usuario final.'}</p>
-                </div>
-              </div>
-              </div>
-            )}
-
-            {/* ===== SUB-TAB: ANALYTICS ===== */}
-            {campaignSubTab === 'analytics' && (
-              <div className="space-y-6">
-                {/* Header Actions */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div>
-                    <h3 className="text-2xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Performance Summary' : 'Resumen de Rendimiento'}</h3>
-                    <p className="text-sm text-[#414754]">{language === 'en' ? 'Data updated 2 minutes ago' : 'Datos actualizados hace 2 minutos'}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-[#eff4ff] border border-[#c1c6d6] rounded-lg px-4 py-2 gap-3">
-                      <span className="material-symbols-outlined text-[#414754]">calendar_today</span>
-                      <span className="text-sm font-medium">1 Oct - 31 Oct, 2024</span>
-                      <span className="material-symbols-outlined text-[#414754]">expand_more</span>
-                    </div>
-                    <button className="bg-white border border-[#c1c6d6] text-[#0b1c30] px-6 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-[#eff4ff] transition-colors">
-                      <span className="material-symbols-outlined">download</span>
-                      {language === 'en' ? 'Export' : 'Exportar'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* KPI Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {[
-                    { label: 'ROAS Total', value: '4.82x', change: '+12.5%', positive: true, bars: [40,60,50,70,90,85] },
-                    { label: language === 'en' ? 'Conversion Value' : 'Valor de Conversion', value: '$124,500', change: '+8.1%', positive: true, bars: [30,50,40,80,70,100] },
-                    { label: language === 'en' ? 'Average CPA' : 'CPA Promedio', value: '$14.20', change: '-2.4%', positive: false, bars: [80,70,90,60,50,40] },
-                    { label: 'CTR Global', value: '3.14%', change: '+0.4%', positive: true, bars: [40,45,55,60,65,70] },
-                  ].map((kpi, i) => (
-                    <div key={i} className="bg-white p-6 rounded-xl border border-[#c1c6d6] flex flex-col gap-4" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <div className="flex justify-between items-start">
-                        <span className="text-[12px] font-semibold text-[#414754] uppercase tracking-wider">{kpi.label}</span>
-                        <span className={`text-[11px] font-semibold px-2 py-1 rounded ${kpi.positive ? 'text-[#006947] bg-[#006947]/10' : 'text-[#ba1a1a] bg-[#ba1a1a]/10'}`}>{kpi.change}</span>
-                      </div>
-                      <div>
-                        <span className="text-3xl font-bold text-[#0b1c30] tracking-tight">{kpi.value}</span>
-                        <div className="h-8 w-full mt-2 rounded-lg flex items-end" style={{ backgroundColor: kpi.positive ? 'rgba(0,88,188,0.05)' : 'rgba(186,26,26,0.05)' }}>
-                          <div className="w-full flex items-baseline gap-[2px] px-1">
-                            {kpi.bars.map((h, j) => (
-                              <div key={j} className="w-full rounded-t-sm" style={{ height: h+'%', backgroundColor: kpi.positive ? `rgba(0,88,188,${0.2 + j*0.15})` : `rgba(186,26,26,${0.2 + j*0.15})` }} />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Bento: Chart + AI Insights */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Performance Chart */}
-                  <div className="lg:col-span-8 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                    <div className="flex items-center justify-between mb-8">
-                      <div>
-                        <h4 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Ad Performance Over Time' : 'Rendimiento del Anuncio en el Tiempo'}</h4>
-                        <p className="text-sm text-[#414754]">{language === 'en' ? 'Impressions, Clicks & Conversions comparison' : 'Comparativa de Impresiones, Clics y Conversiones'}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {[
-                          { color: '#0058bc', label: language === 'en' ? 'Impressions' : 'Impresiones' },
-                          { color: '#515f78', label: language === 'en' ? 'Clicks' : 'Clics' },
-                          { color: '#006947', label: language === 'en' ? 'Conversions' : 'Conversiones' },
-                        ].map((l, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color }} />
-                            <span className="text-[12px] font-semibold">{l.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="h-[300px] flex items-end justify-between relative px-4">
-                      {[
-                        { day: 'Lun', h1: 40, h2: 15 },
-                        { day: 'Mar', h1: 60, h2: 25 },
-                        { day: language === 'en' ? 'Wed' : 'Mie', h1: 50, h2: 20 },
-                        { day: 'Jue', h1: 85, h2: 45 },
-                        { day: 'Vie', h1: 70, h2: 35 },
-                        { day: language === 'en' ? 'Sat' : 'Sab', h1: 55, h2: 25 },
-                        { day: 'Dom', h1: 95, h2: 60 },
-                      ].map((d, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-5 rounded-t" style={{ height: d.h1+'%', backgroundColor: '#0058bc' }} />
-                          <div className="w-5 rounded-t -mt-8" style={{ height: d.h2+'%', backgroundColor: '#006947' }} />
-                          <span className="text-[10px] text-[#414754] mt-2">{d.day}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* AI Predictive Insights */}
-                  <div className="lg:col-span-4 p-6 rounded-xl text-white flex flex-col" style={{ background: 'linear-gradient(135deg, #0058bc 0%, #0070eb 100%)', boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' }}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="material-symbols-outlined">auto_awesome</span>
-                      <h4 className="text-xl font-semibold">Insights Predictivos AI</h4>
-                    </div>
-                    <div className="flex-1 space-y-4">
-                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                        <p className="text-sm mb-2">{language === 'en' ? 'It is recommended to reallocate budget from' : 'Se recomienda reasignar presupuesto de'} <strong>{language === 'en' ? 'Summer Campaign' : 'Campaña Verano'}</strong> {language === 'en' ? 'to' : 'a'} <strong>Retargeting</strong>.</p>
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span>ROI Estimado: +22%</span>
-                          <span className="bg-[#006947] text-white px-2 py-0.5 rounded-full">{language === 'en' ? 'High Confidence' : 'Alta Confianza'}</span>
-                        </div>
-                      </div>
-                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                        <p className="text-sm mb-2">{language === 'en' ? 'Mobile CTR increased 15% in last 24h. Increase bids.' : 'El CTR en dispositivos moviles ha subido un 15% en las ultimas 24h. Incrementar pujas.'}</p>
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span>{language === 'en' ? 'Impact' : 'Impacto'}: $2,400+</span>
-                          <span className="bg-white/20 text-white px-2 py-0.5 rounded-full">{language === 'en' ? 'Processing...' : 'Procesando...'}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <button className="mt-6 w-full bg-white text-[#0058bc] py-3 rounded-lg font-bold hover:bg-[#eff4ff] transition-colors">
-                      {language === 'en' ? 'Apply Auto Optimization' : 'Aplicar Optimizacion Automatica'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Bento: Platform Breakdown + Top Creatives */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Platform Breakdown */}
-                  <div className="lg:col-span-5 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                    <h4 className="text-xl font-semibold text-[#0b1c30] mb-6">{language === 'en' ? 'Platform Breakdown' : 'Desglose por Plataforma'}</h4>
-                    <div className="space-y-6">
-                      {[
-                        { name: 'Facebook News Feed', pct: 45 },
-                        { name: 'Instagram Stories', pct: 32 },
-                        { name: 'Audience Network', pct: 15 },
-                        { name: 'Messenger', pct: 8 },
-                      ].map((p, i) => (
-                        <div key={i}>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-sm font-medium">{p.name}</span>
-                            <span className="text-sm text-[#414754]">{p.pct}%</span>
-                          </div>
-                          <div className="h-2 bg-[#e5eeff] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#0058bc] rounded-full" style={{ width: p.pct+'%' }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Top Creatives Table */}
-                  <div className="lg:col-span-7 bg-white p-6 rounded-xl border border-[#c1c6d6] overflow-hidden" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                    <div className="flex items-center justify-between mb-6">
-                      <h4 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Top Performing Creatives' : 'Creatividades con Mejor Rendimiento'}</h4>
-                      <button className="text-[#0058bc] font-medium text-sm hover:underline">{language === 'en' ? 'View all' : 'Ver todas'}</button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="border-b border-[#c1c6d6]">
-                            <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase">{language === 'en' ? 'Creative' : 'Creatividad'}</th>
-                            <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-center">Engagement</th>
-                            <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-center">Conv.</th>
-                            <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-right">ROAS</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#c1c6d6]">
-                          {[
-                            { name: 'Video_Demo_V1', campaign: language === 'en' ? 'Global Campaign' : 'Campaña Global', engagement: '8.4%', conv: '1,240', roas: '5.2x', icon: 'videocam' },
-                            { name: 'Banner_Promo_New', campaign: 'Retargeting', engagement: '5.1%', conv: '890', roas: '4.1x', icon: 'image' },
-                            { name: 'Static_Test_Purple', campaign: 'Lookalike 1%', engagement: '3.9%', conv: '450', roas: '3.8x', icon: 'palette' },
-                          ].map((c, i) => (
-                            <tr key={i}>
-                              <td className="py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 rounded bg-[#e5eeff] overflow-hidden flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[#0058bc]">{c.icon}</span>
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-semibold">{c.name}</p>
-                                    <p className="text-[11px] text-[#414754]">{c.campaign}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-4 text-center text-sm font-medium">{c.engagement}</td>
-                              <td className="py-4 text-center text-sm font-medium">{c.conv}</td>
-                              <td className="py-4 text-right text-sm font-bold text-[#006947]">{c.roas}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </motion.div>
-        )}
-
 
         {activeTab === 'segments' && (
           <motion.div
@@ -4977,11 +3613,11 @@ export default function PanelClient() {
                 </p>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setSegDetailView(segDetailView === 'interested' ? 'chatting' : segDetailView === 'chatting' ? 'bought' : 'interested')} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                <button className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
                   <span className="material-symbols-outlined text-sm">filter_list</span>
                   {language === 'en' ? 'Filter' : 'Filtrar'}
                 </button>
-                <button onClick={() => setShowNewSegmentModal(true)} className="px-5 py-2.5 bg-primary-container text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-primary-container/20">
+                <button className="px-5 py-2.5 bg-primary-container text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-primary-container/20">
                   <span className="material-symbols-outlined text-sm">add</span>
                   {language === 'en' ? 'New Segment' : 'Nuevo Segmento'}
                 </button>
@@ -4991,7 +3627,7 @@ export default function PanelClient() {
             {/* Bento Grid Section: Overview Cards */}
             <section className="grid grid-cols-12 gap-6">
               {/* Stat Card: Interesados */}
-              <div onClick={() => { setSegDetailView('interested'); setSegTablePage(1); }} className={`col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 ${segDetailView === 'interested' ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-emerald-500'} shadow-sm group cursor-pointer`}>
+              <div className="col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 border-emerald-500 shadow-sm group">
                 <div className="flex justify-between items-start mb-6">
                   <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-all">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
@@ -5022,7 +3658,7 @@ export default function PanelClient() {
               </div>
 
               {/* Stat Card: Indecisos */}
-              <div onClick={() => { setSegDetailView('chatting'); setSegTablePage(1); }} className={`col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 ${segDetailView === 'chatting' ? 'border-amber-500 ring-2 ring-amber-200' : 'border-amber-500'} shadow-sm group cursor-pointer`}>
+              <div className="col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 border-amber-500 shadow-sm group">
                 <div className="flex justify-between items-start mb-6">
                   <div className="p-3 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-all">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
@@ -5053,7 +3689,7 @@ export default function PanelClient() {
               </div>
 
               {/* Stat Card: Curiosos */}
-              <div onClick={() => { setSegDetailView('bought'); setSegTablePage(1); }} className={`col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 ${segDetailView === 'bought' ? 'border-slate-400 ring-2 ring-slate-300' : 'border-slate-400'} shadow-sm group cursor-pointer`}>
+              <div className="col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 border-slate-400 shadow-sm group">
                 <div className="flex justify-between items-start mb-6">
                   <div className="p-3 bg-slate-50 rounded-xl text-slate-600 group-hover:bg-slate-500 group-hover:text-white transition-all">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>visibility</span>
@@ -5191,32 +3827,10 @@ export default function PanelClient() {
                       </div>
                     </div>
                   </div>
-                  <button onClick={() => setShowNewSegmentModal(true)} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-primary-container hover:text-primary-container transition-all text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+                  <button className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-primary-container hover:text-primary-container transition-all text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
                     <span className="material-symbols-outlined text-sm">add_circle</span>
-                    {language === 'en' ? 'CREATE NEW CLASSIFICATION LOGIC' : 'CREAR NUEVA LOGICA DE CLASIFICACION'}
+                    {language === 'en' ? 'CREATE NEW CLASSIFICATION LOGIC' : 'CREAR NUEVA LÃ“GICA DE CLASIFICACIÃ“N'}
                   </button>
-                  {/* Custom Segments */}
-                  {customSegments.map(seg => (
-                    <div key={seg.id} className="p-5 rounded-2xl bg-violet-50/50 border border-violet-100 hover:border-primary-container/30 transition-all flex items-start gap-4 group">
-                      <div className="w-12 h-12 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-600 shrink-0 shadow-sm">
-                        <span className="material-symbols-outlined">label</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-primary">{seg.name}</h4>
-                          <div className="flex gap-2">
-                            <span className="px-2.5 py-1 bg-violet-100 text-violet-700 text-[10px] font-bold rounded-lg uppercase tracking-wider">{language === 'en' ? 'Custom' : 'Personalizado'}</span>
-                            <button onClick={() => handleDeleteSegment(seg.id)} className="text-slate-400 hover:text-red-500 transition-colors"><span className="material-symbols-outlined text-sm">delete</span></button>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1 mb-3">{seg.description || (language === 'en' ? 'Keywords' : 'Palabras clave')}: {seg.keywords.join(', ') || '-'}</p>
-                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-violet-500 rounded-full" style={{ width: `${seg.confidence}%` }}></div>
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1">{language === 'en' ? 'Confidence' : 'Confianza'}: {seg.confidence}%</p>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </section>
@@ -5226,15 +3840,15 @@ export default function PanelClient() {
               <div className="flex justify-between items-end">
                 <div className="flex items-center gap-4">
                   <h3 className="text-2xl font-bold font-headline text-primary">
-                    {language === 'en' ? `Detailed View: ${segDetailLabel}` : `Vista Detallada: ${segDetailLabel}`}
+                    {language === 'en' ? 'Detailed View: Interesados' : 'Vista Detallada: Interesados'}
                   </h3>
                   <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
-                    <button onClick={() => setSegViewMode('live')} className={`px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${segViewMode === 'live' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>Live</button>
-                    <button onClick={() => setSegViewMode('archive')} className={`px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${segViewMode === 'archive' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>Archive</button>
+                    <button className="px-5 py-1.5 text-[10px] font-bold bg-white text-primary shadow-sm rounded-lg uppercase tracking-widest">Live</button>
+                    <button className="px-5 py-1.5 text-[10px] font-bold text-slate-400 hover:text-primary transition-colors rounded-lg uppercase tracking-widest">Archive</button>
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={handleExportSegmentCSV} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
+                  <button className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
                     <span className="material-symbols-outlined text-sm">download</span>
                     {language === 'en' ? 'Export CSV' : 'Exportar CSV'}
                   </button>
@@ -5245,28 +3859,24 @@ export default function PanelClient() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50/50">
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Contact' : 'Contacto'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Phone Number' : 'Teléfono'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'AI Confidence' : 'Confianza IA'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contact</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Last Activity</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Phone Number</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">AI Confidence</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {pagedSegContacts.map((contact: any, i: number) => {
-                        const score = contactScores[contact.id]?.score;
-                        const confidence = score != null ? score : Math.floor(Math.random() * 20 + 75);
-                        const statusColor = contact.status === 'interested' ? 'emerald' : contact.status === 'chatting' ? 'amber' : 'slate';
-                        return (
+                      {(conversationsData?.interested || []).slice(0, 10).map((contact: any, i: number) => (
                         <tr key={contact.id || i} className="hover:bg-slate-50/50 transition-colors group">
                           <td className="px-8 py-6">
                             <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full bg-${statusColor}-100 flex items-center justify-center font-bold text-${statusColor}-700 text-xs shadow-sm`}>
+                              <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 text-xs shadow-sm">
                                 {contact.customer_name?.substring(0, 2).toUpperCase() || 'CX'}
                               </div>
                               <div>
                                 <p className="font-bold text-primary text-sm">{contact.customer_name || 'Desconocido'}</p>
-                                <p className={`text-[10px] font-bold text-${statusColor}-600 uppercase tracking-wider`}>{contact.status === 'interested' ? 'Interesado' : contact.status === 'chatting' ? 'En chat' : 'Comprador'}</p>
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Interested Lead</p>
                               </div>
                             </div>
                           </td>
@@ -5279,9 +3889,9 @@ export default function PanelClient() {
                           <td className="px-8 py-6">
                             <div className="flex items-center gap-3">
                               <div className="flex-1 h-1.5 bg-slate-100 rounded-full min-w-[100px] overflow-hidden">
-                                <div className={`h-full bg-${confidence >= 85 ? 'emerald' : confidence >= 60 ? 'amber' : 'red'}-500 rounded-full`} style={{ width: `${confidence}%` }}></div>
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '94%' }}></div>
                               </div>
-                              <span className={`text-[10px] font-black text-${confidence >= 85 ? 'emerald' : confidence >= 60 ? 'amber' : 'red'}-600`}>{confidence}%</span>
+                              <span className="text-[10px] font-black text-emerald-600">94%</span>
                             </div>
                           </td>
                           <td className="px-8 py-6 text-right">
@@ -5296,15 +3906,14 @@ export default function PanelClient() {
                             </button>
                           </td>
                         </tr>
-                        );
-                      })}
-                      {segDetailContacts.length === 0 && (
+                      ))}
+                      {(!conversationsData?.interested || conversationsData.interested.length === 0) && (
                         <tr>
                           <td colSpan={5} className="px-8 py-20 text-center text-slate-400">
                             <div className="flex flex-col items-center gap-3">
                               <span className="material-symbols-outlined text-5xl opacity-20">group_off</span>
                               <p className="text-xs font-bold uppercase tracking-widest">
-                                {language === 'en' ? 'No contacts found in this segment' : 'No se encontraron contactos en este segmento'}
+                                {language === 'en' ? 'No high intent contacts found' : 'No se encontraron contactos de alto interés'}
                               </p>
                             </div>
                           </td>
@@ -5315,14 +3924,12 @@ export default function PanelClient() {
                 </div>
                 <div className="p-6 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {language === 'en' ? `Showing ${pagedSegContacts.length} of ${segDetailContacts.length} contacts` : `Mostrando ${pagedSegContacts.length} de ${segDetailContacts.length} contactos`}
+                    {language === 'en' ? `Showing ${Math.min(10, conversationsData?.interested?.length || 0)} of ${conversationsData?.interested?.length || 0} contacts` : `Mostrando ${Math.min(10, conversationsData?.interested?.length || 0)} de ${conversationsData?.interested?.length || 0} contactos`}
                   </span>
                   <div className="flex gap-2">
-                    <button onClick={() => setSegTablePage(p => Math.max(1, p - 1))} disabled={segTablePage <= 1} className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm disabled:opacity-30"><span className="material-symbols-outlined text-sm">chevron_left</span></button>
-                    {Array.from({ length: Math.min(totalSegPages, 5) }, (_, i) => i + 1).map(p => (
-                      <button key={p} onClick={() => setSegTablePage(p)} className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all ${segTablePage === p ? 'bg-primary-container text-white shadow-lg shadow-primary-container/20' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{p}</button>
-                    ))}
-                    <button onClick={() => setSegTablePage(p => Math.min(totalSegPages, p + 1))} disabled={segTablePage >= totalSegPages} className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm disabled:opacity-30"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
+                    <button className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm"><span className="material-symbols-outlined text-sm">chevron_left</span></button>
+                    <button className="px-4 py-2 bg-primary-container text-white text-[10px] font-black rounded-xl shadow-lg shadow-primary-container/20">1</button>
+                    <button className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
                   </div>
                 </div>
               </div>
@@ -5333,27 +3940,6 @@ export default function PanelClient() {
         {/* ========== BILLING / PAGOS TAB ========== */}
         {activeTab === 'billing' && (
           <motion.div key="billing" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.3 }} className="space-y-6">
-            {/* Expired Plan Alert */}
-            {isPlanExpired && (
-              <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl p-6 shadow-lg shadow-red-500/20 text-white">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-3xl animate-pulse">warning</span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-black">{language === 'en' ? 'Your plan has expired' : 'Tu plan ha expirado'}</h3>
-                    <p className="text-white/80 text-sm mt-1">{language === 'en' 
-                      ? 'All features are locked. Choose a plan below to restore access to your CRM, contacts, AI bot, and analytics.' 
-                      : 'Todas las funciones est\u00e1n bloqueadas. Elige un plan para restaurar el acceso a tu CRM, contactos, bot de IA y an\u00e1lisis.'}</p>
-                    <div className="flex items-center gap-3 mt-3">
-                      <span className="inline-flex items-center gap-1.5 text-xs bg-white/20 px-3 py-1 rounded-full"><span className="material-symbols-outlined text-sm">lock</span> CRM</span>
-                      <span className="inline-flex items-center gap-1.5 text-xs bg-white/20 px-3 py-1 rounded-full"><span className="material-symbols-outlined text-sm">lock</span> Bot IA</span>
-                      <span className="inline-flex items-center gap-1.5 text-xs bg-white/20 px-3 py-1 rounded-full"><span className="material-symbols-outlined text-sm">lock</span> Analytics</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
@@ -5498,9 +4084,9 @@ export default function PanelClient() {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowPlanConfirm(null)} className="flex-1 py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
-                <button onClick={() => { if (showPlanConfirm) handleUpgradePlan(showPlanConfirm); }} className="flex-1 py-3 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-sky-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                <button onClick={() => { setCurrentPlan(showPlanConfirm as any); setShowPlanConfirm(null); }} className="flex-1 py-3 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-sky-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                   <span className="material-symbols-outlined text-sm">credit_card</span>
-                  {language === 'en' ? 'Pay with Card' : 'Pagar con Tarjeta'}
+                  {language === 'en' ? 'Pay with PayPhone' : 'Pagar con PayPhone'}
                 </button>
               </div>
             </div>
@@ -5528,46 +4114,14 @@ export default function PanelClient() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {/* Calendar dropdown */}
-                <div className="relative">
-                  <button onClick={() => setShowHeaderCalendar(!showHeaderCalendar)} className="flex items-center gap-3 bg-white border border-slate-100 px-5 py-3 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer">
-                    <span className="material-symbols-outlined text-sm text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      {MONTH_NAMES[analyticsCalMonth]} {analyticsCalYear}
-                    </span>
-                    <span className={`material-symbols-outlined text-sm text-slate-300 transition-transform ${showHeaderCalendar ? 'rotate-180' : ''}`}>expand_more</span>
-                  </button>
-                  {showHeaderCalendar && (
-                    <div className="absolute top-full mt-2 right-0 w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 p-5 z-50" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-between mb-4">
-                        <button onClick={() => { if (analyticsCalMonth === 0) { setAnalyticsCalMonth(11); setAnalyticsCalYear(y => y - 1); } else setAnalyticsCalMonth(m => m - 1); }} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><span className="material-symbols-outlined text-sm">chevron_left</span></button>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-black text-primary">{MONTH_NAMES[analyticsCalMonth]}</span>
-                          <select value={analyticsCalYear} onChange={e => setAnalyticsCalYear(Number(e.target.value))} className="text-sm font-black text-primary bg-transparent border-none cursor-pointer focus:outline-none">
-                            {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
-                          </select>
-                        </div>
-                        <button onClick={() => { if (analyticsCalMonth === 11) { setAnalyticsCalMonth(0); setAnalyticsCalYear(y => y + 1); } else setAnalyticsCalMonth(m => m + 1); }} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
-                      </div>
-                      <div className="grid grid-cols-7 gap-1 mb-2">
-                        {DAY_LABELS.map(d => <div key={d} className="text-center text-[9px] font-black text-slate-400 uppercase py-1">{d}</div>)}
-                      </div>
-                      <div className="grid grid-cols-7 gap-1">
-                        {analyticsCalDays.map((d, i) => d === null ? <div key={`e-${i}`} /> : (
-                          <div key={d.day} className={`relative text-center py-2 rounded-lg text-xs font-bold cursor-pointer transition-all ${d.amount > 0 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 ring-1 ring-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`} title={d.amount > 0 ? `$${d.amount.toFixed(2)}` : 'Sin ventas'}>
-                            {d.day}
-                            {d.amount > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full"></div>}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Month Total' : 'Total del Mes'}</span>
-                        <span className="text-lg font-black text-emerald-600">${calMonthTotal.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                      </div>
-                    </div>
-                  )}
+                <div className="flex items-center gap-3 bg-white border border-slate-100 px-5 py-3 rounded-2xl shadow-sm">
+                  <span className="material-symbols-outlined text-sm text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    {new Date().toLocaleDateString(language, { month: 'short', day: 'numeric' })} - {new Date().toLocaleDateString(language, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                  <span className="material-symbols-outlined text-sm text-slate-300">expand_more</span>
                 </div>
-                <button onClick={() => setShowExportModal(true)} className="bg-primary-container text-white px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-primary-container/20 hover:opacity-90 active:scale-95 transition-all">
+                <button className="bg-primary-container text-white px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-primary-container/20 hover:opacity-90 active:scale-95 transition-all">
                   <span className="material-symbols-outlined text-sm">download</span>
                   {language === 'en' ? 'Export Report' : 'Exportar Reporte'}
                 </button>
@@ -5579,18 +4133,18 @@ export default function PanelClient() {
               {/* Total Conversations */}
               <div className="bg-white p-8 rounded-3xl border border-slate-50 shadow-sm flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
                 <div className="flex justify-between items-start mb-6">
-                  <span className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                    <span className="material-symbols-outlined">payments</span>
+                  <span className="p-3 bg-primary-container/5 text-primary-container rounded-xl group-hover:bg-primary-container group-hover:text-white transition-all">
+                    <span className="material-symbols-outlined">forum</span>
                   </span>
                   <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-widest flex items-center gap-1">
                     <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
-                    {statsData?.totalSales || 0} {language === 'en' ? 'sales' : 'ventas'}
+                    12.4%
                   </span>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{language === 'en' ? 'Total Revenue' : 'Ingresos Totales'}</p>
-                  <h3 className="text-4xl font-black text-emerald-600 tracking-tighter">
-                    ${(statsData?.totalRevenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{language === 'en' ? 'Total Conversations' : 'Conversaciones Totales'}</p>
+                  <h3 className="text-4xl font-black text-primary tracking-tighter">
+                    {allContacts.length.toLocaleString()}
                   </h3>
                 </div>
                 <div className="mt-6 h-2 w-full bg-slate-50 rounded-full overflow-hidden">
@@ -5604,10 +4158,10 @@ export default function PanelClient() {
                 <div className="relative flex items-center justify-center">
                   <svg className="w-28 h-28 transform -rotate-90">
                     <circle className="text-slate-50" cx="56" cy="56" fill="transparent" r="48" stroke="currentColor" strokeWidth="10"></circle>
-                    <circle className="text-primary-container" cx="56" cy="56" fill="transparent" r="48" stroke="currentColor" strokeDasharray="301.6" strokeDashoffset={`${301.6 * (1 - (Object.keys(contactScores).length > 0 ? Object.values(contactScores).reduce((s: number, v: any) => s + (v.score || 0), 0) / Object.keys(contactScores).length : 92) / 100)}`} strokeWidth="10" strokeLinecap="round"></circle>
+                    <circle className="text-primary-container" cx="56" cy="56" fill="transparent" r="48" stroke="currentColor" strokeDasharray="301.6" strokeDashoffset="24.1" strokeWidth="10" strokeLinecap="round"></circle>
                   </svg>
                   <div className="absolute flex flex-col items-center">
-                    <span className="text-2xl font-black text-primary">{Object.keys(contactScores).length > 0 ? Math.round(Object.values(contactScores).reduce((s: number, v: any) => s + (v.score || 0), 0) / Object.keys(contactScores).length) : 92}%</span>
+                    <span className="text-2xl font-black text-primary">92%</span>
                   </div>
                 </div>
               </div>
@@ -5641,8 +4195,8 @@ export default function PanelClient() {
                 <div className="mt-6">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{language === 'en' ? 'Conversion Rate' : 'Tasa de Conversión'}</p>
                   <div className="flex items-baseline gap-2">
-                    <h3 className="text-3xl font-black text-primary tracking-tighter">{conversionRate}%</h3>
-                    <span className="text-[10px] text-emerald-600 font-black">{conversionRate > 0 ? '+' : ''}{(conversionRate * 0.1).toFixed(1)}%</span>
+                    <h3 className="text-3xl font-black text-primary tracking-tighter">18.2%</h3>
+                    <span className="text-[10px] text-emerald-600 font-black">+2.1%</span>
                   </div>
                 </div>
               </div>
@@ -5696,70 +4250,52 @@ export default function PanelClient() {
                 </div>
               </div>
 
-              {/* Revenue Chart */}
+              {/* Interaction Over Time */}
               <div className="lg:col-span-8 bg-white p-10 rounded-3xl border border-slate-50 shadow-sm">
-                <div className="flex justify-between items-start mb-6">
+                <div className="flex justify-between items-start mb-12">
                   <div>
-                    <h4 className="text-xl font-black text-primary mb-2">{language === 'en' ? 'Revenue' : 'Ingresos'}</h4>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Daily sales closed by AI' : 'Ventas cerradas por día'}</p>
-                    <p className="text-2xl font-black text-emerald-600 mt-2">${periodRevenue.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                    <h4 className="text-xl font-black text-primary mb-2">{language === 'en' ? 'Interaction Trends' : 'Tendencias de Interacción'}</h4>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Daily message activity' : 'Actividad diaria de mensajes'}</p>
                   </div>
                   <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                    <button onClick={() => setAnalyticsRange('30d')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${analyticsRange === '30d' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>30 {language === 'en' ? 'Days' : 'Días'}</button>
-                    <button onClick={() => setAnalyticsRange('90d')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${analyticsRange === '90d' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>90 {language === 'en' ? 'Days' : 'Días'}</button>
+                    <button className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-white text-primary shadow-sm rounded-lg">30 Days</button>
+                    <button className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-all rounded-lg">90 Days</button>
                   </div>
                 </div>
-                <div className="relative h-[300px] w-full" onMouseLeave={() => setHoveredChartIdx(null)}>
+                <div className="relative h-[300px] w-full">
                   <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 800 200">
                     <defs>
-                      <linearGradient id="revLineGrad" x1="0" x2="1" y1="0" y2="0">
-                        <stop offset="0%" stopColor="#059669" />
-                        <stop offset="100%" stopColor="#10b981" />
+                      <linearGradient id="lineGradient" x1="0" x2="1" y1="0" y2="0">
+                        <stop offset="0%" stopColor="#00003c" />
+                        <stop offset="100%" stopColor="#000080" />
                       </linearGradient>
-                      <linearGradient id="revAreaGrad" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                      <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#000080" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#000080" stopOpacity="0" />
                       </linearGradient>
                     </defs>
+                    {/* Grid Lines */}
                     {[50, 100, 150].map((y, i) => (
                       <line key={i} stroke="#e2e8f0" strokeDasharray="4 4" x1="0" x2="800" y1={y} y2={y}></line>
                     ))}
-                    {revenueSvgData.area && <path d={revenueSvgData.area} fill="url(#revAreaGrad)"></path>}
-                    {revenueSvgData.line && (
-                      <motion.path 
-                        key={analyticsRange}
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1.5, ease: "easeInOut" }}
-                        d={revenueSvgData.line} 
-                        fill="none" 
-                        stroke="url(#revLineGrad)" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth="4"
-                      ></motion.path>
-                    )}
-                    {revenueSvgData.points.map((p, i) => (
-                      <g key={i}>
-                        <rect x={p.x - (800 / revenueChartData.length / 2)} y="0" width={800 / revenueChartData.length} height="200" fill="transparent" onMouseEnter={() => setHoveredChartIdx(i)} />
-                        {hoveredChartIdx === i && (
-                          <>
-                            <line x1={p.x} x2={p.x} y1={p.y} y2="200" stroke="#10b981" strokeDasharray="3 3" strokeWidth="1" opacity="0.5" />
-                            <circle cx={p.x} cy={p.y} r="6" fill="#10b981" stroke="white" strokeWidth="3" />
-                          </>
-                        )}
-                      </g>
-                    ))}
+                    {/* Area Path */}
+                    <path d="M0,180 L50,160 L100,175 L150,120 L200,130 L250,90 L300,105 L350,60 L400,75 L450,40 L500,65 L550,55 L600,80 L650,45 L700,50 L750,20 L800,30 V200 H0 Z" fill="url(#areaGradient)"></path>
+                    {/* Line Path */}
+                    <motion.path 
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 2, ease: "easeInOut" }}
+                      d="M0,180 L50,160 L100,175 L150,120 L200,130 L250,90 L300,105 L350,60 L400,75 L450,40 L500,65 L550,55 L600,80 L650,45 L700,50 L750,20 L800,30" 
+                      fill="none" 
+                      stroke="url(#lineGradient)" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth="5"
+                    ></motion.path>
                   </svg>
-                  {hoveredChartIdx !== null && revenueSvgData.points[hoveredChartIdx] && (
-                    <div className="absolute bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-xl pointer-events-none z-10" style={{ left: `${Math.min(85, Math.max(5, (revenueSvgData.points[hoveredChartIdx].x / 800) * 100))}%`, top: '10px', transform: 'translateX(-50%)' }}>
-                      <p className="text-emerald-400 text-sm font-black">${revenueSvgData.points[hoveredChartIdx].amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                      <p className="text-slate-400 text-[10px]">{revenueSvgData.points[hoveredChartIdx].label}</p>
-                    </div>
-                  )}
-                  <div className="flex justify-between mt-4 border-t border-slate-50 pt-3">
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{revenueChartData[0]?.label || ''}</span>
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{revenueChartData[Math.floor(revenueChartData.length / 2)]?.label || ''}</span>
+                  <div className="flex justify-between mt-8 border-t border-slate-50 pt-4">
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{new Date(Date.now() - 30*24*60*60*1000).toLocaleDateString(language, { month: 'short', day: 'numeric' })}</span>
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{new Date(Date.now() - 15*24*60*60*1000).toLocaleDateString(language, { month: 'short', day: 'numeric' })}</span>
                     <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">{language === 'en' ? 'Today' : 'Hoy'}</span>
                   </div>
                 </div>
@@ -5857,491 +4393,6 @@ export default function PanelClient() {
           </motion.div>
         )}
 
-        {/* ========== ADMIN PANEL TAB ========== */}
-        {activeTab === 'admin' && tenantData?.isAdmin && (
-          <motion.div
-            key="admin"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="space-y-8"
-          >
-            {/* Header */}
-            <section className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
-                    <span className="material-symbols-outlined">admin_panel_settings</span>
-                  </div>
-                  <h2 className="text-3xl font-black text-primary tracking-tight">Panel de Administrador</h2>
-                </div>
-                <p className="text-sm text-slate-400 font-medium ml-[52px]">Gestiona usuarios, planes y anuncios de la plataforma</p>
-              </div>
-              <div className="flex gap-2 bg-white rounded-xl p-1.5 shadow-sm border border-slate-100">
-                {[
-                  { key: 'overview', label: 'Resumen', icon: 'dashboard' },
-                  { key: 'tenants', label: 'Usuarios', icon: 'group' },
-                  { key: 'announcements', label: 'Anuncios', icon: 'campaign' },
-                ].map(t => (
-                  <button key={t.key} onClick={() => setAdminTab(t.key as any)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${adminTab === t.key ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    <span className="material-symbols-outlined text-sm">{t.icon}</span>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {adminLoading && !adminData ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="w-8 h-8 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-              </div>
-            ) : adminData && (
-              <>
-                {/* ===== OVERVIEW SUB-TAB ===== */}
-                {adminTab === 'overview' && (
-                  <div className="space-y-8">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      {[
-                        { label: 'Total Usuarios', value: adminData.totalTenants, icon: 'group', color: 'from-blue-500 to-indigo-600' },
-                        { label: 'Activos', value: adminData.activeTenants, icon: 'verified', color: 'from-emerald-500 to-teal-600' },
-                        { label: 'Nuevos (7d)', value: adminData.newThisWeek, icon: 'trending_up', color: 'from-violet-500 to-purple-600' },
-                        { label: 'Total Mensajes', value: adminData.totalMessages?.toLocaleString(), icon: 'chat', color: 'from-orange-500 to-amber-600' },
-                      ].map((kpi, i) => (
-                        <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${kpi.color} flex items-center justify-center text-white shadow-lg`}>
-                              <span className="material-symbols-outlined">{kpi.icon}</span>
-                            </div>
-                          </div>
-                          <p className="text-3xl font-black text-primary">{kpi.value}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                        <h3 className="text-lg font-extrabold text-primary mb-6">Distribución por Plan</h3>
-                        <div className="space-y-4">
-                          {Object.entries(adminData.planCounts || {}).map(([plan, count]: [string, any]) => {
-                            const total = adminData.totalTenants || 1;
-                            const pct = Math.round((count / total) * 100);
-                            const colors: Record<string, string> = { trial: 'bg-slate-400', start: 'bg-blue-500', advanced: 'bg-violet-500', plus: 'bg-emerald-500', master: 'bg-orange-500' };
-                            return (
-                              <div key={plan}>
-                                <div className="flex justify-between mb-1.5">
-                                  <span className="text-xs font-bold text-primary capitalize">{plan}</span>
-                                  <span className="text-xs font-bold text-slate-400">{count} ({pct}%)</span>
-                                </div>
-                                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className={`h-full ${colors[plan] || 'bg-slate-400'} rounded-full transition-all duration-700`} style={{ width: `${pct || 2}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                        <h3 className="text-lg font-extrabold text-primary mb-6">Estadísticas Globales</h3>
-                        <div className="space-y-5">
-                          {[
-                            { label: 'Total Conversaciones', value: adminData.totalConversations, icon: 'forum' },
-                            { label: 'Total Mensajes', value: adminData.totalMessages, icon: 'message' },
-                            { label: 'Anuncios Activos', value: adminData.announcements?.filter((a: any) => a.is_active)?.length || 0, icon: 'campaign' },
-                            { label: 'Pagos Registrados', value: adminData.payments?.length || 0, icon: 'receipt_long' },
-                          ].map((s, i) => (
-                            <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
-                              <div className="flex items-center gap-3">
-                                <span className="material-symbols-outlined text-slate-400">{s.icon}</span>
-                                <span className="text-sm font-bold text-primary">{s.label}</span>
-                              </div>
-                              <span className="text-lg font-black text-primary">{s.value?.toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                      <h3 className="text-lg font-extrabold text-primary mb-6">Últimos Registros</h3>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead>
-                            <tr className="bg-slate-50/50">
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Empresa</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Plan</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Registro</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50">
-                            {adminData.tenants?.slice(0, 5).map((t: any) => (
-                              <tr key={t.id} className="hover:bg-slate-50/30 transition-colors">
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-xs font-black">
-                                      {t.companyName?.charAt(0)?.toUpperCase() || 'U'}
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-bold text-primary">{t.companyName || 'Sin nombre'}</p>
-                                      <p className="text-[10px] text-slate-400">{t.ownerName || ''}</p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-slate-500">{t.email}</td>
-                                <td className="px-6 py-4 text-center">
-                                  <span className={`px-3 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${t.plan === 'master' ? 'bg-orange-100 text-orange-700' : t.plan === 'plus' ? 'bg-emerald-100 text-emerald-700' : t.plan === 'advanced' ? 'bg-violet-100 text-violet-700' : t.plan === 'start' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{t.plan}</span>
-                                </td>
-                                <td className="px-6 py-4 text-right text-xs text-slate-400">{new Date(t.createdAt).toLocaleDateString()}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ===== TENANTS SUB-TAB ===== */}
-                {adminTab === 'tenants' && (
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                      <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-extrabold text-primary">Usuarios Registrados</h3>
-                          <p className="text-xs text-slate-400 mt-1">{adminData.totalTenants} usuarios en la plataforma</p>
-                        </div>
-                        <button onClick={loadAdminData} className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-500 transition-colors">
-                          <span className="material-symbols-outlined text-sm">refresh</span> Actualizar
-                        </button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                          <thead>
-                            <tr className="bg-slate-50/50">
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Empresa</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Plan</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Admin</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acciones</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-50">
-                            {adminData.tenants?.map((t: any) => (
-                              <tr key={t.id} className="hover:bg-slate-50/30 transition-colors">
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black ${t.isAdmin ? 'bg-gradient-to-br from-orange-500 to-amber-500' : 'bg-gradient-to-br from-indigo-500 to-blue-600'}`}>
-                                      {t.companyName?.charAt(0)?.toUpperCase() || 'U'}
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-bold text-primary">{t.companyName || 'Sin nombre'}</p>
-                                      <p className="text-[10px] text-slate-400">{t.ownerName || ''}</p>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-sm text-slate-500 font-medium">{t.email}</td>
-                                <td className="px-6 py-4 text-center">
-                                  {editingTenantId === t.id ? (
-                                    <select value={editingTenantPlan} onChange={e => setEditingTenantPlan(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-white">
-                                      <option value="trial">Trial</option>
-                                      <option value="start">Start</option>
-                                      <option value="advanced">Advanced</option>
-                                      <option value="plus">Plus</option>
-                                      <option value="master">Master</option>
-                                    </select>
-                                  ) : (
-                                    <span className={`px-3 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${t.plan === 'master' ? 'bg-orange-100 text-orange-700' : t.plan === 'plus' ? 'bg-emerald-100 text-emerald-700' : t.plan === 'advanced' ? 'bg-violet-100 text-violet-700' : t.plan === 'start' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{t.plan}</span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-4 text-center">
-                                  <span className={`w-2.5 h-2.5 rounded-full inline-block ${t.planStatus === 'active' ? 'bg-emerald-500' : 'bg-red-400'}`}></span>
-                                </td>
-                                <td className="px-6 py-4 text-center">
-                                  {t.isAdmin && <span className="material-symbols-outlined text-orange-500 text-lg">shield</span>}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    {editingTenantId === t.id ? (
-                                      <>
-                                        <button onClick={() => handleUpdateTenantPlan(t.id, editingTenantPlan)} disabled={adminActionLoading} className="px-3 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-600 transition-colors">Guardar</button>
-                                        <button onClick={() => setEditingTenantId(null)} className="px-3 py-1.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg hover:bg-slate-200 transition-colors">Cancelar</button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <button onClick={() => { setEditingTenantId(t.id); setEditingTenantPlan(t.plan); }} className="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-colors">Cambiar Plan</button>
-                                        {t.id !== tenantData?.id && (
-                                          <button onClick={() => handleToggleAdmin(t.id, !t.isAdmin)} className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${t.isAdmin ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                                            {t.isAdmin ? 'Quitar Admin' : 'Hacer Admin'}
-                                          </button>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* ===== ANNOUNCEMENTS SUB-TAB ===== */}
-                {adminTab === 'announcements' && (
-                  <div className="space-y-6">
-                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                      <div className="flex items-center justify-between mb-6">
-                        <div>
-                          <h3 className="text-lg font-extrabold text-primary">Anuncios del Sistema</h3>
-                          <p className="text-xs text-slate-400 mt-1">Los anuncios activos se muestran a todos los usuarios en su dashboard</p>
-                        </div>
-                        <button onClick={() => setShowAnnForm(!showAnnForm)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all">
-                          <span className="material-symbols-outlined text-sm">add</span>
-                          Nuevo Anuncio
-                        </button>
-                      </div>
-
-                      {showAnnForm && (
-                        <div className="p-6 bg-slate-50 rounded-xl mb-6 border border-slate-200/50">
-                          <div className="grid md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Título</label>
-                              <input value={newAnnTitle} onChange={e => setNewAnnTitle(e.target.value)} placeholder="Ej: Nueva función disponible" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Tipo</label>
-                              <select value={newAnnType} onChange={e => setNewAnnType(e.target.value as any)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500">
-                                <option value="info">i Información</option>
-                                <option value="update"> Actualización</option>
-                                <option value="warning">! Aviso Importante</option>
-                                <option value="promo"> Promoción</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="mb-4">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Mensaje</label>
-                            <textarea value={newAnnMessage} onChange={e => setNewAnnMessage(e.target.value)} placeholder="Escribe el contenido del anuncio..." rows={3} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" />
-                          </div>
-                          
-                          {/* Image Upload */}
-                          <div className="mb-4">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Imagen (opcional)</label>
-                            <input ref={annImageInputRef} type="file" accept="image/*" onChange={handleAnnImageSelect} className="hidden" />
-                            {annImagePreview ? (
-                              <div className="relative rounded-xl overflow-hidden border border-slate-200">
-                                <img src={annImagePreview} alt="Preview" className="w-full h-40 object-cover" />
-                                <button onClick={() => { setAnnImageFile(null); setAnnImagePreview(''); }} className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md">
-                                  <span className="material-symbols-outlined text-sm">close</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <button onClick={() => annImageInputRef.current?.click()} className="w-full p-6 border-2 border-dashed border-slate-200 rounded-xl hover:border-orange-400 hover:bg-orange-50/30 transition-all flex flex-col items-center gap-2 group">
-                                <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
-                                  <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500 transition-colors">add_photo_alternate</span>
-                                </div>
-                                <p className="text-xs font-bold text-slate-400 group-hover:text-orange-500 transition-colors">Haz clic para subir una imagen</p>
-                                <p className="text-[10px] text-slate-300">JPG, PNG, WebP o GIF -- Máx. 5MB</p>
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Button CTA */}
-                          <div className="grid md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Texto del Botón (opcional)</label>
-                              <input value={newAnnBtnText} onChange={e => setNewAnnBtnText(e.target.value)} placeholder="Ej: Ver más, Ir a la academia" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">URL del Botón (opcional)</label>
-                              <input value={newAnnBtnUrl} onChange={e => setNewAnnBtnUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
-                            </div>
-                          </div>
-
-                          <div className="flex justify-between items-center mt-2">
-                            <button onClick={handleImproveAnnouncement} disabled={annAiLoading || (!newAnnTitle.trim() && !newAnnMessage.trim())} className="px-4 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2">
-                              {annAiLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">auto_awesome</span>}
-                              Mejorar con IA
-                            </button>
-
-                            <div className="flex justify-end gap-3">
-                              <button onClick={() => { setShowAnnForm(false); setAnnImageFile(null); setAnnImagePreview(''); setNewAnnBtnText(''); setNewAnnBtnUrl(''); setAnnShowPreview(false); setAnnAiImproved(null); }} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">Cancelar</button>
-                              <button onClick={handleCreateAnnouncement} disabled={adminActionLoading || annImageUploading || !newAnnTitle.trim() || !newAnnMessage.trim()} className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2">
-                                {(adminActionLoading || annImageUploading) ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">send</span>}
-                                {annImageUploading ? 'Subiendo imagen...' : 'Publicar Anuncio'}
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* AI Preview Section */}
-                          {annShowPreview && annAiImproved && (
-                            <div className="mt-6 p-5 bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100 rounded-xl">
-                              <div className="flex items-center gap-2 mb-3">
-                                <span className="material-symbols-outlined text-violet-500 text-lg">auto_awesome</span>
-                                <h4 className="text-sm font-extrabold text-violet-700">Propuesta de IA</h4>
-                              </div>
-                              <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
-                                <p className="text-sm font-bold text-slate-800 mb-2">{annAiImproved.title}</p>
-                                <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">{annAiImproved.message}</p>
-                              </div>
-                              <div className="flex justify-end gap-2">
-                                <button onClick={() => { setAnnShowPreview(false); setAnnAiImproved(null); }} className="px-4 py-2 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-50 transition-all">
-                                  Descartar
-                                </button>
-                                <button onClick={handleApproveAiAnnouncement} className="px-4 py-2 bg-violet-600 text-white text-xs font-bold rounded-lg shadow hover:bg-violet-700 transition-all">
-                                  Aprobar y Usar
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="space-y-3">
-                        {adminData.announcements?.length === 0 ? (
-                          <div className="text-center py-12 text-slate-300">
-                            <span className="material-symbols-outlined text-5xl mb-3 block">campaign</span>
-                            <p className="text-sm font-bold">No hay anuncios creados</p>
-                            <p className="text-xs mt-1">Crea tu primer anuncio para comunicarte con todos los usuarios</p>
-                          </div>
-                        ) : (
-                          adminData.announcements?.map((ann: any) => {
-                            const typeConfig: Record<string, { icon: string; bg: string; text: string; badge: string }> = {
-                              info: { icon: 'info', bg: 'bg-blue-50', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-700' },
-                              update: { icon: 'new_releases', bg: 'bg-violet-50', text: 'text-violet-700', badge: 'bg-violet-100 text-violet-700' },
-                              warning: { icon: 'warning', bg: 'bg-red-50', text: 'text-red-700', badge: 'bg-red-100 text-red-700' },
-                              promo: { icon: 'celebration', bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
-                            };
-                            const cfg = typeConfig[ann.type] || typeConfig.info;
-                            return (
-                              <div key={ann.id} className={`p-5 rounded-xl border ${ann.is_active ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-60'} transition-all`}>
-                                {ann.image_url && (
-                                  <div className="mb-3 rounded-lg overflow-hidden h-32">
-                                    <img src={ann.image_url} alt={ann.title} className="w-full h-full object-cover" />
-                                  </div>
-                                )}
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex items-start gap-4 flex-1">
-                                    <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
-                                      <span className={`material-symbols-outlined ${cfg.text}`}>{cfg.icon}</span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <h4 className="text-sm font-extrabold text-primary">{ann.title}</h4>
-                                        <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md uppercase ${cfg.badge}`}>{ann.type}</span>
-                                        {!ann.is_active && <span className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-red-100 text-red-600 uppercase">Inactivo</span>}
-                                      </div>
-                                      <p className="text-xs text-slate-500 line-clamp-2">{ann.message}</p>
-                                      {ann.button_text && <p className="text-[10px] text-blue-500 mt-1 font-bold"> {ann.button_text}</p>}
-                                      <p className="text-[10px] text-slate-300 mt-2">{new Date(ann.created_at).toLocaleString()}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    <button onClick={() => handleToggleAnnouncement(ann.id, !ann.is_active)} className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${ann.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
-                                      {ann.is_active ? 'Desactivar' : 'Activar'}
-                                    </button>
-                                    <button onClick={() => handleDeleteAnnouncement(ann.id)} className="px-3 py-1.5 bg-red-50 text-red-500 text-[10px] font-bold rounded-lg hover:bg-red-100 transition-colors">
-                                      <span className="material-symbols-outlined text-sm">delete</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </motion.div>
-        )}
-
-
-      {/* ========== NEW SEGMENT MODAL ========== */}
-      {showNewSegmentModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => setShowNewSegmentModal(false)}>
-          <div className="bg-white rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-violet-600 rounded-2xl mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined text-white text-2xl">add_circle</span></div>
-              <h3 className="text-lg font-extrabold text-primary">{language === 'en' ? 'Create New Segment' : 'Crear Nuevo Segmento'}</h3>
-              <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Define custom classification rules for your audience' : 'Define reglas de clasificación personalizadas para tu audiencia'}</p>
-            </div>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Segment Name' : 'Nombre del Segmento'}</label>
-                <input value={newSegName} onChange={e => setNewSegName(e.target.value)} placeholder={language === 'en' ? 'e.g. VIP Customers' : 'ej. Clientes VIP'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Description' : 'Descripción'}</label>
-                <input value={newSegDescription} onChange={e => setNewSegDescription(e.target.value)} placeholder={language === 'en' ? 'Brief description...' : 'Breve descripción...'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Keywords (comma separated)' : 'Palabras Clave (separadas por coma)'}</label>
-                <input value={newSegKeywords} onChange={e => setNewSegKeywords(e.target.value)} placeholder={language === 'en' ? 'buy, price, deal' : 'comprar, precio, oferta'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}: {newSegConfidence}%</label>
-                <input type="range" min="50" max="100" value={newSegConfidence} onChange={e => setNewSegConfidence(Number(e.target.value))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-violet-500" />
-                <div className="flex justify-between text-[10px] text-slate-300 mt-1"><span>50%</span><span>100%</span></div>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowNewSegmentModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
-              <button onClick={handleCreateSegment} disabled={!newSegName.trim()} className="flex-1 py-3 bg-gradient-to-r from-violet-500 to-violet-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-violet-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50">
-                <span className="material-symbols-outlined text-sm">add</span>
-                {language === 'en' ? 'Create Segment' : 'Crear Segmento'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========== EXPORT REPORT MODAL ========== */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => setShowExportModal(false)}>
-          <div className="bg-white rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined text-white text-2xl">download</span></div>
-              <h3 className="text-lg font-extrabold text-primary">{language === 'en' ? 'Export Sales Report' : 'Exportar Reporte de Ventas'}</h3>
-              <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Select date range to export' : 'Selecciona el rango de fechas a exportar'}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'From' : 'Desde'}</label>
-                <input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'To' : 'Hasta'}</label>
-                <input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all" />
-              </div>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4 mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-slate-500">{language === 'en' ? 'Days in range' : 'Días en el rango'}</span>
-                <span className="text-sm font-black text-primary">{Math.max(0, Math.ceil((new Date(exportEndDate).getTime() - new Date(exportStartDate).getTime()) / 86400000) + 1)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500">{language === 'en' ? 'Format' : 'Formato'}</span>
-                <span className="text-sm font-black text-emerald-600">CSV (Excel)</span>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowExportModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
-              <button onClick={handleExportExcel} className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                <span className="material-symbols-outlined text-sm">download</span>
-                {language === 'en' ? 'Download Excel' : 'Descargar Excel'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========== GLOBAL BULK MESSAGING MODAL ========== */}
       {showBulkPanel && (
@@ -6626,7 +4677,7 @@ export default function PanelClient() {
                                 </div>
                                 <div className="text-right">
                                   <p className="text-[9px] text-slate-400">{alert.time}</p>
-                                  <p className="text-[8px] text-primary font-medium opacity-0 group-hover/item:opacity-100 transition-opacity">{language === 'es' ? 'Ir al chat ' : 'Go to chat '}</p>
+                                  <p className="text-[8px] text-primary font-medium opacity-0 group-hover/item:opacity-100 transition-opacity">{language === 'es' ? 'Ir al chat â†’' : 'Go to chat â†’'}</p>
                                 </div>
                               </div>
                             ))}
@@ -6700,7 +4751,7 @@ export default function PanelClient() {
                       <button 
                         onClick={async () => {
                           const newPaused = !isHumanMode;
-                          const resPatch = await authFetch('/api/panel/pause', {
+                          const resPatch = await fetch('/api/panel/pause', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ conversationId: selectedChat.id, paused: newPaused }),
@@ -6739,7 +4790,7 @@ export default function PanelClient() {
                           if (isEditingContact) {
                             // Save logic
                             setIsSaving(true);
-                            const res = await authFetch('/api/panel/conversations', {
+                            const res = await fetch('/api/panel/conversations', {
                               method: 'PATCH',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ id: selectedChat.id, name: editName, phone_number: editPhone }),
@@ -6896,7 +4947,7 @@ export default function PanelClient() {
                           <p className="text-sm font-bold text-primary-container">{totalMsgs > 0 ? Math.round((userMsgs / totalMsgs) * 100) : 0}%</p>
                         </div>
                         <div className="bg-white p-3 rounded-lg col-span-2">
-                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</p>
+                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Last Activity' : 'Ãšltima Actividad'}</p>
                           <p className="text-sm font-bold text-primary-container">{lastTime} <span className="text-slate-400 font-normal text-[10px]">({lastActivity})</span></p>
                         </div>
                       </div>
@@ -7099,7 +5150,7 @@ export default function PanelClient() {
                           onClick={async () => {
                             if (!isHumanMode) {
                               // First pause AI
-                              const resPause = await authFetch('/api/panel/pause', {
+                              const resPause = await fetch('/api/panel/pause', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ conversationId: selectedChat.id, paused: true }),
@@ -7110,7 +5161,7 @@ export default function PanelClient() {
                             const formData = new FormData();
                             formData.append('conversationId', selectedChat.id);
                             formData.append('message', note.text);
-                            await authFetch('/api/panel/send-message', { method: 'POST', body: formData });
+                            await fetch('/api/panel/send-message', { method: 'POST', body: formData });
                           }}
                         >
                           <span className="material-symbols-outlined text-primary-container text-sm mt-0.5 opacity-0 group-hover/note:opacity-100 transition-opacity">send</span>
@@ -7261,7 +5312,7 @@ export default function PanelClient() {
                           onClick={async () => {
                             setIsGeneratingEmail(true);
                             try {
-                              const res = await authFetch('/api/panel/generate-email', {
+                              const res = await fetch('/api/panel/generate-email', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
@@ -7323,120 +5374,6 @@ export default function PanelClient() {
       </AnimatePresence>,
       document.body
     )}
-
-    {/* ========== ANNOUNCEMENT POPUP MODAL ========== */}
-    {showAnnouncementPopup && platformAnnouncements.length > 0 && (() => {
-      const ann = platformAnnouncements[currentPopupAnnIndex];
-      if (!ann) return null;
-      return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center px-4" onClick={dismissAnnouncementPopup}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85, y: 30 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.85, y: 30 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-          className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden relative"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Close button */}
-          <button onClick={dismissAnnouncementPopup} className="absolute top-4 right-4 z-20 w-8 h-8 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-white transition-all shadow-sm">
-            <span className="material-symbols-outlined text-lg">close</span>
-          </button>
-          
-          {/* Image */}
-          {ann.image_url ? (
-            <div className="relative w-full h-[260px]">
-              <img src={ann.image_url} alt={ann.title} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/30" />
-            </div>
-          ) : (
-            <div className="relative w-full h-[160px] bg-gradient-to-br from-primary-container via-blue-600 to-indigo-700 flex items-center justify-center">
-              <span className="material-symbols-outlined text-white/20 text-[100px]">campaign</span>
-              <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent" />
-            </div>
-          )}
-          
-          {/* Carousel controls if multiple announcements */}
-          {platformAnnouncements.length > 1 && (
-            <div className="absolute top-1/2 -translate-y-1/2 left-4 right-4 flex justify-between z-20 pointer-events-none">
-              <button 
-                onClick={(e) => { e.stopPropagation(); setCurrentPopupAnnIndex((prev) => (prev > 0 ? prev - 1 : platformAnnouncements.length - 1)); }}
-                className="w-10 h-10 rounded-full bg-white/50 backdrop-blur text-slate-900 flex items-center justify-center hover:bg-white transition-colors shadow-lg pointer-events-auto"
-              >
-                <span className="material-symbols-outlined">chevron_left</span>
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); setCurrentPopupAnnIndex((prev) => (prev < platformAnnouncements.length - 1 ? prev + 1 : 0)); }}
-                className="w-10 h-10 rounded-full bg-white/50 backdrop-blur text-slate-900 flex items-center justify-center hover:bg-white transition-colors shadow-lg pointer-events-auto"
-              >
-                <span className="material-symbols-outlined">chevron_right</span>
-              </button>
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="p-8 -mt-4 relative z-10">
-            <div className="flex items-center justify-between gap-2 mb-3">
-              {(() => {
-                const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
-                  info: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Información' },
-                  update: { bg: 'bg-violet-100', text: 'text-violet-700', label: 'Actualización' },
-                  warning: { bg: 'bg-red-100', text: 'text-red-700', label: 'Aviso Importante' },
-                  promo: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Promoción' },
-                };
-                const ts = typeStyles[ann.type] || typeStyles.info;
-                return <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-wider ${ts.bg} ${ts.text}`}>{ts.label}</span>;
-              })()}
-              
-              {/* Dots */}
-              {platformAnnouncements.length > 1 && (
-                <div className="flex gap-1.5">
-                  {platformAnnouncements.map((_, idx) => (
-                    <div key={idx} className={`w-2 h-2 rounded-full ${idx === currentPopupAnnIndex ? 'bg-primary-container' : 'bg-slate-200'}`} />
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <h3 className="text-2xl font-black text-slate-900 mb-3 leading-tight">{ann.title}</h3>
-            <p className="text-slate-600 text-sm leading-relaxed mb-6">{ann.message}</p>
-            
-            <div className="flex gap-3">
-              {ann.button_text ? (
-                <>
-                  <button 
-                    onClick={() => { if (ann.button_url) window.open(ann.button_url, '_blank'); dismissAnnouncementPopup(); }}
-                    className="flex-1 py-3 bg-gradient-to-r from-primary-container to-blue-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-blue-500/20"
-                  >
-                    {ann.button_text}
-                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </button>
-                  <button onClick={dismissAnnouncementPopup} className="px-6 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
-                    Cerrar
-                  </button>
-                </>
-              ) : (
-                <button onClick={dismissAnnouncementPopup} className="w-full py-3 bg-gradient-to-r from-primary-container to-blue-600 text-white rounded-xl font-bold text-sm hover:opacity-90 transition-all shadow-lg shadow-blue-500/20">
-                  Entendido
-                </button>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      </div>
-      );
-    })()}
-
-    {/* Lemon Squeezy Checkout Overlay Script */}
-    <Script
-      src="https://app.lemonsqueezy.com/js/lemon.js"
-      strategy="lazyOnload"
-      onLoad={() => {
-        if (typeof window !== 'undefined' && (window as any).createLemonSqueezy) {
-          (window as any).createLemonSqueezy();
-        }
-      }}
-    />
 
     </>
   );
