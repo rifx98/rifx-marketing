@@ -352,16 +352,42 @@ export default function PanelClient() {
       const hasRef = !!campaignImagePreview;
       const hasProd = !!productImagePreview;
 
-      // ===== STEP 1: BACKGROUND =====
+      // ===== STEP 1: BACKGROUND (Together AI → referencia → gradiente) =====
+      let aiImageLoaded = false;
+
+      // Intentar generar fondo con Together AI (FLUX)
+      if (!hasRef) {
+        try {
+          const product = campaignTitle || campaignDesc || 'marketing digital';
+          const aiPrompt = `Professional advertising banner background for "${product}", high-end commercial photography, studio lighting, clean modern design, premium brand aesthetic, vibrant colors, no text, no letters, no words, no watermark, 4k quality`;
+          
+          const aiRes = await fetch('/api/panel/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: aiPrompt, width: 1024, height: 1024 }),
+          });
+          const aiData = await aiRes.json();
+          
+          if (aiData.success && aiData.image) {
+            const aiImg = await loadImage(aiData.image);
+            ctx.drawImage(aiImg, 0, 0, 1080, 1080);
+            aiImageLoaded = true;
+            console.log('✅ Fondo generado con Together AI (FLUX)');
+          }
+        } catch(e) {
+          console.warn('Together AI no disponible, usando fallback:', e);
+        }
+      }
+
       if (hasRef) {
-        // Use reference banner as background (stretched to fill)
+        // Use reference banner as background
         const refImg = await loadImage(campaignImagePreview!);
         const scale = Math.max(1080 / refImg.width, 1080 / refImg.height);
         const w = refImg.width * scale;
         const h = refImg.height * scale;
         ctx.drawImage(refImg, (1080 - w) / 2, (1080 - h) / 2, w, h);
-      } else {
-        // Premium gradient background when no reference
+      } else if (!aiImageLoaded) {
+        // Fallback: Premium gradient background
         const g1 = ctx.createLinearGradient(0, 0, 1080, 1080);
         g1.addColorStop(0, '#0a1628');
         g1.addColorStop(0.3, '#0d2137');
@@ -376,7 +402,6 @@ export default function PanelClient() {
           ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
         });
         ctx.globalAlpha = 1;
-        // Diagonal light streaks
         ctx.save();
         ctx.globalAlpha = 0.03;
         ctx.fillStyle = '#ffffff';
@@ -390,10 +415,11 @@ export default function PanelClient() {
       }
 
       // ===== STEP 2: OVERLAY FOR TEXT READABILITY =====
+      const hasImage = hasRef || aiImageLoaded;
       // Left-side dark gradient
       const leftOverlay = ctx.createLinearGradient(0, 0, 700, 0);
-      leftOverlay.addColorStop(0, hasRef ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.3)');
-      leftOverlay.addColorStop(0.5, hasRef ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.1)');
+      leftOverlay.addColorStop(0, hasImage ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.3)');
+      leftOverlay.addColorStop(0.5, hasImage ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.1)');
       leftOverlay.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = leftOverlay;
       ctx.fillRect(0, 0, 1080, 1080);
