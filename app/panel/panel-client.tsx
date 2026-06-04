@@ -7737,7 +7737,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       setBotPreviewInput('');
                       setIsTestingAi(true);
                       try {
-                        const res = await authFetch('/api/panel/test-ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg, history: botPreviewMessages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })), botName, botRole, botTone, temperature: botTemperature, humanHandoff: botHumanHandoff, profanityFilter: botProfanityFilter, topicLocks: botTopicLocks }) });
+                        const res = await authFetch('/api/panel/test-ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg, history: botPreviewMessages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })), botName, botRole, botTone, temperature: botTemperature, humanHandoff: botHumanHandoff, profanityFilter: botProfanityFilter, topicLocks: botTopicLocks, model: botModelSelected }) });
                         const data = await res.json();
                         if (data.response) {
                           const respTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

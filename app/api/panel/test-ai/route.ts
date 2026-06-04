@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
       humanHandoff = true,
       profanityFilter = true,
       topicLocks = false,
+      model = '',
     } = await req.json();
 
     const supabase = createSupabaseAdmin();
@@ -51,23 +52,51 @@ export async function POST(req: NextRequest) {
     const basePrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
     
     // Decode AI key from JSON-encoded openai_key column
-    let groqKey = '';
+    let extConfig = { openai_key: '', gemini_key: '', groq_key: '', anthropic_key: '', model_selection: 'gpt-4o' };
     try {
       const parsed = JSON.parse(config?.openai_key || '{}');
-      groqKey = parsed.groq_key || parsed.openai_key || '';
+      extConfig = { ...extConfig, ...parsed };
     } catch {
-      groqKey = config?.openai_key || '';
-    }
-    if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';
-
-    if (!groqKey) {
-      return NextResponse.json({ error: 'No se encontró API key de IA. Configúrala en Configuraciones.' }, { status: 500 });
+      extConfig.openai_key = config?.openai_key || '';
     }
 
-    const groq = new OpenAI({
-      apiKey: groqKey,
-      baseURL: 'https://api.groq.com/openai/v1',
-    });
+    // Resolve model to use
+    let selectedModel = model;
+    if (!selectedModel) {
+      selectedModel = extConfig.model_selection || 'gpt-4o';
+    }
+
+    let targetModel = selectedModel;
+    if (targetModel === 'llama-3.3-70b') {
+      targetModel = 'llama-3.3-70b-versatile';
+    } else if (targetModel === 'mixtral-8x7b') {
+      targetModel = 'mixtral-8x7b-32768';
+    } else if (targetModel === 'llama-3.1-405b') {
+      targetModel = 'llama-3.1-405b-reasoning';
+    }
+
+    const isGroq = targetModel.startsWith('llama') || targetModel.startsWith('mixtral');
+    const isGemini = targetModel.startsWith('gemini');
+    const isAnthropic = targetModel.startsWith('claude');
+    const isOpenAI = !isGroq && !isGemini && !isAnthropic;
+
+    // Resolve API key based on provider
+    let apiKey = '';
+    if (isGroq) apiKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
+    else if (isGemini) apiKey = extConfig.gemini_key || process.env.GEMINI_API_KEY || '';
+    else if (isAnthropic) apiKey = extConfig.anthropic_key || process.env.ANTHROPIC_API_KEY || '';
+    else apiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
+
+    if (!apiKey) {
+      if (isGroq) apiKey = process.env.GROQ_API_KEY || '';
+      else if (isGemini) apiKey = process.env.GEMINI_API_KEY || '';
+      else if (isAnthropic) apiKey = process.env.ANTHROPIC_API_KEY || '';
+      else apiKey = process.env.OPENAI_API_KEY || '';
+    }
+
+    if (!apiKey || apiKey.length < 10) {
+      return NextResponse.json({ error: `No se encontró API key de IA para el proveedor de ${selectedModel}. Configúrala en Configuraciones.` }, { status: 500 });
+    }
 
     // === Build dynamic system prompt from playground settings ===
     const parts: string[] = [];
@@ -151,14 +180,56 @@ export async function POST(req: NextRequest) {
     // Use temperature from playground settings
     const safeTemp = Math.max(0, Math.min(2, Number(temperature) || 0.7));
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: chatMessages,
-      max_tokens: 500,
-      temperature: safeTemp,
-    });
-
-    const aiContent = completion.choices[0]?.message?.content || '';
+    let aiContent = '';
+    if (isGemini) {
+      // Google Gemini via REST API
+      const geminiMessages = chatMessages.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.role === 'system' ? `[System Instructions]: ${m.content}` : m.content }],
+      }));
+      const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: geminiMessages, generationConfig: { maxOutputTokens: 500, temperature: safeTemp } }),
+      });
+      const gemData = await gemRes.json();
+      aiContent = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else if (isAnthropic) {
+      // Anthropic Claude via REST API
+      const anthRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: targetModel === 'claude-sonnet-4' ? 'claude-3-5-sonnet-20241022' : 'claude-3-5-haiku-20241022',
+          max_tokens: 500,
+          temperature: safeTemp,
+          system: systemPrompt,
+          messages: history.map((h: any) => ({
+            role: h.role === 'assistant' ? 'assistant' : 'user',
+            content: h.content
+          })).concat([{ role: 'user', content: message }])
+        })
+      });
+      const anthData = await anthRes.json();
+      aiContent = anthData?.content?.[0]?.text || '';
+    } else {
+      // OpenAI / Groq (both use OpenAI SDK)
+      const client = new OpenAI({
+        apiKey,
+        baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
+      });
+      const completion = await client.chat.completions.create({
+        model: targetModel,
+        messages: chatMessages,
+        max_tokens: 500,
+        temperature: safeTemp,
+      });
+      aiContent = completion.choices[0]?.message?.content || '';
+    }
     
     // Intentar extraer el JSON del final
     let classification = { classification: "Indeciso", confidence: 0.5, next_action: "continue_chat" };
