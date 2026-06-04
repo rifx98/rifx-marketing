@@ -10,6 +10,8 @@ export interface TenantPayload {
   email: string;
   plan: string;
   isAdmin: boolean;
+  adminRole?: string;
+  adminCanEditPlans?: boolean;
 }
 
 // Sign a JWT token for a tenant

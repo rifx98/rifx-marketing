@@ -34,9 +34,39 @@ export async function POST() {
       `
     });
 
-    // Si RPC no existe, usar método directo con SQL
-    // Intentar crear las tablas de forma individual usando insert/select
-    
+    // Crear tabla templates para las Plantillas Dinámicas
+    const { error: errTemplates } = await supabase.rpc('exec_sql', {
+      query: `
+        CREATE TABLE IF NOT EXISTS templates (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          tenant_id TEXT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL DEFAULT 'general',
+          preview_image_url TEXT,
+          config_json JSONB NOT NULL,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- Habilitar RLS
+        ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
+
+        -- Crear política de acceso para service_role si no existe
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies 
+            WHERE tablename = 'templates' AND policyname = 'Service role full access on templates'
+          ) THEN
+            CREATE POLICY "Service role full access on templates" ON templates
+              FOR ALL USING (true) WITH CHECK (true);
+          END IF;
+        END
+        $$;
+      `
+    });
+
     // Verificar si las tablas ya existen intentando hacer un select
     const { error: checkErr } = await supabase.from('ad_campaigns').select('id').limit(1);
     
@@ -60,14 +90,16 @@ export async function POST() {
     // Las tablas existen, verificar las otras
     const { error: checkErr2 } = await supabase.from('ad_creatives').select('id').limit(1);
     const { error: checkErr3 } = await supabase.from('ad_analytics').select('id').limit(1);
+    const { error: checkErrTemplates } = await supabase.from('templates').select('id').limit(1);
 
     const tablesStatus = {
       ad_campaigns: !checkErr ? '✅ Lista' : '❌ Falta',
       ad_creatives: !checkErr2 ? '✅ Lista' : '❌ Falta',
       ad_analytics: !checkErr3 ? '✅ Lista' : '❌ Falta',
+      templates: !checkErrTemplates ? '✅ Lista' : '❌ Falta',
     };
 
-    const allReady = !checkErr && !checkErr2 && !checkErr3;
+    const allReady = !checkErr && !checkErr2 && !checkErr3 && !checkErrTemplates;
 
     return NextResponse.json({
       success: allReady,
@@ -86,7 +118,7 @@ export async function GET() {
   try {
     const supabase = createSupabaseAdmin();
 
-    const tables = ['ad_campaigns', 'ad_creatives', 'ad_analytics'];
+    const tables = ['ad_campaigns', 'ad_creatives', 'ad_analytics', 'templates'];
     const status: Record<string, string> = {};
 
     for (const table of tables) {

@@ -1,0 +1,806 @@
+[
+  {
+    "step_index": 73,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Fixes two issues: (1) The payment modal now renders via createPortal so it's not trapped by overflow/transform ancestors, making the Cancel button always visible. (2) Adds a \\\"Cancelar Plan\\\" button and confirmation modal for users with an active paid plan.\"",
+      "Instruction": "\"1. Add showCancelPlanConfirm state. 2. Add handleCancelPlan function after handleUpgradePlan. 3. Add cancel plan button in billing header. 4. Convert plan confirm modal to createPortal. 5. Add cancel plan confirmation modal via createPortal.\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":722,\"ReplacementContent\":\"  const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);\\n  const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);\\n  const [isCancellingPlan, setIsCancellingPlan] = useState(false);\",\"StartLine\":722,\"TargetContent\":\"  const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);\"},{\"AllowMultiple\":false,\"EndLine\":1624,\"ReplacementContent\":\"  };\\n\\n  const handleCancelPlan = async () => {\\n    setIsCancellingPlan(true);\\n    try {\\n      const res = await authFetch('/api/panel/cancel-subscription', {\\n        method: 'POST',\\n        headers: { 'Content-Type': 'application/json' },\\n      });\\n      const data = await res.json();\\n      if (res.ok && data.success) {\\n        setCurrentPlan('trial');\\n        setTenantData((prev: any) => prev ? { ...prev, plan: 'trial' } : prev);\\n        setShowCancelPlanConfirm(false);\\n        setToast({ message: language === 'en' ? '✅ Subscription cancelled. Your plan has been downgraded to Trial.' : '✅ Suscripción cancelada. Tu plan ha sido degradado a Trial.', type: 'success' });\\n      } else {\\n        setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });\\n      }\\n    } catch (e) {\\n      console.error(e);\\n      setToast({ message: language === 'en' ? 'Error connecting to server' : 'Error al conectar con el servidor', type: 'error' });\\n    } finally {\\n      setIsCancellingPlan(false);\\n    }\\n  };\\n\\n  // === PAYMENT SUCCESS HANDLER ===\",\"StartLine\":1624,\"TargetContent\":\"  };\\n\\n  // === PAYMENT SUCCESS HANDLER ===\"},{\"AllowMultiple\":false,\"EndLine\":8982,\"ReplacementContent\":\"            {/* Header */}\\n            <div className=\\\"flex items-center justify-between\\\">\\n              <div>\\n                <h2 className=\\\"text-xl font-extrabold text-primary\\\">{language === 'en' ? 'Plans & Billing' : 'Planes y Pagos'}\n<truncated 11687 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Editing panel-client.tsx\"",
+      "toolSummary": "\"Adding cancel plan and fixing payment modal\""
+    }
+  },
+  {
+    "step_index": 88,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Routes cancel plan to the existing /api/panel/subscription endpoint with action: cancel_subscription instead of a separate endpoint\"",
+      "EndLine": "1651",
+      "Instruction": "\"Fix handleCancelPlan to call the correct endpoint /api/panel/subscription with action cancel_subscription\"",
+      "ReplacementContent": "\"  const handleCancelPlan = async () => {\\n    setIsCancellingPlan(true);\\n    try {\\n      const res = await authFetch('/api/panel/subscription', {\\n        method: 'POST',\\n        headers: { 'Content-Type': 'application/json' },\\n        body: JSON.stringify({ action: 'cancel_subscription' }),\\n      });\"",
+      "StartLine": "1624",
+      "TargetContent": "\"  const handleCancelPlan = async () => {\\n    setIsCancellingPlan(true);\\n    try {\\n      const res = await authFetch('/api/panel/cancel-subscription', {\\n        method: 'POST',\\n        headers: { 'Content-Type': 'application/json' },\\n      });\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Fixing cancel plan API endpoint URL\"",
+      "toolSummary": "\"Fixing cancel plan API call\""
+    }
+  },
+  {
+    "step_index": 112,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Adds a settingsSection state to control which settings panel is active in the new tabbed settings layout.\"",
+      "EndLine": "724",
+      "Instruction": "\"Add settingsSection state after showPlanConfirm state\"",
+      "ReplacementContent": "\"  const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);\\n  const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);\\n  const [isCancellingPlan, setIsCancellingPlan] = useState(false);\\n  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security'>('profile');\"",
+      "StartLine": "722",
+      "TargetContent": "\"  const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);\\n  const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);\\n  const [isCancellingPlan, setIsCancellingPlan] = useState(false);\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding settingsSection state\"",
+      "toolSummary": "\"Adding settings navigation state\""
+    }
+  },
+  {
+    "step_index": 114,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Complete premium redesign of the Settings section using a two-column layout: left nav sidebar with grouped categories + right content panel. This is the same pattern used by Vercel, Linear, and other premium SaaS products. Each section (Profile, AI Provider, WhatsApp, Notifications, Meta Ads, Memory, Security) is isolated in its own clean card with proper typography hierarchy, icons, and spacing.\"",
+      "EndLine": "6416",
+      "Instruction": "\"Replace the entire settings section with a premium two-column settings layout: left nav sidebar + right content area, exactly like Vercel/Linear settings pages\"",
+      "ReplacementContent": "\"        {activeTab === 'settings' && (\\n          <motion.div\\n            key=\\\"settings\\\"\\n            initial={{ opacity: 0, scale: 0.98 }}\\n            animate={{ opacity: 1, scale: 1 }}\\n            exit={{ opacity: 0, scale: 0.98 }}\\n            className=\\\"pb-32\\\"\\n          >\\n            {/* Page Header */}\\n            <header className=\\\"mb-8\\\">\\n              <h2 className=\\\"text-3xl font-extrabold text-[#0b1c30] tracking-tight\\\">\\n                {language === 'en' ? 'Settings' : 'Configuración'}\\n              </h2>\\n              <p className=\\\"text-slate-400 mt-1 text-sm font-medium\\\">\\n                {language === 'en' ? 'Manage your account, integrations and preferences.' : 'Administra tu cuenta, integraciones y preferencias.'}\\n              </p>\\n            </header>\\n\\n            {/* Two-column layout */}\\n            <div className=\\\"flex gap-8 items-start\\\">\\n\\n              {/* ── LEFT NAV SIDEBAR ── */}\\n              <aside className=\\\"w-56 shrink-0 sticky top-8 space-y-1\\\">\\n                {[\\n                  { key: 'profile',       icon: 'manage_accounts', label: language === 'en' ? 'Profile' : 'Perfil' },\\n                  { key: 'ai',            icon: 'smart_toy',        label: language === 'en' ? 'AI Provider' : 'Proveedor IA' },\\n                  { key: 'whatsapp',      icon: 'chat',             label: 'WhatsApp API' },\\n                  { key: 'notifications', icon: 'notifications',    label: language === 'en' ? 'Notifications' : 'Notificaciones' },\\n                  { key: 'meta',          icon: 'campaign',         label: 'Meta Ads' },\\n                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                ].map(item => (\\n                  <button\\n                    key={item.key}\\n                    onClick={() => setSettingsSection(item.key as any)}\\n                  \n<truncated 48080 bytes>",
+      "StartLine": "5535",
+      "TargetContent": "\"        {activeTab === 'settings' && (\\n          <motion.div\\n            key=\\\"settings\\\"\\n            initial={{ opacity: 0, scale: 0.98 }}\\n            animate={{ opacity: 1, scale: 1 }}\\n            exit={{ opacity: 0, scale: 0.98 }}\\n            className=\\\"space-y-10\\\"\\n          >\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Replacing settings section with premium layout\"",
+      "toolSummary": "\"Redesigning settings section\""
+    }
+  },
+  {
+    "step_index": 125,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Removes the old duplicated settings section code that was left over after the replacement. The new premium two-column layout is already in place above.\"",
+      "EndLine": "6959",
+      "Instruction": "\"Remove the old settings section code (duplicate leftover after replacement)\"",
+      "ReplacementContent": "\"\\n\"",
+      "StartLine": "6086",
+      "TargetContent": "\"            {/* Header Section */}\\n            <header className=\\\"mb-12\\\">\\n              <h2 className=\\\"text-4xl font-extrabold font-headline text-primary tracking-tight\\\">\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Removing old settings duplicate code\"",
+      "toolSummary": "\"Deleting old settings section\""
+    }
+  },
+  {
+    "step_index": 147,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Hides the left navigation sidebar with a slide-out transition and removes the ml-64 offset on the main content area when Settings is active, giving the settings page full-width layout. Both changes use CSS transitions for a smooth animation.\"",
+      "Instruction": "\"Hide the sidebar and remove margin-left from main when activeTab is settings, with smooth CSS transitions\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":4185,\"ReplacementContent\":\"      <aside className={`fixed left-0 top-0 h-screen w-64 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-4 gap-8 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\",\"StartLine\":4185,\"TargetContent\":\"      <aside className=\\\"fixed left-0 top-0 h-screen w-64 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-4 gap-8 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50\\\">\"},{\"AllowMultiple\":false,\"EndLine\":4373,\"ReplacementContent\":\"      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-64'}`}>\",\"StartLine\":4373,\"TargetContent\":\"      <main className=\\\"ml-64 pt-24 pb-12 px-10 relative overflow-y-auto h-screen\\\">\"}]",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding sidebar hide on settings\"",
+      "toolSummary": "\"Hiding sidebar in settings view\""
+    }
+  },
+  {
+    "step_index": 183,
+    "name": "multi_replace_file_content",
+    "args": {
+      "ArtifactMetadata": "{\"ArtifactType\":\"walkthrough\",\"Summary\":\"Hides sidebar and adjusts header/lockout overlay when the settings tab is open, giving a full-screen layout, and adds back buttons to exit settings easily.\"}",
+      "Description": "\"Hides the left navigation sidebar and adjusts the header and plan lockout overlay when Settings is active, giving the settings page a full-width premium dashboard layout. Adds intuitive 'Back to Dashboard' buttons to the top header and settings sidebar.\"",
+      "Instruction": "\"Hide main sidebar in settings, adjust header/lockout width offsets, and add Back to Dashboard buttons in settings sidebar and header\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":4280,\"ReplacementContent\":\"      {/* TopAppBar */}\\n      <header className={`fixed top-0 right-0 ${activeTab === 'settings' ? 'left-0' : 'left-64'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>\\n        <div className=\\\"flex items-center gap-4 flex-1\\\">\\n          {activeTab === 'settings' && (\\n            <button\\n              onClick={() => safeSetActiveTab('dashboard')}\\n              className=\\\"mr-4 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#000080] bg-white border border-[#000080]/15 hover:bg-[#000080]/5 hover:scale-[0.98] transition-all shadow-sm\\\"\\n            >\\n              <span className=\\\"material-symbols-outlined text-sm font-bold\\\">arrow_back</span>\\n              {language === 'en' ? 'Back to Dashboard' : 'Volver al Panel'}\\n            </button>\\n          )}\\n          <div className=\\\"relative w-full max-w-md\\\">\",\"StartLine\":4276,\"TargetContent\":\"      {/* TopAppBar */}\\n      <header className=\\\"fixed top-0 right-0 left-64 flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40\\\">\\n        <div className=\\\"flex items-center gap-4 flex-1\\\">\\n          <div className=\\\"relative w-full max-w-md\\\">\"},{\"AllowMultiple\":false,\"EndLine\":4383,\"ReplacementContent\":\"            className={`fixed inset-0 ${activeTab === 'settings' ? 'ml-0' : 'ml-64'} pt-16 z-30 flex items-center justify-center transition-all duration-300`}\",\"StartLine\":4380,\"TargetContent\":\"            className=\\\"fixed inset-0 ml-64 pt-16 z-30 flex items-center justify-center\\\"\"},{\"AllowMultiple\":false,\"EndLine\":5560,\"ReplacementContent\":\"            <div className=\\\"flex gap-8 items-start\\\">\\n\\n              {/* ── LEFT NAV SIDEBAR ── */}\\n              <aside className=\\\"w-56 shrink-0 sticky top-8 space-y-1\\\">\\n                {/* Back button at the top of settings sidebar */}\\n                <button\\n                  onClick={() => safeSetActiveTab('da\n<truncated 723 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding back buttons and hiding sidebar on settings page\"",
+      "toolSummary": "\"Edit panel-client.tsx for settings navigation\""
+    }
+  },
+  {
+    "step_index": 193,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Removes the redundant 'Back to Dashboard' button from the top app bar (above Configuración) as requested by the user, keeping only the one in the settings sidebar.\"",
+      "EndLine": "4289",
+      "Instruction": "\"Remove the header back-to-dashboard button on the settings tab\"",
+      "ReplacementContent": "\"\"",
+      "StartLine": "4279",
+      "TargetContent": "\"          {activeTab === 'settings' && (\\n            <button\\n              onClick={() => safeSetActiveTab('dashboard')}\\n              className=\\\"mr-4 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-[#000080] bg-white border border-[#000080]/15 hover:bg-[#000080]/5 hover:scale-[0.98] transition-all shadow-sm\\\"\\n            >\\n              <span className=\\\"material-symbols-outlined text-sm font-bold\\\">arrow_back</span>\\n              {language === 'en' ? 'Back to Dashboard' : 'Volver al Panel'}\\n            </button>\\n          )}\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Removing header back button from settings view\"",
+      "toolSummary": "\"Remove top header back button\""
+    }
+  },
+  {
+    "step_index": 344,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Adds the Dropi configurations menu and section to the settings interface, and includes the new fields in the config save payload.\"",
+      "Instruction": "\"Add Dropi dropshipping section to the settings screen layout and config save payload\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":5575,\"ReplacementContent\":\"                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                  { key: 'dropi',         icon: 'local_shipping',   label: 'Dropi Dropshipping' },\\n                ].map(item => (\",\"StartLine\":5571,\"TargetContent\":\"                  {key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                ].map(item => (\"},{\"AllowMultiple\":false,\"EndLine\":6092,\"ReplacementContent\":\"                      {passwordSuccess && <p className=\\\"text-[10px] font-black text-emerald-600 uppercase tracking-widest\\\">{language === 'en' ? '✓ Password updated successfully!' : '✓ ¡Contraseña actualizada con éxito!'}</p>}\\n                    </div>\\n                  </div>\\n                )}\\n\\n                {/* ════ DROPI INTEGRATION ════ */}\\n                {settingsSection === 'dropi' && (\\n                  <div className=\\\"space-y-6\\\">\\n                    <div>\\n                      <h3 className=\\\"text-base font-extrabold text-[#0b1c30]\\\">{language === 'en' ? 'Dropi Dropshipping Integration' : 'Integración de Dropshipping con Dropi'}</h3>\\n                      <p className=\\\"text-xs text-slate-400 mt-0.5\\\">{language === 'en' ? 'Configure your dropshipping credentials to automate orders from the chatbot.' : 'Configura tus credenciales de dropshipping para automatizar pedidos desde el chatbot.'}</p>\\n                    </div>\\n\\n                    <div className=\\\"bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5\\\">\\n                      <div className=\\\"flex items-center justify-between pb-4 border-b border-slate-50\\\">\\n                        <div classN\n<truncated 7576 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding Dropi sections to frontend settings UI\"",
+      "toolSummary": "\"Edit panel-client.tsx for Dropi UI\""
+    }
+  },
+  {
+    "step_index": 346,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Adds the Dropi configurations menu and section to the settings interface, and includes the new fields in the config save payload.\"",
+      "Instruction": "\"Add Dropi dropshipping section to the settings screen layout and config save payload\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":5575,\"ReplacementContent\":\"                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                  { key: 'dropi',         icon: 'local_shipping',   label: 'Dropi Dropshipping' },\\n                ].map(item => (\",\"StartLine\":5571,\"TargetContent\":\"                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                ].map(item => (\"},{\"AllowMultiple\":false,\"EndLine\":6092,\"ReplacementContent\":\"                      {passwordSuccess && <p className=\\\"text-[10px] font-black text-emerald-600 uppercase tracking-widest\\\">{language === 'en' ? '✓ Password updated successfully!' : '✓ ¡Contraseña actualizada con éxito!'}</p>}\\n                    </div>\\n                  </div>\\n                )}\\n\\n                {/* ════ DROPI INTEGRATION ════ */}\\n                {settingsSection === 'dropi' && (\\n                  <div className=\\\"space-y-6\\\">\\n                    <div>\\n                      <h3 className=\\\"text-base font-extrabold text-[#0b1c30]\\\">{language === 'en' ? 'Dropi Dropshipping Integration' : 'Integración de Dropshipping con Dropi'}</h3>\\n                      <p className=\\\"text-xs text-slate-400 mt-0.5\\\">{language === 'en' ? 'Configure your dropshipping credentials to automate orders from the chatbot.' : 'Configura tus credenciales de dropshipping para automatizar pedidos desde el chatbot.'}</p>\\n                    </div>\\n\\n                    <div className=\\\"bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5\\\">\\n                      <div className=\\\"flex items-center justify-between pb-4 border-b border-slate-50\\\">\\n                        <div class\n<truncated 7577 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Re-applying frontend modifications for Dropi settings\"",
+      "toolSummary": "\"Edit panel-client.tsx Dropi frontend\""
+    }
+  },
+  {
+    "step_index": 394,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Redesigns the left navigation sidebar to be collapsed (icon-only) with animated tooltips, adjusts offsets for top header, main content canvas, and lockout overlay, and simplifies the logo rendering.\"",
+      "Instruction": "\"Collapse navigation sidebar, add tooltips, and update layout offsets from 64 to 20\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":4279,\"ReplacementContent\":\"      {/* SideNavBar */}\\n      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-2 gap-8 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex justify-center px-2\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg\\\">\\n            <span className=\\\"material-symbols-outlined\\\">psychology</span>\\n          </div>\\n        </div>\\n        \\n        {/* Expired Plan Sidebar Warning */}\\n        {isPlanExpired && (\\n          <button\\n            className=\\\"relative group w-12 h-12 mx-auto rounded-xl bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg shadow-red-500/20 transition-all active:scale-[0.98]\\\"\\n            onClick={() => safeSetActiveTab('billing')}\\n          >\\n            <span className=\\\"material-symbols-outlined text-lg animate-pulse text-white\\\">warning</span>\\n            \\n            {/* Tooltip */}\\n            <div className=\\\"absolute left-full ml-4 px-3 py-1.5 bg-red-950 text-white text-xs font-bold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap z-[60] shadow-lg transform translate-x-2 group-hover:translate-x-0\\\">\\n              {language === 'en' ? 'Plan Expired! Click to renew' : '¡Plan Expirado! Click para renovar'}\\n            </div>\\n          </button>\\n        )}\\n        \\n        <nav className=\\\"flex-1 flex flex-col gap-2.5\\\">\\n          {[\\n            { key: 'dashboard',  icon: 'dashboard',                 label: language === 'en' ? 'Dashboard' : 'Panel Principal' },\\n            { key: 'crm',        icon: 'group',                     label: language === 'en' ? 'Users' : 'Usuarios', isFill: true },\\n            { key: 'settings',   icon: 'settings',                 \n<truncated 15185 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Applying collapsed navigation sidebar and tooltips layout changes\"",
+      "toolSummary": "\"Edit panel-client.tsx collapsed sidebar\""
+    }
+  },
+  {
+    "step_index": 505,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Fix syntax error by closing the conditional check, and restore the sidebar navigation items with tooltips and lock badges.\"",
+      "EndLine": "4207",
+      "Instruction": "\"Replace the sidebar Aside layout with the complete list of icon-only navigation buttons, tooltips, lock badges, and a collapsed logout button.\"",
+      "ReplacementContent": "\"      {/* SideNavBar */}\\n      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex justify-center px-2 mb-2\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg\\\">\\n            <span className=\\\"material-symbols-outlined\\\">psychology</span>\\n          </div>\\n        </div>\\n        \\n        <nav className=\\\"flex-1 flex flex-col gap-3 items-center overflow-y-auto no-scrollbar py-2\\\">\\n          {[\\n            { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },\\n            { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },\\n            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },\\n            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },\\n            { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },\\n            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },\\n            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },\\n            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },\\n            { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },\\n            ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])\\n          ].map(item => {\\n            const isActive = activeTab === item.key;\\n            const isLocked = isTabLocked(item.key);\\n            return (\\n              <button\\n                key={item.key}\\n                onClick={() => safeSetActiveTab(item.key a\n<truncated 2599 bytes>",
+      "StartLine": "4188",
+      "TargetContent": "\"      {/* SideNavBar */}\\n      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-2 gap-8 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex justify-center px-2\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg\\\">\\n            <span className=\\\"material-symbols-outlined\\\">psychology</span>\\n          </div>\\n        </div>\\n        \\n        {/* Expired Plan Sidebar Warning */}\\n        {isPlanExpired && (\\n        <div className=\\\"mt-auto flex flex-col gap-4\\\">\\n          <div className=\\\"pt-4 border-t border-slate-200/50 flex flex-col gap-1\\\">\\n            <button onClick={handleLogout} className=\\\"flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-error transition-colors text-sm w-full text-left\\\">\\n              <span className=\\\"material-symbols-outlined text-lg\\\">logout</span>\\n              {language === 'en' ? 'Logout' : 'Cerrar Sesión'}\\n            </button>\\n          </div>\\n        </div>\\n      </aside>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Modifying sidebar navigation\"",
+      "toolSummary": "\"Updating sidebar in panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 511,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Remove the redundant back button from above configurations in the settings sidebar, and add an elegant back button to the main settings page header next to the title.\"",
+      "EndLine": "5546",
+      "Instruction": "\"Remove the back button from the settings sidebar and place a back button in the settings section header next to the title.\"",
+      "ReplacementContent": "\"            {/* Page Header */}\\n            <header className=\\\"mb-8 flex items-center gap-4\\\">\\n              <button \\n                onClick={() => safeSetActiveTab('dashboard')}\\n                className=\\\"p-2.5 hover:bg-slate-100 active:scale-95 rounded-full transition-all flex items-center justify-center border border-slate-200 bg-white shadow-sm\\\"\\n                title={language === 'en' ? 'Back to Dashboard' : 'Volver al Panel'}\\n              >\\n                <span className=\\\"material-symbols-outlined text-[#000080] text-xl\\\">arrow_back</span>\\n              </button>\\n              <div>\\n                <h2 className=\\\"text-3xl font-extrabold text-[#0b1c30] tracking-tight\\\">\\n                  {language === 'en' ? 'Settings' : 'Configuración'}\\n                </h2>\\n                <p className=\\\"text-slate-400 mt-0.5 text-sm font-medium\\\">\\n                  {language === 'en' ? 'Manage your account, integrations and preferences.' : 'Administra tu cuenta, integraciones y preferencias.'}\\n                </p>\\n              </div>\\n            </header>\\n\\n            {/* Two-column layout */}\\n            <div className=\\\"flex gap-8 items-start\\\">\\n\\n              {/* ── LEFT NAV SIDEBAR ── */}\\n              <aside className=\\\"w-56 shrink-0 sticky top-8 space-y-1\\\">\"",
+      "StartLine": "5523",
+      "TargetContent": "\"            {/* Page Header */}\\n            <header className=\\\"mb-8\\\">\\n              <h2 className=\\\"text-3xl font-extrabold text-[#0b1c30] tracking-tight\\\">\\n                {language === 'en' ? 'Settings' : 'Configuración'}\\n              </h2>\\n              <p className=\\\"text-slate-400 mt-1 text-sm font-medium\\\">\\n                {language === 'en' ? 'Manage your account, integrations and preferences.' : 'Administra tu cuenta, integraciones y preferencias.'}\\n              </p>\\n            </header>\\n\\n            {/* Two-column layout */}\\n            <div className=\\\"flex gap-8 items-start\\\">\\n\\n              {/* ── LEFT NAV SIDEBAR ── */}\\n              <aside className=\\\"w-56 shrink-0 sticky top-8 space-y-1\\\">\\n                {/* Back button at the top of settings sidebar */}\\n                <button\\n                  onClick={() => safeSetActiveTab('dashboard')}\\n                  className=\\\"w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold text-[#000080] bg-white border border-[#000080]/10 hover:bg-[#000080]/5 hover:scale-[0.98] transition-all shadow-sm mb-4\\\"\\n                >\\n                  <span className=\\\"material-symbols-outlined text-[18px]\\\">arrow_back</span>\\n                  {language === 'en' ? 'Back to Dashboard' : 'Volver al Panel'}\\n                </button>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Removing redundant settings back button\"",
+      "toolSummary": "\"Updating settings header and removing duplicate back button\""
+    }
+  },
+  {
+    "step_index": 566,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add 'dropi' to the settingsSection state type union definition to allow comparing or setting this value in settings.\"",
+      "EndLine": "726",
+      "Instruction": "\"Add 'dropi' to the settingsSection state type union.\"",
+      "ReplacementContent": "\"  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi'>('profile');\"",
+      "StartLine": "724",
+      "TargetContent": "\"  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security'>('profile');\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Updating settingsSection union types\"",
+      "toolSummary": "\"Adding dropi type to settingsSection\""
+    }
+  },
+  {
+    "step_index": 858,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Declare settingsSection union extension and the API Setup Assistant states.\"",
+      "EndLine": "726",
+      "Instruction": "\"Replace the settingsSection declaration with an extended version and declare helper flow, step, messages, input, and scroll ref.\"",
+      "ReplacementContent": "\"  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper'>('profile');\\n\\n  // API Setup Assistant State\\n  const [apiHelperFlow, setApiHelperFlow] = useState<'idle' | 'whatsapp' | 'meta'>('idle');\\n  const [apiHelperStep, setApiHelperStep] = useState<number>(0);\\n  const [apiHelperMessages, setApiHelperMessages] = useState<any[]>([\\n    {\\n      sender: 'agent',\\n      text: '¡Hola! Soy tu Asistente de Configuración de APIs de RIFX. Estoy aquí para guiarte paso a paso en la conexión de tus servicios de forma fácil y sin errores.\\\\n\\\\n¿Qué API deseas configurar hoy? Selecciona una de las opciones de abajo.',\\n      timestamp: new Date(),\\n      chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']\\n    }\\n  ]);\\n  const [apiHelperInput, setApiHelperInput] = useState('');\\n  const apiHelperChatEndRef = React.useRef<HTMLDivElement>(null);\\n\\n  React.useEffect(() => {\\n    if (settingsSection === 'api_helper') {\\n      apiHelperChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });\\n    }\\n  }, [apiHelperMessages, settingsSection]);\"",
+      "StartLine": "724",
+      "TargetContent": "\"  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi'>('profile');\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Declaring API setup assistant states\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 864,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add the handleSendApiHelperMessage chatbot handler inside PanelClient.\"",
+      "EndLine": "747",
+      "Instruction": "\"Insert handleSendApiHelperMessage after the useEffect for scrollIntoView.\"",
+      "ReplacementContent": "\"  React.useEffect(() => {\\n    if (settingsSection === 'api_helper') {\\n      apiHelperChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });\\n    }\\n  }, [apiHelperMessages, settingsSection]);\\n\\n  const handleSendApiHelperMessage = (textToSend?: string) => {\\n    const text = (textToSend || apiHelperInput).trim();\\n    if (!text) return;\\n\\n    setApiHelperMessages(prev => [...prev, { sender: 'user', text, timestamp: new Date() }]);\\n    if (!textToSend) setApiHelperInput('');\\n\\n    setTimeout(() => {\\n      let replyText = '';\\n      let nextChips: string[] = [];\\n      let newFlow = apiHelperFlow;\\n      let newStep = apiHelperStep;\\n\\n      const lowerText = text.toLowerCase();\\n      let isQuestion = false;\\n\\n      const faqKeywords = [\\n        {\\n          keys: ['token permanente', 'usuario del sistema', 'system user', 'token de acceso permanente', 'usuario de sistema', 'por qué expira', 'por que expira'],\\n          reply: 'Un **token de acceso permanente** (System User Token) es una credencial de seguridad de tiempo ilimitado generada a nombre de un \\\"Usuario del Sistema\\\" en Meta Business Suite. A diferencia del token temporal de prueba (que caduca en 24 horas y desconecta tu bot), el token permanente nunca expira.\\\\n\\\\n**¿Cómo se crea?**\\\\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ Ve a **Usuarios** > **Usuarios del sistema**.\\\\n3️⃣ Haz clic en **Agregar** para crear un nuevo usuario y asígnale el rol de **Administrador**.\\\\n4️⃣ Selecciónalo, haz clic en **Generar nuevo token**, asocia tu App de Meta y marca los permisos necesarios (como `whatsapp_business_messaging`).\\\\n5️⃣ Copia el token generado y guárdalo.'\\n        },\\n        {\\n          keys: ['webhook', 'callback', 'devolución', 'verificación', 'messages', 'webhooks'],\\n          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. Para configurarlo:\\\\n\\\\n1️⃣ Entra \n<truncated 24327 bytes>",
+      "StartLine": "746",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding API setup assistant handler function\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 866,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add handleSendApiHelperMessage chatbot handler inside PanelClient.\"",
+      "EndLine": "747",
+      "Instruction": "\"Insert handleSendApiHelperMessage after the settingsSection scroll useEffect.\"",
+      "ReplacementContent": "\"  React.useEffect(() => {\\n    if (settingsSection === 'api_helper') {\\n      apiHelperChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });\\n    }\\n  }, [apiHelperMessages, settingsSection]);\\n\\n  const handleSendApiHelperMessage = (textToSend?: string) => {\\n    const text = (textToSend || apiHelperInput).trim();\\n    if (!text) return;\\n\\n    setApiHelperMessages(prev => [...prev, { sender: 'user', text, timestamp: new Date() }]);\\n    if (!textToSend) setApiHelperInput('');\\n\\n    setTimeout(() => {\\n      let replyText = '';\\n      let nextChips: string[] = [];\\n      let newFlow = apiHelperFlow;\\n      let newStep = apiHelperStep;\\n\\n      const lowerText = text.toLowerCase();\\n      let isQuestion = false;\\n\\n      const faqKeywords = [\\n        {\\n          keys: ['token permanente', 'usuario del sistema', 'system user', 'token de acceso permanente', 'usuario de sistema', 'por qué expira', 'por que expira'],\\n          reply: 'Un **token de acceso permanente** (System User Token) es una credencial de seguridad de tiempo ilimitado generada a nombre de un \\\"Usuario del Sistema\\\" en Meta Business Suite. A diferencia del token temporal de prueba (que caduca en 24 horas y desconecta tu bot), el token permanente nunca expira.\\\\n\\\\n**¿Cómo se crea?**\\\\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ Ve a **Usuarios** > **Usuarios del sistema**.\\\\n3️⃣ Haz clic en **Agregar** para crear un nuevo usuario y asígnale el rol de **Administrador**.\\\\n4️⃣ Selecciónalo, haz clic en **Generar nuevo token**, asocia tu App de Meta y marca los permisos necesarios (como `whatsapp_business_messaging`).\\\\n5️⃣ Copia el token generado y guárdalo.'\\n        },\\n        {\\n          keys: ['webhook', 'callback', 'devolución', 'verificación', 'messages', 'webhooks'],\\n          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. Para configurarlo:\\\\n\\\\n1️⃣ Entra \n<truncated 24351 bytes>",
+      "StartLine": "741",
+      "TargetContent": "\"  React.useEffect(() => {\\n    if (settingsSection === 'api_helper') {\\n      apiHelperChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });\\n    }\\n  }, [apiHelperMessages, settingsSection]);\\n\\n  // Campaigns State\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding API helper function to app/panel/panel-client.tsx\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 872,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Insert \\\"Asistente de APIs\\\" into the settings sidebar list.\"",
+      "EndLine": "5556",
+      "Instruction": "\"Add api_helper item to settings tabs list.\"",
+      "ReplacementContent": "\"                  { key: 'profile',       icon: 'manage_accounts', label: language === 'en' ? 'Profile' : 'Perfil' },\\n                  { key: 'api_helper',    icon: 'support_agent',    label: language === 'en' ? 'API Assistant' : 'Asistente de APIs' },\\n                  { key: 'ai',            icon: 'smart_toy',        label: language === 'en' ? 'AI Provider' : 'Proveedor IA' },\\n                  { key: 'whatsapp',      icon: 'chat',             label: 'WhatsApp API' },\\n                  { key: 'notifications', icon: 'notifications',    label: language === 'en' ? 'Notifications' : 'Notificaciones' },\\n                  { key: 'meta',          icon: 'campaign',         label: 'Meta Ads' },\\n                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                  { key: 'dropi',         icon: 'local_shipping',   label: 'Dropi Dropshipping' },\"",
+      "StartLine": "5548",
+      "TargetContent": "\"                  { key: 'profile',       icon: 'manage_accounts', label: language === 'en' ? 'Profile' : 'Perfil' },\\n                  { key: 'ai',            icon: 'smart_toy',        label: language === 'en' ? 'AI Provider' : 'Proveedor IA' },\\n                  { key: 'whatsapp',      icon: 'chat',             label: 'WhatsApp API' },\\n                  { key: 'notifications', icon: 'notifications',    label: language === 'en' ? 'Notifications' : 'Notificaciones' },\\n                  { key: 'meta',          icon: 'campaign',         label: 'Meta Ads' },\\n                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },\\n                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },\\n                  { key: 'dropi',         icon: 'local_shipping',   label: 'Dropi Dropshipping' },\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding API Helper tab to configuration sidebar\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 880,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add renderApiHelperMessageText helper function.\"",
+      "EndLine": "747",
+      "Instruction": "\"Add renderApiHelperMessageText right before handleSendApiHelperMessage.\"",
+      "ReplacementContent": "\"  const renderApiHelperMessageText = (text: string) => {\\n    if (!text) return null;\\n    const lines = text.split('\\\\n');\\n    return lines.map((line, idx) => {\\n      let content: React.ReactNode[] = [];\\n      let currentLine = line;\\n      let key = 0;\\n      while (currentLine.length > 0) {\\n        const boldMatch = currentLine.match(/\\\\*\\\\*(.*?)\\\\*\\\\*/);\\n        const linkMatch = currentLine.match(/\\\\[(.*?)\\\\]\\\\((.*?)\\\\)/);\\n\\n        if (boldMatch && (!linkMatch || boldMatch.index! < linkMatch.index!)) {\\n          const pre = currentLine.substring(0, boldMatch.index);\\n          const boldText = boldMatch[1];\\n          if (pre) content.push(<span key={key++}>{pre}</span>);\\n          content.push(<strong key={key++} className=\\\"font-extrabold text-slate-100\\\">{boldText}</strong>);\\n          currentLine = currentLine.substring(boldMatch.index! + boldMatch[0].length);\\n        } else if (linkMatch) {\\n          const pre = currentLine.substring(0, linkMatch.index);\\n          const linkText = linkMatch[1];\\n          const linkUrl = linkMatch[2];\\n          if (pre) content.push(<span key={key++}>{pre}</span>);\\n          content.push(\\n            <a\\n              key={key++}\\n              href={linkUrl}\\n              target=\\\"_blank\\\"\\n              rel=\\\"noopener noreferrer\\\"\\n              className=\\\"text-amber-400 hover:text-amber-300 font-bold underline transition-colors\\\"\\n            >\\n              {linkText}\\n            </a>\\n          );\\n          currentLine = currentLine.substring(linkMatch.index! + linkMatch[0].length);\\n        } else {\\n          content.push(<span key={key++}>{currentLine}</span>);\\n          break;\\n        }\\n      }\\n      return <p key={idx} className=\\\"min-h-[1em] leading-relaxed\\\">{content}</p>;\\n    });\\n  };\\n\\n  const handleSendApiHelperMessage = (textToSend?: string) => {\"",
+      "StartLine": "746",
+      "TargetContent": "\"  const handleSendApiHelperMessage = (textToSend?: string) => {\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding markdown renderer helper for API Assistant chat bubbles\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 886,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add rendering code for settingsSection === 'api_helper' (API Setup Assistant chat layout).\"",
+      "EndLine": "5981",
+      "Instruction": "\"Insert settingsSection === 'api_helper' block before profile settings block.\"",
+      "ReplacementContent": "\"                {/* ════ API ASSISTANT ════ */}\\n                {settingsSection === 'api_helper' && (\\n                  <div className=\\\"space-y-6 animate-fadeIn\\\">\\n                    <div>\\n                      <h3 className=\\\"text-base font-extrabold text-[#0b1c30]\\\">{language === 'en' ? 'API Setup Assistant' : 'Asistente de Configuración de APIs'}</h3>\\n                      <p className=\\\"text-xs text-slate-400 mt-0.5\\\">{language === 'en' ? 'Configure WhatsApp and Meta Ads step-by-step with conversational guidance.' : 'Configura WhatsApp y Meta Ads paso a paso con ayuda e indicaciones conversacionales.'}</p>\\n                    </div>\\n\\n                    <div className=\\\"grid grid-cols-1 lg:grid-cols-12 gap-6 items-start\\\">\\n                      {/* Left: Chat Area */}\\n                      <div className=\\\"col-span-12 lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col h-[600px]\\\">\\n                        {/* Messages container */}\\n                        <div className=\\\"flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-800\\\">\\n                          {apiHelperMessages.map((msg, index) => (\\n                            <div\\n                              key={index}\\n                              className={`flex flex-col ${\\n                                msg.sender === 'user' ? 'items-end' : 'items-start'\\n                              }`}\\n                            >\\n                              <div\\n                                className={`p-4 rounded-2xl max-w-[85%] text-xs shadow-md space-y-2 ${\\n                                  msg.sender === 'user'\\n                                    ? 'bg-gradient-to-r from-[#0058bc] to-[#054ADA] text-white rounded-tr-none'\\n                                    : 'bg-slate-800 text-slate-300 border border-slate-700/50 rounded-tl-none'\\n                                }`}\\n                              >\\n                                {msg.sender === 'agent\n<truncated 9487 bytes>",
+      "StartLine": "5979",
+      "TargetContent": "\"                {/* ════ PROFILE ════ */}\\n                {settingsSection === 'profile' && (\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding API Helper view to configuration screen\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 903,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Fix implicit any parameters for configData callback updates and chip rendering map parameters.\"",
+      "Instruction": "\"Add explicit types to prevent implicit any errors.\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":924,\"ReplacementContent\":\"              setConfigData((prev: any) => ({ ...prev, whatsapp_phone_id: cleanId }));\",\"StartLine\":922,\"TargetContent\":\"              setConfigData(prev => ({ ...prev, whatsapp_phone_id: cleanId }));\"},{\"AllowMultiple\":false,\"EndLine\":942,\"ReplacementContent\":\"              setConfigData((prev: any) => ({ ...prev, whatsapp_token: text }));\",\"StartLine\":940,\"TargetContent\":\"              setConfigData(prev => ({ ...prev, whatsapp_token: text }));\"},{\"AllowMultiple\":false,\"EndLine\":1027,\"ReplacementContent\":\"              setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));\",\"StartLine\":1025,\"TargetContent\":\"              setConfigData(prev => ({ ...prev, facebook_access_token: text }));\"},{\"AllowMultiple\":false,\"EndLine\":1047,\"ReplacementContent\":\"              setConfigData((prev: any) => ({ ...prev, facebook_ad_account_id: formatted }));\",\"StartLine\":1045,\"TargetContent\":\"              setConfigData(prev => ({ ...prev, facebook_ad_account_id: formatted }));\"},{\"AllowMultiple\":false,\"EndLine\":1066,\"ReplacementContent\":\"              setConfigData((prev: any) => ({ ...prev, facebook_page_id: cleanPageId }));\",\"StartLine\":1064,\"TargetContent\":\"              setConfigData(prev => ({ ...prev, facebook_page_id: cleanPageId }));\"},{\"AllowMultiple\":false,\"EndLine\":6017,\"ReplacementContent\":\"                                  {msg.chips.map((chip: string, chipIdx: number) => (\",\"StartLine\":6015,\"TargetContent\":\"                                  {msg.chips.map((chip, chipIdx) => (\"}]",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Fixing TypeScript compiler errors in panel-client.tsx\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 946,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add image parsing support to renderApiHelperMessageText to display UI screenshots inside chat bubbles.\"",
+      "EndLine": "788",
+      "Instruction": "\"Replace renderApiHelperMessageText function with one that detects markdown image tags.\"",
+      "ReplacementContent": "\"  const renderApiHelperMessageText = (text: string) => {\\n    if (!text) return null;\\n    const lines = text.split('\\\\n');\\n    return lines.map((line, idx) => {\\n      let content: React.ReactNode[] = [];\\n      let currentLine = line;\\n      let key = 0;\\n      while (currentLine.length > 0) {\\n        const imgMatch = currentLine.match(/!\\\\[(.*?)\\\\]\\\\((.*?)\\\\)/);\\n        const boldMatch = currentLine.match(/\\\\*\\\\*(.*?)\\\\*\\\\*/);\\n        const linkMatch = currentLine.match(/\\\\[(.*?)\\\\]\\\\((.*?)\\\\)/);\\n\\n        if (imgMatch && (!boldMatch || imgMatch.index! < boldMatch.index!) && (!linkMatch || imgMatch.index! < linkMatch.index!)) {\\n          const pre = currentLine.substring(0, imgMatch.index);\\n          const altText = imgMatch[1];\\n          const imgUrl = imgMatch[2];\\n          if (pre) content.push(<span key={key++}>{pre}</span>);\\n          content.push(\\n            <div key={key++} className=\\\"my-2 select-none group/img\\\">\\n              <img\\n                src={imgUrl}\\n                alt={altText}\\n                className=\\\"rounded-xl border border-slate-700 max-w-full shadow-lg transition-transform duration-200 group-hover/img:scale-[1.02] cursor-zoom-in\\\"\\n                onClick={() => window.open(imgUrl, '_blank')}\\n              />\\n              <span className=\\\"block text-[10px] text-slate-500 text-center mt-1 font-medium\\\">{altText}</span>\\n            </div>\\n          );\\n          currentLine = currentLine.substring(imgMatch.index! + imgMatch[0].length);\\n        } else if (boldMatch && (!linkMatch || boldMatch.index! < linkMatch.index!)) {\\n          const pre = currentLine.substring(0, boldMatch.index);\\n          const boldText = boldMatch[1];\\n          if (pre) content.push(<span key={key++}>{pre}</span>);\\n          content.push(<strong key={key++} className=\\\"font-extrabold text-slate-100\\\">{boldText}</strong>);\\n          currentLine = currentLine.substring(boldMatch.index! + boldMatch[0].length);\\n        } else if (linkMatch) {\\n          const pre = currentLine.substri\n<truncated 835 bytes>",
+      "StartLine": "747",
+      "TargetContent": "\"  const renderApiHelperMessageText = (text: string) => {\\n    if (!text) return null;\\n    const lines = text.split('\\\\n');\\n    return lines.map((line, idx) => {\\n      let content: React.ReactNode[] = [];\\n      let currentLine = line;\\n      let key = 0;\\n      while (currentLine.length > 0) {\\n        const boldMatch = currentLine.match(/\\\\*\\\\*(.*?)\\\\*\\\\*/);\\n        const linkMatch = currentLine.match(/\\\\[(.*?)\\\\]\\\\((.*?)\\\\)/);\\n\\n        if (boldMatch && (!linkMatch || boldMatch.index! < linkMatch.index!)) {\\n          const pre = currentLine.substring(0, boldMatch.index);\\n          const boldText = boldMatch[1];\\n          if (pre) content.push(<span key={key++}>{pre}</span>);\\n          content.push(<strong key={key++} className=\\\"font-extrabold text-slate-100\\\">{boldText}</strong>);\\n          currentLine = currentLine.substring(boldMatch.index! + boldMatch[0].length);\\n        } else if (linkMatch) {\\n          const pre = currentLine.substring(0, linkMatch.index);\\n          const linkText = linkMatch[1];\\n          const linkUrl = linkMatch[2];\\n          if (pre) content.push(<span key={key++}>{pre}</span>);\\n          content.push(\\n            <a\\n              key={key++}\\n              href={linkUrl}\\n              target=\\\"_blank\\\"\\n              rel=\\\"noopener noreferrer\\\"\\n              className=\\\"text-amber-400 hover:text-amber-300 font-bold underline transition-colors\\\"\\n            >\\n              {linkText}\\n            </a>\\n          );\\n          currentLine = currentLine.substring(linkMatch.index! + linkMatch[0].length);\\n        } else {\\n          content.push(<span key={key++}>{currentLine}</span>);\\n          break;\\n        }\\n      }\\n      return <p key={idx} className=\\\"min-h-[1em] leading-relaxed\\\">{content}</p>;\\n    });\\n  };\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding markdown image tags parser to renderApiHelperMessageText\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 956,
+    "name": "multi_replace_file_content",
+    "args": {
+      "Description": "\"Insert markdown image tags in conversational setup responses for step-by-step guidance.\"",
+      "Instruction": "\"Add UI mockup image links in the API setup assistant step definitions.\"",
+      "ReplacementChunks": "[{\"AllowMultiple\":false,\"EndLine\":917,\"ReplacementContent\":\"            replyText = '**Paso 1: Crear una Aplicación en Meta**\\\\n\\\\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión con tu cuenta de Facebook.\\\\n2️⃣ Ve a la sección **Mis apps** (arriba a la derecha) y pulsa **Crear app**.\\\\n3️⃣ En el tipo de app, selecciona **Otro** y pulsa Siguiente.\\\\n4️⃣ Selecciona el caso de uso **Negocios** (Business) y pulsa Siguiente.\\\\n5️⃣ Escribe un nombre para mostrar (ej: *RIFX Bot*), tu correo de contacto e indica tu cuenta comercial de Business Manager. Luego haz clic en **Crear app**.\\\\n\\\\n![Paso 1: Crear App en Meta](/images/setup/meta_create_app.png)\\\\n\\\\n¿Terminaste de crear la aplicación en Meta?';\",\"StartLine\":915,\"TargetContent\":\"            replyText = '**Paso 1: Crear una Aplicación en Meta**\\\\n\\\\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión con tu cuenta de Facebook.\\\\n2️⃣ Ve a la sección **Mis apps** (arriba a la derecha) y pulsa **Crear app**.\\\\n3️⃣ En el tipo de app, selecciona **Otro** y pulsa Siguiente.\\\\n4️⃣ Selecciona el caso de uso **Negocios** (Business) y pulsa Siguiente.\\\\n5️⃣ Escribe un nombre para mostrar (ej: *RIFX Bot*), tu correo de contacto e indica tu cuenta comercial de Business Manager. Luego haz clic en **Crear app**.\\\\n\\\\n¿Terminaste de crear la aplicación en Meta?';\"},{\"AllowMultiple\":false,\"EndLine\":932,\"ReplacementContent\":\"          replyText = '**Paso 2: Agregar el Producto WhatsApp**\\\\n\\\\n1️⃣ Dentro del panel de tu App de Meta recién creada, desplázate por el panel central o ve a la barra lateral izquierda y entra a **Agregar productos**.\\\\n2️⃣ Busca **WhatsApp** y haz clic en el botón **Configurar**.\\\\n3️⃣ Selecciona tu cuenta comercial (Business Manager) si te lo solicita y haz clic en **Continuar**.\\\\n\\\\n![Paso 2: Agregar WhatsApp](/images/setup/meta_add_whatsapp.png)\\\\n\\\\nEsto habilitará la plataforma de WhatsApp en tu aplicación de Meta.\\\\\n<truncated 7283 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding markdown image syntax to setup assistant text replies\"",
+      "toolSummary": "\"Edit panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1060,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update WhatsApp step 3 flow in panel-client.tsx to incorporate the new custom dashboard screenshot with the red selection arrow.\"",
+      "EndLine": "936",
+      "Instruction": "\"Update Paso 3 step instructions to mention clicking on the WhatsApp use case row in the dashboard, and display the newly created meta_add_whatsapp_dashboard.png screenshot.\"",
+      "ReplacementContent": "\"        } else if (newStep === 2) {\\n          newStep = 3;\\n          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\\\\n\\\\n1️⃣ En el panel de tu App de Meta, en la sección **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**.\\\\n\\\\n![Paso 3: Ir a Configuración](/images/setup/meta_add_whatsapp_dashboard.png)\\\\n\\\\n2️⃣ Una vez dentro, en el menú lateral izquierdo, despliega la sección **WhatsApp** y haz clic en **Primeros pasos** (o *Getting Started*).\\\\n3️⃣ Busca la sección \\\"Envía y recibe mensajes\\\" y copia el **ID de número de teléfono** (Phone Number ID), un número de 15 dígitos.\\\\n\\\\n![Paso 3: Phone Number ID](/images/setup/meta_phone_id.png)\\\\n\\\\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente en tu configuración:';\\n          nextChips = ['Omitir este paso', 'Volver al inicio'];\"",
+      "StartLine": "933",
+      "TargetContent": "\"        } else if (newStep === 2) {\\n          newStep = 3;\\n          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\\\\n\\\\n1️⃣ En la barra izquierda de tu App de Meta, despliega la sección **WhatsApp** y haz clic en **Primeros pasos** (o *Getting Started*).\\\\n2️⃣ En el panel derecho verás la sección de pruebas. Busca el campo llamado **ID de número de teléfono** (Phone Number ID), el cual es un número largo de 15 dígitos.\\\\n\\\\n![Paso 3: Phone Number ID](/images/setup/meta_phone_id.png)\\\\n\\\\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente en tu configuración:';\\n          nextChips = ['Omitir este paso', 'Volver al inicio'];\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Updating setup step 3 chat instructions\"",
+      "toolSummary": "\"Update setup step 3\""
+    }
+  },
+  {
+    "step_index": 1110,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Clear the chat history when returning to the home screen (Volver al inicio) to prevent memory bloat and keep the conversation clean.\"",
+      "EndLine": "891",
+      "Instruction": "\"Replace setApiHelperMessages appending logic with a direct override that resets the message array with a single cancellation/greeting message, clearing all past messages.\"",
+      "ReplacementContent": "\"      if (lowerText.includes('volver al inicio') || lowerText.includes('inicio') || (text === 'Atrás' && apiHelperStep === 0)) {\\n        newFlow = 'idle';\\n        newStep = 0;\\n        replyText = 'Entendido. He cancelado el proceso actual y limpiado la conversación.\\\\n\\\\n¿Qué API deseas configurar ahora? Selecciona una de las opciones de abajo.';\\n        nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];\\n        setApiHelperFlow(newFlow);\\n        setApiHelperStep(newStep);\\n        setApiHelperMessages([\\n          {\\n            sender: 'agent',\\n            text: replyText,\\n            timestamp: new Date(),\\n            chips: nextChips\\n          }\\n        ]);\\n        return;\\n      }\"",
+      "StartLine": "877",
+      "TargetContent": "\"      if (lowerText.includes('volver al inicio') || lowerText.includes('inicio') || (text === 'Atrás' && apiHelperStep === 0)) {\\n        newFlow = 'idle';\\n        newStep = 0;\\n        replyText = 'Entendido. He cancelado el proceso actual. ¿Qué API deseas configurar ahora?';\\n        nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];\\n        setApiHelperFlow(newFlow);\\n        setApiHelperStep(newStep);\\n        setApiHelperMessages(prev => [...prev, {\\n          sender: 'agent',\\n          text: replyText,\\n          timestamp: new Date(),\\n          chips: nextChips\\n        }]);\\n        return;\\n      }\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Modifying Volver al inicio logic to clear conversation history\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1135,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add step 2 (Configuración de la API sidebar navigation) to the Paso 3 instructions, rendering the new sidebar selection screenshot.\"",
+      "EndLine": "938",
+      "Instruction": "\"Update Paso 3 instructions to add a clear step showing where to click in the left sidebar menu (Configuración de la API) with its corresponding image.\"",
+      "ReplacementContent": "\"        } else if (newStep === 2) {\\n          newStep = 3;\\n          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\\\\n\\\\n1️⃣ En el panel principal de tu App de Meta, bajo **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**:\\\\n\\\\n![1. Abrir Configuración de WhatsApp](/images/setup/meta_add_whatsapp_dashboard.png)\\\\n\\\\n2️⃣ En el menú lateral izquierdo, bajo la sección de WhatsApp, haz clic en **Configuración de la API** (o *Inicio rápido*):\\\\n\\\\n![2. Ir a Configuración de la API](/images/setup/meta_api_settings_click.png)\\\\n\\\\n3️⃣ En el panel derecho, busca la sección \\\"Envía y recibe mensajes\\\" y copia el **Identificador de número de teléfono** (Phone Number ID):\\\\n\\\\n![3. Copiar ID de Teléfono](/images/setup/meta_phone_id.png)\\\\n\\\\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente:';\\n          nextChips = ['Omitir este paso', 'Volver al inicio'];\"",
+      "StartLine": "935",
+      "TargetContent": "\"        } else if (newStep === 2) {\\n          newStep = 3;\\n          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\\\\n\\\\n1️⃣ En el panel de tu App de Meta, en la sección **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**.\\\\n\\\\n![Paso 3: Ir a Configuración](/images/setup/meta_add_whatsapp_dashboard.png)\\\\n\\\\n2️⃣ Una vez dentro, en el menú lateral izquierdo, despliega la sección **WhatsApp** y haz clic en **Primeros pasos** (o *Getting Started*).\\\\n3️⃣ Busca la sección \\\"Envía y recibe mensajes\\\" y copia el **ID de número de teléfono** (Phone Number ID), un número de 15 dígitos.\\\\n\\\\n![Paso 3: Phone Number ID](/images/setup/meta_phone_id.png)\\\\n\\\\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente en tu configuración:';\\n          nextChips = ['Omitir este paso', 'Volver al inicio'];\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding sidebar selection step to Paso 3 instructions\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1151,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Remove the omit step logic and options from WhatsApp API setup flow to make all setup parameters mandatory.\"",
+      "EndLine": "975",
+      "Instruction": "\"Remove 'Omitir este paso' chips and corresponding handler code blocks from Paso 3 and Paso 4 of the WhatsApp flow. Ensure the user must provide valid inputs to proceed.\"",
+      "ReplacementContent": "\"        } else if (newStep === 2) {\\n          newStep = 3;\\n          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\\\\n\\\\n1️⃣ En el panel principal de tu App de Meta, bajo **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**:\\\\n\\\\n![1. Abrir Configuración de WhatsApp](/images/setup/meta_add_whatsapp_dashboard.png)\\\\n\\\\n2️⃣ En el menú lateral izquierdo, bajo la sección de WhatsApp, haz clic en **Configuración de la API** (o *Inicio rápido*):\\\\n\\\\n![2. Ir a Configuración de la API](/images/setup/meta_api_settings_click.png)\\\\n\\\\n3️⃣ En el panel derecho, busca la sección \\\"Envía y recibe mensajes\\\" y copia el **Identificador de número de teléfono** (Phone Number ID):\\\\n\\\\n![3. Copiar ID de Teléfono](/images/setup/meta_phone_id.png)\\\\n\\\\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente:';\\n          nextChips = ['Volver al inicio'];\\n        } else if (newStep === 3) {\\n          const cleanId = text.replace(/[^0-9]/g, '');\\n          if (cleanId.length >= 12 && cleanId.length <= 18) {\\n            setConfigData((prev: any) => ({ ...prev, whatsapp_phone_id: cleanId }));\\n            replyText = '✅ ¡ID de Teléfono configurado con éxito: `' + cleanId + '`!\\\\n\\\\n';\\n            newStep = 4;\\n          } else {\\n            replyText = '⚠️ El ID de teléfono ingresado no parece válido (debe tener entre 12 y 18 números enteros). Por favor, revisa y vuelve a ingresarlo:';\\n            nextChips = ['Volver al inicio'];\\n            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);\\n            return;\\n          }\\n          replyText += '**Paso 4: Obtener el Token de Acceso Permanente**\\\\n\\\\nPara que tu bot no se desconecte cada 24 horas, debes generar un Token Permanente en tu Business Manager:\\\\n1️⃣ Abre la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ En la b\n<truncated 2260 bytes>",
+      "StartLine": "935",
+      "TargetContent": "\"        } else if (newStep === 2) {\\n          newStep = 3;\\n          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\\\\n\\\\n1️⃣ En el panel principal de tu App de Meta, bajo **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**:\\\\n\\\\n![1. Abrir Configuración de WhatsApp](/images/setup/meta_add_whatsapp_dashboard.png)\\\\n\\\\n2️⃣ En el menú lateral izquierdo, bajo la sección de WhatsApp, haz clic en **Configuración de la API** (o *Inicio rápido*):\\\\n\\\\n![2. Ir a Configuración de la API](/images/setup/meta_api_settings_click.png)\\\\n\\\\n3️⃣ En el panel derecho, busca la sección \\\"Envía y recibe mensajes\\\" y copia el **Identificador de número de teléfono** (Phone Number ID):\\\\n\\\\n![3. Copiar ID de Teléfono](/images/setup/meta_phone_id.png)\\\\n\\\\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente:';\\n          nextChips = ['Omitir este paso', 'Volver al inicio'];\\n        } else if (newStep === 3) {\\n          if (lowerText !== 'omitir este paso' && !lowerText.includes('continuar')) {\\n            const cleanId = text.replace(/[^0-9]/g, '');\\n            if (cleanId.length >= 12 && cleanId.length <= 18) {\\n              setConfigData((prev: any) => ({ ...prev, whatsapp_phone_id: cleanId }));\\n              replyText = '✅ ¡ID de Teléfono configurado con éxito: `' + cleanId + '`!\\\\n\\\\n';\\n              newStep = 4;\\n            } else {\\n              replyText = '⚠️ El ID de teléfono ingresado no parece válido (debe tener entre 12 y 18 números enteros). Por favor, revisa y vuelve a ingresarlo, o pulsa \\\"Omitir\\\":';\\n              nextChips = ['Omitir este paso', 'Volver al inicio'];\\n              setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);\\n              return;\\n            }\\n          } else {\\n            replyText = 'Entendido, omitimos la configuración automática del ID de teléfono.\\\\n\\\\n';\\n     \n<truncated 2862 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Removing WhatsApp omit options\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1157,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Remove omit options from WhatsApp verification step to make validation mandatory.\"",
+      "EndLine": "1020",
+      "Instruction": "\"Remove 'Omitir y guardar' options from the verification step. If the user tries to skip verification, prompt them that verification is required before saving.\"",
+      "ReplacementContent": "\"        } else if (newStep === 5) {\\n          newStep = 6;\\n          replyText = '**Paso 6: Guardar y Validar Conexión**\\\\n\\\\nHemos completado la carga de credenciales. Guardaremos tu configuración y probaremos la conexión.\\\\n\\\\n¿Quieres verificar la conexión con WhatsApp en este momento?';\\n          nextChips = ['Verificar y guardar ahora', 'Volver al inicio'];\\n        } else if (newStep === 6) {\\n          if (lowerText.includes('verificar') || lowerText.includes('reintentar')) {\\n            replyText = 'Probando la conexión con la API de WhatsApp en los servidores de Meta...';\\n            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date() }]);\\n\\n            fetch(`https://graph.facebook.com/v18.0/${configData.whatsapp_phone_id}`, {\\n              headers: { 'Authorization': `Bearer ${configData.whatsapp_token}` }\\n            })\\n            .then(res => {\\n              if (res.ok) {\\n                setWaStatus('success');\\n                setWaStatusMsg('¡Conexión de WhatsApp verificada!');\\n                handleSaveSettings({ preventDefault: () => {} } as any);\\n                setApiHelperFlow('idle');\\n                setApiHelperStep(0);\\n                setApiHelperMessages(prev => [...prev, {\\n                  sender: 'agent',\\n                  text: '✅ ¡Conexión con Meta exitosa! El ID de teléfono y el Token son válidos. Toda la configuración ha sido guardada en la base de datos de forma segura.\\\\n\\\\n¿Deseas configurar otra API?',\\n                  timestamp: new Date(),\\n                  chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']\\n                }]);\\n              } else {\\n                setWaStatus('error');\\n                setWaStatusMsg('Token o ID de teléfono inválido');\\n                setApiHelperMessages(prev => [...prev, {\\n                  sender: 'agent',\\n                  text: '❌ Falló la verificación de Meta. El servidor de Facebook devolvió un error (credenciales inválidas). P\n<truncated 1181 bytes>",
+      "StartLine": "966",
+      "TargetContent": "\"        } else if (newStep === 5) {\\n          newStep = 6;\\n          replyText = '**Paso 6: Guardar y Validar Conexión**\\\\n\\\\nHemos completado la carga de credenciales. Guardaremos tu configuración y probaremos la conexión.\\\\n\\\\n¿Quieres verificar la conexión con WhatsApp en este momento?';\\n          nextChips = ['Verificar y guardar ahora', 'Omitir y guardar', 'Volver al inicio'];\\n        } else if (newStep === 6) {\\n          if (lowerText.includes('verificar') || lowerText.includes('reintentar')) {\\n            replyText = 'Probando la conexión con la API de WhatsApp en los servidores de Meta...';\\n            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date() }]);\\n\\n            fetch(`https://graph.facebook.com/v18.0/${configData.whatsapp_phone_id}`, {\\n              headers: { 'Authorization': `Bearer ${configData.whatsapp_token}` }\\n            })\\n            .then(res => {\\n              if (res.ok) {\\n                setWaStatus('success');\\n                setWaStatusMsg('¡Conexión de WhatsApp verificada!');\\n                handleSaveSettings({ preventDefault: () => {} } as any);\\n                setApiHelperFlow('idle');\\n                setApiHelperStep(0);\\n                setApiHelperMessages(prev => [...prev, {\\n                  sender: 'agent',\\n                  text: '✅ ¡Conexión con Meta exitosa! El ID de teléfono y el Token son válidos. Toda la configuración ha sido guardada en la base de datos de forma segura.\\\\n\\\\n¿Deseas configurar otra API?',\\n                  timestamp: new Date(),\\n                  chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']\\n                }]);\\n              } else {\\n                setWaStatus('error');\\n                setWaStatusMsg('Token o ID de teléfono inválido');\\n                setApiHelperMessages(prev => [...prev, {\\n                  sender: 'agent',\\n                  text: '❌ Falló la verificación de Meta. El servidor de Facebook devolvió un error (credenc\n<truncated 1248 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Removing WhatsApp verification skip option\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1161,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Remove omit options and logic from the Meta Ads setup flow to make Page ID, Ad Account ID, and Token inputs mandatory.\"",
+      "EndLine": "1099",
+      "Instruction": "\"Remove all 'Omitir este paso' chips and bypass conditions from steps 1, 2, and 3 of the Meta Ads flow. Ensure the user provides a valid Token, Ad Account ID, and Page ID to finish the setup.\"",
+      "ReplacementContent": "\"          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {\\n            newStep = 1;\\n            replyText = '**Paso 1: Generar System User Token (Token de Meta Ads)**\\\\n\\\\nPara publicar anuncios y medir conversiones desde el panel, necesitas un token permanente:\\\\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ En el menú lateral, haz clic en **Usuarios** > **Usuarios del sistema**.\\\\n3️⃣ Elige tu usuario administrador (si no tienes uno, haz clic en **Agregar** y créalo con rol de **Administrador**).\\\\n4️⃣ Haz clic en **Generar nuevo token**, selecciona la App asociada y activa los permisos obligatorios:\\\\n   - `ads_management`\\\\n   - `ads_read`\\\\n   - `pages_show_list` (para ver tus páginas de marca)\\\\n   - `pages_read_engagement`\\\\n   - `pages_manage_ads` (para publicar anuncios a nombre de tu marca)\\\\n5️⃣ Copia el token largo generado y **pégalo aquí en el chat**:\\\\n\\\\n![Generar Token de Anuncios](/images/setup/meta_system_user.png)';\\n            nextChips = ['Volver al inicio'];\\n          } else {\\n            newFlow = 'idle';\\n            newStep = 0;\\n            replyText = 'Proceso cancelado. ¿Qué API deseas configurar ahora?';\\n            nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];\\n          }\\n        } else if (newStep === 1) {\\n          if (text.length > 50 && text.startsWith('EAAS')) {\\n            setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));\\n            replyText = '✅ ¡Token de Meta Ads guardado correctamente!\\\\n\\\\n';\\n            newStep = 2;\\n          } else {\\n            replyText = '⚠️ El Token de Meta Ads no parece válido. Asegúrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por \\\"EAAS...\\\"):';\\n            nextChips = ['Volver al inicio'];\\n            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: \n<truncated 2968 bytes>",
+      "StartLine": "1022",
+      "TargetContent": "\"          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {\\n            newStep = 1;\\n            replyText = '**Paso 1: Generar System User Token (Token de Meta Ads)**\\\\n\\\\nPara publicar anuncios y medir conversiones desde el panel, necesitas un token permanente:\\\\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ En el menú lateral, haz clic en **Usuarios** > **Usuarios del sistema**.\\\\n3️⃣ Elige tu usuario administrador (si no tienes uno, haz clic en **Agregar** y créalo con rol de **Administrador**).\\\\n4️⃣ Haz clic en **Generar nuevo token**, selecciona la App asociada y activa los permisos obligatorios:\\\\n   - `ads_management`\\\\n   - `ads_read`\\\\n   - `pages_show_list` (para ver tus páginas de marca)\\\\n   - `pages_read_engagement`\\\\n   - `pages_manage_ads` (para publicar anuncios a nombre de tu marca)\\\\n5️⃣ Copia el token largo generado y **pégalo aquí en el chat**:\\\\n\\\\n![Generar Token de Anuncios](/images/setup/meta_system_user.png)';\\n            nextChips = ['Omitir este paso', 'Volver al inicio'];\\n          } else {\\n            newFlow = 'idle';\\n            newStep = 0;\\n            replyText = 'Proceso cancelado. ¿Qué API deseas configurar ahora?';\\n            nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];\\n          }\\n        } else if (newStep === 1) {\\n          if (lowerText !== 'omitir este paso' && !lowerText.includes('continuar')) {\\n            if (text.length > 50 && text.startsWith('EAAS')) {\\n              setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));\\n              replyText = '✅ ¡Token de Meta Ads guardado correctamente!\\\\n\\\\n';\\n              newStep = 2;\\n            } else {\\n              replyText = '⚠️ El Token de Meta Ads no parece válido. Asegúrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por \\\"EAAS...\\\"):';\\n    \n<truncated 3817 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Removing Meta Ads omit options\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1169,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Make the Meta Ads setup steps in panel-client.tsx extremely detailed and clear. Explain setting up the System User, assigning asset permissions, and finding Ad Account and Page IDs.\"",
+      "EndLine": "1073",
+      "Instruction": "\"Replace the text of Steps 1, 2, and 3 in the Meta Ads configuration flow with detailed step-by-step guidance including specific clicks, roles, and asset permissions to prevent setup issues.\"",
+      "ReplacementContent": "\"          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {\\n            newStep = 1;\\n            replyText = '**Paso 1: Generar System User Token (Token de Meta Ads)**\\\\n\\\\nPara que RIFX pueda crear campañas, publicar anuncios y leer las métricas publicitarias en tiempo real, necesitas generar un Token Permanente (System User Token) en tu Business Manager:\\\\n\\\\n1️⃣ Abre la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ En el menú de la izquierda, ve a **Usuarios** (Users) > **Usuarios del sistema** (System Users).\\\\n3️⃣ Selecciona tu usuario administrador. Si no tienes uno:\\\\n   - Haz clic en **Agregar**.\\\\n   - Escribe un nombre identificativo (ej: *RifxSystem*).\\\\n   - Asígnale el rol de **Administrador** y créalo.\\\\n4️⃣ Una vez creado o seleccionado:\\\\n   - Haz clic en **Asignar activos** (Assign Assets).\\\\n   - Ve a **Apps** (Aplicaciones) y selecciona la App que creaste para RIFX.\\\\n   - Activa el permiso de **Control total** (o Administrar App) y haz clic en Guardar cambios.\\\\n5️⃣ En la misma pantalla del usuario del sistema, haz clic en el botón central **Generar nuevo token**:\\\\n   - Selecciona la App asociada del desplegable.\\\\n   - En la lista de permisos, marca **obligatoriamente** las siguientes casillas:\\\\n     - `ads_management` (para poder crear y editar tus campañas)\\\\n     - `ads_read` (para importar los datos de rendimiento a tu panel)\\\\n     - `pages_show_list` (para poder visualizar tus marcas)\\\\n     - `pages_read_engagement` (para leer datos de tus páginas)\\\\n     - `pages_manage_ads` (para poder publicar los anuncios en tu nombre)\\\\n6️⃣ Haz clic en **Generar token**, copia el código largo que empieza por `EAAS...` y **pégalo aquí en el chat**:\\\\n\\\\n![Generar Token de Anuncios](/images/setup/meta_system_user.png)';\\n            nextChips = ['Volver al inicio'];\\n          } else {\\n            newFlow = 'idle';\\n            newStep = 0;\\n \n<truncated 4688 bytes>",
+      "StartLine": "1022",
+      "TargetContent": "\"          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {\\n            newStep = 1;\\n            replyText = '**Paso 1: Generar System User Token (Token de Meta Ads)**\\\\n\\\\nPara publicar anuncios y medir conversiones desde el panel, necesitas un token permanente:\\\\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ En el menú lateral, haz clic en **Usuarios** > **Usuarios del sistema**.\\\\n3️⃣ Elige tu usuario administrador (si no tienes uno, haz clic en **Agregar** y créalo con rol de **Administrador**).\\\\n4️⃣ Haz clic en **Generar nuevo token**, selecciona la App asociada y activa los permisos obligatorios:\\\\n   - `ads_management`\\\\n   - `ads_read`\\\\n   - `pages_show_list` (para ver tus páginas de marca)\\\\n   - `pages_read_engagement`\\\\n   - `pages_manage_ads` (para publicar anuncios a nombre de tu marca)\\\\n5️⃣ Copia el token largo generado y **pégalo aquí en el chat**:\\\\n\\\\n![Generar Token de Anuncios](/images/setup/meta_system_user.png)';\\n            nextChips = ['Volver al inicio'];\\n          } else {\\n            newFlow = 'idle';\\n            newStep = 0;\\n            replyText = 'Proceso cancelado. ¿Qué API deseas configurar ahora?';\\n            nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];\\n          }\\n        } else if (newStep === 1) {\\n          if (text.length > 50 && text.startsWith('EAAS')) {\\n            setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));\\n            replyText = '✅ ¡Token de Meta Ads guardado correctamente!\\\\n\\\\n';\\n            newStep = 2;\\n          } else {\\n            replyText = '⚠️ El Token de Meta Ads no parece válido. Asegúrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por \\\"EAAS...\\\"):';\\n            nextChips = ['Volver al inicio'];\\n            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: \n<truncated 2968 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Detailed Meta Ads setup instruction update\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1250,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update Meta Ads Step 1 instructions and images to match the Graph API Explorer method from the video tutorial.\"",
+      "EndLine": "1026",
+      "Instruction": "\"Update Meta Ads Step 1 text and screenshots (meta_develop_home.png, meta_create_app.png, meta_ads_app_usecase.png, meta_ads_app_business.png, meta_ads_dashboard_tools.png, meta_ads_dashboard_graph_explorer.png, meta_ads_graph_explorer_token_generation.png) to match the Graph API Explorer setup flow.\"",
+      "ReplacementContent": "\"        if (newStep === 0) {\\n          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {\\n            newStep = 1;\\n            replyText = '**Paso 1: Crear la App y Generar el Token de Acceso (Meta Ads)**\\\\n\\\\nPara que RIFX pueda gestionar tus anuncios y medir conversiones, primero debes crear una aplicación de tipo Marketing API y generar su token de acceso:\\\\n\\\\nA) **Crear la App en Meta Developers**:\\\\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión.\\\\n2️⃣ Haz clic en **My Apps** (Mis apps) en la esquina superior derecha:\\\\n   ![1. Ir a Mis Apps](/images/setup/meta_develop_home.png)\\\\n3️⃣ Haz clic en el botón verde **Create App** (Crear app):\\\\n   ![2. Crear Aplicación](/images/setup/meta_create_app.png)\\\\n4️⃣ En la sección \\\"Use cases\\\" (Casos de uso), marca la opción **Create & manage ads with Marketing API** (Crear y gestionar anuncios con Marketing API) y haz clic en Siguiente:\\\\n   ![3. Seleccionar Marketing API](/images/setup/meta_ads_app_usecase.png)\\\\n5️⃣ En la sección \\\"Business\\\", selecciona tu cuenta comercial (Business Portfolio) y haz clic en Siguiente:\\\\n   ![4. Seleccionar Cuenta Comercial](/images/setup/meta_ads_app_business.png)\\\\n6️⃣ Ponle un nombre a tu App (ej: *RIFX Ads*), tu correo y haz clic en **Create App** para finalizar la creación.\\\\n\\\\nB) **Generar el Token de Acceso**:\\\\n1️⃣ Dentro del panel de tu App de Meta recién creada, haz clic en **Tools** (Herramientas) en el menú superior:\\\\n   ![5. Ir a Herramientas](/images/setup/meta_ads_dashboard_tools.png)\\\\n2️⃣ En el menú desplegable, selecciona **Graph API Explorer**:\\\\n   ![6. Abrir Graph Explorer](/images/setup/meta_ads_dashboard_graph_explorer.png)\\\\n3️⃣ En el panel derecho de Graph API Explorer:\\\\n   - Asegúrate de que tu nueva aplicación está seleccionada en el campo **Meta App**.\\\\n   - En **User or Page**, selecciona \\\"Get User Access Token\\\".\\\\n   - En la secc\n<truncated 478 bytes>",
+      "StartLine": "1021",
+      "TargetContent": "\"        if (newStep === 0) {\\n          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {\\n            newStep = 1;\\n            replyText = '**Paso 1: Generar System User Token (Token de Meta Ads)**\\\\n\\\\nPara que RIFX pueda crear campañas, publicar anuncios y leer las métricas publicitarias en tiempo real, necesitas generar un Token Permanente (System User Token) en tu Business Manager:\\\\n\\\\n1️⃣ Abre la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\\\\n2️⃣ En el menú de la izquierda, ve a **Usuarios** (Users) > **Usuarios del sistema** (System Users).\\\\n3️⃣ Selecciona tu usuario administrador. Si no tienes uno:\\\\n   - Haz clic en **Agregar**.\\\\n   - Escribe un nombre identificativo (ej: *RifxSystem*).\\\\n   - Asígnale el rol de **Administrador** y créalo.\\\\n4️⃣ Una vez creado o seleccionado:\\\\n   - Haz clic en **Asignar activos** (Assign Assets).\\\\n   - Ve a **Apps** (Aplicaciones) y selecciona la App que creaste para RIFX.\\\\n   - Activa el permiso de **Control total** (o Administrar App) y haz clic en Guardar cambios.\\\\n5️⃣ En la misma pantalla del usuario del sistema, haz clic en el botón central **Generar nuevo token**:\\\\n   - Selecciona la App asociada del desplegable.\\\\n   - En la lista de permisos, marca **obligatoriamente** las siguientes casillas:\\\\n     - `ads_management` (para poder crear y editar tus campañas)\\\\n     - `ads_read` (para importar los datos de rendimiento a tu panel)\\\\n     - `pages_show_list` (para poder visualizar tus marcas)\\\\n     - `pages_read_engagement` (para leer datos de tus páginas)\\\\n     - `pages_manage_ads` (para poder publicar los anuncios en tu nombre)\\\\n6️⃣ Haz clic en **Generar token**, copia el código largo que empieza por `EAAS...` y **pégalo aquí en el chat**:\\\\n\\\\n![Generar Token de Anuncios](/images/setup/meta_system_user.png)';\\n            nextChips = ['Volver al inicio'];\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Updating Step 1 instructions and images for Meta Ads setup\"",
+      "toolSummary": "\"Update panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1321,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Expand sidebar to show section names directly next to icons, remove hover tooltips, and prevent horizontal scrollbar.\"",
+      "EndLine": "4622",
+      "Instruction": "\"Expand sidebar to w-64 layout, showing icons and text inline, removing hover tooltips.\"",
+      "ReplacementContent": "\"      <aside className={`fixed left-0 top-0 h-screen w-64 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-4 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex items-center gap-3 px-2 mb-2 select-none\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg shrink-0\\\">\\n            <span className=\\\"material-symbols-outlined text-2xl\\\">psychology</span>\\n          </div>\\n          <div className=\\\"flex flex-col min-w-0\\\">\\n            <span className=\\\"font-extrabold text-sm text-[#000080] tracking-tight truncate\\\">Rifx Marketing</span>\\n            <span className=\\\"text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate\\\">\\n              {language === 'es' ? 'Panel de Control' : 'Control Panel'}\\n            </span>\\n          </div>\\n        </div>\\n        \\n        <nav className=\\\"flex-1 flex flex-col gap-1.5 items-stretch overflow-y-auto no-scrollbar py-2 w-full\\\">\\n          {[\\n            { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },\\n            { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },\\n            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },\\n            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },\\n            { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },\\n            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },\\n            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },\\n            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },\\n            { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn:\n<truncated 2129 bytes>",
+      "StartLine": "4555",
+      "TargetContent": "\"      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex justify-center px-2 mb-2\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg\\\">\\n            <span className=\\\"material-symbols-outlined\\\">psychology</span>\\n          </div>\\n        </div>\\n        \\n        <nav className=\\\"flex-1 flex flex-col gap-3 items-center overflow-y-auto no-scrollbar py-2\\\">\\n          {[\\n            { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },\\n            { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },\\n            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },\\n            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },\\n            { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },\\n            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },\\n            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },\\n            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },\\n            { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },\\n            ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])\\n          ].map(item => {\\n            const isActive = activeTab === item.key;\\n            const isLocked = isTabLocked(item.key);\\n            return (\\n              <button\\n                key={item.key}\\n                onClick={() => safeSetActiveTab(item.key as any)}\\n                c\n<truncated 2573 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Replacing sidebar code in panel-client.tsx\"",
+      "toolSummary": "\"Replace sidebar code in panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1325,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update header spacing to accommodate the wider w-64 sidebar.\"",
+      "EndLine": "4623",
+      "Instruction": "\"Update header spacing from left-20 to left-64 when activeTab is not settings.\"",
+      "ReplacementContent": "\"      <header className={`fixed top-0 right-0 ${activeTab === 'settings' ? 'left-0' : 'left-64'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>\"",
+      "StartLine": "4620",
+      "TargetContent": "\"      <header className={`fixed top-0 right-0 ${activeTab === 'settings' ? 'left-0' : 'left-20'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Modifying header spacing in panel-client.tsx\"",
+      "toolSummary": "\"Modify header spacing class in panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1329,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update main content padding/margin and lockout screen overlay offset to align with the wider sidebar.\"",
+      "EndLine": "4729",
+      "Instruction": "\"Modify ml-20 to ml-64 in main element and lockout overlay.\"",
+      "ReplacementContent": "\"      {/* Main Content Canvas */}\\n      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-64'}`}>\\n        {/* ===== FULL LOCKOUT SCREEN — shown when plan is expired and user is NOT on billing ===== */}\\n        {isPlanExpired && activeTab !== 'billing' && !(tenantData?.isAdmin && activeTab === 'admin') && (\\n          <motion.div\\n            key=\\\"lockout-overlay\\\"\\n            initial={{ opacity: 0 }}\\n            animate={{ opacity: 1 }}\\n            transition={{ duration: 0.4 }}\\n            className={`fixed inset-0 ${activeTab === 'settings' ? 'ml-0' : 'ml-64'} pt-16 z-30 flex items-center justify-center transition-all duration-300`}\\n            style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.96) 50%, rgba(15,23,42,0.98) 100%)', backdropFilter: 'blur(12px)' }}\\n          >\"",
+      "StartLine": "4715",
+      "TargetContent": "\"      {/* Main Content Canvas */}\\n      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-20'}`}>\\n        {/* ===== FULL LOCKOUT SCREEN — shown when plan is expired and user is NOT on billing ===== */}\\n        {isPlanExpired && activeTab !== 'billing' && !(tenantData?.isAdmin && activeTab === 'admin') && (\\n          <motion.div\\n            key=\\\"lockout-overlay\\\"\\n            initial={{ opacity: 0 }}\\n            animate={{ opacity: 1 }}\\n            transition={{ duration: 0.4 }}\\n            className={`fixed inset-0 ${activeTab === 'settings' ? 'ml-0' : 'ml-20'} pt-16 z-30 flex items-center justify-center transition-all duration-300`}\\n            style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.96) 50%, rgba(15,23,42,0.98) 100%)', backdropFilter: 'blur(12px)' }}\\n          >\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Updating ml-20 margin spacing classes in panel-client.tsx\"",
+      "toolSummary": "\"Update main margins in panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1344,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Add hoveredTab state to track the active sidebar navigation tab being hovered.\"",
+      "EndLine": "711",
+      "Instruction": "\"Add hoveredTab state declaration next to activeTab state.\"",
+      "ReplacementContent": "\"  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners'>('dashboard');\\n  const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);\"",
+      "StartLine": "708",
+      "TargetContent": "\"  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners'>('dashboard');\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding hoveredTab state in panel-client.tsx\"",
+      "toolSummary": "\"Add hoveredTab state in panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1350,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Restore compact sidebar with floating dark tooltips shown on hover (fixed positioning to prevent clipping by overflow-y-auto), and eliminate the horizontal scrollbar.\"",
+      "EndLine": "4622",
+      "Instruction": "\"Restore compact w-20 sidebar layout and add hover tooltip state callbacks.\"",
+      "ReplacementContent": "\"      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-slate-200/50 bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex justify-center px-2 mb-2 select-none\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg shrink-0\\\">\\n            <span className=\\\"material-symbols-outlined text-2xl\\\">psychology</span>\\n          </div>\\n        </div>\\n        \\n        <nav className=\\\"flex-1 flex flex-col gap-3 items-center overflow-y-auto no-scrollbar py-2 w-full\\\">\\n          {[\\n            { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },\\n            { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },\\n            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },\\n            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },\\n            { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },\\n            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },\\n            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },\\n            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },\\n            { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },\\n            ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])\\n          ].map(item => {\\n            const isActive = activeTab === item.key;\\n            const isLocked = isTabLocked(item.key);\\n            return (\\n              <button\\n                key={item.key}\\n                onClick={() \n<truncated 3464 bytes>",
+      "StartLine": "4556",
+      "TargetContent": "\"      <aside className={`fixed left-0 top-0 h-screen w-64 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-4 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>\\n        <div className=\\\"flex items-center gap-3 px-2 mb-2 select-none\\\">\\n          <div className=\\\"w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg shrink-0\\\">\\n            <span className=\\\"material-symbols-outlined text-2xl\\\">psychology</span>\\n          </div>\\n          <div className=\\\"flex flex-col min-w-0\\\">\\n            <span className=\\\"font-extrabold text-sm text-[#000080] tracking-tight truncate\\\">Rifx Marketing</span>\\n            <span className=\\\"text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate\\\">\\n              {language === 'es' ? 'Panel de Control' : 'Control Panel'}\\n            </span>\\n          </div>\\n        </div>\\n        \\n        <nav className=\\\"flex-1 flex flex-col gap-1.5 items-stretch overflow-y-auto no-scrollbar py-2 w-full\\\">\\n          {[\\n            { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },\\n            { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },\\n            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },\\n            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },\\n            { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },\\n            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },\\n            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },\\n            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },\\n            { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn:\n<truncated 2375 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Replacing sidebar markup with compact layout and portal tooltips\"",
+      "toolSummary": "\"Replace sidebar markup with compact tooltips\""
+    }
+  },
+  {
+    "step_index": 1356,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Restore ml-20 margins on the main content and the lockout overlay to align with the compact sidebar layout.\"",
+      "EndLine": "4753",
+      "Instruction": "\"Restore main content and lockout overlay margin from ml-64 to ml-20.\"",
+      "ReplacementContent": "\"      {/* Main Content Canvas */}\\n      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-20'}`}>\\n        {/* ===== FULL LOCKOUT SCREEN — shown when plan is expired and user is NOT on billing ===== */}\\n        {isPlanExpired && activeTab !== 'billing' && !(tenantData?.isAdmin && activeTab === 'admin') && (\\n          <motion.div\\n            key=\\\"lockout-overlay\\\"\\n            initial={{ opacity: 0 }}\\n            animate={{ opacity: 1 }}\\n            transition={{ duration: 0.4 }}\\n            className={`fixed inset-0 ${activeTab === 'settings' ? 'ml-0' : 'ml-20'} pt-16 z-30 flex items-center justify-center transition-all duration-300`}\\n            style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.96) 50%, rgba(15,23,42,0.98) 100%)', backdropFilter: 'blur(12px)' }}\\n          >\"",
+      "StartLine": "4741",
+      "TargetContent": "\"      {/* Main Content Canvas */}\\n      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-64'}`}>\\n        {/* ===== FULL LOCKOUT SCREEN — shown when plan is expired and user is NOT on billing ===== */}\\n        {isPlanExpired && activeTab !== 'billing' && !(tenantData?.isAdmin && activeTab === 'admin') && (\\n          <motion.div\\n            key=\\\"lockout-overlay\\\"\\n            initial={{ opacity: 0 }}\\n            animate={{ opacity: 1 }}\\n            transition={{ duration: 0.4 }}\\n            className={`fixed inset-0 ${activeTab === 'settings' ? 'ml-0' : 'ml-64'} pt-16 z-30 flex items-center justify-center transition-all duration-300`}\\n            style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.96) 50%, rgba(15,23,42,0.98) 100%)', backdropFilter: 'blur(12px)' }}\\n          >\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Restoring ml-20 margins on main content canvas\"",
+      "toolSummary": "\"Restore margins in panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1402,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Integrate user-provided real screenshots for the Meta Ads Ad Account ID setup step (Step 2) in the chatbot assistant flow, highlighting where to select the business, click Cuentas publicitarias, copy the Ad Account ID, click Asignar personas, and toggle full control.\"",
+      "EndLine": "1045",
+      "Instruction": "\"Update Meta Ads Step 2 text in chatbot assistant flow to display real annotated screenshots.\"",
+      "ReplacementContent": "\"          replyText += '**Paso 2: Obtener el ID de la Cuenta Publicitaria (Ad Account ID)**\\\\n\\\\nAhora vincularemos tu cuenta de publicidad para poder lanzar anuncios desde RIFX:\\\\n\\\\n' +\\n            '1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu cuenta comercial/negocio:\\\\n' +\\n            '![1. Seleccionar negocio](/images/setup/meta_ads_select_business.png)\\\\n\\\\n' +\\n            '2️⃣ En la barra lateral izquierda, ve a **Cuentas** > **Cuentas publicitarias**:\\\\n' +\\n            '![2. Ir a Cuentas publicitarias](/images/setup/meta_ads_cuentas_menu.png)\\\\n\\\\n' +\\n            '3️⃣ Selecciona tu cuenta publicitaria y copia el número de **Identificador** largo que aparece debajo de su nombre:\\\\n' +\\n            '![3. Copiar ID de Cuenta Publicitaria](/images/setup/meta_ads_account_id.png)\\\\n\\\\n' +\\n            '4️⃣ **¡VITAL PARA QUE FUNCIONE!** Debes asegurarte de que tu Usuario del Sistema tenga acceso a la cuenta:\\\\n' +\\n            '   - Haz clic en el botón **Asignar personas**:\\\\n' +\\n            '   ![4. Asignar personas](/images/setup/meta_ads_assign_people.png)\\\\n' +\\n            '   - En la ventana emergente, selecciona tu Usuario de Sistema en la lista de la izquierda, activa el switch de **Control total** (Administrar cuenta publicitaria) en la derecha, y haz clic en **Asignar**:\\\\n' +\\n            '   ![5. Activar permisos y Guardar](/images/setup/meta_ads_assign_permissions.png)\\\\n\\\\n' +\\n            'Por favor, **pega aquí tu ID de Cuenta Publicitaria** (solo el número largo de 15 o 16 dígitos):';\"",
+      "StartLine": "1044",
+      "TargetContent": "\"          replyText += '**Paso 2: Obtener el ID de la Cuenta Publicitaria (Ad Account ID)**\\\\n\\\\nAhora vincularemos tu cuenta de publicidad para poder lanzar anuncios desde RIFX:\\\\n\\\\n1️⃣ En la [Configuración del Negocio de Meta](https://business.facebook.com/settings/), ve a **Cuentas** > **Cuentas publicitarias** (Ad Accounts).\\\\n2️⃣ Selecciona la cuenta publicitaria que usarás. Copia el número identificador que aparece debajo del nombre de la cuenta (es un número de 15 o 16 dígitos, ej: `Identificador de cuenta publicitaria: 123456789012345`).\\\\n3️⃣ **¡VITAL PARA QUE FUNCIONE!** Debes asegurarte de que tu Usuario del Sistema tenga acceso a la cuenta:\\\\n   - Con la cuenta publicitaria seleccionada, haz clic en **Agregar personas** (Add People).\\\\n   - Selecciona a tu usuario de sistema (creado en el Paso 1).\\\\n   - Activa el switch de **Control total** (Administrar cuenta publicitaria) y haz clic en Guardar.\\\\n\\\\nPor favor, **pega aquí tu ID de Cuenta Publicitaria** (solo el número largo de 15 dígitos):';\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Replacing Meta Ads Step 2 text in panel-client.tsx\"",
+      "toolSummary": "\"Replace Meta Ads Step 2 text\""
+    }
+  },
+  {
+    "step_index": 1435,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update Step 3 (Page ID) in chatbot assistant to reference the user's real screenshots.\"",
+      "EndLine": "1072",
+      "Instruction": "\"Update Step 3 text in chatbot to embed screenshots.\"",
+      "ReplacementContent": "\"          replyText += '**Paso 3: Obtener tu ID de Página (Page ID)**\\\\n\\\\n' +\\n            'Por último, vincularemos la página de Facebook de tu marca comercial bajo la cual se publicarán los anuncios creados por la IA:\\\\n\\\\n' +\\n            '1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu negocio/cuenta comercial:\\\\n' +\\n            '![1. Seleccionar negocio](/images/setup/meta_page_select_business.png)\\\\n\\\\n' +\\n            '2️⃣ En la barra lateral izquierda, ve a **Cuentas** > **Páginas**:\\\\n' +\\n            '![2. Ir a Páginas](/images/setup/meta_page_cuentas_menu.png)\\\\n\\\\n' +\\n            '3️⃣ Selecciona tu página comercial y copia el número de **Identificador** largo que aparece debajo de su nombre:\\\\n' +\\n            '![3. Copiar ID de Página](/images/setup/meta_page_id_details.png)\\\\n\\\\n' +\\n            '4️⃣ **¡IMPORTANTE!** Asegúrate de que el Usuario del Sistema tenga acceso a la página:\\\\n' +\\n            '   - Haz clic en el botón **Asignar personas** (resaltado en la captura anterior).\\\\n' +\\n            '   - En la ventana emergente, selecciona tu Usuario del Sistema en la lista, activa el switch de **Control total** (Administrar página) en la derecha, y haz clic en **Asignar**.\\\\n\\\\n' +\\n            'Por favor, **pega aquí tu ID de Página (Page ID)** (solo el número entero de 15 o 16 dígitos):';\\n          nextChips = ['Volver al inicio'];\"",
+      "StartLine": "1071",
+      "TargetContent": "\"          replyText += '**Paso 3: Obtener tu ID de Página (Page ID)**\\\\n\\\\nPor último, vincularemos la página de Facebook de tu marca comercial bajo la cual se publicarán los anuncios creados por la IA:\\\\n\\\\n1️⃣ En la [Configuración del Negocio de Meta](https://business.facebook.com/settings/), ve a **Cuentas** > **Páginas**.\\\\n2️⃣ Selecciona tu página comercial y copia el ID numérico largo que aparece debajo del nombre.\\\\n3️⃣ **¡IMPORTANTE!** Asegúrate de que el Usuario del Sistema tenga acceso a la página:\\\\n   - Haz clic en **Agregar personas**.\\\\n   - Selecciona a tu usuario de sistema.\\\\n   - Activa el permiso de **Control total** (Administrar página) y guarda los cambios.\\\\n\\\\nPor favor, **pega aquí tu ID de Página (Page ID)** (solo el número entero de 15 dígitos):';\\n          nextChips = ['Volver al inicio'];\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Replacing Step 3 text in panel-client.tsx\"",
+      "toolSummary": "\"Replace Step 3 text\""
+    }
+  },
+  {
+    "step_index": 1461,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Change locked tabs' icons to red instead of showing a lock badge, and keep tooltips aware of the locked state.\"",
+      "EndLine": "4631",
+      "Instruction": "\"Update sidebar navigation button styles for locked tabs and remove the lock badge.\"",
+      "ReplacementContent": "\"              <button\\n                key={item.key}\\n                onClick={() => safeSetActiveTab(item.key as any)}\\n                className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${\\n                  isActive \\n                    ? (isLocked \\n                        ? 'bg-red-50 text-red-600 shadow-md font-bold scale-[0.98]' \\n                        : 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]') \\n                    : (isLocked \\n                        ? 'text-red-400 hover:text-red-500 hover:bg-red-50/20' \\n                        : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50')\\n                }`}\\n                onMouseEnter={(e) => {\\n                  const rect = e.currentTarget.getBoundingClientRect();\\n                  setHoveredTab({\\n                    label: language === 'en' ? item.labelEn : item.labelEs,\\n                    top: rect.top + rect.height / 2,\\n                    isLocked\\n                  });\\n                }}\\n                onMouseLeave={() => setHoveredTab(null)}\\n              >\\n                <span className=\\\"material-symbols-outlined text-xl shrink-0\\\" style={{ fontVariationSettings: isActive ? \\\"'FILL' 1\\\" : \\\"'FILL' 0\\\" }}>{item.icon}</span>\\n              </button>\\n            );\\n          })}\"",
+      "StartLine": "4602",
+      "TargetContent": "\"              <button\\n                key={item.key}\\n                onClick={() => safeSetActiveTab(item.key as any)}\\n                className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${\\n                  isActive \\n                    ? 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]' \\n                    : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50'\\n                }`}\\n                onMouseEnter={(e) => {\\n                  const rect = e.currentTarget.getBoundingClientRect();\\n                  setHoveredTab({\\n                    label: language === 'en' ? item.labelEn : item.labelEs,\\n                    top: rect.top + rect.height / 2,\\n                    isLocked\\n                  });\\n                }}\\n                onMouseLeave={() => setHoveredTab(null)}\\n              >\\n                <span className=\\\"material-symbols-outlined text-xl shrink-0\\\" style={{ fontVariationSettings: isActive ? \\\"'FILL' 1\\\" : \\\"'FILL' 0\\\" }}>{item.icon}</span>\\n                \\n                {/* Lock Badge */}\\n                {isLocked && (\\n                  <div className=\\\"absolute bottom-1 right-1 bg-red-500 text-white rounded-full p-0.5 border border-white flex items-center justify-center w-4 h-4 shadow-sm\\\">\\n                    <span className=\\\"material-symbols-outlined text-[9px] font-black\\\">lock</span>\\n                  </div>\\n                )}\\n              </button>\\n            );\\n          })}\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Replacing sidebar nav buttons lock display in panel-client.tsx\"",
+      "toolSummary": "\"Replace sidebar nav buttons lock display\""
+    }
+  },
+  {
+    "step_index": 1463,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Simplify safeSetActiveTab to allow navigating to locked tabs.\"",
+      "EndLine": "1949",
+      "Instruction": "\"Modify safeSetActiveTab to not block activeTab transition on locked tabs.\"",
+      "ReplacementContent": "\"  const safeSetActiveTab = (tab: typeof activeTab) => {\\n    setActiveTab(tab);\\n  };\"",
+      "StartLine": "1937",
+      "TargetContent": "\"  const safeSetActiveTab = (tab: typeof activeTab) => {\\n    if (isTabLocked(tab)) {\\n      setToast({\\n        message: language === 'en' \\n          ? 'This feature is not included in your current plan. Contact admin or upgrade.'\\n          : 'Esta función no está incluida en tu plan actual. Contacta al administrador o sube de plan.',\\n        type: 'error'\\n      });\\n      return;\\n    }\\n    setActiveTab(tab);\\n  };\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Simplifying safeSetActiveTab in panel-client.tsx\"",
+      "toolSummary": "\"Simplify safeSetActiveTab function\""
+    }
+  },
+  {
+    "step_index": 1467,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Inject a custom locked tab screen that displays when a specific navigation tab is restricted by the user's plan.\"",
+      "EndLine": "4819",
+      "Instruction": "\"Insert isTabLocked check wrapper inside main layout before rendering dashboard tab.\"",
+      "ReplacementContent": "\"        )}\\n        {isTabLocked(activeTab) && !isPlanExpired ? (\\n          <motion.div\\n            key=\\\"tab-locked-screen\\\"\\n            initial={{ opacity: 0, y: 15 }}\\n            animate={{ opacity: 1, y: 0 }}\\n            className=\\\"max-w-xl mx-auto mt-12 text-center p-12 bg-white rounded-3xl border border-slate-100 shadow-xl flex flex-col items-center\\\"\\n          >\\n            {/* Beautiful padlock animation/graphic */}\\n            <div className=\\\"relative mb-8 w-24 h-24\\\">\\n              <div className=\\\"absolute inset-0 bg-red-100 rounded-full animate-pulse\\\"></div>\\n              <div className=\\\"relative w-24 h-24 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-lg shadow-red-500/20\\\">\\n                <span className=\\\"material-symbols-outlined text-white text-4xl\\\">lock</span>\\n              </div>\\n            </div>\\n\\n            {/* Title */}\\n            <h2 className=\\\"text-2xl font-black text-slate-800 mb-3\\\">\\n              {language === 'es' ? 'Sección no disponible' : 'Section unavailable'}\\n            </h2>\\n            \\n            {/* Message */}\\n            <p className=\\\"text-slate-500 text-sm mb-8 leading-relaxed max-w-md\\\">\\n              {language === 'es' \\n                ? 'Tu suscripción no te permite acceder a esta sección. Cambia tu suscripción para desbloquear esta y otras funciones avanzadas.'\\n                : 'Your subscription does not allow you to access this section. Change your subscription to unlock this and other advanced features.'}\\n            </p>\\n\\n            {/* Upgrade/Change plan Button */}\\n            <button\\n              onClick={() => setActiveTab('billing')}\\n              className=\\\"group inline-flex items-center gap-2.5 bg-[#000080] text-white font-bold text-sm px-8 py-3.5 rounded-2xl shadow-lg shadow-[#000080]/20 hover:shadow-[#000080]/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300\\\"\\n            >\\n              <span className=\\\"material-symbols-outlined text-\n<truncated 378 bytes>",
+      "StartLine": "4817",
+      "TargetContent": "\"        )}\\n        {activeTab === 'dashboard' && (\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding locked tab check and component screen in panel-client.tsx\"",
+      "toolSummary": "\"Add locked tab check and component screen\""
+    }
+  },
+  {
+    "step_index": 1471,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Close the ternary wrapper inside the main canvas element that handles locked tab rendering.\"",
+      "EndLine": "11515",
+      "Instruction": "\"Close the ternary check block wrapping all main tabs before the </main> tag.\"",
+      "ReplacementContent": "\"          </>\\n        )}\\n</main>\"",
+      "StartLine": "11513",
+      "TargetContent": "\"</main>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Closing check block wrapper in panel-client.tsx\"",
+      "toolSummary": "\"Close check block wrapper\""
+    }
+  },
+  {
+    "step_index": 1492,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Declare the getRequiredPlanForTab helper function in panel-client.tsx to map dashboard tabs to their respective required subscription plan names.\"",
+      "EndLine": "1926",
+      "Instruction": "\"Add getRequiredPlanForTab helper function after isTabLocked callback.\"",
+      "ReplacementContent": "\"  }, [isPlanExpired, tenantData?.allowedTabs, tenantData?.permissionOverrides, tenantData?.isAdmin]);\\n\\n  const getRequiredPlanForTab = React.useCallback((tab: string) => {\\n    switch (tab) {\\n      case 'crm':\\n      case 'playground':\\n        return { key: 'start', name: 'Chatea Pro Start' };\\n      case 'banners':\\n      case 'segments':\\n        return { key: 'advanced', name: 'Chatea Pro Advanced' };\\n      case 'analytics':\\n        return { key: 'plus', name: 'Chatea Pro Plus' };\\n      case 'campaigns':\\n        return { key: 'master', name: 'Chatea Pro Master' };\\n      default:\\n        return null;\\n    }\\n  }, []);\"",
+      "StartLine": "1924",
+      "TargetContent": "\"    return !userAllowedTabs.includes(tab);\\n  }, [isPlanExpired, tenantData?.allowedTabs, tenantData?.permissionOverrides, tenantData?.isAdmin]);\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Adding getRequiredPlanForTab in panel-client.tsx\"",
+      "toolSummary": "\"Add getRequiredPlanForTab helper function\""
+    }
+  },
+  {
+    "step_index": 1496,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update locked tab message to dynamically specify the exact minimum subscription plan required for access.\"",
+      "EndLine": "4860",
+      "Instruction": "\"Modify locked tab text description to list the required plan name.\"",
+      "ReplacementContent": "\"            {/* Message */}\\n            <p className=\\\"text-slate-500 text-sm mb-8 leading-relaxed max-w-md\\\">\\n              {language === 'es' ? (\\n                <>\\n                  Tu suscripción no te permite acceder a esta sección. Debes cambiarte al plan{' '}\\n                  <strong className=\\\"text-primary font-extrabold text-red-500\\\">\\n                    {getRequiredPlanForTab(activeTab)?.name || 'superior'}\\n                  </strong>{' '}\\n                  para desbloquear esta función y otros módulos avanzados.\\n                </>\\n              ) : (\\n                <>\\n                  Your subscription does not allow you to access this section. You need to upgrade to the{' '}\\n                  <strong className=\\\"text-primary font-extrabold text-red-500\\\">\\n                    {getRequiredPlanForTab(activeTab)?.name || 'higher'}\\n                  </strong>{' '}\\n                  plan to unlock this feature.\\n                </>\\n              )}\\n            </p>\"",
+      "StartLine": "4854",
+      "TargetContent": "\"            {/* Message */}\\n            <p className=\\\"text-slate-500 text-sm mb-8 leading-relaxed max-w-md\\\">\\n              {language === 'es' \\n                ? 'Tu suscripción no te permite acceder a esta sección. Cambia tu suscripción para desbloquear esta y otras funciones avanzadas.'\\n                : 'Your subscription does not allow you to access this section. Change your subscription to unlock this and other advanced features.'}\\n            </p>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Updating locked tab screen message in panel-client.tsx\"",
+      "toolSummary": "\"Update locked tab screen message\""
+    }
+  },
+  {
+    "step_index": 1505,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Cast isLocked to a strict boolean using the double negation operator to satisfy TypeScript compiler typing.\"",
+      "EndLine": "4630",
+      "Instruction": "\"Cast isLocked to boolean in setHoveredTab parameter.\"",
+      "ReplacementContent": "\"                  setHoveredTab({\\n                    label: language === 'en' ? item.labelEn : item.labelEs,\\n                    top: rect.top + rect.height / 2,\\n                    isLocked: !!isLocked\\n                  });\"",
+      "StartLine": "4624",
+      "TargetContent": "\"                  setHoveredTab({\\n                    label: language === 'en' ? item.labelEn : item.labelEs,\\n                    top: rect.top + rect.height / 2,\\n                    isLocked\\n                  });\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Fixing TypeScript cast warning for isLocked in panel-client.tsx\"",
+      "toolSummary": "\"Fix TypeScript cast for isLocked\""
+    }
+  },
+  {
+    "step_index": 1573,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"In corporate direct activation fallback in handleUpgradePlan for development environment or if Lemon Squeezy is unconfigured, allowing immediate updates to client permissions state.\"",
+      "EndLine": "2026",
+      "Instruction": "\"Inject developer simulator fallback to direct activate-plan call if Lemon Squeezy checkout fails.\"",
+      "ReplacementContent": "\"      } else {\\n        // If checkout gateway is not configured (or in localhost testing), activate plan directly\\n        if (data.error?.includes('configurada') || data.error?.includes('configurado') || typeof window !== 'undefined' && window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {\\n          setToast({ message: language === 'en' ? '🔧 Sandbox Mode: Activating plan directly...' : '🔧 Modo de Pruebas: Activando plan directamente...', type: 'info' });\\n          const actRes = await authFetch('/api/panel/activate-plan', {\\n            method: 'POST',\\n            headers: { 'Content-Type': 'application/json' },\\n            body: JSON.stringify({ plan })\\n          });\\n          const actData = await actRes.json();\\n          if (actRes.ok && actData.success) {\\n            setTenantData(actData.tenant);\\n            setCurrentPlan(actData.tenant.plan);\\n            if (actData.token) {\\n              localStorage.setItem('rifx_token', actData.token);\\n              setAuthToken(actData.token);\\n            }\\n            setToast({ message: language === 'en' ? '✅ Plan updated successfully!' : '✅ ¡Plan actualizado con éxito!', type: 'success' });\\n          } else {\\n            setToast({ message: 'Error: ' + (actData.error || 'Unknown'), type: 'error' });\\n          }\\n        } else {\\n          localStorage.removeItem('rifx_pending_plan');\\n          setToast({ message: language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'), type: 'error' });\\n        }\\n      }\\n    } catch (e) {\\n      console.error(e);\\n      localStorage.removeItem('rifx_pending_plan');\\n      setToast({ message: language === 'en' ? 'Error connecting to payment gateway' : 'Error al conectar con la pasarela de pagos', type: 'error' });\\n    }\\n  };\"",
+      "StartLine": "2016",
+      "TargetContent": "\"      } else {\\n        localStorage.removeItem('rifx_pending_plan');\\n        setToast({ message: language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'), type: 'error' });\\n      }\\n    } catch (e) {\\n      console.error(e);\\n      localStorage.removeItem('rifx_pending_plan');\\n      setToast({ message: language === 'en' ? 'Error connecting to payment gateway' : 'Error al conectar con la pasarela de pagos', type: 'error' });\\n    }\\n  };\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\"",
+      "toolAction": "\"Injecting sandbox plan activation fallback in panel-client.tsx\"",
+      "toolSummary": "\"Inject sandbox plan activation fallback\""
+    }
+  },
+  {
+    "step_index": 1664,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Fix tab locking function to check dynamically calculated plan permissions, preventing unauthorized access, and removing automated redirection to billing so users see the locked screen message instead.\"",
+      "EndLine": "1955",
+      "Instruction": "\"Update isTabLocked to check plan permissions dynamically and remove billing redirect.\"",
+      "ReplacementContent": "\"  const isTabLocked = React.useCallback((tab: string) => {\\n    if (tab === 'billing') return false;\\n    if (tab === 'admin' && tenantData?.isAdmin) return false;\\n\\n    // Checks custom overrides first\\n    const overrides = tenantData?.permissionOverrides || {};\\n    const overrideExpiry = overrides[tab];\\n    const hasActiveOverride = overrideExpiry && new Date(overrideExpiry).getTime() > Date.now();\\n\\n    if (hasActiveOverride) return false; // Overridden access is active\\n\\n    if (isPlanExpired) return true; // Expired plan is locked\\n\\n    const planPermissions: Record<string, string[]> = {\\n      trial: [\\\"dashboard\\\", \\\"settings\\\", \\\"billing\\\"],\\n      start: [\\\"dashboard\\\", \\\"crm\\\", \\\"settings\\\", \\\"billing\\\", \\\"playground\\\"],\\n      advanced: [\\\"dashboard\\\", \\\"crm\\\", \\\"settings\\\", \\\"billing\\\", \\\"playground\\\", \\\"banners\\\", \\\"segments\\\"],\\n      plus: [\\\"dashboard\\\", \\\"crm\\\", \\\"settings\\\", \\\"billing\\\", \\\"playground\\\", \\\"banners\\\", \\\"segments\\\", \\\"analytics\\\"],\\n      master: [\\\"dashboard\\\", \\\"crm\\\", \\\"settings\\\", \\\"billing\\\", \\\"playground\\\", \\\"campaigns\\\", \\\"banners\\\", \\\"segments\\\", \\\"analytics\\\"]\\n    };\\n\\n    const currentPlanKey = tenantData?.plan || 'trial';\\n    const baseAllowed = planPermissions[currentPlanKey] || planPermissions.trial;\\n\\n    const allowedSet = new Set([...baseAllowed]);\\n    if (tenantData?.isAdmin) {\\n      allowedSet.add('admin');\\n    }\\n    allowedSet.add('dashboard');\\n    allowedSet.add('billing');\\n\\n    return !allowedSet.has(tab);\\n  }, [isPlanExpired, tenantData?.plan, tenantData?.permissionOverrides, tenantData?.isAdmin]);\\n\\n  const getRequiredPlanForTab = React.useCallback((tab: string) => {\\n    switch (tab) {\\n      case 'crm':\\n      case 'playground':\\n        return { key: 'start', name: 'Chatea Pro Start' };\\n      case 'banners':\\n      case 'segments':\\n        return { key: 'advanced', name: 'Chatea Pro Advanced' };\\n      case 'analytics':\\n        return { key: 'plus', name: 'Chatea Pro Plus' };\\n      case 'campaigns':\\n        return { key: 'master',\n<truncated 266 bytes>",
+      "StartLine": "1910",
+      "TargetContent": "\"  const isTabLocked = React.useCallback((tab: string) => {\\n    if (tab === 'billing') return false;\\n    if (tab === 'admin' && tenantData?.isAdmin) return false;\\n\\n    // Checks custom overrides first\\n    const overrides = tenantData?.permissionOverrides || {};\\n    const overrideExpiry = overrides[tab];\\n    const hasActiveOverride = overrideExpiry && new Date(overrideExpiry).getTime() > Date.now();\\n\\n    if (hasActiveOverride) return false; // Overridden access is active\\n\\n    if (isPlanExpired) return true; // Expired plan is locked\\n\\n    const userAllowedTabs = tenantData?.allowedTabs || ['dashboard', 'billing', 'settings'];\\n  }, [isPlanExpired, tenantData?.allowedTabs, tenantData?.permissionOverrides, tenantData?.isAdmin]);\\n\\n  const getRequiredPlanForTab = React.useCallback((tab: string) => {\\n    switch (tab) {\\n      case 'crm':\\n      case 'playground':\\n        return { key: 'start', name: 'Chatea Pro Start' };\\n      case 'banners':\\n      case 'segments':\\n        return { key: 'advanced', name: 'Chatea Pro Advanced' };\\n      case 'analytics':\\n        return { key: 'plus', name: 'Chatea Pro Plus' };\\n      case 'campaigns':\\n        return { key: 'master', name: 'Chatea Pro Master' };\\n      default:\\n        return null;\\n    }\\n  }, []);\\n\\n  // Force redirect to billing when plan is expired (unless a custom override is active, or user is admin on admin tab)\\n  React.useEffect(() => {\\n    if (isPlanExpired && activeTab !== 'billing' && !(tenantData?.isAdmin && activeTab === 'admin')) {\\n      if (isTabLocked(activeTab)) {\\n        setActiveTab('billing');\\n      }\\n    }\\n  }, [isPlanExpired, activeTab, tenantData?.isAdmin, isTabLocked]);\\n\\n  // Guarded setActiveTab -- blocks navigation when plan is expired or tab is not allowed\\n  const safeSetActiveTab = (tab: typeof activeTab) => {\\n    setActiveTab(tab);\\n  };\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1668,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update the floating sidebar tooltip design to turn red and display a 'Bloqueado' badge instead of showing a lock icon.\"",
+      "EndLine": "4701",
+      "Instruction": "\"Replace lock icon in tooltip with red badge.\"",
+      "ReplacementContent": "\"      {/* Floating Sidebar Tooltip */}\\n      {hoveredTab && (\\n        <div \\n          className={`fixed left-24 px-3.5 py-2 text-white text-xs font-bold rounded-lg shadow-xl z-[9999] pointer-events-none whitespace-nowrap flex items-center gap-1.5 transition-all duration-150 transform -translate-y-1/2 ${\\n            hoveredTab.isLocked ? 'bg-red-950/95 border border-red-500/30' : 'bg-slate-900/90'\\n          }`}\\n          style={{ top: hoveredTab.top }}\\n        >\\n          <span className={hoveredTab.isLocked ? 'text-red-200' : 'text-white'}>{hoveredTab.label}</span>\\n          {hoveredTab.isLocked && (\\n            <span className=\\\"text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider ml-1\\\">\\n              {language === 'en' ? 'Locked' : 'Bloqueado'}\\n            </span>\\n          )}\\n          {/* Arrow */}\\n          <div className={`absolute right-full top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ml-[-4px] ${\\n            hoveredTab.isLocked ? 'border-r-red-950/95' : 'border-r-slate-900/90'\\n          }`}></div>\\n        </div>\\n      )}\"",
+      "StartLine": "4690",
+      "TargetContent": "\"      {/* Floating Sidebar Tooltip */}\\n      {hoveredTab && (\\n        <div \\n          className=\\\"fixed left-24 px-3.5 py-2 bg-slate-900/90 text-white text-xs font-bold rounded-lg shadow-xl z-[9999] pointer-events-none whitespace-nowrap flex items-center gap-1.5 transition-all duration-150 transform -translate-y-1/2\\\"\\n          style={{ top: hoveredTab.top }}\\n        >\\n          <span>{hoveredTab.label}</span>\\n          {hoveredTab.isLocked && <span className=\\\"material-symbols-outlined text-[10px] text-red-400 font-black\\\">lock</span>}\\n          {/* Arrow */}\\n          <div className=\\\"absolute right-full top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 border-r-slate-900/90 ml-[-4px]\\\"></div>\\n        </div>\\n      )}\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1674,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Remove full page lockout overlay and unify tab locking view inside each section when tab is blocked (expired or tier too low). Tells the user precisely which plan they need to upgrade to.\"",
+      "EndLine": "4924",
+      "Instruction": "\"Replace the lockout overlay and the tab locked screen conditional with a unified component inside the main content canvas.\"",
+      "ReplacementContent": "\"        {isTabLocked(activeTab) ? (\\n          <motion.div\\n            key=\\\"tab-locked-screen\\\"\\n            initial={{ opacity: 0, y: 15 }}\\n            animate={{ opacity: 1, y: 0 }}\\n            className=\\\"max-w-xl mx-auto mt-12 text-center p-12 bg-white rounded-3xl border border-slate-100 shadow-xl flex flex-col items-center\\\"\\n          >\\n            {/* Beautiful restricted access graphic */}\\n            <div className=\\\"relative mb-8 w-24 h-24\\\">\\n              <div className=\\\"absolute inset-0 bg-red-100 rounded-full animate-pulse\\\"></div>\\n              <div className=\\\"relative w-24 h-24 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-lg shadow-red-500/20\\\">\\n                <span className=\\\"material-symbols-outlined text-white text-4xl\\\">gpp_bad</span>\\n              </div>\\n            </div>\\n\\n            {/* Title */}\\n            <h2 className=\\\"text-2xl font-black text-slate-800 mb-3\\\">\\n              {isPlanExpired \\n                ? (language === 'es' ? 'Plan Expirado' : 'Plan Expired')\\n                : (language === 'es' ? 'Sección no disponible' : 'Section unavailable')}\\n            </h2>\\n            \\n            {/* Message */}\\n            <p className=\\\"text-slate-500 text-sm mb-8 leading-relaxed max-w-md\\\">\\n              {isPlanExpired ? (\\n                language === 'es' ? (\\n                  <>\\n                    Tu suscripción ha expirado. Para seguir usando esta sección o renovar tu servicio, cambia tu plan de suscripción en nuestra sección de facturación.\\n                  </>\\n                ) : (\\n                  <>\\n                    Your subscription has expired. To continue using this section or renew your service, please change your subscription plan in our billing section.\\n                  </>\\n                )\\n              ) : (\\n                language === 'es' ? (\\n                  <>\\n                    Tu suscripción actual no te permite acceder a esta sección. Debes cambiarte al plan\n<truncated 1722 bytes>",
+      "StartLine": "4809",
+      "TargetContent": "\"        {/* ===== FULL LOCKOUT SCREEN — shown when plan is expired and user is NOT on billing ===== */}\\n        {isPlanExpired && activeTab !== 'billing' && !(tenantData?.isAdmin && activeTab === 'admin') && (\\n          <motion.div\\n            key=\\\"lockout-overlay\\\"\\n            initial={{ opacity: 0 }}\\n            animate={{ opacity: 1 }}\\n            transition={{ duration: 0.4 }}\\n            className={`fixed inset-0 ${activeTab === 'settings' ? 'ml-0' : 'ml-20'} pt-16 z-30 flex items-center justify-center transition-all duration-300`}\\n            style={{ background: 'linear-gradient(135deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.96) 50%, rgba(15,23,42,0.98) 100%)', backdropFilter: 'blur(12px)' }}\\n          >\\n            <div className=\\\"max-w-lg w-full mx-4 text-center\\\">\\n              {/* Animated Lock Icon */}\\n              <div className=\\\"relative mx-auto mb-8 w-28 h-28\\\">\\n                <div className=\\\"absolute inset-0 bg-red-500/20 rounded-full animate-ping\\\" style={{ animationDuration: '2s' }}></div>\\n                <div className=\\\"absolute inset-2 bg-red-500/10 rounded-full animate-ping\\\" style={{ animationDuration: '2.5s', animationDelay: '0.3s' }}></div>\\n                <div className=\\\"relative w-28 h-28 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center shadow-2xl shadow-red-500/30\\\">\\n                  <span className=\\\"material-symbols-outlined text-white text-5xl\\\">lock</span>\\n                </div>\\n              </div>\\n\\n              {/* Title */}\\n              <h2 className=\\\"text-3xl font-black text-white mb-3\\\">\\n                {language === 'en' ? 'Your Plan Has Expired' : 'Tu Plan Ha Expirado'}\\n              </h2>\\n              <p className=\\\"text-slate-300 text-sm mb-8 max-w-md mx-auto leading-relaxed\\\">\\n                {language === 'en'\\n                  ? 'Your subscription has ended. All features are locked until you renew or upgrade your plan.'\\n                  : 'Tu suscripción ha finalizado. Todas las funcione\n<truncated 5268 bytes>",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1702,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update handleCancelPlan client side state to keep the active plan instead of immediately reverting to trial, and inform the user of the plan expiration date.\"",
+      "EndLine": "2073",
+      "Instruction": "\"Update handleCancelPlan in app/panel/panel-client.tsx.\"",
+      "ReplacementContent": "\"  const handleCancelPlan = async () => {\\n    setIsCancellingPlan(true);\\n    try {\\n      const res = await authFetch('/api/panel/subscription', {\\n        method: 'POST',\\n        headers: { 'Content-Type': 'application/json' },\\n        body: JSON.stringify({ action: 'cancel_subscription' }),\\n      });\\n      const data = await res.json();\\n      if (res.ok && data.success) {\\n        setTenantData((prev: any) => prev ? { \\n          ...prev, \\n          planStatus: 'cancelled',\\n        } : prev);\\n        setShowCancelPlanConfirm(false);\\n\\n        const expiresAtFormatted = data.planExpiresAt\\n          ? new Date(data.planExpiresAt).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: '2-digit', month: 'long', year: 'numeric' })\\n          : 'su fecha de vencimiento';\\n\\n        setToast({ \\n          message: language === 'en' \\n            ? `✅ Auto-renewal cancelled. Your plan remains active until ${expiresAtFormatted}.` \\n            : `✅ Renovación automática cancelada. Tu plan sigue activo hasta el ${expiresAtFormatted}.`, \\n          type: 'success' \\n        });\\n      } else {\\n        setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });\\n      }\\n    } catch (e) {\\n      console.error(e);\\n      setToast({ message: language === 'en' ? 'Error connecting to server' : 'Error al conectar con el servidor', type: 'error' });\\n    } finally {\\n      setIsCancellingPlan(false);\\n    }\\n  };\"",
+      "StartLine": "2049",
+      "TargetContent": "\"  const handleCancelPlan = async () => {\\n    setIsCancellingPlan(true);\\n    try {\\n      const res = await authFetch('/api/panel/subscription', {\\n        method: 'POST',\\n        headers: { 'Content-Type': 'application/json' },\\n        body: JSON.stringify({ action: 'cancel_subscription' }),\\n      });\\n      const data = await res.json();\\n      if (res.ok && data.success) {\\n        setCurrentPlan('trial');\\n        setTenantData((prev: any) => prev ? { ...prev, plan: 'trial' } : prev);\\n        setShowCancelPlanConfirm(false);\\n        setToast({ message: language === 'en' ? '✅ Subscription cancelled. Your plan has been downgraded to Trial.' : '✅ Suscripción cancelada. Tu plan ha sido degradado a Trial.', type: 'success' });\\n      } else {\\n        setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });\\n      }\\n    } catch (e) {\\n      console.error(e);\\n      setToast({ message: language === 'en' ? 'Error connecting to server' : 'Error al conectar con el servidor', type: 'error' });\\n    } finally {\\n      setIsCancellingPlan(false);\\n    }\\n  };\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1712,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Hide cancel subscription button if already cancelled, and update current plan badge to show when it will expire (auto-renewal disabled) with an amber indicator dot.\"",
+      "EndLine": "9389",
+      "Instruction": "\"Update current plan status and cancel button visibility in app/panel/panel-client.tsx.\"",
+      "ReplacementContent": "\"              </div>\\n              <div className=\\\"flex items-center gap-3\\\">\\n                {currentPlan !== 'trial' && tenantData?.planStatus !== 'cancelled' && (\\n                  <button\\n                    onClick={() => setShowCancelPlanConfirm(true)}\\n                    className=\\\"flex items-center gap-1.5 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all\\\"\\n                  >\\n                    <span className=\\\"material-symbols-outlined text-sm\\\">cancel</span>\\n                    {language === 'en' ? 'Cancel Plan' : 'Cancelar Plan'}\\n                  </button>\\n                )}\\n                <div className=\\\"flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm\\\">\\n                  <span className={`w-2.5 h-2.5 rounded-full ${\\n                    currentPlan === 'trial' \\n                      ? 'bg-slate-400' \\n                      : (tenantData?.planStatus === 'cancelled' ? 'bg-amber-500' : 'bg-emerald-500')\\n                  } animate-pulse`}></span>\\n                  <div>\\n                    <p className=\\\"text-[10px] text-slate-400 uppercase tracking-wider font-bold\\\">{language === 'en' ? 'Current Plan' : 'Plan Actual'}</p>\\n                    <p className=\\\"text-xs font-extrabold text-primary\\\">\\n                      {currentPlan === 'trial' \\n                        ? (language === 'en' ? 'Free Trial' : 'Prueba Gratuita') \\n                        : `Chatea Pro ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}`}\\n                    </p>\\n                    {tenantData?.planStatus === 'cancelled' && tenantData?.planExpiresAt && (\\n                      <p className=\\\"text-[9px] text-amber-600 font-bold mt-0.5 whitespace-nowrap\\\">\\n                        {language === 'en' \\n                          ? `Cancelled (Active until ${new Date(tenantData.planExpiresAt).toLocaleDateString()})` \\n                          : `Cancelado (Activo hasta ${new Date(ten\n<truncated 199 bytes>",
+      "StartLine": "9370",
+      "TargetContent": "\"              </div>\\n              <div className=\\\"flex items-center gap-3\\\">\\n                {currentPlan !== 'trial' && (\\n                  <button\\n                    onClick={() => setShowCancelPlanConfirm(true)}\\n                    className=\\\"flex items-center gap-1.5 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all\\\"\\n                  >\\n                    <span className=\\\"material-symbols-outlined text-sm\\\">cancel</span>\\n                    {language === 'en' ? 'Cancel Plan' : 'Cancelar Plan'}\\n                  </button>\\n                )}\\n                <div className=\\\"flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm\\\">\\n                  <span className={`w-2.5 h-2.5 rounded-full ${currentPlan === 'trial' ? 'bg-slate-400' : 'bg-emerald-500'} animate-pulse`}></span>\\n                  <div>\\n                    <p className=\\\"text-[10px] text-slate-400 uppercase tracking-wider font-bold\\\">{language === 'en' ? 'Current Plan' : 'Plan Actual'}</p>\\n                    <p className=\\\"text-xs font-extrabold text-primary\\\">{currentPlan === 'trial' ? (language === 'en' ? 'Free Trial' : 'Prueba Gratuita') : `Chatea Pro ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}`}</p>\\n                  </div>\\n                </div>\\n              </div>\\n            </div>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\""
+    }
+  },
+  {
+    "step_index": 1716,
+    "name": "replace_file_content",
+    "args": {
+      "AllowMultiple": "false",
+      "Description": "\"Update cancel plan confirmation modal warning text to match the non-downgrade behavior, informing the user that access remains active until the end of the billing period.\"",
+      "EndLine": "9569",
+      "Instruction": "\"Update text in cancel plan confirmation modal.\"",
+      "ReplacementContent": "\"                 <h3 className=\\\"text-lg font-extrabold text-[#0b1c30]\\\">{language === 'en' ? 'Cancel Subscription' : 'Cancelar Suscripción'}</h3>\\n                <p className=\\\"text-xs text-slate-400 mt-2\\\">\\n                  {language === 'en'\\n                    ? 'Are you sure you want to cancel the auto-renewal of your plan?'\\n                    : '¿Estás seguro de cancelar la renovación automática de tu plan?'}\\n                </p>\\n              </div>\\n              <div className=\\\"bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6\\\">\\n                <div className=\\\"flex items-start gap-2\\\">\\n                  <span className=\\\"material-symbols-outlined text-amber-600 text-sm mt-0.5\\\">info</span>\\n                  <p className=\\\"text-xs text-amber-800 leading-relaxed font-semibold\\\">\\n                    {language === 'en'\\n                      ? 'You will keep full access to all active features until the end of your paid billing cycle.'\\n                      : 'Mantendrás acceso total a todas las funciones activas hasta el final de tu periodo de facturación pagado.'}\\n                  </p>\\n                </div>\\n              </div>\"",
+      "StartLine": "9553",
+      "TargetContent": "\"                 <h3 className=\\\"text-lg font-extrabold text-[#0b1c30]\\\">{language === 'en' ? 'Cancel Subscription' : 'Cancelar Suscripción'}</h3>\\n                <p className=\\\"text-xs text-slate-400 mt-2\\\">\\n                  {language === 'en'\\n                    ? 'Are you sure you want to cancel your plan? You will be downgraded to the free Trial.'\\n                    : '¿Estás seguro de cancelar tu plan? Tu cuenta pasará al plan Trial gratuito.'}\\n                </p>\\n              </div>\\n              <div className=\\\"bg-red-50 border border-red-200 rounded-xl p-4 mb-6\\\">\\n                <div className=\\\"flex items-start gap-2\\\">\\n                  <span className=\\\"material-symbols-outlined text-red-500 text-sm mt-0.5\\\">warning</span>\\n                  <p className=\\\"text-xs text-red-700 leading-relaxed\\\">\\n                    {language === 'en'\\n                      ? 'All premium features will be disabled immediately. This action cannot be undone.'\\n                      : 'Todas las funciones premium serán desactivadas de inmediato. Esta acción no se puede deshacer.'}\\n                  </p>\\n                </div>\\n              </div>\"",
+      "TargetFile": "\"c:\\\\Users\\\\x\\\\OneDrive\\\\Escritorio\\\\rifx-marketing.github.io-main\\\\app\\\\panel\\\\panel-client.tsx\""
+    }
+  }
+]

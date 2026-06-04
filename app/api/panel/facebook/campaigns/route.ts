@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getFacebookCredentials } from '@/lib/facebook';
 
 const FB_API_VERSION = 'v21.0';
 const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`;
 
-function getEnv() {
-  const token = process.env.FACEBOOK_ACCESS_TOKEN;
-  const adAccountId = process.env.FACEBOOK_AD_ACCOUNT_ID;
-  if (!token || !adAccountId) {
-    throw new Error('Faltan credenciales de Facebook Marketing API');
-  }
-  return { token, adAccountId };
-}
-
 // GET - Listar campañas con métricas
 export async function GET(req: NextRequest) {
   try {
-    const { token, adAccountId } = getEnv();
+    const { token, adAccountId } = await getFacebookCredentials(req);
     const { searchParams } = new URL(req.url);
     const datePreset = searchParams.get('date_preset') || 'last_30d';
 
@@ -86,7 +78,7 @@ export async function GET(req: NextRequest) {
 // POST - Crear nueva campaña
 export async function POST(req: NextRequest) {
   try {
-    const { token, adAccountId } = getEnv();
+    const { token, adAccountId } = await getFacebookCredentials(req);
     const body = await req.json();
     const { name, objective = 'OUTCOME_TRAFFIC', status = 'PAUSED', daily_budget, special_ad_categories = [] } = body;
 
@@ -126,7 +118,7 @@ export async function POST(req: NextRequest) {
 // PATCH - Actualizar estado de campaña (pausar/activar)
 export async function PATCH(req: NextRequest) {
   try {
-    const { token } = getEnv();
+    const { token } = await getFacebookCredentials(req);
     const body = await req.json();
     const { campaign_id, status } = body;
 
@@ -158,7 +150,7 @@ export async function PATCH(req: NextRequest) {
 // DELETE - Eliminar campaña
 export async function DELETE(req: NextRequest) {
   try {
-    const { token } = getEnv();
+    const { token } = await getFacebookCredentials(req);
     const { searchParams } = new URL(req.url);
     const campaignId = searchParams.get('campaign_id');
 

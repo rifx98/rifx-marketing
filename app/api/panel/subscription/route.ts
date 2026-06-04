@@ -26,8 +26,17 @@ export async function POST(req: NextRequest) {
         master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
       };
 
-      const limits = LIMITS[plan];
       const supabase = createSupabaseAdmin();
+
+      // Fetch current tenant data
+      const { data: currentTenant } = await supabase
+        .from('tenants')
+        .select('plan, plan_status, plan_expires_at')
+        .eq('id', tenant.tenantId)
+        .single();
+
+      // ✅ IMMEDIATE ACTIVATION: Trial, expired plan, downgrade, or same plan
+      const limits = LIMITS[plan];
       const { error } = await supabase
         .from('tenants')
         .update({
@@ -40,11 +49,67 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', tenant.tenantId);
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      return NextResponse.json({ success: true, plan });
+      console.log(`✅ Plan activado inmediatamente: ${plan}`);
+
+      return NextResponse.json({ success: true, plan, scheduled: false });
+    }
+
+    // Action: cancel_subscription (keep plan and expires_at, only set status to cancelled)
+    if (action === 'cancel_subscription') {
+      const supabase = createSupabaseAdmin();
+
+      // Fetch current tenant data to check plan and expiry
+      const { data: currentTenant, error: fetchError } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('id', tenant.tenantId)
+        .single();
+
+      if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
+
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          plan_status: 'cancelled',
+        })
+        .eq('id', tenant.tenantId);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      const expiresAt = currentTenant.plan_expires_at
+        ? new Date(currentTenant.plan_expires_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+        : 'su fecha de vencimiento';
+
+      const planName = currentTenant.plan.toUpperCase();
+
+      console.log(`❌ Suscripción cancelada (no renovación) para tenant ${tenant.tenantId}. Activo hasta ${currentTenant.plan_expires_at}`);
+      return NextResponse.json({ 
+        success: true, 
+        plan: currentTenant.plan, 
+        planStatus: 'cancelled',
+        planExpiresAt: currentTenant.plan_expires_at,
+        message: `Suscripción cancelada. Tu plan ${planName} permanecerá activo hasta el ${expiresAt}.` 
+      });
+    }
+
+    // Action: reactivate_subscription (reactivate auto-renewal by setting plan_status to active)
+    if (action === 'reactivate_subscription') {
+      const supabase = createSupabaseAdmin();
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          plan_status: 'active',
+        })
+        .eq('id', tenant.tenantId);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ 
+        success: true, 
+        planStatus: 'active',
+        message: '¡Suscripción reactivada! Tu plan se renovará automáticamente al final del período.' 
+      });
     }
 
     return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });

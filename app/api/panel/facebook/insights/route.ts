@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getFacebookCredentials } from '@/lib/facebook';
 
 const FB_API_VERSION = 'v21.0';
 const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`;
 
-function getEnv() {
-  const token = process.env.FACEBOOK_ACCESS_TOKEN;
-  const adAccountId = process.env.FACEBOOK_AD_ACCOUNT_ID;
-  if (!token || !adAccountId) {
-    throw new Error('Faltan credenciales de Facebook Marketing API');
-  }
-  return { token, adAccountId };
-}
-
 // GET - KPIs agregados de la cuenta + desglose por plataforma
 export async function GET(req: NextRequest) {
   try {
-    const { token, adAccountId } = getEnv();
+    const { token, adAccountId } = await getFacebookCredentials(req);
     const { searchParams } = new URL(req.url);
     const datePreset = searchParams.get('date_preset') || 'last_30d';
     const since = searchParams.get('since');

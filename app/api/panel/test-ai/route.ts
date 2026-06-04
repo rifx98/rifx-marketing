@@ -18,8 +18,35 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
     
+    // Resolve tenantId from Authorization header
+    const authHeader = req.headers.get('authorization');
+    let tenantId: string | null = null;
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        tenantId = payload.tenant_id || null;
+      } catch (err) {
+        console.error('Error parsing token in test-ai:', err);
+      }
+    }
+
     // Obtener configuración (prompt y key) de la DB
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    let config: any = null;
+    if (tenantId) {
+      const { data: tenantConfig } = await supabase
+        .from('config')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .limit(1)
+        .single();
+      config = tenantConfig;
+    }
+    
+    if (!config) {
+      const { data: anyConfig } = await supabase.from('config').select('*').limit(1).single();
+      config = anyConfig;
+    }
     
     const basePrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
     
@@ -47,6 +74,37 @@ export async function POST(req: NextRequest) {
 
     // Base configured prompt
     parts.push(basePrompt);
+
+    // Cargar Base de Conocimiento del tenant
+    if (tenantId) {
+      try {
+        const kbEntries = await getKBIndex(supabase, tenantId);
+        const activeEntries = kbEntries.filter((e: any) => e.active && e.content);
+        
+        if (activeEntries.length > 0) {
+          let kbContext = '\n\n[BASE DE CONOCIMIENTO — Usa esta información para responder preguntas del cliente]:\n';
+          let totalChars = 0;
+          const maxKbChars = 30000;
+          
+          for (const entry of activeEntries) {
+            if (totalChars + entry.content.length > maxKbChars) {
+              const remaining = maxKbChars - totalChars;
+              if (remaining > 200) {
+                kbContext += `\n--- ${entry.file_name} ---\n${entry.content.substring(0, remaining)}...\n`;
+              }
+              break;
+            }
+            kbContext += `\n--- ${entry.file_name} ---\n${entry.content}\n`;
+            totalChars += entry.content.length;
+          }
+          
+          parts.push(kbContext);
+          console.log(`📚 KB (Test AI): ${activeEntries.length} archivos activos inyectados (${totalChars} chars) para tenant ${tenantId}`);
+        }
+      } catch (kbErr) {
+        console.log(`📚 KB (Test AI): Sin base de conocimiento para tenant ${tenantId} (${kbErr})`);
+      }
+    }
 
     // Identity & Tone
     if (botName) {
@@ -124,5 +182,22 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Test AI Error:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// Helper: Get KB index from storage
+async function getKBIndex(supabase: any, tenantId: string) {
+  const path = `${tenantId}/index.json`;
+  const { data, error } = await supabase.storage
+    .from('knowledge-base')
+    .download(path);
+  
+  if (error || !data) return [];
+  
+  try {
+    const text = await data.text();
+    return JSON.parse(text);
+  } catch {
+    return [];
   }
 }

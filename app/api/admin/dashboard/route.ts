@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     // Total tenants
     const { data: allTenants, error: tenantsError } = await supabase
       .from('tenants')
-      .select('id, email, company_name, owner_name, plan, plan_status, plan_expires_at, storage_used_bytes, storage_limit_bytes, contact_limit, is_admin, created_at')
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (tenantsError) {
@@ -51,18 +51,72 @@ export async function GET(req: NextRequest) {
       .from('messages')
       .select('*', { count: 'exact', head: true });
 
-    // Announcements
-    const { data: announcements } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // Announcements (safe — table might not exist)
+    let announcements: any[] = [];
+    try {
+      const { data: annData } = await supabase
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false });
+      announcements = annData || [];
+    } catch {}
 
-    // Payments
-    const { data: payments } = await supabase
-      .from('payments')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20);
+    // Payments (safe — table might not exist)
+    let allPayments: any[] = [];
+    try {
+      const { data: payData } = await supabase
+        .from('payments')
+        .select('*')
+        .order('created_at', { ascending: false });
+      allPayments = payData || [];
+    } catch {}
+
+    const payments = allPayments;
+
+    // Group payments by tenant_id
+    const paymentsByTenant: Record<string, any[]> = {};
+    for (const p of payments) {
+      if (!paymentsByTenant[p.tenant_id]) paymentsByTenant[p.tenant_id] = [];
+      paymentsByTenant[p.tenant_id].push(p);
+    }
+
+    // Global subscription metrics
+    const totalRevenue = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+    const activeSubscriptions = tenants.filter(t => t.plan_status === 'active' && t.plan !== 'trial').length;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const monthlyRevenue = payments
+      .filter((p: any) => p.created_at >= thirtyDaysAgo)
+      .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+
+    // Recent payments with tenant info attached
+    const tenantMap: Record<string, any> = {};
+    for (const t of tenants) tenantMap[t.id] = t;
+    const recentPayments = payments.slice(0, 10).map((p: any) => ({
+      ...p,
+      tenantEmail: tenantMap[p.tenant_id]?.email || null,
+      tenantCompany: tenantMap[p.tenant_id]?.company_name || null,
+    }));
+
+    // Load global plan permissions from platform_settings
+    let planPermissions = {
+      trial: ["dashboard", "settings", "billing"],
+      start: ["dashboard", "crm", "settings", "billing", "playground"],
+      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics"]
+    };
+    try {
+      const { data: settingsData } = await supabase
+        .from('platform_settings')
+        .select('plan_permissions')
+        .limit(1)
+        .maybeSingle();
+      if (settingsData?.plan_permissions) {
+        planPermissions = settingsData.plan_permissions;
+      }
+    } catch (e) {
+      console.error('Error fetching plan_permissions in dashboard:', e);
+    }
 
     return NextResponse.json({
       totalTenants,
@@ -71,22 +125,44 @@ export async function GET(req: NextRequest) {
       planCounts,
       totalConversations: totalConversations || 0,
       totalMessages: totalMessages || 0,
-      tenants: tenants.map(t => ({
-        id: t.id,
-        email: t.email,
-        companyName: t.company_name,
-        ownerName: t.owner_name,
-        plan: t.plan,
-        planStatus: t.plan_status,
-        planExpiresAt: t.plan_expires_at,
-        storageUsed: t.storage_used_bytes,
-        storageLimit: t.storage_limit_bytes,
-        contactLimit: t.contact_limit,
-        isAdmin: t.is_admin,
-        createdAt: t.created_at,
-      })),
+      totalRevenue,
+      activeSubscriptions,
+      monthlyRevenue,
+      recentPayments,
+      planPermissions,
+      tenants: tenants.map(t => {
+        const tenantPayments = paymentsByTenant[t.id] || [];
+        const totalSpent = tenantPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+        const lastPaymentDate = tenantPayments.length > 0 ? tenantPayments[0].created_at : null;
+        const daysRemaining = t.plan_expires_at
+          ? Math.max(0, Math.ceil((new Date(t.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+          : 0;
+        return {
+          id: t.id,
+          email: t.email,
+          companyName: t.company_name,
+          ownerName: t.owner_name,
+          plan: t.plan,
+          planStatus: t.plan_status,
+          planStartedAt: t.plan_started_at,
+          planExpiresAt: t.plan_expires_at,
+          storageUsed: t.storage_used_bytes,
+          storageLimit: t.storage_limit_bytes,
+          contactLimit: t.contact_limit,
+          isAdmin: t.is_admin,
+          adminRole: t.admin_role || 'full',
+          adminCanEditPlans: t.admin_can_edit_plans !== false,
+          adminSections: t.admin_sections || ['overview', 'tenants', 'templates', 'announcements'],
+          createdAt: t.created_at,
+          payments: tenantPayments,
+          totalSpent,
+          lastPaymentDate,
+          daysRemaining,
+          permissionOverrides: t.permission_overrides || {},
+        };
+      }),
       announcements: announcements || [],
-      payments: payments || [],
+      payments,
     });
   } catch (error: any) {
     console.error('❌ Error en admin dashboard:', error);
@@ -152,6 +228,10 @@ export async function POST(req: NextRequest) {
 
     // Action: update_tenant_plan
     if (body.action === 'update_tenant_plan') {
+      if (tenant.adminCanEditPlans === false) {
+        return NextResponse.json({ error: 'No tienes permisos para modificar planes.' }, { status: 403 });
+      }
+
       const { targetTenantId, plan } = body;
       const validPlans = ['trial', 'start', 'advanced', 'plus', 'master'];
       if (!validPlans.includes(plan)) {
@@ -185,10 +265,68 @@ export async function POST(req: NextRequest) {
 
     // Action: toggle_admin
     if (body.action === 'toggle_admin') {
-      const { targetTenantId, isAdmin } = body;
+      // Solo un admin full puede cambiar permisos de administrador
+      if (tenant.adminRole !== 'full' && tenant.adminRole !== undefined) {
+        return NextResponse.json({ error: 'Solo un Administrador Total puede asignar o quitar roles.' }, { status: 403 });
+      }
+
+      const { targetTenantId, isAdmin, adminRole, adminCanEditPlans } = body;
+      
+      const updateData: any = { is_admin: isAdmin };
+      if (isAdmin) {
+        updateData.admin_role = adminRole || 'full';
+        updateData.admin_can_edit_plans = adminCanEditPlans !== false;
+        updateData.admin_sections = body.adminSections || ['overview', 'tenants', 'templates', 'announcements'];
+      }
+
       const { error } = await supabase
         .from('tenants')
-        .update({ is_admin: isAdmin })
+        .update(updateData)
+        .eq('id', targetTenantId);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+
+    // Action: update_plan_permissions
+    if (body.action === 'update_plan_permissions') {
+      const { planPermissions } = body;
+      if (!planPermissions) {
+        return NextResponse.json({ error: 'Permisos de planes requeridos' }, { status: 400 });
+      }
+
+      const { data: existing } = await supabase
+        .from('platform_settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      let result;
+      if (existing) {
+        result = await supabase
+          .from('platform_settings')
+          .update({ plan_permissions: planPermissions, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+      } else {
+        result = await supabase
+          .from('platform_settings')
+          .insert({ plan_permissions: planPermissions });
+      }
+
+      if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+
+    // Action: update_tenant_overrides
+    if (body.action === 'update_tenant_overrides') {
+      const { targetTenantId, permissionOverrides } = body;
+      if (!targetTenantId || !permissionOverrides) {
+        return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from('tenants')
+        .update({ permission_overrides: permissionOverrides })
         .eq('id', targetTenantId);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });

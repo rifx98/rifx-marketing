@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
       email: tenant.email,
       plan: tenant.plan,
       isAdmin: tenant.is_admin,
+      adminRole: 'full',
+      adminCanEditPlans: true,
     });
 
     console.log('✅ Nuevo tenant registrado:', tenant.email);

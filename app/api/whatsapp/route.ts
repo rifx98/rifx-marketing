@@ -31,19 +31,15 @@ export async function POST(req: NextRequest) {
     const value = changes?.value;
     const messageData = value?.messages?.[0];
 
-    // Ignorar si no es un mensaje de texto
-    if (!messageData || messageData.type !== 'text') {
+    // Ignorar si no es texto ni audio
+    if (!messageData || (messageData.type !== 'text' && messageData.type !== 'audio')) {
       return NextResponse.json({ status: 'ignored' });
     }
 
     const customerPhone = messageData.from; // ej: "593984111222"
-    const customerMessage = messageData.text.body;
     const customerName = value?.contacts?.[0]?.profile?.name || 'Cliente';
     // Extract the WhatsApp Phone Number ID from Meta's webhook payload
     const webhookPhoneId = value?.metadata?.phone_number_id || '';
-
-    console.log(`📩 Mensaje de ${customerName} (${customerPhone}): ${customerMessage}`);
-    console.log(`📞 Webhook phone_number_id: ${webhookPhoneId}`);
 
     const supabase = createSupabaseAdmin();
 
@@ -119,6 +115,46 @@ export async function POST(req: NextRequest) {
 
     console.log(`🏢 Tenant resuelto: ${tenantId || '(ninguno)'} | Config ID: ${config?.id || '(ninguna)'}`);
 
+    // Extraer o transcribir el mensaje del cliente
+    let customerMessage = '';
+    const isAudio = messageData.type === 'audio';
+
+    if (messageData.type === 'text') {
+      customerMessage = messageData.text.body;
+    } else if (isAudio) {
+      console.log(`🎙️ Audio detectado de ${customerName} (${customerPhone}). Transcribiendo...`);
+      let extConfig = { openai_key: '', gemini_key: '', groq_key: '' };
+      try { 
+        const p = JSON.parse(config?.openai_key || '{}');
+        extConfig = { ...extConfig, ...p };
+      } catch { 
+        extConfig.openai_key = config?.openai_key || '';
+      }
+
+      let token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
+      if (token && token.length < 20) token = process.env.WHATSAPP_TOKEN;
+
+      const openAiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
+      const groqKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
+
+      if (!token) {
+        console.error('❌ No se puede transcribir audio: whatsapp_token no configurado');
+        customerMessage = '(Mensaje de audio enviado pero no se pudo descargar por falta de token de WhatsApp)';
+      } else {
+        const audioId = messageData.audio.id;
+        const text = await transcribeWhatsAppAudio(audioId, token, openAiKey, groqKey);
+        if (text) {
+          customerMessage = text;
+          console.log(`🎙️ Audio transcribido de ${customerPhone}: "${customerMessage}"`);
+        } else {
+          customerMessage = '(Mensaje de audio enviado pero falló la transcripción)';
+        }
+      }
+    }
+
+    console.log(`📩 Mensaje de ${customerName} (${customerPhone}): ${customerMessage}`);
+    console.log(`📞 Webhook phone_number_id: ${webhookPhoneId}`);
+
     // 1. Buscar o crear conversación
     let { data: conversation } = await supabase
       .from('conversations')
@@ -155,10 +191,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Guardar mensaje del cliente
+    const dbContent = isAudio ? `🎙️ [Audio]: ${customerMessage}` : customerMessage;
     await supabase.from('messages').insert({
       conversation_id: conversation.id,
       role: 'user',
-      content: customerMessage,
+      content: dbContent,
     });
 
     // 2.5 Verificar si la conversación está en MODO HUMANO (señal en mensajes)
@@ -324,12 +361,32 @@ export async function POST(req: NextRequest) {
     }
 
     // Decode extended config for AI keys + model settings
-    let extConfig = { openai_key: '', gemini_key: '', groq_key: '', model_selection: 'gpt-4o', confidence_threshold: 0.85 };
+    let extConfig = {
+      openai_key: '', gemini_key: '', groq_key: '',
+      model_selection: 'gpt-4o', confidence_threshold: 0.85,
+      dropi_enabled: false, dropi_token: '',
+      dropi_default_product_id: '', dropi_default_price: 50
+    };
     try { 
       const p = JSON.parse(config?.openai_key || '{}');
       extConfig = { ...extConfig, ...p };
     } catch { 
       extConfig.openai_key = config?.openai_key || '';
+    }
+
+    if (extConfig.dropi_enabled) {
+      aiPrompt += `\n\n[AGENTE DE DROPSHIPPING ACTIVADO - DROPI]:
+Cuando el cliente demuestre interés claro en comprar o realizar un pedido del producto, debes pedirle de manera amable y profesional los siguientes datos completos de envío:
+1. Nombre Completo
+2. Teléfono de contacto
+3. Dirección exacta de entrega (calle, número de casa, indicaciones)
+4. Ciudad y Departamento
+
+IMPORTANTE:
+- Explícale que el envío es "Contra Entrega" (paga en efectivo al recibir el producto) a menos que pida lo contrario.
+- Una vez (y SOLO cuando) tengas TODOS los datos anteriores (Nombre, Teléfono, Dirección, Ciudad), debes confirmar el pedido al cliente y generar la orden en Dropi respondiendo con el siguiente tag exacto al final de tu mensaje:
+[CREAR_ORDEN_DROPI:nombre_cliente:telefono:direccion:ciudad:${extConfig.dropi_default_product_id || 'DEFAULT_PRODUCT'}:1:contra_entrega]
+Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos.`;
     }
 
     // Determine which provider & model to use
@@ -443,6 +500,46 @@ export async function POST(req: NextRequest) {
           .eq('id', conversation.id);
       } else {
         aiResponse += '\n\n⚠️ Hubo un problema al generar el link de pago. Nuestro equipo te contactará para ayudarte.';
+      }
+    }
+
+    // 6.5 Detectar si la IA quiere generar un pedido en Dropi
+    const dropiMatch = aiResponse.match(/\[CREAR_ORDEN_DROPI:(.+?):(.+?):(.+?):(.+?):(.+?):(\d+):(.+?)\]/);
+    if (dropiMatch) {
+      const [, customerNameArg, phoneArg, addressArg, cityArg, productIdArg, quantityArg, paymentType] = dropiMatch;
+
+      // Limpiar el tag del mensaje
+      aiResponse = aiResponse.replace(/\[CREAR_ORDEN_DROPI:.+?\]/, '').trim();
+
+      console.log(`🚛 Creando orden en Dropi para ${customerNameArg} en ${cityArg}...`);
+      const dropiToken = extConfig.dropi_token;
+      
+      const orderResult = await createDropiOrder({
+        customerName: customerNameArg,
+        phone: phoneArg,
+        address: addressArg,
+        city: cityArg,
+        productId: productIdArg,
+        quantity: parseInt(quantityArg),
+        paymentType,
+        token: dropiToken,
+        price: extConfig.dropi_default_price || 50
+      });
+
+      if (orderResult.success) {
+        aiResponse += `\n\n🚛 *¡Pedido Confirmado!*
+Se ha generado la orden de envío en Dropi.
+Guía de seguimiento: *${orderResult.guideNumber}*
+Transportadora: *${orderResult.carrier}*`;
+
+        // Mover estado de conversación a interesado
+        await supabase
+          .from('conversations')
+          .update({ status: 'interested' })
+          .eq('id', conversation.id);
+      } else {
+        console.error(`❌ Error creando orden en Dropi: ${orderResult.error}`);
+        aiResponse += `\n\n⚠️ Hemos tomado tus datos de envío, pero hubo un problema al conectar con el sistema logístico de Dropi. Un asesor humano confirmará tu pedido manualmente en breve.`;
       }
     }
 
@@ -571,5 +668,167 @@ async function generatePayPhonePayment(
   } catch (error) {
     console.error('❌ Error al generar pago PayPhone:', error);
     return { success: false };
+  }
+}
+
+async function transcribeWhatsAppAudio(
+  audioId: string,
+  token: string,
+  openAiKey: string,
+  groqKey?: string
+): Promise<string> {
+  try {
+    console.log(`🎙️ Solicitando metadata de audio Meta ID: ${audioId}`);
+    // 1. Obtener la URL del audio
+    const metaRes = await fetch(`https://graph.facebook.com/v19.0/${audioId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!metaRes.ok) {
+      const errText = await metaRes.text();
+      throw new Error(`Meta API error fetching audio metadata: ${metaRes.status} ${errText}`);
+    }
+    const metaData = await metaRes.json();
+    const audioUrl = metaData.url;
+    const mimeType = metaData.mime_type || 'audio/ogg';
+    
+    if (!audioUrl) {
+      throw new Error('No se encontró URL de audio en la metadata');
+    }
+
+    console.log(`🎙️ Descargando archivo de audio desde Meta CDN...`);
+    // 2. Descargar el archivo binario
+    const audioRes = await fetch(audioUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!audioRes.ok) {
+      throw new Error(`Error descargando archivo de audio: ${audioRes.statusText}`);
+    }
+    const arrayBuffer = await audioRes.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: mimeType });
+    
+    // 3. Enviar a Whisper (Groq o OpenAI)
+    const formData = new FormData();
+    formData.append('file', blob, 'audio.ogg');
+    
+    if (groqKey && groqKey.length > 10) {
+      console.log('🎙️ Intentando transcribir con Groq Whisper...');
+      formData.append('model', 'whisper-large-v3');
+      try {
+        const groqRes = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+          },
+          body: formData,
+        });
+        if (groqRes.ok) {
+          const data = await groqRes.json();
+          return data.text || '';
+        }
+        const errText = await groqRes.text();
+        console.warn(`⚠️ Falló la transcripción con Groq Whisper: ${errText}`);
+      } catch (groqErr: any) {
+        console.warn(`⚠️ Error conectando con Groq Whisper: ${groqErr?.message || groqErr}`);
+      }
+    }
+
+    if (openAiKey && openAiKey.length > 10) {
+      console.log('🎙️ Intentando transcribir con OpenAI Whisper...');
+      formData.append('model', 'whisper-1');
+      const oaiRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openAiKey}`,
+        },
+        body: formData,
+      });
+      if (oaiRes.ok) {
+        const data = await oaiRes.json();
+        return data.text || '';
+      }
+      const errText = await oaiRes.text();
+      throw new Error(`OpenAI Whisper error: ${errText}`);
+    }
+
+    throw new Error('No hay claves de API válidas de OpenAI o Groq configuradas para transcripción.');
+  } catch (err: any) {
+    console.error('❌ Error en transcribeWhatsAppAudio:', err?.message || err);
+    return '';
+  }
+}
+
+interface DropiOrderParams {
+  customerName: string;
+  phone: string;
+  address: string;
+  city: string;
+  productId: string;
+  quantity: number;
+  paymentType: string;
+  token: string;
+  price: number;
+}
+
+async function createDropiOrder(params: DropiOrderParams) {
+  const { customerName, phone, address, city, productId, quantity, paymentType, token, price } = params;
+
+  if (!token || token.length < 10) {
+    console.log('⚠️ No Dropi token configured or token too short. Running in SIMULATION mode.');
+    return {
+      success: true,
+      guideNumber: `MOCK-${Math.floor(100000 + Math.random() * 900000)}`,
+      carrier: 'Servientrega (Simulado)'
+    };
+  }
+
+  try {
+    // Dropi API order payload structure
+    const payload = {
+      nombre: customerName,
+      telefono: phone,
+      direccion: address,
+      ciudad: city,
+      metodo_pago: paymentType === 'contra_entrega' ? 1 : 2, // 1: Contra entrega, 2: Pago anticipado
+      productos: [
+        {
+          id: productId,
+          cantidad: quantity,
+          precio: price
+        }
+      ]
+    };
+
+    console.log('Sending order payload to Dropi:', JSON.stringify(payload));
+
+    const response = await fetch('https://api.dropi.co/api/v1/orders', {
+      method: 'POST',
+      headers: {
+        'dropi-integracion-key': token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+
+    if (response.ok && (result.success || result.id || result.guia)) {
+      return {
+        success: true,
+        guideNumber: result.guia || result.tracking_number || `DP-${result.id || Date.now()}`,
+        carrier: result.transportadora || 'Envía'
+      };
+    } else {
+      console.error('❌ Dropi API responded with error:', JSON.stringify(result));
+      return {
+        success: false,
+        error: result.message || 'API error'
+      };
+    }
+  } catch (err: any) {
+    console.error('❌ Error executing Dropi order request:', err);
+    return {
+      success: false,
+      error: err.message || 'Connection error'
+    };
   }
 }

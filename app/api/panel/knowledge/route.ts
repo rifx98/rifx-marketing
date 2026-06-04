@@ -134,42 +134,68 @@ export async function POST(req: NextRequest) {
       ? textContent.substring(0, maxContentLength) + '\n\n[... contenido truncado por límite de tamaño ...]'
       : textContent;
     
-    // Generate unique ID
-    const id = `kb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
     // Format file size
     const size = file.size > 1048576 
       ? `${(file.size / 1048576).toFixed(1)} MB` 
       : `${Math.round(file.size / 1024)} KB`;
     
-    // Store raw file in storage
-    const rawPath = `${tenantId}/files/${id}_${file.name}`;
-    await supabase.storage
-      .from('knowledge-base')
-      .upload(rawPath, buffer, { contentType: file.type || 'application/octet-stream' });
-    
-    // Create KB entry
-    const newEntry: KBEntry = {
-      id,
-      tenant_id: tenantId,
-      file_name: file.name,
-      file_type: ext,
-      file_size: size,
-      active: true,
-      content: truncatedContent,
-      created_at: new Date().toISOString(),
-    };
-    
     // Update index
     const entries = await getKBIndex(supabase, tenantId);
-    entries.push(newEntry);
-    await saveKBIndex(supabase, tenantId, entries);
     
-    console.log(`📚 KB: Archivo "${file.name}" subido para tenant ${tenantId} (${truncatedContent.length} chars extraídos)`);
+    // Check if a file with the same name already exists in the KB index
+    const existingIndex = entries.findIndex(e => e.file_name === file.name);
+    
+    let entryToSave: KBEntry;
+    
+    if (existingIndex > -1) {
+      // Overwrite existing entry
+      const existingEntry = entries[existingIndex];
+      const rawPath = `${tenantId}/files/${existingEntry.id}_${file.name}`;
+      
+      // Upload with upsert: true
+      await supabase.storage
+        .from('knowledge-base')
+        .upload(rawPath, buffer, { upsert: true, contentType: file.type || 'application/octet-stream' });
+        
+      existingEntry.content = truncatedContent;
+      existingEntry.file_size = size;
+      existingEntry.active = true; // reactivate if disabled
+      existingEntry.created_at = new Date().toISOString();
+      
+      entryToSave = existingEntry;
+      await saveKBIndex(supabase, tenantId, entries);
+      console.log(`📚 KB: Archivo "${file.name}" sobrescrito para tenant ${tenantId} (${truncatedContent.length} chars extraídos)`);
+    } else {
+      // Generate unique ID
+      const id = `kb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Store raw file in storage
+      const rawPath = `${tenantId}/files/${id}_${file.name}`;
+      await supabase.storage
+        .from('knowledge-base')
+        .upload(rawPath, buffer, { contentType: file.type || 'application/octet-stream' });
+      
+      // Create KB entry
+      const newEntry: KBEntry = {
+        id,
+        tenant_id: tenantId,
+        file_name: file.name,
+        file_type: ext,
+        file_size: size,
+        active: true,
+        content: truncatedContent,
+        created_at: new Date().toISOString(),
+      };
+      
+      entries.push(newEntry);
+      entryToSave = newEntry;
+      await saveKBIndex(supabase, tenantId, entries);
+      console.log(`📚 KB: Archivo "${file.name}" subido para tenant ${tenantId} (${truncatedContent.length} chars extraídos)`);
+    }
     
     return NextResponse.json({ 
       success: true, 
-      file: { ...newEntry, content: undefined }, // Don't send content back to client
+      file: { ...entryToSave, content: undefined }, // Don't send content back to client
       extractedChars: truncatedContent.length,
     });
   } catch (error: any) {

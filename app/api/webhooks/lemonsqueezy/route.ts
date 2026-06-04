@@ -88,8 +88,6 @@ export async function POST(req: NextRequest) {
           plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           storage_limit_bytes: limits.storage,
           contact_limit: limits.contacts,
-          ls_subscription_id: String(body.data?.id || ''),
-          ls_customer_id: String(subscriptionData?.customer_id || ''),
         })
         .eq('id', tenantId);
 

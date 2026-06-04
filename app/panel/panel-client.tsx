@@ -29,6 +29,12 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
+import { CREATIVE_TEMPLATES, CreativeTemplate } from './templates';
+
+// OmniPublish V1 Imports
+import VideoUploader from '@/components/social/VideoUploader';
+import PublishForm from '@/components/social/PublishForm';
+import PublicationTracker from '@/components/social/PublicationTracker';
 
 // Simulación de datos de ventas por IA
 const mockSales = [
@@ -80,10 +86,414 @@ function formatRelativeTime(dateString: string | undefined, lang: string) {
   const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) return lang === 'es' ? `Hace ${diffInHours} horas` : `${diffInHours} hours ago`;
   const diffInDays = Math.floor(diffInHours / 24);
-  return lang === 'es' ? `Hace ${diffInDays} días` : `${diffInDays} days ago`;
+  if (diffInDays < 30) return lang === 'es' ? `Hace ${diffInDays} días` : `${diffInDays} days ago`;
+  return date.toLocaleDateString();
 }
 
+// INTERACTIVE INLINE MAP COMPONENT FOR CHAT
+interface ChatMapProps {
+  radius: number;
+  setRadius: (r: number) => void;
+  onConfirm: (locations: Array<{ lat: number; lng: number; radius: number; name: string }>, searchName: string) => void;
+  language: string;
+}
+
+function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapProps) {
+  const mapElRef = React.useRef<HTMLDivElement>(null);
+  const chatMapRef = React.useRef<any>(null);
+  const chatMarkersRef = React.useRef<any[]>([]);
+  const [search, setSearch] = React.useState('');
+  const [searchResults, setSearchResults] = React.useState<any[]>([]);
+  const [selectedLocs, setSelectedLocs] = React.useState<Array<{ lat: number; lng: number; radius: number; name: string }>>([]);
+
+  React.useEffect(() => {
+    if (chatMapRef.current && (window as any).L) {
+      chatMarkersRef.current.forEach(m => {
+        if (m.circle) m.circle.setRadius(radius * 1000);
+        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[0]?.name || '📍'}</b><br>${radius}km`);
+      });
+    }
+  }, [radius, selectedLocs]);
+
+  const handleSearch = async () => {
+    if (!search.trim()) return;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(search)}`);
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const selectSearchResult = (item: any) => {
+    const lat = parseFloat(item.lat);
+    const lng = parseFloat(item.lon);
+    const name = item.display_name.split(',')[0] || item.display_name;
+    const newLoc = { lat, lng, radius, name };
+    setSelectedLocs([newLoc]);
+    setSearchResults([]);
+    setSearch(name);
+
+    if (chatMapRef.current && (window as any).L) {
+      const L = (window as any).L;
+      const map = chatMapRef.current;
+      map.setView([lat, lng], 12);
+      
+      chatMarkersRef.current.forEach(m => {
+        map.removeLayer(m.circle);
+        map.removeLayer(m.marker);
+      });
+      chatMarkersRef.current = [];
+
+      const circle = L.circle([lat, lng], {
+        radius: radius * 1000,
+        color: '#0058bc',
+        fillColor: '#0058bc',
+        fillOpacity: 0.15,
+        weight: 2,
+      }).addTo(map);
+
+      const marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(`<b>${name}</b><br>${radius}km`)
+        .openPopup();
+
+      chatMarkersRef.current.push({ circle, marker });
+    }
+  };
+
+  React.useEffect(() => {
+    let active = true;
+    const tryInit = () => {
+      const L = (window as any).L;
+      if (!L) {
+        setTimeout(tryInit, 200);
+        return;
+      }
+      if (!mapElRef.current || !active || chatMapRef.current) return;
+
+      const map = L.map(mapElRef.current, {
+        center: [-0.1807, -78.4678],
+        zoom: 11,
+        zoomControl: true,
+        attributionControl: false,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+      }).addTo(map);
+
+      map.on('click', (e: any) => {
+        const { lat, lng } = e.latlng;
+        
+        chatMarkersRef.current.forEach(m => {
+          map.removeLayer(m.circle);
+          map.removeLayer(m.marker);
+        });
+        chatMarkersRef.current = [];
+
+        const circle = L.circle([lat, lng], {
+          radius: radius * 1000,
+          color: '#0058bc',
+          fillColor: '#0058bc',
+          fillOpacity: 0.15,
+          weight: 2,
+        }).addTo(map);
+
+        const marker = L.marker([lat, lng]).addTo(map)
+          .bindPopup(`<b>📍</b><br>${radius}km`);
+        chatMarkersRef.current.push({ circle, marker });
+
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+          .then(r => r.json())
+          .then(data => {
+            const name = data.address?.city || data.address?.town || data.address?.state || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+            setSelectedLocs([{ lat, lng, radius, name }]);
+            setSearch(name);
+            marker.setPopupContent(`<b>${name}</b><br>${radius}km`).openPopup();
+          });
+      });
+
+      chatMapRef.current = map;
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 400);
+    };
+
+    tryInit();
+    return () => {
+      active = false;
+      if (chatMapRef.current) {
+        chatMapRef.current.remove();
+        chatMapRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="mt-3 p-4 bg-white border border-[#cbd5e1] rounded-2xl space-y-4 shadow-sm text-left max-w-full">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={language === 'en' ? 'Search city or area...' : 'Buscar ciudad o zona...'}
+          onKeyDown={e => e.key === 'Enter' && handleSearch()}
+          className="flex-1 px-3 py-1.5 bg-[#f8fafc] border border-[#cbd5e1] rounded-lg text-xs outline-none focus:ring-1 focus:ring-[#0058bc] text-slate-800"
+        />
+        <button
+          type="button"
+          onClick={handleSearch}
+          className="px-3 py-1.5 bg-[#0058bc] text-white rounded-lg text-xs font-bold hover:bg-[#054ADA]"
+        >
+          {language === 'en' ? 'Search' : 'Buscar'}
+        </button>
+      </div>
+
+      {searchResults.length > 0 && (
+        <div className="max-h-24 overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-1 space-y-1">
+          {searchResults.map((r, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => selectSearchResult(r)}
+              className="w-full text-left p-1.5 hover:bg-[#eff4ff] rounded text-[10px] text-slate-700 font-semibold truncate flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-xs text-[#0058bc]">location_on</span>
+              {r.display_name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div ref={mapElRef} className="w-full h-[180px] rounded-lg overflow-hidden border border-slate-200" style={{ zIndex: 10 }} />
+
+      <div className="space-y-1.5">
+        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+          <span>{language === 'en' ? 'Targeting Radius' : 'Radio de Alcance'}</span>
+          <span className="text-[#0058bc]">{radius} km</span>
+        </div>
+        <input
+          type="range"
+          min="1"
+          max="50"
+          value={radius}
+          onChange={e => setRadius(parseInt(e.target.value))}
+          className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#0058bc]"
+        />
+      </div>
+
+      <button
+        type="button"
+        disabled={selectedLocs.length === 0}
+        onClick={() => onConfirm(selectedLocs, search)}
+        className="w-full py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <span className="material-symbols-outlined text-sm">check_circle</span>
+        {language === 'en' ? 'Confirm Target Location' : 'Confirmar Ubicación y Radio'}
+      </button>
+    </div>
+  );
+}
+
+// PREMIUM SUMMARY AND REACH CALCULATOR COMPONENT FOR CHAT
+interface ChatSummaryProps {
+  goal: string;
+  answers: Record<string, any>;
+  onConfirm: () => void;
+  language: string;
+}
+
+function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummaryProps) {
+  const budget = answers.budget || 5;
+  const radius = answers.radius || 25;
+  
+  const dailyReachMin = Math.round(budget * 280);
+  const dailyReachMax = Math.round(budget * 840);
+  const dailyConvsMin = Math.round(budget * 12);
+  const dailyConvsMax = Math.round(budget * 36);
+
+  const goalLabel = goal === 'local' 
+    ? (language === 'en' ? 'Local Store Traffic' : 'Tráfico al Local Físico')
+    : goal === 'whatsapp'
+    ? (language === 'en' ? 'WhatsApp Sales' : 'Ventas por WhatsApp')
+    : (language === 'en' ? 'Website Conversions' : 'Conversiones en Web');
+
+  const locName = answers.address || 'Ubicación seleccionada';
+
+  return (
+    <div className="mt-3 p-5 bg-white border border-[#cbd5e1] rounded-2xl space-y-4 shadow-sm text-left max-w-full text-slate-800">
+      <div className="flex items-center gap-2 pb-2 border-b border-[#f1f5f9]">
+        <span className="material-symbols-outlined text-green-600 font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+        <h4 className="text-xs font-bold text-[#0b1c30] uppercase tracking-wider">{language === 'en' ? 'AI Ads Campaign Diagnosis' : 'Diagnóstico de Campaña IA'}</h4>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-[11px] text-[#414754]">
+        <div>
+          <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wide">{language === 'en' ? 'Marketing Goal' : 'Objetivo Comercial'}</span>
+          <span className="font-bold text-[#0b1c30]">{goalLabel}</span>
+        </div>
+        <div>
+          <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wide">{language === 'en' ? 'Daily Budget' : 'Presupuesto Diario'}</span>
+          <span className="font-bold text-[#0b1c30]">${budget} USD / {language === 'en' ? 'day' : 'día'}</span>
+        </div>
+        <div className="col-span-2">
+          <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wide">{language === 'en' ? 'Target Location' : 'Segmentación Geográfica'}</span>
+          <span className="font-bold text-[#0b1c30] flex items-center gap-1 truncate">
+            <span className="material-symbols-outlined text-xs text-[#0058bc]">distance</span>
+            {locName} (+{radius}km)
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-[#eff4ff]/60 border border-[#cbd5e1] rounded-xl p-3.5 space-y-3.5">
+        <div className="flex items-center justify-between text-xs font-bold text-[#0b1c30]">
+          <span>📊 {language === 'en' ? 'Estimated Daily Results' : 'Resultados Diarios Estimados'}</span>
+          <span className="bg-blue-100 text-blue-800 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-extrabold">{language === 'en' ? 'Advantage+ Enabled' : 'Segmentación de Meta'}</span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-0.5">
+            <div className="text-[10px] text-slate-500 font-semibold">{language === 'en' ? 'Estimated Daily Reach' : 'Alcance Diario Estimado'}</div>
+            <div className="text-base font-extrabold text-[#0058bc] tracking-tight">{dailyReachMin.toLocaleString()} - {dailyReachMax.toLocaleString()}</div>
+            <div className="text-[9px] text-slate-400">{language === 'en' ? 'people reached per day' : 'personas alcanzadas al día'}</div>
+          </div>
+          <div className="space-y-0.5">
+            <div className="text-[10px] text-slate-500 font-semibold">{language === 'en' ? 'Estimated Clicks/Leads' : 'Conversiones Diarias'}</div>
+            <div className="text-base font-extrabold text-emerald-600 tracking-tight">{dailyConvsMin} - {dailyConvsMax}</div>
+            <div className="text-[9px] text-slate-400">{language === 'en' ? 'actions/messages per day' : 'acciones/mensajes al día'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-800 leading-relaxed">
+        <strong>💡 {language === 'en' ? 'Expert Strategy Recommendation:' : 'Recomendación Estratégica del Experto:'}</strong>
+        <p className="mt-1">
+          {language === 'en' 
+            ? 'We have optimized your dynamic copy templates and enabled Meta Advantage+ detailed targeting. This campaign is primed for immediate conversions with the chosen promotional structure.'
+            : 'Hemos optimizado la estructura de tus textos y activado la segmentación inteligente de Meta Advantage+. Esta configuración maximiza la conversión local con tu presupuesto diario.'}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg hover:opacity-95 transition-opacity active:scale-98"
+      >
+        <span className="material-symbols-outlined text-sm">bolt</span>
+        {language === 'en' ? 'Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar'}
+      </button>
+    </div>
+  );
+}
+
+// ADDITIONAL PREMIUM FEATURE: IA AD COPY GENERATOR & SELECTOR
+interface AdCopysSelectorProps {
+  answers: Record<string, any>;
+  language: string;
+  onSelect: (copyText: string) => void;
+}
+
+function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) {
+  const [activeTab, setActiveTab] = useState<'aida' | 'storytelling' | 'direct'>('aida');
+  
+  const prod = answers.productName || (language === 'en' ? 'our premium product' : 'nuestro producto estrella');
+  const price = answers.price || (language === 'en' ? 'special promotion' : 'promoción especial');
+  const name = answers.businessName || (language === 'en' ? 'our store' : 'nuestro negocio');
+  const phone = answers.phone || '';
+  const address = answers.address || '';
+  const web = answers.webUrl || '';
+  
+  const ctaText = phone 
+    ? (language === 'en' ? `Contact us on WhatsApp: https://wa.me/${phone.replace(/[^0-9]/g, '')}` : `Escríbenos directamente por WhatsApp haciendo clic aquí: https://wa.me/${phone.replace(/[^0-9]/g, '')}`)
+    : web 
+    ? (language === 'en' ? `Order directly on our website: ${web}` : `Ordena directamente en nuestra tienda online aquí: ${web}`)
+    : (language === 'en' ? `Visit us at: ${address}` : `Visítanos directamente en: ${address}`);
+
+  const copies = {
+    aida: language === 'en' 
+      ? `🚨 ATTENTION! Looking for the best ${prod}? 🚨\n\nIf you want top-tier quality and premium customer service, this is for you! At ${name}, we have exactly what you need.\n\n✨ Why choose us?\n✅ Guaranteed Premium Quality\n✅ Elite Support & Service\n✅ Exclusive limited-time promotion\n\n💰 SPECIAL PRICE: ${price}!\n\n👉 Do not miss this opportunity! ${ctaText}\n\n#${prod.replace(/\s+/g, '')} #BestOffer #PremiumService #MetaAds`
+      : `🚨 ¡ATENCIÓN! ¿Buscando el mejor ${prod}? 🚨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\n✨ ¿Por qué elegirnos?\n✅ Calidad Premium 100% Garantizada\n✅ Atención de primera\n✅ Oferta exclusiva por tiempo limitado\n\n💰 PROMOCIÓN ESPECIAL: ¡${price}!\n\n👉 ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
+      
+    storytelling: language === 'en'
+      ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... 😔\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! 🌟\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\n🔥 Limited Offer: ${price}!\n\n📲 Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
+      : `Había intentado de todo para encontrar un ${prod} que realmente cumpliera con su promesa, pero siempre terminaba decepcionado... 😔\n\nHasta que descubrí a los expertos de ${name}. Desde el primer día, la diferencia fue como el día y la noche. ¡La calidad, el trato y los resultados superaron mis expectativas! 🌟\n\nSi tú también estás cansado de lo mismo de siempre, tienes que probar esto. Y lo mejor de todo es que tienen una súper promoción:\n\n🔥 Oferta por tiempo limitado: ¡${price}!\n\n📲 Haz clic abajo y compruébalo tú mismo. ${ctaText}\n\n#CasoDeExito #CalidadReal #PremiumExperience #MetaAds`,
+      
+    direct: language === 'en'
+      ? `⚡ SUPER OFFER! Get your ${prod} at ${name} for the best price. ⚡\n\nNo hassle, straightforward quality, and 100% satisfaction guarantee.\n\n💵 Promo Price: ${price}!\n\n🚀 Extremely limited stock! Click and order yours now:\n👉 ${ctaText}\n\n#DirectResponse #ExpressShipping #LimitedStock #MetaAds`
+      : `⚡ ¡SÚPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. ⚡\n\nSin rodeos, directo a lo que necesitas y con garantía de satisfacción total.\n\n💵 Precio Especial: ¡${price}!\n\n🚀 ¡Stock limitado! Haz clic y ordena el tuyo ahora mismo:\n👉 ${ctaText}\n\n#CompraDirecta #EnvioExpress #DescuentoEspecial #MetaAds`
+  };
+
+  const activeCopy = copies[activeTab];
+
+  return (
+    <div className="mt-4 p-4 bg-[#f8fafc] border border-slate-200 rounded-xl space-y-3 text-left">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+          <span className="material-symbols-outlined text-xs text-[#0058bc]">edit_note</span>
+          {language === 'en' ? 'AI Dynamic Ad Copywriter' : 'Redactor Publicitario IA Premium'}
+        </span>
+        <span className="bg-blue-100 text-[#0058bc] text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-extrabold">
+          {language === 'en' ? 'Conversion Copy' : 'Fórmulas Persuasivas'}
+        </span>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-slate-200/60 p-1 rounded-lg">
+        {[
+          { key: 'aida' as const, label: 'AIDA' },
+          { key: 'storytelling' as const, label: language === 'en' ? 'Storytelling' : 'Historias' },
+          { key: 'direct' as const, label: language === 'en' ? 'Direct' : 'Directo' }
+        ].map(tab => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 py-1 rounded text-[10px] font-extrabold transition-all uppercase tracking-wider ${
+              activeTab === tab.key
+                ? 'bg-white text-[#0b1c30] shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Preview Box */}
+      <div className="relative bg-white border border-slate-200 rounded-lg p-3 max-h-[140px] overflow-y-auto scrollbar-thin text-left">
+        <pre className="text-[10px] text-slate-700 font-sans whitespace-pre-wrap leading-relaxed select-text">
+          {activeCopy}
+        </pre>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onSelect(activeCopy)}
+        className="w-full py-2 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-98 font-sans"
+      >
+        <span className="material-symbols-outlined text-xs">assignment_turned_in</span>
+        {language === 'en' ? 'Use This Text for Campaign' : '📋 Aplicar este Texto de Anuncio'}
+      </button>
+    </div>
+  );
+}
+
+const TABS_TO_MANAGE = [
+  { key: 'dashboard', label: 'Panel Principal' },
+  { key: 'crm', label: 'Usuarios / CRM' },
+  { key: 'settings', label: 'Configuraciones' },
+  { key: 'playground', label: 'Playground IA' },
+  { key: 'campaigns', label: 'Pautas Publicitarias' },
+  { key: 'banners', label: 'Crear Pancartas' },
+  { key: 'segments', label: 'Segmentos' },
+  { key: 'analytics', label: 'Análisis' }
+];
+
+const PLANS = ['trial', 'start', 'advanced', 'plus', 'master'];
+
 export default function PanelClient() {
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginUser, setLoginUser] = useState(''); // now used as email
   const [loginPass, setLoginPass] = useState('');
@@ -114,7 +524,7 @@ export default function PanelClient() {
   const [botHumanHandoff, setBotHumanHandoff] = useState(true);
   const [botProfanityFilter, setBotProfanityFilter] = useState(true);
   const [botTopicLocks, setBotTopicLocks] = useState(false);
-  const [botKnowledgeFiles, setBotKnowledgeFiles] = useState<{id?: string, name: string, type: string, size: string, active: boolean}[]>([]);
+  const [botKnowledgeFiles, setBotKnowledgeFiles] = useState<{id?: string, name: string, type: string, size: string, active: boolean, content?: string}[]>([]);
   const [kbLoading, setKbLoading] = useState(false);
   const [kbUploading, setKbUploading] = useState(false);
   const botKbFileRef = React.useRef<HTMLInputElement>(null);
@@ -126,6 +536,130 @@ export default function PanelClient() {
   const [botPreviewInput, setBotPreviewInput] = useState('');
 
   const [language, setLanguage] = useState('es');
+  const [playgroundSubTab, setPlaygroundSubTab] = useState<'ajustes' | 'fuentes'>('ajustes');
+  const [editingPolicy, setEditingPolicy] = useState<{ name: string; file_name: string; content: string } | null>(null);
+  const [isSavingPolicy, setIsSavingPolicy] = useState(false);
+
+  // Google Sign-In state and programmatic rendering
+  const [gsiLoaded, setGsiLoaded] = useState(false);
+
+  // Google Sign-In callback registration
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).onGoogleSignIn = async (response: any) => {
+      setLoginError('');
+      setIsLoggingIn(true);
+      try {
+        const res = await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken: response.credential }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setLoginError(data.error || 'Error al iniciar sesión con Google');
+          setIsLoggingIn(false);
+          return;
+        }
+        localStorage.setItem('rifx_token', data.token);
+        setAuthToken(data.token);
+        setTenantData(data.tenant);
+        setCurrentPlan(data.tenant.plan || 'trial');
+        setIsLoggedIn(true);
+        setToast({ message: language === 'en' ? '✅ Signed in with Google!' : '✅ ¡Sesión iniciada con Google!', type: 'success' });
+      } catch (err) {
+        setLoginError('Error de conexión con Google. Intenta de nuevo.');
+      } finally {
+        setIsLoggingIn(false);
+      }
+    };
+    return () => {
+      delete (window as any).onGoogleSignIn;
+    };
+  }, [language]);
+
+  // Handle OAuth Redirect Query Parameters
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const oauthSuccess = params.get('oauth_success');
+    const oauthError = params.get('error');
+    const tabParam = params.get('tab');
+
+    if (tabParam) {
+      const validTabs = ['dashboard', 'crm', 'settings', 'playground', 'segments', 'analytics', 'billing', 'admin', 'campaigns', 'banners', 'social'];
+      if (validTabs.includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+    }
+
+    if (oauthSuccess === 'true') {
+      setToast({
+        type: 'success',
+        message: language === 'en' ? '✅ Meta account connected successfully!' : '✅ ¡Cuenta de Meta vinculada exitosamente!'
+      });
+      // Clean query parameters from URL without reloading
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    } else if (oauthError) {
+      setToast({
+        type: 'error',
+        message: language === 'en' ? `❌ OAuth Error: ${oauthError}` : `❌ Error de Vinculación: ${oauthError}`
+      });
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, [language]);
+
+  // Check if GSI script is loaded
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const checkGoogle = () => {
+      if ((window as any).google?.accounts?.id) {
+        setGsiLoaded(true);
+      }
+    };
+    checkGoogle();
+    const handleLoaded = () => setGsiLoaded(true);
+    window.addEventListener('google-gsi-loaded', handleLoaded);
+    const interval = setInterval(checkGoogle, 500);
+    return () => {
+      window.removeEventListener('google-gsi-loaded', handleLoaded);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Programmatically render Google button once container & script are ready
+  useEffect(() => {
+    if (!gsiLoaded || isLoggedIn) return;
+
+    const renderGoogleButton = () => {
+      const container = document.getElementById("google-signin-button");
+      if (!container) return;
+
+      try {
+        const google = (window as any).google;
+        google.accounts.id.initialize({
+          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "870636365851-p9q8n6vch9hsgc5h9tjeve9588o0u29k.apps.googleusercontent.com",
+          callback: (window as any).onGoogleSignIn,
+        });
+        google.accounts.id.renderButton(container, {
+          type: "standard",
+          shape: "rectangular",
+          theme: "filled_blue",
+          text: "continue_with",
+          size: "large",
+          logo_alignment: "left",
+          width: 380
+        });
+      } catch (err) {
+        console.error("Error rendering Google button:", err);
+      }
+    };
+
+    const timeout = setTimeout(renderGoogleButton, 100);
+    return () => clearTimeout(timeout);
+  }, [gsiLoaded, isLoggedIn, isRegistering]);
 
   // Load saved playground config from localStorage
   React.useEffect(() => {
@@ -168,7 +702,7 @@ export default function PanelClient() {
       const data = await res.json();
       if (data.files) {
         setBotKnowledgeFiles(data.files.map((f: any) => ({
-          id: f.id, name: f.file_name, type: f.file_type, size: f.file_size, active: f.active,
+          id: f.id, name: f.file_name, type: f.file_type, size: f.file_size, active: f.active, content: f.content
         })));
       }
     } catch (e) { console.error('Error fetching KB files:', e); }
@@ -186,9 +720,9 @@ export default function PanelClient() {
         await fetchKBFiles(); // Reload the list
         console.log(`KB subido: ${file.name} (${data.extractedChars} chars extraídos)`);
       } else {
-        alert(`Error: ${data.error}`);
+        setToast({ message: `Error: ${data.error}`, type: 'error' });
       }
-    } catch (e) { console.error('Error uploading KB file:', e); alert('Error al subir archivo'); }
+    } catch (e) { console.error('Error uploading KB file:', e); setToast({ message: 'Error al subir archivo', type: 'error' }); }
     setKbUploading(false);
   };
 
@@ -214,7 +748,82 @@ export default function PanelClient() {
     } catch (e) { console.error('Error deleting KB file:', e); }
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social'>('dashboard');
+  const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
+
+  // OmniPublish V1 & V2 States
+  const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
+  const [socialAccountsLoading, setSocialAccountsLoading] = useState(false);
+  const [uploadedVideoPath, setUploadedVideoPath] = useState<string | null>(null);
+  const [currentPostId, setCurrentPostId] = useState<string | null>(null); // Kept for backwards-compatibility reference
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [showManualSocialLink, setShowManualSocialLink] = useState(false);
+  const [manualPlatform, setManualPlatform] = useState<'facebook' | 'instagram' | 'tiktok' | 'youtube'>('facebook');
+  const [manualUserId, setManualUserId] = useState('');
+  const [manualUsername, setManualUsername] = useState('');
+  const [manualToken, setManualToken] = useState('');
+
+  // OmniPublish V2 States
+  const [uploadMode, setUploadMode] = useState<'single' | 'batch'>('single');
+  const [videoType, setVideoType] = useState<'short' | 'long'>('short');
+  const [uploadedVideos, setUploadedVideos] = useState<{
+    id: string;
+    path: string;
+    name: string;
+    title: string;
+    caption: string;
+    scheduledAt: string | null;
+    isScheduled: boolean;
+    generating: boolean;
+  }[]>([]);
+  const [trackingPostIds, setTrackingPostIds] = useState<string[]>([]);
+
+  const isStateLoadedRef = React.useRef(false);
+
+  // Save OmniPublish states to localStorage on change (only after loading has completed and user is logged in)
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    localStorage.setItem('rifx_active_tab', activeTab);
+  }, [activeTab, isCheckingAuth, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    localStorage.setItem('rifx_upload_mode', uploadMode);
+  }, [uploadMode, isCheckingAuth, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    localStorage.setItem('rifx_video_type', videoType);
+  }, [videoType, isCheckingAuth, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    if (uploadedVideoPath) {
+      localStorage.setItem('rifx_uploaded_video_path', uploadedVideoPath);
+    } else {
+      localStorage.removeItem('rifx_uploaded_video_path');
+    }
+  }, [uploadedVideoPath, isCheckingAuth, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    localStorage.setItem('rifx_uploaded_videos', JSON.stringify(uploadedVideos));
+  }, [uploadedVideos, isCheckingAuth, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    localStorage.setItem('rifx_tracking_post_ids', JSON.stringify(trackingPostIds));
+  }, [trackingPostIds, isCheckingAuth, isLoggedIn]);
+
+  React.useEffect(() => {
+    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
+    if (currentPostId) {
+      localStorage.setItem('rifx_current_post_id', currentPostId);
+    } else {
+      localStorage.removeItem('rifx_current_post_id');
+    }
+  }, [currentPostId, isCheckingAuth, isLoggedIn]);
+
 
   // Load KB files when playground tab opens
   const kbLoadedRef = React.useRef(false);
@@ -224,10 +833,815 @@ export default function PanelClient() {
       fetchKBFiles();
     }
   }, [activeTab, isLoggedIn, fetchKBFiles]);
+
+  // Load social accounts when social tab opens
+  React.useEffect(() => {
+    if (activeTab === 'social' && isLoggedIn) {
+      fetchSocialAccounts();
+    }
+  }, [activeTab, isLoggedIn]);
+
+  const fetchSocialAccounts = async () => {
+    try {
+      setSocialAccountsLoading(true);
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/accounts', { headers });
+      const data = await res.json();
+      if (data.accounts) {
+        setSocialAccounts(data.accounts);
+      }
+    } catch (err) {
+      console.error('Error fetching social accounts:', err);
+    } finally {
+      setSocialAccountsLoading(false);
+    }
+  };
+
+  const handleConnectMetaOAuth = async () => {
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/accounts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'get_auth_url' })
+      });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión' });
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+    }
+  };
+
+  const handleConnectTikTokOAuth = async () => {
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/accounts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'get_auth_url', platform: 'tiktok' })
+      });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de TikTok' });
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+    }
+  };
+
+  const handleConnectYouTubeOAuth = async () => {
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/accounts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'get_auth_url', platform: 'youtube' })
+      });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de YouTube' });
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+    }
+  };
+
+  const handleManualSocialLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualUserId || !manualToken) {
+      setToast({ type: 'error', message: 'ID de cuenta y Token son obligatorios' });
+      return;
+    }
+
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/accounts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action: 'link_manual',
+          platform: manualPlatform,
+          platformUserId: manualUserId,
+          platformUsername: manualUsername || 'Manual Account',
+          accessToken: manualToken
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({ type: 'success', message: 'Cuenta vinculada exitosamente' });
+        setShowManualSocialLink(false);
+        setManualUserId('');
+        setManualUsername('');
+        setManualToken('');
+        fetchSocialAccounts();
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al vincular cuenta' });
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error al vincular la cuenta' });
+    }
+  };
+
+  const handleDeleteSocialAccount = async (id: string) => {
+    if (!confirm('¿Estás seguro de desconectar esta cuenta?')) return;
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/panel/social/accounts?id=${id}`, {
+        method: 'DELETE',
+        headers
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({ type: 'success', message: 'Cuenta desconectada correctamente' });
+        fetchSocialAccounts();
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al desconectar cuenta' });
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error del servidor' });
+    }
+  };
+
+  const handleSocialPublish = async (formData: { caption: string; title: string; selectedAccountIds: string[]; scheduledAt?: string | null }) => {
+    if (!uploadedVideoPath) {
+      setToast({ type: 'error', message: 'Por favor sube primero un video.' });
+      return;
+    }
+    setIsPublishing(true);
+    setTrackingPostIds([]);
+    setCurrentPostId(null);
+
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/publish', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          videoStoragePath: uploadedVideoPath,
+          caption: formData.caption,
+          title: formData.title,
+          platformAccountIds: formData.selectedAccountIds,
+          scheduledAt: formData.scheduledAt || null,
+          videoType: videoType
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.postId) {
+        setToast({ type: 'success', message: 'Publicación encolada con éxito. Siguiendo el progreso...' });
+        setCurrentPostId(data.postId);
+        setTrackingPostIds([data.postId]);
+
+        // Si no hay QStash configurado en backend, disparamos los workers desde el frontend
+        // para asegurar que Vercel no congele la tarea en segundo plano.
+        if (data.publicationIds && data.publicationIds.length > 0) {
+          data.publicationIds.forEach((pubId: string) => {
+            fetch('/api/panel/social/worker', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Dev-Worker-Signature': 'local_secret_development_bypass'
+              },
+              body: JSON.stringify({ publicationId: pubId })
+            }).catch(err => console.error('Error triggering worker for', pubId, err));
+          });
+        }
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al registrar publicación' });
+        setIsPublishing(false);
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+      setIsPublishing(false);
+    }
+  };
+
+  const handleUploadComplete = (files: { path: string; name: string }[]) => {
+    if (uploadMode === 'batch') {
+      const newItems = files.map(f => ({
+        id: Math.random().toString(36).substring(2, 9),
+        path: f.path,
+        name: f.name,
+        title: '',
+        caption: '',
+        scheduledAt: null,
+        isScheduled: false,
+        generating: false
+      }));
+      setUploadedVideos(prev => [...prev, ...newItems]);
+      setToast({ type: 'success', message: `¡${files.length} video(s) subido(s) con éxito!` });
+    } else {
+      setUploadedVideoPath(files[0].path);
+      setToast({ type: 'success', message: 'Video subido exitosamente a Supabase Storage' });
+    }
+    setIsPublishing(false);
+  };
+
+  const handleBatchPublish = async (formData: { selectedAccountIds: string[] }) => {
+    if (uploadedVideos.length === 0) {
+      setToast({ type: 'error', message: 'No hay videos subidos para publicar.' });
+      return;
+    }
+    
+    // Validar
+    for (const video of uploadedVideos) {
+      if (!video.caption.trim()) {
+        setToast({ type: 'error', message: `La descripción es requerida para el video: ${video.name}` });
+        return;
+      }
+      if (video.isScheduled && !video.scheduledAt) {
+        setToast({ type: 'error', message: `Por favor selecciona fecha y hora de programación para: ${video.name}` });
+        return;
+      }
+      if (video.isScheduled && video.scheduledAt) {
+        if (new Date(video.scheduledAt).getTime() < Date.now()) {
+          setToast({ type: 'error', message: `La fecha y hora de programación debe ser en el futuro para: ${video.name}` });
+          return;
+        }
+      }
+    }
+
+    setIsPublishing(true);
+    setTrackingPostIds([]);
+    setCurrentPostId(null);
+
+    const token = authToken || localStorage.getItem('rifx_token');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const createdPostIds: string[] = [];
+
+    try {
+      for (const video of uploadedVideos) {
+        const res = await fetch('/api/panel/social/publish', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            videoStoragePath: video.path,
+            caption: video.caption,
+            title: video.title,
+            platformAccountIds: formData.selectedAccountIds,
+            scheduledAt: video.isScheduled ? video.scheduledAt : null,
+            videoType: videoType
+          })
+        });
+
+        const data = await res.json();
+        if (data.success && data.postId) {
+          createdPostIds.push(data.postId);
+
+          if (data.publicationIds && data.publicationIds.length > 0) {
+            data.publicationIds.forEach((pubId: string) => {
+              fetch('/api/panel/social/worker', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Dev-Worker-Signature': 'local_secret_development_bypass'
+                },
+                body: JSON.stringify({ publicationId: pubId })
+              }).catch(err => console.error('Error triggering worker local:', pubId, err));
+            });
+          }
+        } else {
+          console.error(`Error al publicar video ${video.name}:`, data.error);
+        }
+      }
+
+      if (createdPostIds.length > 0) {
+        setToast({ type: 'success', message: `¡Se encolaron ${createdPostIds.length} publicaciones con éxito!` });
+        setTrackingPostIds(createdPostIds);
+        // Utilizar la primera como referencia si es necesario
+        setCurrentPostId(createdPostIds[0]);
+        setUploadedVideos([]);
+      } else {
+        setToast({ type: 'error', message: 'No se pudo registrar ninguna publicación.' });
+        setIsPublishing(false);
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error durante la subida en lote.' });
+      setIsPublishing(false);
+    }
+  };
+
+  const handleGenerateIAForBatchItem = async (itemId: string) => {
+    const video = uploadedVideos.find(v => v.id === itemId);
+    if (!video) return;
+
+    if (!video.title?.trim() && !video.caption?.trim()) {
+      setToast({ type: 'error', message: 'Por favor, escribe un borrador, ideas o palabras clave en el título o descripción primero.' });
+      return;
+    }
+
+    setUploadedVideos(prev => prev.map(v => v.id === itemId ? { ...v, generating: true } : v));
+
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/generate-metadata', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: video.title,
+          caption: video.caption
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setUploadedVideos(prev => prev.map(v => v.id === itemId ? {
+          ...v,
+          title: data.title || v.title,
+          caption: data.caption || v.caption,
+          generating: false
+        } : v));
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al optimizar con IA.' });
+        setUploadedVideos(prev => prev.map(v => v.id === itemId ? { ...v, generating: false } : v));
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor.' });
+      setUploadedVideos(prev => prev.map(v => v.id === itemId ? { ...v, generating: false } : v));
+    }
+  };
+
+  const deleteStorageVideo = async (path: string) => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('rifx_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/storage', {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ keys: [path] }),
+      });
+      if (!res.ok) throw new Error('No se pudo eliminar el archivo de R2');
+      console.log('Deleted video from storage:', path);
+    } catch (e) {
+      console.error('Error deleting video from storage:', e);
+    }
+  };
+
+  const handleRemoveBatchItem = async (itemId: string) => {
+    const video = uploadedVideos.find(v => v.id === itemId);
+    if (video) {
+      await deleteStorageVideo(video.path);
+    }
+    setUploadedVideos(prev => prev.filter(v => v.id !== itemId));
+  };
+
+  const handleClearAllBatchItems = async () => {
+    const paths = uploadedVideos.map(v => v.path);
+    if (paths.length > 0) {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('rifx_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch('/api/panel/social/storage', {
+          method: 'DELETE',
+          headers,
+          body: JSON.stringify({ keys: paths }),
+        });
+        if (!res.ok) throw new Error('No se pudieron eliminar los archivos de R2');
+        console.log('Cleared all batch videos from storage:', paths);
+      } catch (e) {
+        console.error('Error clearing batch videos from storage:', e);
+      }
+    }
+    setUploadedVideos([]);
+  };
+
+
   const [currentPlan, setCurrentPlan] = useState<'trial' | 'start' | 'advanced' | 'plus' | 'master'>('trial');
   const [planExpiry, setPlanExpiry] = useState<string>('');
   const [subscriptionData, setSubscriptionData] = useState<any[]>([]);
   const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);
+  const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);
+  const [isCancellingPlan, setIsCancellingPlan] = useState(false);
+  const [isReactivatingPlan, setIsReactivatingPlan] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper'>('profile');
+
+  // API Setup Assistant State
+  const [apiHelperFlow, setApiHelperFlow] = useState<'idle' | 'whatsapp' | 'meta'>('idle');
+  const [apiHelperStep, setApiHelperStep] = useState<number>(0);
+  const [apiHelperMessages, setApiHelperMessages] = useState<any[]>([
+    {
+      sender: 'agent',
+      text: '¡Hola! Soy tu Asistente de Configuración de APIs de RIFX. Estoy aquí para guiarte paso a paso en la conexión de tus servicios de forma fácil y sin errores.\n\n¿Qué API deseas configurar hoy? Selecciona una de las opciones de abajo.',
+      timestamp: new Date(),
+      chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']
+    }
+  ]);
+  const [apiHelperInput, setApiHelperInput] = useState('');
+  const apiHelperChatEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (settingsSection === 'api_helper') {
+      apiHelperChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [apiHelperMessages, settingsSection]);
+
+  const renderApiHelperMessageText = (text: string) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    return lines.map((line, idx) => {
+      let content: React.ReactNode[] = [];
+      let currentLine = line;
+      let key = 0;
+      while (currentLine.length > 0) {
+        const imgMatch = currentLine.match(/!\[(.*?)\]\((.*?)\)/);
+        const boldMatch = currentLine.match(/\*\*(.*?)\*\*/);
+        const linkMatch = currentLine.match(/\[(.*?)\]\((.*?)\)/);
+
+        if (imgMatch && (!boldMatch || imgMatch.index! < boldMatch.index!) && (!linkMatch || imgMatch.index! < linkMatch.index!)) {
+          const pre = currentLine.substring(0, imgMatch.index);
+          const altText = imgMatch[1];
+          const imgUrl = imgMatch[2];
+          if (pre) content.push(<span key={key++}>{pre}</span>);
+          content.push(
+            <div key={key++} className="my-2 select-none group/img">
+              <img
+                src={imgUrl}
+                alt={altText}
+                className="rounded-xl border border-slate-700 max-w-full shadow-lg transition-transform duration-200 group-hover/img:scale-[1.02] cursor-zoom-in"
+                onClick={() => window.open(imgUrl, '_blank')}
+              />
+              <span className="block text-[10px] text-slate-500 text-center mt-1 font-medium">{altText}</span>
+            </div>
+          );
+          currentLine = currentLine.substring(imgMatch.index! + imgMatch[0].length);
+        } else if (boldMatch && (!linkMatch || boldMatch.index! < linkMatch.index!)) {
+          const pre = currentLine.substring(0, boldMatch.index);
+          const boldText = boldMatch[1];
+          if (pre) content.push(<span key={key++}>{pre}</span>);
+          content.push(<strong key={key++} className="font-extrabold text-slate-100">{boldText}</strong>);
+          currentLine = currentLine.substring(boldMatch.index! + boldMatch[0].length);
+        } else if (linkMatch) {
+          const pre = currentLine.substring(0, linkMatch.index);
+          const linkText = linkMatch[1];
+          const linkUrl = linkMatch[2];
+          if (pre) content.push(<span key={key++}>{pre}</span>);
+          content.push(
+            <a
+              key={key++}
+              href={linkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-400 hover:text-amber-300 font-bold underline transition-colors"
+            >
+              {linkText}
+            </a>
+          );
+          currentLine = currentLine.substring(linkMatch.index! + linkMatch[0].length);
+        } else {
+          content.push(<span key={key++}>{currentLine}</span>);
+          break;
+        }
+      }
+      return <div key={idx} className="min-h-[1em] leading-relaxed">{content}</div>;
+    });
+  };
+
+  const handleSendApiHelperMessage = (textToSend?: string) => {
+    const text = (textToSend || apiHelperInput).trim();
+    if (!text) return;
+
+    setApiHelperMessages(prev => [...prev, { sender: 'user', text, timestamp: new Date() }]);
+    if (!textToSend) setApiHelperInput('');
+
+    setTimeout(() => {
+      let replyText = '';
+      let nextChips: string[] = [];
+      let newFlow = apiHelperFlow;
+      let newStep = apiHelperStep;
+
+      const lowerText = text.toLowerCase();
+      let isQuestion = false;
+
+      const faqKeywords = [
+        {
+          keys: ['token permanente', 'usuario del sistema', 'system user', 'token de acceso permanente', 'usuario de sistema', 'por qué expira', 'por que expira'],
+          reply: 'Un **token de acceso permanente** (System User Token) es una credencial de seguridad de tiempo ilimitado generada a nombre de un "Usuario del Sistema" en Meta Business Suite. A diferencia del token temporal de prueba (que caduca en 24 horas y desconecta tu bot), el token permanente nunca expira.\n\n**¿Cómo se crea?**\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\n2️⃣ Ve a **Usuarios** > **Usuarios del sistema**.\n3️⃣ Haz clic en **Agregar** para crear un nuevo usuario y asígnale el rol de **Administrador**.\n4️⃣ Selecciónalo, haz clic en **Generar nuevo token**, asocia tu App de Meta y marca los permisos necesarios (como `whatsapp_business_messaging`).\n5️⃣ Copia el token generado y guárdalo.'
+        },
+        {
+          keys: ['webhook', 'callback', 'devolución', 'verificación', 'messages', 'webhooks'],
+          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. Para configurarlo:\n\n1️⃣ Entra a tu App en **Meta Developers** > **WhatsApp** > **Configuración**.\n2️⃣ En la sección **Webhook**, pulsa **Editar**.\n3️⃣ Copia y pega tu URL de devolución de llamada personalizada:\n   `https://api.rifx-sovereign.io/hooks/v1/wa/' + (configData.whatsapp_phone_id || '[TU_PHONE_ID]') + '`\n4️⃣ Escribe tu Token de verificación (puedes poner cualquier clave corta, ej: `rifx_secret`).\n5️⃣ **¡VITAL!** Tras guardar, haz clic en **Administrar** (al lado de Webhooks) y dale al botón de **Suscribirse** en la fila de **`messages`**. Si no haces este último paso, el bot no recibirá ningún mensaje.'
+        },
+        {
+          keys: ['id de teléfono', 'phone id', 'id de telefono', 'phone number id', 'obtener el id de teléfono', 'dónde está el id'],
+          reply: 'El **ID de número de teléfono** (Phone Number ID) es una cadena numérica de 15 dígitos que identifica a tu número en Meta.\n\n**¿Dónde encontrarlo?**\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) y selecciona tu app.\n2️⃣ En la barra lateral izquierda, despliega **WhatsApp** y entra en **Primeros pasos**.\n3️⃣ En el panel central, verás la sección "Envía y recibe mensajes". Busca el campo **ID de número de teléfono** (Phone Number ID) y copia el número largo que aparece allí.'
+        },
+        {
+          keys: ['id de cuenta publicitaria', 'ad account id', 'cuenta publicitaria', 'cuenta de anuncios', 'publicitaria'],
+          reply: 'El **ID de Cuenta Publicitaria** (Ad Account ID) identifica tu cuenta de anunciante para facturación de anuncios de Meta. \n\nTiene el formato `act_XXXXXXXXXXXXXXXX`. \n\n**¿Dónde encontrarlo?**\n1️⃣ Abre el [Administrador de Anuncios](https://adsmanager.facebook.com/) o la **Configuración del negocio de Meta**.\n2️⃣ Ve a **Cuentas** > **Cuentas publicitarias**.\n3️⃣ Selecciona tu cuenta y verás el identificador numérico arriba o al lado de su nombre.'
+        },
+        {
+          keys: ['page id', 'id de página', 'id de pagina', 'página de facebook', 'facebook page id', 'id pagina'],
+          reply: 'El **Page ID** (ID de Página) es el número único de tu fanpage o página comercial de Facebook.\n\n**¿Dónde encontrarlo?**\n1️⃣ Entra a tu página de Facebook usando el perfil de administrador.\n2️⃣ Ve a la sección **Información** (debajo de tu portada) y busca la pestaña **Transparencia de la página**.\n3️⃣ Allí verás el número de ID de la página (ej: `104828192019281`).'
+        },
+        {
+          keys: ['permisos', 'permissions', 'whatsapp_business_messaging', 'ads_management'],
+          reply: 'Para que todo funcione de manera perfecta, los tokens generados deben tener habilitados estos permisos exactos:\n\n🔑 **Para WhatsApp Business API**:\n- `whatsapp_business_messaging` (enviar mensajes)\n- `whatsapp_business_management` (gestionar números y plantillas)\n\n🔑 **Para Meta Ads API**:\n- `ads_management` (crear y editar campañas)\n- `ads_read` (leer analíticas)\n- `pages_show_list` y `pages_read_engagement` (listar tus marcas)\n- `pages_manage_ads` (publicar anuncios de marca)'
+        },
+        {
+          keys: ['ayuda', 'error', 'falla', 'no conecta', 'no funciona', 'reintentar', 'problema'],
+          reply: 'Si estás experimentando errores al configurar o verificar, te recomiendo revisar estos 3 puntos críticos:\n\n1️⃣ **Espacios en blanco**: Al copiar tokens o IDs, asegúrate de no arrastrar espacios vacíos al principio o al final.\n2️⃣ **Tokens expirados**: Asegúrate de no estar usando un Token Temporal de Meta que ya haya caducado (duran 24 horas). Te recomiendo usar un token permanente de Usuario del Sistema.\n3️⃣ **IDs equivocados**: Compara minuciosamente tu ID de teléfono en Meta Developer. No pongas tu número de celular personal en ese campo.'
+        }
+      ];
+
+      for (const faq of faqKeywords) {
+        if (faq.keys.some(k => lowerText.includes(k))) {
+          replyText = faq.reply;
+          isQuestion = true;
+          break;
+        }
+      }
+
+      if (isQuestion) {
+        nextChips = newFlow === 'idle'
+          ? ['Configurar WhatsApp Business', 'Configurar Meta Ads']
+          : ['Continuar con el paso actual', 'Volver al inicio'];
+
+        setApiHelperMessages(prev => [...prev, {
+          sender: 'agent',
+          text: replyText,
+          timestamp: new Date(),
+          chips: nextChips
+        }]);
+        return;
+      }
+
+      if (lowerText.includes('volver al inicio') || lowerText.includes('inicio') || (text === 'Atrás' && apiHelperStep === 0)) {
+        newFlow = 'idle';
+        newStep = 0;
+        replyText = 'Entendido. He cancelado el proceso actual y limpiado la conversación.\n\n¿Qué API deseas configurar ahora? Selecciona una de las opciones de abajo.';
+        nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
+        setApiHelperFlow(newFlow);
+        setApiHelperStep(newStep);
+        setApiHelperMessages([
+          {
+            sender: 'agent',
+            text: replyText,
+            timestamp: new Date(),
+            chips: nextChips
+          }
+        ]);
+        return;
+      }
+
+      if (lowerText.includes('continuar con el paso actual')) {
+        // Just replay the current step instruction without advancing
+      }
+
+      if (newFlow === 'idle') {
+        if (lowerText.includes('whatsapp')) {
+          newFlow = 'whatsapp';
+          newStep = 0;
+          replyText = 'Has seleccionado **WhatsApp Business API**.\n\nPara comenzar, asegúrate de cumplir con estos 3 requisitos:\n1️⃣ Tener una **cuenta de desarrollador** activa en Meta for Developers.\n2️⃣ Tener un **Administrador Comercial** (Meta Business Manager) activo.\n3️⃣ Disponer de un **número de teléfono limpio** (que no tenga una cuenta de WhatsApp activa en este momento; si la tiene, debes eliminarla desde la app móvil antes de continuar).\n\n¿Tienes todo esto listo para continuar?';
+          nextChips = ['¡Sí, tengo todo listo!', 'No tengo cuenta de desarrollador', 'No tengo cuenta comercial', 'Volver al inicio'];
+        } else if (lowerText.includes('meta ads') || lowerText.includes('publicidad')) {
+          newFlow = 'meta';
+          newStep = 0;
+          replyText = 'Has seleccionado la **API de Facebook & Meta Ads**.\n\nEsta integración te permitirá crear anuncios, publicar campañas con creativos de IA y monitorear el rendimiento publicitario directamente desde tu panel.\n\n¿Comenzamos con la configuración?';
+          nextChips = ['Sí, iniciar setup', 'Volver al inicio'];
+        } else {
+          replyText = 'Por favor, selecciona una de las opciones de abajo para configurar tu API de forma guiada:';
+          nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
+        }
+      } else if (newFlow === 'whatsapp') {
+        if (newStep === 0) {
+          if (lowerText.includes('tengo todo listo') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {
+            newStep = 1;
+            replyText = '**Paso 1: Crear una Aplicación en Meta**\n\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión con tu cuenta de Facebook.\n2️⃣ Ve a la sección **Mis apps** (arriba a la derecha) y pulsa **Crear app**.\n3️⃣ En el tipo de app, selecciona **Otro** y pulsa Siguiente.\n4️⃣ Selecciona el caso de uso **Negocios** (Business) y pulsa Siguiente.\n5️⃣ Escribe un nombre para mostrar (ej: *RIFX Bot*), tu correo de contacto e indica tu cuenta comercial de Business Manager. Luego haz clic en **Crear app**.\n\n![Paso 1: Crear App en Meta](/images/setup/meta_create_app.png)\n\n¿Terminaste de crear la aplicación en Meta?';
+            nextChips = ['Sí, app creada', '¿Cómo creo la app?', 'Volver al inicio'];
+          } else if (lowerText.includes('desarrollador')) {
+            replyText = 'Crear una cuenta de desarrollador de Meta es gratuito:\n\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/).\n2️⃣ Pulsa **Empezar** (o *Get Started*) arriba a la derecha y sigue las instrucciones usando tu perfil personal de Facebook.\n3️⃣ Completa el registro seleccionando tu rol (ej. Desarrollador).\n\nCuando la tengas lista, avísame escribiendo "listo".';
+            nextChips = ['Listo, continuar', 'Volver al inicio'];
+          } else if (lowerText.includes('comercial')) {
+            replyText = 'Para el Business Manager de Meta:\n\n1️⃣ Entra a [Meta Business Manager](https://business.facebook.com/overview).\n2️⃣ Pulsa **Crear cuenta** y rellena el formulario de tu negocio.\n3️⃣ Valida tu dirección de correo electrónico en la bandeja de entrada.\n\nCuando la tengas lista, indícamelo escribiendo "listo".';
+            nextChips = ['Listo, continuar', 'Volver al inicio'];
+          } else {
+            newStep = 1;
+            replyText = 'Continuemos con el **Paso 1: Crear una Aplicación en Meta**.\n\n1️⃣ Inicia sesión en [Meta for Developers](https://developers.facebook.com/).\n2️⃣ Haz clic en **Mis apps** > **Crear app**.\n3️⃣ Elige **Otro** > **Negocios** y ponle un nombre (ej. *RIFX Connector*).\n\n¿Ya creaste la app?';
+            nextChips = ['Sí, app creada', 'Volver al inicio'];
+          }
+        } else if (newStep === 1) {
+          newStep = 2;
+          replyText = '**Paso 2: Agregar el Producto WhatsApp**\n\n1️⃣ Dentro del panel de tu App de Meta recién creada, desplázate por el panel central o ve a la barra lateral izquierda y entra a **Agregar productos**.\n2️⃣ Busca **WhatsApp** y haz clic en el botón **Configurar**.\n3️⃣ Selecciona tu cuenta comercial (Business Manager) si te lo solicita y haz clic en **Continuar**.\n\n![Paso 2: Agregar WhatsApp](/images/setup/meta_add_whatsapp.png)\n\nEsto habilitará la plataforma de WhatsApp en tu aplicación de Meta.\n\n¿Lograste agregar el producto WhatsApp?';
+          nextChips = ['Sí, WhatsApp agregado', 'Volver al inicio'];
+        } else if (newStep === 2) {
+          newStep = 3;
+          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\n\n1️⃣ En el panel principal de tu App de Meta, bajo **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**:\n\n![1. Abrir Configuración de WhatsApp](/images/setup/meta_add_whatsapp_dashboard.png)\n\n2️⃣ En el menú lateral izquierdo, bajo la sección de WhatsApp, haz clic en **Configuración de la API** (o *Inicio rápido*):\n\n![2. Ir a Configuración de la API](/images/setup/meta_api_settings_click.png)\n\n3️⃣ En el panel derecho, busca la sección "Envía y recibe mensajes" y copia el **Identificador de número de teléfono** (Phone Number ID):\n\n![3. Copiar ID de Teléfono](/images/setup/meta_phone_id.png)\n\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente:';
+          nextChips = ['Volver al inicio'];
+        } else if (newStep === 3) {
+          const cleanId = text.replace(/[^0-9]/g, '');
+          if (cleanId.length >= 12 && cleanId.length <= 18) {
+            setConfigData((prev: any) => ({ ...prev, whatsapp_phone_id: cleanId }));
+            replyText = '✅ ¡ID de Teléfono configurado con éxito: `' + cleanId + '`!\n\n';
+            newStep = 4;
+          } else {
+            replyText = '⚠️ El ID de teléfono ingresado no parece válido (debe tener entre 12 y 18 números enteros). Por favor, revisa y vuelve a ingresarlo:';
+            nextChips = ['Volver al inicio'];
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
+            return;
+          }
+          replyText += '**Paso 4: Obtener el Token de Acceso Permanente**\n\nPara que tu bot no se desconecte cada 24 horas, debes generar un Token Permanente en tu Business Manager:\n1️⃣ Abre la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\n2️⃣ En la barra lateral, ve a **Usuarios** > **Usuarios del sistema**.\n3️⃣ Haz clic en **Agregar** para crear un nuevo usuario y ponle rol de **Administrador**.\n4️⃣ Selecciónalo, haz clic en **Generar nuevo token**, elige tu App de Meta y marca los permisos:\n   - `whatsapp_business_messaging`\n   - `whatsapp_business_management`\n5️⃣ Copia el token largo que se te mostrará.\n\n![Paso 4: Token del Sistema](/images/setup/meta_system_user.png)\n\nPor favor, **pega el Token de Acceso Permanente aquí en el chat** para guardarlo:';
+          nextChips = ['Volver al inicio'];
+        } else if (newStep === 4) {
+          if (text.length > 50 && text.startsWith('EAAS')) {
+            setConfigData((prev: any) => ({ ...prev, whatsapp_token: text }));
+            replyText = '✅ ¡Token de Acceso guardado correctamente!\n\n';
+            newStep = 5;
+          } else {
+            replyText = '⚠️ El Token ingresado no parece válido. Debe ser un código largo y usualmente empieza por "EAAS...". Por favor, revísalo y vuelve a pegarlo:';
+            nextChips = ['Volver al inicio'];
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
+            return;
+          }
+          replyText += '**Paso 5: Configurar el Webhook de Recepción**\n\nPara que tu bot reciba y conteste los mensajes de tus clientes, debes configurar el webhook en Meta:\n\n1️⃣ En Meta Developers, ve a **WhatsApp** > **Configuración**.\n2️⃣ En **Webhook**, haz clic en **Editar**.\n3️⃣ En **URL de devolución de llamada**, pega esta URL exacta:\n   `https://api.rifx-sovereign.io/hooks/v1/wa/' + (configData.whatsapp_phone_id || '[TU_PHONE_ID]') + '`\n4️⃣ En **Token de verificación**, escribe cualquier contraseña corta que desees (ej: `rifx_secret`).\n5️⃣ Haz clic en **Guardar**.\n6️⃣ **¡MUY IMPORTANTE!** En la lista de Webhooks de WhatsApp, haz clic en **Administrar** y pulsa **Suscribirse** en la fila de **`messages`**.\n\n![Paso 5: Configuración de Webhook](/images/setup/meta_webhook.png)\n\n¿Completaste la suscripción a los webhooks?';
+          nextChips = ['Sí, webhooks listos', 'Volver al inicio'];
+        } else if (newStep === 5) {
+          newStep = 6;
+          replyText = '**Paso 6: Guardar y Validar Conexión**\n\nHemos completado la carga de credenciales. Guardaremos tu configuración y probaremos la conexión.\n\n¿Quieres verificar la conexión con WhatsApp en este momento?';
+          nextChips = ['Verificar y guardar ahora', 'Volver al inicio'];
+        } else if (newStep === 6) {
+          if (lowerText.includes('verificar') || lowerText.includes('reintentar')) {
+            replyText = 'Probando la conexión con la API de WhatsApp en los servidores de Meta...';
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date() }]);
+
+            fetch(`https://graph.facebook.com/v18.0/${configData.whatsapp_phone_id}`, {
+              headers: { 'Authorization': `Bearer ${configData.whatsapp_token}` }
+            })
+            .then(res => {
+              if (res.ok) {
+                setWaStatus('success');
+                setWaStatusMsg('¡Conexión de WhatsApp verificada!');
+                handleSaveSettings({ preventDefault: () => {} } as any);
+                setApiHelperFlow('idle');
+                setApiHelperStep(0);
+                setApiHelperMessages(prev => [...prev, {
+                  sender: 'agent',
+                  text: '✅ ¡Conexión con Meta exitosa! El ID de teléfono y el Token son válidos. Toda la configuración ha sido guardada en la base de datos de forma segura.\n\n¿Deseas configurar otra API?',
+                  timestamp: new Date(),
+                  chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']
+                }]);
+              } else {
+                setWaStatus('error');
+                setWaStatusMsg('Token o ID de teléfono inválido');
+                setApiHelperMessages(prev => [...prev, {
+                  sender: 'agent',
+                  text: '❌ Falló la verificación de Meta. El servidor de Facebook devolvió un error (credenciales inválidas). Por favor, asegúrate de que tu ID de teléfono e ID de token sean correctos.\n\n¿Qué deseas hacer?',
+                  timestamp: new Date(),
+                  chips: ['Reintentar verificación', 'Volver al inicio']
+                }]);
+              }
+            })
+            .catch(() => {
+              setWaStatus('error');
+              setWaStatusMsg('Error de red');
+              setApiHelperMessages(prev => [...prev, {
+                sender: 'agent',
+                text: '❌ Error de red al conectar con Meta. Por favor, asegúrate de tener acceso a internet y reintenta.',
+                timestamp: new Date(),
+                chips: ['Reintentar verificación', 'Volver al inicio']
+              }]);
+            });
+            return;
+          } else {
+            replyText = 'Por favor, realiza la verificación de la conexión para continuar y guardar los datos correctamente:';
+            nextChips = ['Verificar y guardar ahora', 'Volver al inicio'];
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
+            return;
+          }
+        }
+      } else if (newFlow === 'meta') {
+        if (newStep === 0) {
+          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {
+            newStep = 1;
+            replyText = '**Paso 1: Crear la App y Generar el Token de Acceso (Meta Ads)**\n\nPara que RIFX pueda gestionar tus anuncios y medir conversiones, primero debes crear una aplicación de tipo Marketing API y generar su token de acceso:\n\nA) **Crear la App en Meta Developers**:\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión.\n2️⃣ Haz clic en **My Apps** (Mis apps) en la esquina superior derecha:\n   ![1. Ir a Mis Apps](/images/setup/meta_develop_home.png)\n3️⃣ Haz clic en el botón verde **Create App** (Crear app):\n   ![2. Crear Aplicación](/images/setup/meta_create_app.png)\n4️⃣ En la sección "Use cases" (Casos de uso), marca la opción **Create & manage ads with Marketing API** (Crear y gestionar anuncios con Marketing API) y haz clic en Siguiente:\n   ![3. Seleccionar Marketing API](/images/setup/meta_ads_app_usecase.png)\n5️⃣ En la sección "Business", selecciona tu cuenta comercial (Business Portfolio) y haz clic en Siguiente:\n   ![4. Seleccionar Cuenta Comercial](/images/setup/meta_ads_app_business.png)\n6️⃣ Ponle un nombre a tu App (ej: *RIFX Ads*), tu correo y haz clic en **Create App** para finalizar la creación.\n\nB) **Generar el Token de Acceso**:\n1️⃣ Dentro del panel de tu App de Meta recién creada, haz clic en **Tools** (Herramientas) en el menú superior:\n   ![5. Ir a Herramientas](/images/setup/meta_ads_dashboard_tools.png)\n2️⃣ En el menú desplegable, selecciona **Graph API Explorer**:\n   ![6. Abrir Graph Explorer](/images/setup/meta_ads_dashboard_graph_explorer.png)\n3️⃣ En el panel derecho de Graph API Explorer:\n   - Asegúrate de que tu nueva aplicación está seleccionada en el campo **Meta App**.\n   - En **User or Page**, selecciona "Get User Access Token".\n   - En la sección **Permissions** (Permisos), haz clic en el buscador e ingresa y selecciona estos dos permisos obligatorios:\n     - `ads_management`\n     - `ads_read`\n4️⃣ Haz clic en el botón azul **Generate Access Token**:\n   ![7. Generar Token de Acceso](/images/setup/meta_ads_graph_explorer_token_generation.png)\n5️⃣ Copia el token largo generado en el recuadro superior y **pégalo aquí en el chat** para guardarlo:';
+            nextChips = ['Volver al inicio'];
+          } else {
+            newFlow = 'idle';
+            newStep = 0;
+            replyText = 'Proceso cancelado. ¿Qué API deseas configurar ahora?';
+            nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
+          }
+        } else if (newStep === 1) {
+          if (text.length > 50 && text.startsWith('EAAS')) {
+            setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));
+            replyText = '✅ ¡Token de Meta Ads guardado correctamente!\n\n';
+            newStep = 2;
+          } else {
+            replyText = '⚠️ El Token de Meta Ads no parece válido. Asegúrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por "EAAS..."):';
+            nextChips = ['Volver al inicio'];
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
+            return;
+          }
+          replyText += '**Paso 2: Obtener el ID de la Cuenta Publicitaria (Ad Account ID)**\n\nAhora vincularemos tu cuenta de publicidad para poder lanzar anuncios desde RIFX:\n\n' +
+            '1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu cuenta comercial/negocio:\n' +
+            '![1. Seleccionar negocio](/images/setup/meta_ads_select_business.png)\n\n' +
+            '2️⃣ En la barra lateral izquierda, ve a **Cuentas** > **Cuentas publicitarias**:\n' +
+            '![2. Ir a Cuentas publicitarias](/images/setup/meta_ads_cuentas_menu.png)\n\n' +
+            '3️⃣ Selecciona tu cuenta publicitaria y copia el número de **Identificador** largo que aparece debajo de su nombre:\n' +
+            '![3. Copiar ID de Cuenta Publicitaria](/images/setup/meta_ads_account_id.png)\n\n' +
+            '4️⃣ **¡VITAL PARA QUE FUNCIONE!** Debes asegurarte de que tu Usuario del Sistema tenga acceso a la cuenta:\n' +
+            '   - Haz clic en el botón **Asignar personas**:\n' +
+            '   ![4. Asignar personas](/images/setup/meta_ads_assign_people.png)\n' +
+            '   - En la ventana emergente, selecciona tu Usuario de Sistema en la lista de la izquierda, activa el switch de **Control total** (Administrar cuenta publicitaria) en la derecha, y haz clic en **Asignar**:\n' +
+            '   ![5. Activar permisos y Guardar](/images/setup/meta_ads_assign_permissions.png)\n\n' +
+            'Por favor, **pega aquí tu ID de Cuenta Publicitaria** (solo el número largo de 15 o 16 dígitos):';
+          nextChips = ['Volver al inicio'];
+        } else if (newStep === 2) {
+          const numId = text.replace(/[^0-9]/g, '');
+          if (numId.length >= 8 && numId.length <= 18) {
+            const formatted = 'act_' + numId;
+            setConfigData((prev: any) => ({ ...prev, facebook_ad_account_id: formatted }));
+            replyText = '✅ ¡ID de Cuenta Publicitaria configurado como `' + formatted + '`!\n\n';
+            newStep = 3;
+          } else {
+            replyText = '⚠️ El ID de cuenta publicitaria ingresado no parece válido. Debe tener entre 8 y 18 dígitos. Por favor ingresa el ID correcto:';
+            nextChips = ['Volver al inicio'];
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
+            return;
+          }
+          replyText += '**Paso 3: Obtener tu ID de Página (Page ID)**\n\n' +
+            'Por último, vincularemos la página de Facebook de tu marca comercial bajo la cual se publicarán los anuncios creados por la IA:\n\n' +
+            '1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu negocio/cuenta comercial:\n' +
+            '![1. Seleccionar negocio](/images/setup/meta_page_select_business.png)\n\n' +
+            '2️⃣ En la barra lateral izquierda, ve a **Cuentas** > **Páginas**:\n' +
+            '![2. Ir a Páginas](/images/setup/meta_page_cuentas_menu.png)\n\n' +
+            '3️⃣ Selecciona tu página comercial y copia el número de **Identificador** largo que aparece debajo de su nombre:\n' +
+            '![3. Copiar ID de Página](/images/setup/meta_page_id_details.png)\n\n' +
+            '4️⃣ **¡IMPORTANTE!** Asegúrate de que el Usuario del Sistema tenga acceso a la página:\n' +
+            '   - Haz clic en el botón **Asignar personas** (resaltado en la captura anterior).\n' +
+            '   - En la ventana emergente, selecciona tu Usuario del Sistema en la lista, activa el switch de **Control total** (Administrar página) en la derecha, y haz clic en **Asignar**.\n\n' +
+            'Por favor, **pega aquí tu ID de Página (Page ID)** (solo el número entero de 15 o 16 dígitos):';
+          nextChips = ['Volver al inicio'];
+        } else if (newStep === 3) {
+          const cleanPageId = text.replace(/[^0-9]/g, '');
+          if (cleanPageId.length >= 8 && cleanPageId.length <= 18) {
+            setConfigData((prev: any) => ({ ...prev, facebook_page_id: cleanPageId }));
+            replyText = '✅ ¡ID de Página guardado con éxito: `' + cleanPageId + '`!\n\n';
+            newStep = 4;
+          } else {
+            replyText = '⚠️ El ID de página ingresado no parece válido. Debe tener entre 8 y 18 dígitos. Por favor ingresa el ID correcto:';
+            nextChips = ['Volver al inicio'];
+            setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
+            return;
+          }
+          replyText += '**Paso 4: Finalizar y Guardar**\n\nHemos cargado todos los campos para Meta Ads. ¿Deseas guardar los cambios y activar la integración publicitaria ahora mismo?';
+          nextChips = ['Guardar y Activar ahora', 'Volver al inicio'];
+        } else if (newStep === 4) {
+          handleSaveSettings({ preventDefault: () => {} } as any);
+          newFlow = 'idle';
+          newStep = 0;
+          replyText = '¡Felicidades! Se han guardado y activado tus credenciales de Meta Ads. Ya puedes publicar anuncios con creativos e imágenes generadas por IA directamente desde tu panel.\n\n¿Quieres configurar alguna otra API?';
+          nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
+        }
+      }
+
+      setApiHelperFlow(newFlow);
+      setApiHelperStep(newStep);
+      setApiHelperMessages(prev => [...prev, {
+        sender: 'agent',
+        text: replyText,
+        timestamp: new Date(),
+        chips: nextChips
+      }]);
+    }, 800);
+  };
 
   // Campaigns State
   const [campaignDesc, setCampaignDesc] = useState('');
@@ -238,10 +1652,363 @@ export default function PanelClient() {
   const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
   const [dailyBudget, setDailyBudget] = useState(5);
   const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [campaignResult, setCampaignResult] = useState<any>(null);
   const campaignFileRef = React.useRef<HTMLInputElement>(null);
   const productFileRef = React.useRef<HTMLInputElement>(null);
   const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
+
+  // Ecom Magic AI states
+  const [selectedTemplate, setSelectedTemplate] = useState<CreativeTemplate | null>(null);
+
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all');
+
+  // ChatGPT Flow states
+  const [chatgptFlowStep, setChatgptFlowStep] = useState<1 | 2 | 3 | 4>(1);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [bannerFlowStep, setBannerFlowStep] = useState<1 | 2 | 3 | 4>(1);
+  const [bannerPromptCopied, setBannerPromptCopied] = useState(false);
+  const [bannerGenerationConfirmed, setBannerGenerationConfirmed] = useState(false);
+
+  // Conversational AI Marketing Agent states
+  const [showMarketingAgent, setShowMarketingAgent] = useState(true);
+  const [agentChatStep, setAgentChatStep] = useState(0); // 0: Select Goal, 1+: Business interview questions
+  const [agentGoal, setAgentGoal] = useState<'local' | 'whatsapp' | 'web' | null>(null);
+  const [agentAnswers, setAgentAnswers] = useState<Record<string, any>>({
+    businessName: '',
+    address: '',
+    phone: '',
+    webUrl: '',
+    productName: '',
+    price: '',
+    benefits: '',
+    radius: 5,
+    budget: 5,
+  });
+  const [agentMessages, setAgentMessages] = useState<Array<{
+    id: string;
+    sender: 'agent' | 'user';
+    text: string;
+    options?: Array<{ label: string; value: string }>;
+    isMapStep?: boolean;
+    isSummaryStep?: boolean;
+  }>>([]);
+  const [agentInputText, setAgentInputText] = useState('');
+  const [agentIsTyping, setAgentIsTyping] = useState(false);
+  const [agentGeneratedPrompt, setAgentGeneratedPrompt] = useState('');
+  const [generationConfirmed, setGenerationConfirmed] = useState(false);
+  const [finalUploadedImage, setFinalUploadedImage] = useState<string | null>(null);
+  const finalImageInputRef = React.useRef<HTMLInputElement>(null);
+  const [adDescription, setAdDescription] = useState('');
+  const [adPhone, setAdPhone] = useState('');
+  const [adAddress, setAdAddress] = useState('');
+  const [adCountries, setAdCountries] = useState<string[]>(['EC']);
+  const [adLocations, setAdLocations] = useState<Array<{ lat: number; lng: number; radius: number; name: string }>>([]);
+  const [locationSearch, setLocationSearch] = useState('');
+  const [locationResults, setLocationResults] = useState<any[]>([]);
+  const [adLocationRadius, setAdLocationRadius] = useState(25);
+  const radiusRef = React.useRef(25);
+  React.useEffect(() => { 
+    radiusRef.current = adLocationRadius;
+    // Dynamically resize all circles on the map
+    if (mapMarkersRef.current.length > 0) {
+      mapMarkersRef.current.forEach(m => {
+        if (m.circle) m.circle.setRadius(adLocationRadius * 1000);
+        if (m.marker) m.marker.setPopupContent(
+          `<b>${m.marker.getPopup()?.getContent()?.toString().match(/<b>(.*?)<\/b>/)?.[1] || '📍'}</b><br>${adLocationRadius}km`
+        );
+      });
+      // Update all locations radius
+      setAdLocations(prev => prev.map(loc => ({ ...loc, radius: adLocationRadius })));
+    }
+  }, [adLocationRadius]);
+
+  // Conversational AI Marketing Agent handlers & effects
+  React.useEffect(() => {
+    if (showMarketingAgent && agentMessages.length === 0) {
+      setAgentIsTyping(true);
+      const timer = setTimeout(() => {
+        setAgentMessages([
+          {
+            id: '1',
+            sender: 'agent',
+            text: language === 'en'
+              ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
+              : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+            options: [
+              { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
+              { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+              { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+            ]
+          }
+        ]);
+        setAgentIsTyping(false);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [showMarketingAgent, agentMessages.length, language]);
+
+  const generateCopywritingPrompt = (answers: Record<string, any>) => {
+    const goalText = agentGoal === 'local' 
+      ? `Reconocimiento local para el negocio físico "${answers.businessName}" ubicado en "${answers.address}". Radio de segmentación: ${answers.radius}km.`
+      : agentGoal === 'whatsapp'
+      ? `Conseguir ventas por WhatsApp al número de teléfono "${answers.phone}".`
+      : `Conseguir ventas en la tienda en línea/sitio web "${answers.webUrl}".`;
+
+    const detailsText = `
+- **Nombre comercial**: ${answers.businessName || 'Negocio'}
+- **Producto o servicio estrella**: ${answers.productName}
+- **Precio o promoción**: ${answers.price}
+- **Beneficios o características clave**: ${answers.benefits || 'Alta calidad, atención premium'}
+    `;
+
+    return `Actúa como un Copywriter Experto en Meta Ads de nivel Senior mundial. Necesito que diseñes la estructura de texto publicitario perfecto para una campaña en Meta (Facebook & Instagram Ads).
+
+Mi objetivo comercial es: ${goalText}
+
+Aquí están los detalles clave del producto y negocio:
+${detailsText}
+
+Quiero que me generes 3 variantes de copy publicitario de alto impacto optimizadas para conseguir conversiones:
+1. **Fórmula AIDA** (Atención, Interés, Deseo, Acción): Variante persuasiva y enfocada en el beneficio principal.
+2. **Variante de Storytelling**: Narrando una situación cotidiana donde el cliente experimenta el problema y cómo nuestro producto es la solución perfecta.
+3. **Variante Ultra-Directa (Direct Response)**: Muy corta, enfocada en la oferta/precio y con un llamado a la acción súper directo.
+
+Cada variante debe incluir:
+- Un **Gancho (Hook)** inicial irresistible de menos de 100 caracteres.
+- El **Cuerpo del texto** estructurado con emojis amigables y viñetas limpias para legibilidad.
+- Un **Llamado a la Acción (CTA)** claro (ej. "Toca aquí para comprar con Envío Gratis" o "Haz clic y escríbenos por WhatsApp").
+- 4 Hashtags altamente segmentados e idóneos para este nicho.
+
+Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y conversacional.`;
+  };
+
+  const completeAgentSetup = (finalAnswers: Record<string, any>) => {
+    // 1. Set daily budget
+    setDailyBudget(finalAnswers.budget || 5);
+    
+    const allTpls = [...CREATIVE_TEMPLATES, ...dbTemplates];
+    
+    // 2. Pre-fill states based on goal
+    if (agentGoal === 'local') {
+      setAdAddress(finalAnswers.address || '');
+      setAdPhone('');
+      setAdDescription(`¡Visítanos en ${finalAnswers.businessName}! 📍 ${finalAnswers.address}\n\nTenemos el mejor ${finalAnswers.productName} con una promoción especial: ¡${finalAnswers.price}! 🍕🎉\n\nNo te lo pierdas, ¡esperamos verte pronto!`);
+    } else if (agentGoal === 'whatsapp') {
+      setAdPhone(finalAnswers.phone || '');
+      setAdAddress('');
+      setAdDescription(`🔥 ¡Consigue tu ${finalAnswers.productName} hoy mismo!\n\n💰 Precio especial: ¡Solo ${finalAnswers.price}!\n\n📲 Escríbenos directamente por WhatsApp haciendo clic en el anuncio o al ${finalAnswers.phone} para hacer tu pedido ahora.`);
+    } else if (agentGoal === 'web') {
+      setAdAddress('');
+      setAdPhone('');
+      setAdDescription(`🚀 ¡Ya disponible en nuestra tienda en línea!\n\nCompra hoy tu ${finalAnswers.productName} por tan solo ${finalAnswers.price}.\n\n🌐 Haz clic en 'Comprar' y consíguelo directamente aquí: ${finalAnswers.webUrl}`);
+    }
+
+    // 3. Map locations configuration
+    if (finalAnswers.locations && finalAnswers.locations.length > 0) {
+      setAdLocations(finalAnswers.locations);
+      setAdLocationRadius(finalAnswers.radius || 25);
+    }
+    
+    // 4. Select appropriate general template
+    const defaultTpl = allTpls.find(t => t.category === 'general' || t.category === 'belleza') || allTpls[0] || null;
+    setSelectedTemplate(defaultTpl);
+    
+    // 5. Generate copywriting instructions prompt
+    const prompt = generateCopywritingPrompt(finalAnswers);
+    setAgentGeneratedPrompt(prompt);
+  };
+
+  const handleAgentMessageSubmit = (value: string, optionLabel?: string) => {
+    if (!value.trim() && !optionLabel) return;
+    
+    const userText = optionLabel || value;
+    const currentGoal = agentGoal;
+    const currentStep = agentChatStep;
+    
+    const userMsg = {
+      id: Math.random().toString(),
+      sender: 'user' as const,
+      text: userText,
+    };
+    
+    setAgentMessages(prev => [...prev, userMsg]);
+    setAgentInputText('');
+    setAgentIsTyping(true);
+    
+    setTimeout(() => {
+      let nextStep = currentStep + 1;
+      let nextMsgText = '';
+      let options: Array<{ label: string; value: string }> | undefined = undefined;
+      let isMapStep = false;
+      let isSummaryStep = false;
+      
+      const newAnswers = { ...agentAnswers };
+
+      if (currentStep === 0) {
+        const goal = value as 'local' | 'whatsapp' | 'web';
+        setAgentGoal(goal);
+        newAnswers.goal = goal;
+        
+        if (goal === 'local') {
+          nextMsgText = language === 'en'
+            ? "Excellent choice. Local geo-marketing is highly effective. What is the commercial name of your business?"
+            : "Excelente elección. El marketing geolocalizado es la mejor forma de llenar tu negocio. ¿Cuál es el nombre comercial de tu local?";
+        } else if (goal === 'whatsapp') {
+          nextMsgText = language === 'en'
+            ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)"
+            : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).";
+        } else {
+          nextMsgText = language === 'en'
+            ? "Perfect! Automating website sales is the best way to scale. What is the URL of your website or online store? (e.g., https://mystore.com)"
+            : "¡Excelente! Vender de manera automatizada a través de tu sitio web te permitirá escalar tus ventas. ¿Cuál es la URL de tu página o tienda online? (Ej: https://mitienda.com)";
+        }
+      } else if (currentStep === 1) {
+        if (currentGoal === 'local') {
+          newAnswers.businessName = value;
+        } else if (currentGoal === 'whatsapp') {
+          newAnswers.phone = value;
+          newAnswers.businessName = "Mi WhatsApp Business";
+        } else {
+          newAnswers.webUrl = value;
+          newAnswers.businessName = "Mi Tienda Online";
+        }
+        nextMsgText = language === 'en'
+          ? "Perfect. What star product or service do you want to promote today in your ad?"
+          : "Perfecto. ¿Cuál es el producto o servicio estrella que deseas promocionar y vender en esta campaña?";
+      } else if (currentStep === 2) {
+        newAnswers.productName = value;
+        nextMsgText = language === 'en'
+          ? "Understood. What is the special price or promotion for this campaign? (e.g. 2x1 Thursdays, $14.99, Free Shipping, etc.)"
+          : "Entendido. ¿Cuál es el precio o la promoción especial de este producto para llamar la atención en el anuncio? (Ej: Solo $19.99, 2x1 los jueves, Envío Gratis, etc.)";
+      } else if (currentStep === 3) {
+        newAnswers.price = value;
+        nextMsgText = language === 'en'
+          ? "Excellent offer. Now, where do you want your ads to show up and at what distance? 🗺️\n\nPlease use the interactive map below to pinpoint your business location and establish your local coverage radius:"
+          : "Excelente oferta. Ahora, ¿dónde deseas que se muestre tu publicidad y a qué distancia a la redonda de tu negocio? 🗺️\n\nPor favor, utiliza el buscador de abajo para encontrar tu ciudad o zona, haz clic sobre el mapa para fijar tu ubicación y arrastra la barra de distancia para establecer tu radio de cobertura local:";
+        isMapStep = true;
+      } else if (currentStep === 4) {
+        try {
+          const mapData = JSON.parse(value);
+          newAnswers.locations = mapData.locations;
+          newAnswers.radius = mapData.radius;
+          newAnswers.address = mapData.name || 'Ubicación de Campaña';
+          
+          setAdLocations(mapData.locations);
+          setAdLocationRadius(mapData.radius);
+          setAdAddress(mapData.name || 'Ubicación de Campaña');
+        } catch (e) {
+          console.error("Error parsing map data", e);
+        }
+        
+        nextMsgText = language === 'en'
+          ? "Location configured successfully! What is your suggested daily budget in USD? (The higher the budget, the more local potential clients we can reach)."
+          : "¡Ubicación configurada con éxito! Para completar el diseño de tu pauta publicitaria, ¿cuál es tu presupuesto diario sugerido en dólares USD para esta campaña? (A mayor presupuesto diario, Meta Ads podrá mostrar tu anuncio a más personas dentro de tu radio local):";
+        options = [
+          { label: "$5 USD / día", value: "5" },
+          { label: "$10 USD / día", value: "10" },
+          { label: "$20 USD / día", value: "20" },
+          { label: "$50 USD / día", value: "50" },
+        ];
+      } else if (currentStep === 5) {
+        newAnswers.budget = Number(value) || 5;
+        nextMsgText = language === 'en'
+          ? "Incredible! I have processed all marketing parameters.\n\nI have generated the AI Strategy Diagnosis and campaign preview for you here. Review it and press 'Apply Configuration' to complete:"
+          : "¡Increíble! He procesado todos los parámetros comerciales y geográficos de tu campaña.\n\nHe diseñado el Diagnóstico de Estrategia IA y el simulador de resultados para ti aquí abajo.\n\nRevísalo y presiona 'Aplicar Configuración' para ver tu campaña completamente configurada en el Paso 2 de publicación:";
+        isSummaryStep = true;
+      } else if (currentStep === 6) {
+        if (value === 'apply') {
+          completeAgentSetup(newAnswers);
+          setChatgptFlowStep(2);
+          setPromptCopied(false);
+          setToast({ message: language === 'en' ? '🎉 Campaign setup successfully pre-filled!' : '🎉 ¡Campaña configurada y lista con éxito!', type: 'success' });
+          setAgentIsTyping(false);
+          return;
+        }
+      }
+
+      setAgentAnswers(newAnswers);
+      setAgentChatStep(nextStep);
+      
+      const newAgentMsg = {
+        id: Math.random().toString(),
+        sender: 'agent' as const,
+        text: nextMsgText,
+        options,
+        isMapStep,
+        isSummaryStep
+      };
+      
+      setAgentMessages(prev => [...prev, newAgentMsg]);
+      setAgentIsTyping(false);
+    }, 1200);
+  };
+
+  const mapContainerRef = React.useRef<HTMLDivElement>(null);
+  const mapInstanceRef = React.useRef<any>(null);
+  const mapMarkersRef = React.useRef<any[]>([]);
+
+  // Scroll ref for expert agent chat
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [agentMessages, agentIsTyping]);
+
+  // Dynamic templates states
+  const [dbTemplates, setDbTemplates] = useState<CreativeTemplate[]>([]);
+  const [adminTemplates, setAdminTemplates] = useState<any[]>([]);
+  const [showTplForm, setShowTplForm] = useState(false);
+  const [editingTpl, setEditingTpl] = useState<any | null>(null);
+  
+  // Premium toast state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Leaflet Map initialization
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Load Leaflet CSS
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    // Pre-load Leaflet JS
+    if (!(window as any).L && !document.getElementById('leaflet-js')) {
+      const script = document.createElement('script');
+      script.id = 'leaflet-js';
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      document.head.appendChild(script);
+    }
+  }, []);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+  
+  // Template form fields
+  const [tplName, setTplName] = useState('');
+  const [tplCategory, setTplCategory] = useState('general');
+  const [tplPreviewUrl, setTplPreviewUrl] = useState('');
+  const [tplConfigJson, setTplConfigJson] = useState('');
+  const [tplIsActive, setTplIsActive] = useState(true);
+  const [tplImageFile, setTplImageFile] = useState<File | null>(null);
+  const [tplImagePreview, setTplImagePreview] = useState('');
+  const tplImageInputRef = React.useRef<HTMLInputElement>(null);
+  const [detectingZones, setDetectingZones] = useState(false);
+
+
 
   // === Facebook Marketing API ===
   const [fbCampaigns, setFbCampaigns] = useState<any[]>([]);
@@ -250,39 +2017,63 @@ export default function PanelClient() {
   const [fbError, setFbError] = useState<string | null>(null);
   const loadFbCampaigns = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/campaigns?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbCampaigns(d.campaigns||[]); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
   const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbInsights(d); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
-  const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await fetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else alert(d.error); } catch(e:any){alert(e.message)} };
-  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await fetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else alert(d.error); } catch(e:any){alert(e.message)} };
+  const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await fetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
+  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await fetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const [fbPublishing, setFbPublishing] = useState(false);
   const publishToFacebook = async () => {
-    if (!campaignResult && !campaignDesc) { alert(language === 'en' ? 'First generate content with AI' : 'Primero genera contenido con IA'); return; }
+    if (!finalUploadedImage) { 
+      setToast({ message: language === 'en' ? 'First upload your ad image' : 'Primero sube tu imagen de publicidad', type: 'info' }); 
+      return; 
+    }
+    if (adCountries.length === 0) {
+      setToast({ message: language === 'en' ? 'Select at least one target country' : 'Selecciona al menos un país destino', type: 'info' }); 
+      return; 
+    }
     setFbPublishing(true);
     try {
-      const caption = campaignResult?.caption || campaignDesc;
+      const caption = campaignResult?.caption || adDescription || campaignDesc || '';
       const cfg = campaignResult?.campaign_config || {};
       const aud = campaignResult?.target_audience || {};
+
+      // Validate objective
+      const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
+      const objective = validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC';
+
       const r = await fetch('/api/panel/facebook/publish', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+        method: 'POST', 
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
-          campaign_name: (campaignResult?.hook || caption).substring(0, 50),
+          campaign_name: (campaignResult?.hook || caption || 'RIFX Campaign').substring(0, 50),
           message: caption + (campaignResult?.hashtags ? '\n' + campaignResult.hashtags : ''),
-          daily_budget: dailyBudget * 100,
-          objective: cfg.objective || 'OUTCOME_TRAFFIC',
-          link_url: 'https://rifx.online',
-          countries: ['EC'],
+          daily_budget: dailyBudget * 100, // convert to cents
+          objective,
+          targeting_mode: 'simple', // Advantage+ audience — Meta optimizes
+          countries: adCountries,
+          custom_locations: adLocations.map(l => ({ lat: l.lat, lng: l.lng, radius: l.radius })),
           age_min: aud.age_min || 18,
-          age_max: aud.age_max || 55,
+          age_max: aud.age_max || 65,
+          link_url: 'https://rifx.online',
           call_to_action: cfg.call_to_action || 'LEARN_MORE',
           status: 'PAUSED'
         })
       });
       const d = await r.json();
       if (d.success) {
-        alert(language === 'en' ? 'Campaign published to Facebook! (Status: PAUSED)' : '\u00a1Campa\u00f1a publicada en Facebook! (Estado: PAUSADA)');
+        setToast({ message: language === 'en' 
+          ? `Campaign published! (${d.targeting_mode === 'simple' ? 'Advantage+ Audience' : 'Manual'} • PAUSED)` 
+          : `¡Campaña publicada! (${d.targeting_mode === 'simple' ? 'Audiencia Advantage+' : 'Manual'} • PAUSADA)`, 
+          type: 'success' 
+        });
         loadFbCampaigns();
         setCampaignSubTab('campaigns');
-      } else { alert('Error: ' + (d.error || 'Error desconocido')); }
-    } catch(e:any) { alert('Error: ' + e.message); }
-    finally { setFbPublishing(false); }
+      } else { 
+        setToast({ message: `Error (${d.step || '?'}): ${d.error || 'Error desconocido'}`, type: 'error' }); 
+      }
+    } catch(e:any) { 
+      setToast({ message: 'Error de conexión: ' + e.message, type: 'error' }); 
+    } finally { 
+      setFbPublishing(false); 
+    }
   };
 
 
@@ -299,14 +2090,12 @@ export default function PanelClient() {
       const data = await res.json();
       if (data.success) {
         setCampaignResult(data.campaign);
-        // Auto-generar banner con la imagen del producto
-        setTimeout(() => generateBannerImage(data.campaign), 100);
       } else {
-        alert(data.error || 'Error generating campaign');
+        setToast({ message: data.error || 'Error generating campaign', type: 'error' });
       }
     } catch (e) {
       console.error(e);
-      alert('Error connecting to server');
+      setToast({ message: 'Error connecting to server', type: 'error' });
     } finally {
       setIsGeneratingCampaign(false);
     }
@@ -332,12 +2121,82 @@ export default function PanelClient() {
   // Banner Generator profesional (Canvas local - sin API externa)
   const [generatedBanner, setGeneratedBanner] = useState<string | null>(null);
   const [isGeneratingBanner, setIsGeneratingBanner] = useState(false);
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('9:16');
+  const [costSaverEnabled, setCostSaverEnabled] = useState(true); // 💰 Modo económico ON por defecto en desarrollo
+  const [debugTimestamp, setDebugTimestamp] = useState<number | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+
+  // Advanced Compositor States
+  const [productTraits, setProductTraits] = useState<{
+    category: string;
+    colors: string[];
+    style: string;
+    material: string;
+    type: string;
+  } | null>(null);
+
+  const [adTexts, setAdTexts] = useState<{
+    badge: string;
+    hook: string;
+    desc: string;
+    benefits: string[];
+    cta: string;
+    testimonial: string;
+  }>({
+    badge: '',
+    hook: '',
+    desc: '',
+    benefits: ['', '', ''],
+    cta: '',
+    testimonial: ''
+  });
+
+  const [compositorColors, setCompositorColors] = useState<{
+    primary: string;
+    accent: string;
+    text: string;
+    badgeBg: string;
+    badgeText: string;
+  } | null>(null);
+
+  // Automatically synchronize template defaults when template changes
+  React.useEffect(() => {
+    if (selectedTemplate) {
+      setCompositorColors(selectedTemplate.colors);
+      setAdTexts({
+        badge: selectedTemplate.defaultText.badge || '',
+        hook: selectedTemplate.defaultText.hook || '',
+        desc: selectedTemplate.defaultText.desc || '',
+        benefits: [
+          selectedTemplate.defaultText.benefits?.[0] || '',
+          selectedTemplate.defaultText.benefits?.[1] || '',
+          selectedTemplate.defaultText.benefits?.[2] || '',
+        ],
+        cta: selectedTemplate.defaultText.cta || '',
+        testimonial: selectedTemplate.defaultText.testimonial || ''
+      });
+    }
+  }, [selectedTemplate]);
 
   const loadImage = (src: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
     const img = new Image();
+    // Only set crossOrigin for HTTP URLs; blob: and data: URIs don't need/support CORS
+    if (src?.startsWith('http')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onerror = (e) => {
+      console.error('❌ [loadImage] Error cargando imagen:', src?.substring(0, 80), e);
+      reject(new Error(`Failed to load image: ${src?.substring(0, 60)}...`));
+    };
     img.src = src;
+  });
+
+  const getProductImageBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 
   const generateBannerImage = async (result: any) => {
@@ -345,293 +2204,291 @@ export default function PanelClient() {
     setGeneratedBanner(null);
 
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1080;
-      canvas.height = 1080;
-      const ctx = canvas.getContext('2d')!;
+      // Comprobar si hay plantilla seleccionada
+      const t = selectedTemplate || dbTemplates[0] || CREATIVE_TEMPLATES[0];
+      if (!t) {
+        setToast({ message: 'Por favor, crea y selecciona una plantilla primero.', type: 'error' });
+        setIsGeneratingBanner(false);
+        return;
+      }
       const hasRef = !!campaignImagePreview;
       const hasProd = !!productImagePreview;
 
-      // ===== STEP 1: BACKGROUND (Together AI → referencia → gradiente) =====
-      let aiImageLoaded = false;
+      console.log('🎨 [Ecom Magic] Generando banner con:', {
+        template: t.name,
+        templateId: t.id,
+        hasRef,
+        hasProd,
+        prompt: t.prompt?.substring(0, 50) + '...',
+      });
 
-      // Intentar generar fondo con Together AI (FLUX)
-      if (!hasRef) {
-        try {
-          const product = campaignTitle || campaignDesc || 'marketing digital';
-          const aiPrompt = `Professional advertising banner background for "${product}", high-end commercial photography, studio lighting, clean modern design, premium brand aesthetic, vibrant colors, no text, no letters, no words, no watermark, 4k quality`;
-          
-          const aiRes = await fetch('/api/panel/generate-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: aiPrompt, width: 1024, height: 1024 }),
-          });
-          const aiData = await aiRes.json();
-          
-          if (aiData.success && aiData.image) {
-            const aiImg = await loadImage(aiData.image);
-            ctx.drawImage(aiImg, 0, 0, 1080, 1080);
-            aiImageLoaded = true;
-            console.log('✅ Fondo generado con Together AI (FLUX)');
-          }
-        } catch(e) {
-          console.warn('Together AI no disponible, usando fallback:', e);
-        }
-      }
-
+      // ===== CASO A: Imagen de referencia =====
       if (hasRef) {
-        // Use reference banner as background
-        const refImg = await loadImage(campaignImagePreview!);
-        const scale = Math.max(1080 / refImg.width, 1080 / refImg.height);
-        const w = refImg.width * scale;
-        const h = refImg.height * scale;
-        ctx.drawImage(refImg, (1080 - w) / 2, (1080 - h) / 2, w, h);
-      } else if (!aiImageLoaded) {
-        // Fallback: Premium gradient background
-        const g1 = ctx.createLinearGradient(0, 0, 1080, 1080);
-        g1.addColorStop(0, '#0a1628');
-        g1.addColorStop(0.3, '#0d2137');
-        g1.addColorStop(0.6, '#0058bc');
-        g1.addColorStop(1, '#1877F2');
-        ctx.fillStyle = g1;
-        ctx.fillRect(0, 0, 1080, 1080);
-        // Decorative circles
-        ctx.globalAlpha = 0.06;
-        ctx.fillStyle = '#ffffff';
-        [[200, 800, 300], [900, 200, 250], [500, 500, 400], [100, 300, 180]].forEach(([x,y,r]) => {
-          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-        });
-        ctx.globalAlpha = 1;
-        ctx.save();
-        ctx.globalAlpha = 0.03;
-        ctx.fillStyle = '#ffffff';
-        ctx.translate(540, 540);
-        ctx.rotate(-0.4);
-        for (let i = -5; i < 5; i++) {
-          ctx.fillRect(i * 120, -800, 40, 1600);
+        // Si hay una imagen de referencia, la usamos directamente
+        setGeneratedBanner(campaignImagePreview);
+        setIsGeneratingBanner(false);
+        return;
+      }
+
+      // ===== CASO B: Generación directa con IA =====
+      let finalProductImageToSend = '';
+
+      if (productImage) {
+        try {
+          finalProductImageToSend = await getProductImageBase64(productImage);
+          console.log(`  ✅ Usando productImage convertido a base64 (${finalProductImageToSend.length} chars)`);
+        } catch (e) {
+          console.error('Error reading product image as base64:', e);
         }
-        ctx.restore();
-        ctx.globalAlpha = 1;
+      } else {
+        console.warn(`  ❌ NO HAY IMAGEN DE PRODUCTO — finalProductImageToSend será vacío`);
       }
 
-      // ===== STEP 2: OVERLAY FOR TEXT READABILITY =====
-      const hasImage = hasRef || aiImageLoaded;
-      // Left-side dark gradient
-      const leftOverlay = ctx.createLinearGradient(0, 0, 700, 0);
-      leftOverlay.addColorStop(0, hasImage ? 'rgba(0,0,0,0.75)' : 'rgba(0,0,0,0.3)');
-      leftOverlay.addColorStop(0.5, hasImage ? 'rgba(0,0,0,0.45)' : 'rgba(0,0,0,0.1)');
-      leftOverlay.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = leftOverlay;
-      ctx.fillRect(0, 0, 1080, 1080);
+      console.log(`  📦 finalProductImageToSend: ${finalProductImageToSend ? `${finalProductImageToSend.substring(0, 50)}... (${finalProductImageToSend.length} chars)` : 'VACÍO'}`);
 
-      // Bottom gradient
-      const bottomGrad = ctx.createLinearGradient(0, 780, 0, 1080);
-      bottomGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      bottomGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
-      ctx.fillStyle = bottomGrad;
-      ctx.fillRect(0, 780, 1080, 300);
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      // ===== STEP 3: PRODUCT IMAGE (prominent, right side) =====
-      if (hasProd) {
-        const prodImg = await loadImage(productImagePreview!);
-        const pW = 480;
-        const pH = 520;
-        const px = 560;
-        const py = 280;
-
-        // Shadow behind product
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,0.6)';
-        ctx.shadowBlur = 50;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 15;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.roundRect(px, py, pW, pH, 24);
-        ctx.fill();
-        ctx.restore();
-
-        // White card background
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.roundRect(px, py, pW, pH, 24);
-        ctx.fill();
-
-        // Clip and draw product image with padding
-        ctx.save();
-        const pad = 12;
-        ctx.beginPath();
-        ctx.roundRect(px + pad, py + pad, pW - pad*2, pH - pad*2, 16);
-        ctx.clip();
-        const pScale = Math.max((pW - pad*2) / prodImg.width, (pH - pad*2) / prodImg.height);
-        const pw = prodImg.width * pScale;
-        const ph = prodImg.height * pScale;
-        ctx.drawImage(prodImg, px + pad + ((pW - pad*2) - pw)/2, py + pad + ((pH - pad*2) - ph)/2, pw, ph);
-        ctx.restore();
-
-        // Subtle border
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(px, py, pW, pH, 24);
-        ctx.stroke();
-      }
-
-      // ===== STEP 4: ACCENT ELEMENTS =====
-      // Top accent bar
-      ctx.fillStyle = '#0058bc';
-      ctx.fillRect(0, 0, 1080, 5);
-      const accentGrad = ctx.createLinearGradient(0, 5, 400, 5);
-      accentGrad.addColorStop(0, '#FFD700');
-      accentGrad.addColorStop(1, 'rgba(255,215,0,0)');
-      ctx.fillStyle = accentGrad;
-      ctx.fillRect(0, 5, 400, 3);
-
-      // Framework badge
-      ctx.fillStyle = 'rgba(0,88,188,0.9)';
-      ctx.beginPath();
-      ctx.roundRect(50, 45, 190, 36, 18);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 14px Inter, system-ui, sans-serif';
-      ctx.fillText('\u26a1 ' + (result?.copy_framework || 'RIFX AdGenius'), 68, 69);
-
-      // ===== STEP 5: TEXT OVERLAYS =====
-      const maxTextW = hasProd ? 500 : 950;
-
-      // Hook (main title)
-      const hook = result?.hook || campaignTitle || 'Tu Producto';
-      ctx.shadowColor = 'rgba(0,0,0,0.7)';
-      ctx.shadowBlur = 15;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 3;
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 54px Inter, system-ui, sans-serif';
-      const words = hook.split(' ');
-      let line = '';
-      let y = 170;
-      for (const word of words) {
-        const test = line + word + ' ';
-        if (ctx.measureText(test).width > maxTextW && line) {
-          ctx.fillText(line.trim(), 50, y);
-          line = word + ' ';
-          y += 64;
-        } else { line = test; }
-      }
-      ctx.fillText(line.trim(), 50, y);
-
-      // Accent line below hook
-      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-      const acLine = ctx.createLinearGradient(50, 0, 250, 0);
-      acLine.addColorStop(0, '#FFD700');
-      acLine.addColorStop(1, 'rgba(255,215,0,0)');
-      ctx.fillStyle = acLine;
-      ctx.fillRect(50, y + 15, 200, 4);
-
-      // Caption text
-      ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = 8;
-      const caption = (result?.caption || campaignDesc || '').substring(0, 120);
-      if (caption) {
-        ctx.font = '22px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(255,255,255,0.92)';
-        const cWords = caption.split(' ');
-        let cLine = '';
-        let cY = y + 50;
-        for (const w of cWords) {
-          const t = cLine + w + ' ';
-          if (ctx.measureText(t).width > maxTextW && cLine) {
-            ctx.fillText(cLine.trim(), 50, cY);
-            cLine = w + ' ';
-            cY += 30;
-            if (cY > 650) break;
-          } else { cLine = t; }
+      console.log('🔮 [Ecom Magic] Enviando template + imagen de producto para adaptación inteligente...');
+      console.log(`🎨 [VISUAL PROVIDER] provider: ${configData.visual_render_provider || 'openai'} | mode: ${configData.visual_render_provider === 'flux' ? 'inpainting' : 'compositing'}`);
+      const aiRes = await fetch('/api/panel/generate-image', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ 
+          template_json: t,
+          product_image: finalProductImageToSend,
+          userInstructions: campaignDesc,
+          campaignTitle: campaignTitle,
+          aspect_ratio: selectedAspectRatio,
+          ad_texts_overrides: adTexts,
+          cost_saver: costSaverEnabled,
+          visual_render_provider: configData.visual_render_provider || 'openai',
+        }),
+      });
+      const aiData = await aiRes.json();
+      
+      if (aiData.success && aiData.image) {
+        setGeneratedBanner(aiData.image);
+        setDebugTimestamp(Date.now());
+        setShowDebugPanel(true);
+        console.log('✅ [Ecom Magic] Imagen del banner generada exitosamente por la IA');
+        
+        if (aiData.qa_results) {
+          console.log('%c📊 [QA Engine] INFORME DE CALIDAD FINAL (27 métricas):', 'color: #3b82f6; font-weight: bold;');
+          console.log(`  Passed: ${aiData.qa_results.passed ? '✅ SÍ' : '❌ NO'}`);
+          console.log(`  --- ESTRUCTURA (≥85) ---`);
+          console.log(`  Template Similarity: ${aiData.qa_results.template_similarity_score}/100`);
+          console.log(`  Layout Preservation: ${aiData.qa_results.layout_preservation_score}/100`);
+          console.log(`  Product Identity: ${aiData.qa_results.product_identity_score}/100`);
+          console.log(`  Icon Count: ${aiData.qa_results.icon_count_preservation ? '✅' : '❌'} | Icon Column: ${aiData.qa_results.icon_column_position_preserved ? '✅' : '❌'} | Text Zones: ${aiData.qa_results.text_zone_preservation ? '✅' : '❌'}`);
+          console.log(`  --- GEOMETRÍA & ESPACIADO (≥85) ---`);
+          console.log(`  Background Geometry: ${aiData.qa_results.background_geometry_score}/100`);
+          console.log(`  Pedestal Similarity: ${aiData.qa_results.pedestal_similarity_score}/100`);
+          console.log(`  Spacing Similarity: ${aiData.qa_results.spacing_similarity_score}/100`);
+          console.log(`  Visual Balance: ${aiData.qa_results.visual_balance_score}/100`);
+          console.log(`  Template Geometry: ${aiData.qa_results.template_geometry_preservation_score}/100`);
+          console.log(`  --- COLOR & ILUMINACIÓN (≥85) ---`);
+          console.log(`  Color Palette: ${aiData.qa_results.color_palette_match_score}/100`);
+          console.log(`  Shadow Match: ${aiData.qa_results.shadow_match_score}/100`);
+          console.log(`  Lighting Match: ${aiData.qa_results.lighting_match_score}/100`);
+          console.log(`  Render Quality: ${aiData.qa_results.premium_render_similarity_score}/100`);
+          console.log(`  Color Harmony: ${aiData.qa_results.color_harmony_score}/100`);
+          console.log(`  Product→Env Influence: ${aiData.qa_results.product_color_environment_influence_score}/100`);
+          console.log(`  --- ESCALA & TIPOGRAFÍA (≥85) ---`);
+          console.log(`  Product Scale: ${aiData.qa_results.product_scale_similarity_score}/100`);
+          console.log(`  Visual Weight: ${aiData.qa_results.visual_weight_similarity_score}/100`);
+          console.log(`  Typography Structure: ${aiData.qa_results.typography_structure_preservation_score}/100`);
+          console.log(`  --- FIDELIDAD QUIRÚRGICA ---`);
+          console.log(`  Reinterpretation: ${aiData.qa_results.template_reinterpretation_score}/100 ${aiData.qa_results.template_reinterpretation_score > 15 ? '❌ FAIL (>15)' : '✅ OK (≤15)'}`);
+          console.log(`  Text Leakage: ${aiData.qa_results.template_text_leakage_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  --- 🔒 REGION FREEZE ---`);
+          console.log(`  Frozen Region Integrity: ${aiData.qa_results.frozen_region_integrity_score}/100`);
+          console.log(`  BG Reconstruction: ${aiData.qa_results.background_reconstruction_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Geometry Shift: ${aiData.qa_results.geometry_shift_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Spacing Shift: ${aiData.qa_results.spacing_shift_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Typography Reflow: ${aiData.qa_results.typography_reflow_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Retry: ${aiData.qa_results.retry_triggered ? '🔄 SÍ' : '🛑 NO'}`);
+          console.log(`  Reason: ${aiData.qa_results.reason}`);
         }
-        ctx.fillText(cLine.trim(), 50, cY);
+        if (aiData.environment_palette) {
+          console.log('%c🎨 [Color Fusion] ENVIRONMENT PALETTE:', 'color: #8b5cf6; font-weight: bold;');
+          console.log(`  Product Primary: ${aiData.environment_palette.product_primary}`);
+          console.log(`  Product Secondary: ${aiData.environment_palette.product_secondary}`);
+          console.log(`  Shadow Tint: ${aiData.environment_palette.shadow_tint}`);
+          console.log(`  Pedestal Tint: ${aiData.environment_palette.pedestal_tint}`);
+          console.log(`  Background Blend: ${aiData.environment_palette.blended_background}`);
+          console.log(`  Neutral Shadow: ${aiData.environment_palette.neutral_shadow}`);
+          console.log(`  Accent Color: ${aiData.environment_palette.accent_color}`);
+          console.log(`  Template Primary: ${aiData.environment_palette.template_primary}`);
+        }
+        if (aiData.cost_saver_mode) {
+          console.log('%c💰 [COST SAVER MODE] QA y retry omitidos para ahorrar saldo.', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
+        }
+        if (aiData.compositing_mode) {
+          console.log('%c🎯 [COMPOSITING ENGINE] Modo mask-based compositing ACTIVO — template frozen, solo producto editado.', 'color: #10b981; font-weight: bold; font-size: 14px;');
+          if (aiData.product_slot_used) {
+            const ps = aiData.product_slot_used;
+            console.log(`  Product Slot: x=${ps.x}, y=${ps.y}, w=${ps.width}, h=${ps.height}, shape=${ps.shape}`);
+          }
+          if (aiData.text_slots_used > 0) {
+            console.log(`%c📝 [PHASE 2] Text Slots: ${aiData.text_slots_used} zonas de texto editadas`, 'color: #8b5cf6; font-weight: bold;');
+            if (aiData.text_slot_content) {
+              for (const [slotId, content] of Object.entries(aiData.text_slot_content)) {
+                console.log(`    → [${slotId}]: "${(content as string)?.substring(0, 50)}"`);
+              }
+            }
+          }
+        } else {
+          console.log('%c⚠️ [LEGACY MODE] Generación completa sin mask — template no tiene product_slot.', 'color: #f59e0b; font-weight: bold;');
+        }
+
+        if (aiData.template_visual_dna) {
+          const dna = aiData.template_visual_dna;
+          console.log('%c🧬 [TEMPLATE VISUAL DNA]', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
+          console.log(`  🎨 Dominant Palette: ${(dna.dominant_palette || []).join(', ')}`);
+          console.log(`  🌟 Secondary: ${(dna.secondary_palette || []).join(', ')}`);
+          console.log(`  💡 Lighting: ${dna.lighting_style || '-'}`);
+          console.log(`  🎬 Mood: ${dna.cinematic_mood || '-'}`);
+          console.log(`  ✨ Glow: ${dna.glow_style || '-'}`);
+          console.log(`  🌡️ Temperature: ${dna.visual_temperature || '-'}`);
+          console.log(`  💎 Render Style: ${dna.premium_render_style || '-'}`);
+        }
+
+        if (aiData.detected_product) {
+          setProductTraits({
+            category: aiData.detected_product.category || '',
+            colors: aiData.detected_product.main_colors || [],
+            style: aiData.detected_product.style || '',
+            material: aiData.detected_product.material || '',
+            type: aiData.detected_product.shape || ''
+          });
+          console.log('%c🧠 [PRODUCT-AWARE CREATIVE INTELLIGENCE]', 'color: #8b5cf6; font-weight: bold; font-size: 14px;');
+          console.log(`  📦 Category: ${aiData.detected_product.category} / ${aiData.detected_product.subcategory || '-'}`);
+          console.log(`  🎨 Visual Style: ${aiData.detected_product.visual_style || '-'}`);
+          console.log(`  👥 Audience: ${aiData.detected_product.audience || '-'}`);
+          console.log(`  🎭 Aesthetic: ${aiData.detected_product.aesthetic || '-'}`);
+          console.log(`  💼 Commercial Tone: ${aiData.detected_product.commercial_tone || '-'}`);
+          console.log(`  ✨ Luxury Level: ${aiData.detected_product.luxury_level || '-'}`);
+          console.log(`  🔑 Mood: ${(aiData.detected_product.mood_keywords || []).join(', ')}`);
+          console.log(`  📣 Marketing Angles: ${(aiData.detected_product.marketing_angles || []).join(', ')}`);
+          console.log(`  🏙️ Lifestyle: ${aiData.detected_product.lifestyle_context || '-'}`);
+          console.log(`  💎 Premium Features: ${(aiData.detected_product.premium_features || []).join(', ')}`);
+          console.log(`  ⚡ Visual Energy: ${aiData.detected_product.visual_energy || '-'}`);
+        }
+        if (aiData.adapted_text) {
+          setAdTexts(aiData.adapted_text);
+          console.log('✅ [Ecom Magic] Copys inteligentes adaptados al producto:', aiData.adapted_text);
+        }
+        if (aiData.adapted_colors) {
+          setCompositorColors(aiData.adapted_colors);
+          console.log('✅ [Ecom Magic] Colores adaptados al producto:', aiData.adapted_colors);
+        }
+      } else {
+        throw new Error(aiData.error || 'Error en la generación de IA');
       }
-
-      // Reset shadow
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-
-      // ===== STEP 6: CTA BUTTON =====
-      const ctaLabel = result?.campaign_config?.call_to_action?.replace(/_/g, ' ') || 'MAS INFO';
-      const ctaGrad = ctx.createLinearGradient(50, 0, 310, 0);
-      ctaGrad.addColorStop(0, '#0058bc');
-      ctaGrad.addColorStop(1, '#1877F2');
-      ctx.fillStyle = ctaGrad;
-      ctx.beginPath();
-      ctx.roundRect(50, 925, 250, 52, 26);
-      ctx.fill();
-      // CTA glow
-      ctx.shadowColor = '#0058bc';
-      ctx.shadowBlur = 20;
-      ctx.fillStyle = ctaGrad;
-      ctx.beginPath();
-      ctx.roundRect(50, 925, 250, 52, 26);
-      ctx.fill();
-      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
-      // CTA text
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 19px Inter, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(ctaLabel, 175, 957);
-      ctx.textAlign = 'left';
-
-      // Budget badge (top right)
-      if (dailyBudget) {
-        ctx.fillStyle = '#FFD700';
-        ctx.beginPath();
-        ctx.roundRect(880, 45, 155, 38, 19);
-        ctx.fill();
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 17px Inter, system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('$' + dailyBudget + '/dia', 958, 70);
-        ctx.textAlign = 'left';
-      }
-
-      // Brand (bottom right)
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.font = '600 15px Inter, system-ui, sans-serif';
-      const brand = tenantData?.company || 'RIFX Marketing';
-      const bW = ctx.measureText(brand).width;
-      ctx.fillText(brand, 1080 - bW - 40, 1050);
-
-      // Hashtags (bottom left)
-      if (result?.hashtags) {
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.font = '13px Inter, system-ui, sans-serif';
-        ctx.fillText(result.hashtags.substring(0, 60), 50, 1050);
-      }
-
-      setGeneratedBanner(canvas.toDataURL('image/png', 0.95));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error generating banner:', err);
+      setToast({ message: language === 'en' ? 'Error generating banner: ' + (err?.message || 'Unknown error') : 'Error generando banner: ' + (err?.message || 'Error desconocido'), type: 'error' });
     } finally {
       setIsGeneratingBanner(false);
     }
   };
 
+  const handleDownloadBanner = async () => {
+    if (!generatedBanner) return;
+    setToast({
+      message: language === 'en' ? 'Downloading premium high-fidelity banner...' : 'Descargando banner premium de alta fidelidad...',
+      type: 'info'
+    });
 
-  // Plan expiration check
+    try {
+      const link = document.createElement('a');
+      link.download = `rifx-ad-${selectedTemplate?.id || 'studio'}-${Date.now()}.png`;
+      link.href = generatedBanner;
+      link.click();
+
+      setToast({
+        message: language === 'en' ? 'Banner downloaded successfully!' : '¡Anuncio premium descargado con éxito!',
+        type: 'success'
+      });
+    } catch (err: any) {
+      console.error('❌ Error downloading banner:', err);
+      setToast({
+        message: language === 'en' ? 'Error downloading banner: ' + err.message : 'Error al descargar el banner: ' + err.message,
+        type: 'error'
+      });
+    }
+  };
+
+  // Auto-regenerate banner when template or product image changes has been disabled at user request.
+  // Generation is now triggered exclusively via the "Generar con AdGenius" or "Generar Banner Studio" / "Regenerar" buttons.
+
+
+  // Plan expiration check (date-based + status-based)
   const isPlanExpired = React.useMemo(() => {
+    // If backend already marked it as expired
+    if (tenantData?.planStatus === 'expired') return true;
+    // Date-based check
     if (!tenantData?.planExpiresAt) return false;
     return new Date(tenantData.planExpiresAt).getTime() < Date.now();
-  }, [tenantData?.planExpiresAt]);
+  }, [tenantData?.planExpiresAt, tenantData?.planStatus]);
 
-  // Force redirect to billing when plan is expired
-  React.useEffect(() => {
-    if (isPlanExpired && activeTab !== 'billing') {
-      setActiveTab('billing');
+  // Helper to check if a tab is locked for the current tenant
+  const isTabLocked = React.useCallback((tab: string) => {
+    if (tab === 'billing') return false;
+    if (tab === 'admin' && tenantData?.isAdmin) return false;
+
+    // Checks custom overrides first
+    const overrides = tenantData?.permissionOverrides || {};
+    const overrideExpiry = overrides[tab];
+    const hasActiveOverride = overrideExpiry && new Date(overrideExpiry).getTime() > Date.now();
+
+    if (hasActiveOverride) return false; // Overridden access is active
+
+    if (isPlanExpired) return true; // Expired plan is locked
+
+    const planPermissions: Record<string, string[]> = {
+      trial: ["dashboard", "settings", "billing"],
+      start: ["dashboard", "crm", "settings", "billing", "playground"],
+      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
+    };
+
+    const currentPlanKey = tenantData?.plan || 'trial';
+    const baseAllowed = planPermissions[currentPlanKey] || planPermissions.trial;
+
+    const allowedSet = new Set([...baseAllowed]);
+    if (tenantData?.isAdmin) {
+      allowedSet.add('admin');
     }
-  }, [isPlanExpired, activeTab]);
+    allowedSet.add('dashboard');
+    allowedSet.add('billing');
 
-  // Guarded setActiveTab -- blocks navigation when plan is expired
+    return !allowedSet.has(tab);
+  }, [isPlanExpired, tenantData?.plan, tenantData?.permissionOverrides, tenantData?.isAdmin]);
+
+  const getRequiredPlanForTab = React.useCallback((tab: string) => {
+    switch (tab) {
+      case 'crm':
+      case 'playground':
+        return { key: 'start', name: 'Chatea Pro Start' };
+      case 'banners':
+      case 'segments':
+        return { key: 'advanced', name: 'Chatea Pro Advanced' };
+      case 'analytics':
+      case 'social':
+        return { key: 'plus', name: 'Chatea Pro Plus' };
+      case 'campaigns':
+        return { key: 'master', name: 'Chatea Pro Master' };
+      default:
+        return null;
+    }
+  }, []);
+
+  // Guarded setActiveTab -- blocks navigation when plan is expired or tab is not allowed
   const safeSetActiveTab = (tab: typeof activeTab) => {
-    if (isPlanExpired && tab !== 'billing') return;
     setActiveTab(tab);
   };
   const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string, phone_number?: string, created_at?: string} | null>(null);
@@ -677,6 +2534,8 @@ export default function PanelClient() {
   const handleUpgradePlan = async (plan: string) => {
     try {
       setShowPlanConfirm(null);
+      // Save the pending plan so we can activate it on return
+      localStorage.setItem('rifx_pending_plan', plan);
       // Create Lemon Squeezy checkout session
       const res = await authFetch('/api/panel/checkout', {
         method: 'POST',
@@ -693,13 +2552,176 @@ export default function PanelClient() {
           window.open(data.checkoutUrl, '_blank');
         }
       } else {
-        alert(language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'));
+        // If checkout gateway is not configured (or in localhost testing), activate plan directly
+        if (data.error?.includes('configurada') || data.error?.includes('configurado') || typeof window !== 'undefined' && window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          setToast({ message: language === 'en' ? '🔧 Sandbox Mode: Activating plan directly...' : '🔧 Modo de Pruebas: Activando plan directamente...', type: 'info' });
+          const actRes = await authFetch('/api/panel/activate-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan })
+          });
+          const actData = await actRes.json();
+          if (actRes.ok && actData.success) {
+            setTenantData(actData.tenant);
+            setCurrentPlan(actData.tenant.plan);
+            if (actData.token) {
+              localStorage.setItem('rifx_token', actData.token);
+              setAuthToken(actData.token);
+            }
+            setToast({ message: language === 'en' ? '✅ Plan updated successfully!' : '✅ ¡Plan actualizado con éxito!', type: 'success' });
+          } else {
+            setToast({ message: 'Error: ' + (actData.error || 'Unknown'), type: 'error' });
+          }
+        } else {
+          localStorage.removeItem('rifx_pending_plan');
+          setToast({ message: language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'), type: 'error' });
+        }
       }
     } catch (e) {
       console.error(e);
-      alert(language === 'en' ? 'Error connecting to payment gateway' : 'Error al conectar con la pasarela de pagos');
+      localStorage.removeItem('rifx_pending_plan');
+      setToast({ message: language === 'en' ? 'Error connecting to payment gateway' : 'Error al conectar con la pasarela de pagos', type: 'error' });
     }
   };
+
+  const handleCancelPlan = async () => {
+    setIsCancellingPlan(true);
+    try {
+      const res = await authFetch('/api/panel/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_subscription' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTenantData((prev: any) => prev ? { 
+          ...prev, 
+          planStatus: 'cancelled',
+        } : prev);
+        setShowCancelPlanConfirm(false);
+
+        const expiresAtFormatted = data.planExpiresAt
+          ? new Date(data.planExpiresAt).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+          : 'su fecha de vencimiento';
+
+        setToast({ 
+          message: language === 'en' 
+            ? `✅ Auto-renewal cancelled. Your plan remains active until ${expiresAtFormatted}.` 
+            : `✅ Renovación automática cancelada. Tu plan sigue activo hasta el ${expiresAtFormatted}.`, 
+          type: 'success' 
+        });
+      } else {
+        setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });
+      }
+    } catch (e) {
+      console.error(e);
+      setToast({ message: language === 'en' ? 'Error connecting to server' : 'Error al conectar con el servidor', type: 'error' });
+    } finally {
+      setIsCancellingPlan(false);
+    }
+  };
+
+  const handleReactivatePlan = async () => {
+    setIsReactivatingPlan(true);
+    try {
+      const res = await authFetch('/api/panel/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reactivate_subscription' }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTenantData((prev: any) => prev ? { 
+          ...prev, 
+          planStatus: 'active',
+        } : prev);
+        setToast({ 
+          message: language === 'en' 
+            ? '✅ Auto-renewal reactivated successfully!' 
+            : '✅ ¡Renovación automática reactivada con éxito!', 
+          type: 'success' 
+        });
+      } else {
+        setToast({ message: language === 'en' ? 'Error reactivating subscription: ' + (data.error || 'Unknown') : 'Error al reactivar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });
+      }
+    } catch (e) {
+      console.error(e);
+      setToast({ message: language === 'en' ? 'Error connecting to server' : 'Error al conectar con el servidor', type: 'error' });
+    } finally {
+      setIsReactivatingPlan(false);
+    }
+  };
+
+  // === PAYMENT SUCCESS HANDLER ===
+  // Detect ?payment=success and activate the plan
+  const paymentHandledRef = React.useRef(false);
+  React.useEffect(() => {
+    if (paymentHandledRef.current || !isLoggedIn) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') !== 'success') return;
+    paymentHandledRef.current = true;
+
+    const pendingPlan = localStorage.getItem('rifx_pending_plan');
+    if (!pendingPlan) {
+      // No pending plan — just refresh tenant data
+      const token = authToken || localStorage.getItem('rifx_token');
+      if (token) {
+        fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (data) {
+              setTenantData(data);
+              setCurrentPlan(data.plan || 'trial');
+              setActiveTab('dashboard');
+              setToast({ message: language === 'en' ? '✅ Payment received! Your plan is now active.' : '✅ ¡Pago recibido! Tu plan está activo.', type: 'success' });
+            }
+          });
+      }
+      // Clean URL
+      window.history.replaceState({}, '', '/panel');
+      return;
+    }
+
+    // Activate the plan via API
+    const activatePlan = async () => {
+      try {
+        const res = await authFetch('/api/panel/activate-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: pendingPlan })
+        });
+        const data = await res.json();
+        if (data.success) {
+          // Update token if we got a new one
+          if (data.token) {
+            localStorage.setItem('rifx_token', data.token);
+            setAuthToken(data.token);
+          }
+          // Update tenant data
+          setTenantData(data.tenant);
+          setCurrentPlan(data.tenant.plan || pendingPlan);
+          setActiveTab('dashboard');
+          setToast({
+            message: language === 'en'
+              ? `✅ Plan ${pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)} activated! All features are unlocked.`
+              : `✅ ¡Plan ${pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)} activado! Todas las funciones desbloqueadas.`,
+            type: 'success'
+          });
+        } else {
+          setToast({ message: data.error || 'Error activating plan', type: 'error' });
+        }
+      } catch (e) {
+        console.error('Error activating plan after payment:', e);
+        setToast({ message: language === 'en' ? 'Error activating plan. Please contact support.' : 'Error al activar el plan. Contacta soporte.', type: 'error' });
+      } finally {
+        localStorage.removeItem('rifx_pending_plan');
+        // Clean URL
+        window.history.replaceState({}, '', '/panel');
+      }
+    };
+
+    activatePlan();
+  }, [isLoggedIn]);
 
   const [isHumanMode, setIsHumanMode] = useState(false);
   const [isEditingContact, setIsEditingContact] = useState(false);
@@ -727,7 +2749,44 @@ export default function PanelClient() {
   // Admin Panel States
   const [adminData, setAdminData] = useState<any>(null);
   const [adminLoading, setAdminLoading] = useState(false);
-  const [adminTab, setAdminTab] = useState<'overview' | 'tenants' | 'announcements'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'tenants' | 'announcements' | 'templates' | 'ai_engine' | 'permissions'>('overview');
+  const [localPlanPermissions, setLocalPlanPermissions] = useState<any>(null);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+
+  React.useEffect(() => {
+    if (adminData?.planPermissions) {
+      setLocalPlanPermissions(adminData.planPermissions);
+    }
+  }, [adminData?.planPermissions]);
+
+  const handleSavePlanPermissions = async () => {
+    if (!localPlanPermissions) return;
+    setSavingPermissions(true);
+    try {
+      const res = await authFetch('/api/admin/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_plan_permissions',
+          planPermissions: localPlanPermissions
+        })
+      });
+      if (res.ok) {
+        setToast({
+          message: language === 'en' ? '✅ Plan permissions updated successfully!' : '✅ ¡Permisos de planes actualizados exitosamente!',
+          type: 'success'
+        });
+        await loadAdminData();
+      } else {
+        const err = await res.json();
+        setToast({ message: err.error || 'Error', type: 'error' });
+      }
+    } catch (e: any) {
+      setToast({ message: e.message, type: 'error' });
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
   const [newAnnTitle, setNewAnnTitle] = useState('');
   const [newAnnMessage, setNewAnnMessage] = useState('');
   const [newAnnType, setNewAnnType] = useState<'info' | 'update' | 'warning' | 'promo'>('info');
@@ -748,6 +2807,64 @@ export default function PanelClient() {
   const [annAiLoading, setAnnAiLoading] = useState(false);
   const [annAiImproved, setAnnAiImproved] = useState<{ title: string; message: string } | null>(null);
   const [annShowPreview, setAnnShowPreview] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<any>(null);
+  const [showTenantModal, setShowTenantModal] = useState(false);
+  const [selectedTenantOverrides, setSelectedTenantOverrides] = useState<any>({});
+  const [savingOverrides, setSavingOverrides] = useState(false);
+
+  React.useEffect(() => {
+    if (selectedTenant) {
+      setSelectedTenantOverrides(selectedTenant.permissionOverrides || {});
+    } else {
+      setSelectedTenantOverrides({});
+    }
+  }, [selectedTenant]);
+
+  const handleSaveTenantOverrides = async (targetTenantId: string, updatedOverrides: any) => {
+    setSavingOverrides(true);
+    try {
+      const res = await authFetch('/api/admin/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_tenant_overrides',
+          targetTenantId,
+          permissionOverrides: updatedOverrides
+        })
+      });
+      if (res.ok) {
+        setToast({
+          message: language === 'en' ? '✅ Custom overrides updated!' : '✅ ¡Accesos especiales actualizados!',
+          type: 'success'
+        });
+        
+        // Update local selectedTenant
+        setSelectedTenant((prev: any) => {
+          if (!prev) return prev;
+          return { ...prev, permissionOverrides: updatedOverrides };
+        });
+
+        // Update in adminData tenants list
+        setAdminData((prevAdmin: any) => {
+          if (!prevAdmin?.tenants) return prevAdmin;
+          return {
+            ...prevAdmin,
+            tenants: prevAdmin.tenants.map((t: any) => t.id === targetTenantId ? { ...t, permissionOverrides: updatedOverrides } : t)
+          };
+        });
+
+      } else {
+        const err = await res.json();
+        setToast({ message: err.error || 'Error', type: 'error' });
+      }
+    } catch (e: any) {
+      setToast({ message: e.message, type: 'error' });
+    } finally {
+      setSavingOverrides(false);
+    }
+  };
+  const [showAdminSectionsFor, setShowAdminSectionsFor] = useState<string | null>(null);
+  const [adminSectionsSelection, setAdminSectionsSelection] = useState<string[]>(['overview', 'tenants', 'templates', 'announcements']);
 
   // Estados para datos reales
   const [conversationsData, setConversationsData] = useState<any>(null);
@@ -760,6 +2877,11 @@ export default function PanelClient() {
     openai_key: '',
     gemini_key: '',
     groq_key: '',
+    fal_key: '',
+    visual_render_provider: 'openai',
+    facebook_access_token: '',
+    facebook_ad_account_id: '',
+    facebook_page_id: '',
     ai_prompt: '',
     panel_password: '',
     media_retention_days: 0,
@@ -839,10 +2961,27 @@ export default function PanelClient() {
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [showChatNotifications, setShowChatNotifications] = useState(false);
   const [showOpenAiKey, setShowOpenAiKey] = useState(false);
-  const [selectedAiProvider, setSelectedAiProvider] = useState<'openai' | 'gemini' | 'groq'>('openai');
+  const [selectedAiProvider, setSelectedAiProvider] = useState<'openai' | 'gemini' | 'groq'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('rifx_selected_ai_provider') as any) || 'openai';
+    }
+    return 'openai';
+  });
   const [aiKeyVerifying, setAiKeyVerifying] = useState(false);
-  const [aiKeyStatus, setAiKeyStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [aiKeyStatusMsg, setAiKeyStatusMsg] = useState('');
+  const [aiKeyStatus, setAiKeyStatus] = useState<'idle' | 'success' | 'error'>(() => {
+    if (typeof window !== 'undefined') {
+      const provider = localStorage.getItem('rifx_selected_ai_provider') || 'openai';
+      return (localStorage.getItem(`rifx_ai_key_status_${provider}`) as any) || 'idle';
+    }
+    return 'idle';
+  });
+  const [aiKeyStatusMsg, setAiKeyStatusMsg] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const provider = localStorage.getItem('rifx_selected_ai_provider') || 'openai';
+      return localStorage.getItem(`rifx_ai_key_status_msg_${provider}`) || '';
+    }
+    return '';
+  });
   const [showAiApiKey, setShowAiApiKey] = useState(false);
   const [waVerifying, setWaVerifying] = useState(false);
   const [waStatus, setWaStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -851,8 +2990,20 @@ export default function PanelClient() {
   const [memoryClearSuccess, setMemoryClearSuccess] = useState(false);
   const [memoryRetentionDays, setMemoryRetentionDays] = useState(30);
   const [memoryUsage, setMemoryUsage] = useState<{totalMessages: number, totalConversations: number, oldestDays: number}>({ totalMessages: 0, totalConversations: 0, oldestDays: 0 });
-  const [aiCreditsStatus, setAiCreditsStatus] = useState<'idle' | 'active' | 'low' | 'exhausted' | 'error'>('idle');
-  const [aiCreditsMsg, setAiCreditsMsg] = useState('');
+  const [aiCreditsStatus, setAiCreditsStatus] = useState<'idle' | 'active' | 'low' | 'exhausted' | 'error'>(() => {
+    if (typeof window !== 'undefined') {
+      const provider = localStorage.getItem('rifx_selected_ai_provider') || 'openai';
+      return (localStorage.getItem(`rifx_ai_credits_status_${provider}`) as any) || 'idle';
+    }
+    return 'idle';
+  });
+  const [aiCreditsMsg, setAiCreditsMsg] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const provider = localStorage.getItem('rifx_selected_ai_provider') || 'openai';
+      return localStorage.getItem(`rifx_ai_credits_msg_${provider}`) || '';
+    }
+    return '';
+  });
 
   // Analytics states
   const [analyticsRange, setAnalyticsRange] = useState<'30d' | '90d'>('30d');
@@ -924,21 +3075,44 @@ export default function PanelClient() {
         setMemoryClearSuccess(true);
         setTimeout(() => setMemoryClearSuccess(false), 5000);
       } else {
-        alert(data.error || 'Error al borrar memoria');
+        setToast({ message: data.error || 'Error al borrar memoria', type: 'error' });
       }
     } catch {
-      alert(language === 'en' ? 'Network error clearing memory' : 'Error de red al borrar memoria');
+      setToast({ message: language === 'en' ? 'Network error clearing memory' : 'Error de red al borrar memoria', type: 'error' });
     } finally {
       setMemoryClearing(false);
     }
   };
 
+  const handleSelectAiProvider = (provider: 'openai' | 'gemini' | 'groq') => {
+    setSelectedAiProvider(provider);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('rifx_selected_ai_provider', provider);
+      
+      const status = (localStorage.getItem(`rifx_ai_key_status_${provider}`) as any) || 'idle';
+      const msg = localStorage.getItem(`rifx_ai_key_status_msg_${provider}`) || '';
+      const credsStatus = (localStorage.getItem(`rifx_ai_credits_status_${provider}`) as any) || 'idle';
+      const credsMsg = localStorage.getItem(`rifx_ai_credits_msg_${provider}`) || '';
+      
+      setAiKeyStatus(status);
+      setAiKeyStatusMsg(msg);
+      setAiCreditsStatus(credsStatus);
+      setAiCreditsMsg(credsMsg);
+    } else {
+      setAiKeyStatus('idle');
+      setAiKeyStatusMsg('');
+      setAiCreditsStatus('idle');
+      setAiCreditsMsg('');
+    }
+  };
+
   const handleVerifyAiKey = async (silentOrEvent: boolean | React.MouseEvent = false) => {
     const silent = typeof silentOrEvent === 'boolean' ? silentOrEvent : false;
+    const currentProvider = selectedAiProvider;
     const providerMap = { openai: 'openai_key', gemini: 'gemini_key', groq: 'groq_key' } as const;
     // Use ref to always get the latest config data (avoids stale closures)
     const latestConfig = configDataRef.current;
-    const key = latestConfig[providerMap[selectedAiProvider]];
+    const key = latestConfig[providerMap[currentProvider]];
     if (!key || key.trim() === '') {
       if (!silent) {
         setAiKeyStatus('error');
@@ -953,7 +3127,9 @@ export default function PanelClient() {
       let valid = false;
       let creditsOk = true;
       let creditsMessage = '';
-      if (selectedAiProvider === 'openai') {
+      let isLow = false;
+      
+      if (currentProvider === 'openai') {
         const res = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': `Bearer ${key}` } });
         valid = res.ok;
         if (res.status === 429) { creditsOk = false; creditsMessage = language === 'en' ? 'Rate limit reached or credits exhausted' : 'L\u00EDmite alcanzado o cr\u00E9ditos agotados'; }
@@ -961,14 +3137,14 @@ export default function PanelClient() {
           // OpenAI doesn't expose credits in headers for /models, show active status
           creditsMessage = language === 'en' ? 'API active \u2022 Key valid \u2022 Pay-as-you-go' : 'API activa \u2022 Llave v\u00E1lida \u2022 Pago por uso';
         }
-      } else if (selectedAiProvider === 'gemini') {
+      } else if (currentProvider === 'gemini') {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
         valid = res.ok;
         if (res.status === 429) { creditsOk = false; creditsMessage = language === 'en' ? 'Quota exceeded' : 'Cuota excedida'; }
         else if (valid) {
           creditsMessage = language === 'en' ? 'API active \u2022 Free tier / Billing active' : 'API activa \u2022 Tier gratuito / Facturaci\u00F3n activa';
         }
-      } else if (selectedAiProvider === 'groq') {
+      } else if (currentProvider === 'groq') {
         const res = await fetch('https://api.groq.com/openai/v1/models', { headers: { 'Authorization': `Bearer ${key}` } });
         valid = res.ok;
         if (res.status === 429) { creditsOk = false; creditsMessage = language === 'en' ? 'Rate limit reached' : 'L\u00EDmite de uso alcanzado'; }
@@ -982,32 +3158,59 @@ export default function PanelClient() {
             creditsMessage = language === 'en' 
               ? `${remaining}/${limit} requests remaining (${pct}%)${tokensRemaining ? ` \u2022 ${parseInt(tokensRemaining).toLocaleString()} tokens left` : ''}`
               : `${remaining}/${limit} solicitudes restantes (${pct}%)${tokensRemaining ? ` \u2022 ${parseInt(tokensRemaining).toLocaleString()} tokens disponibles` : ''}`;
-            if (pct < 20) { creditsOk = true; setAiCreditsStatus('low'); }
+            if (pct < 20) { isLow = true; }
           } else {
             creditsMessage = language === 'en' ? 'API active \u2022 Free tier' : 'API activa \u2022 Tier gratuito';
           }
         }
       }
-      setAiKeyStatus(valid ? 'success' : 'error');
-      setAiKeyStatusMsg(valid 
+      
+      const newStatus = valid ? 'success' : 'error';
+      const newStatusMsg = valid 
         ? (language === 'en' ? 'Connection verified successfully!' : '\u00A1Conexi\u00F3n verificada con \u00E9xito!') 
-        : (language === 'en' ? 'Invalid key or connection failed' : 'Llave inv\u00E1lida o conexi\u00F3n fallida'));
-      // Update credits status
+        : (language === 'en' ? 'Invalid key or connection failed' : 'Llave inv\u00E1lida o conexi\u00F3n fallida');
+      
+      setAiKeyStatus(newStatus);
+      setAiKeyStatusMsg(newStatusMsg);
+      
+      let newCreditsStatus: 'idle' | 'active' | 'low' | 'exhausted' | 'error' = 'idle';
+      let finalCreditsMsg = '';
       if (!creditsOk) {
-        setAiCreditsStatus('exhausted');
-        setAiCreditsMsg(creditsMessage);
+        newCreditsStatus = 'exhausted';
+        finalCreditsMsg = creditsMessage;
       } else if (valid) {
-        if (aiCreditsStatus !== 'low') setAiCreditsStatus('active');
-        setAiCreditsMsg(creditsMessage);
+        newCreditsStatus = isLow ? 'low' : 'active';
+        finalCreditsMsg = creditsMessage;
       } else {
-        setAiCreditsStatus('error');
-        setAiCreditsMsg(language === 'en' ? 'Unable to check credits' : 'No se pudo verificar cr\u00E9ditos');
+        newCreditsStatus = 'error';
+        finalCreditsMsg = language === 'en' ? 'Unable to check credits' : 'No se pudo verificar cr\u00E9ditos';
+      }
+      
+      setAiCreditsStatus(newCreditsStatus);
+      setAiCreditsMsg(finalCreditsMsg);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`rifx_ai_key_status_${currentProvider}`, newStatus);
+        localStorage.setItem(`rifx_ai_key_status_msg_${currentProvider}`, newStatusMsg);
+        localStorage.setItem(`rifx_ai_credits_status_${currentProvider}`, newCreditsStatus);
+        localStorage.setItem(`rifx_ai_credits_msg_${currentProvider}`, finalCreditsMsg);
       }
     } catch {
-      setAiKeyStatus('error');
-      setAiKeyStatusMsg(language === 'en' ? 'Network error - check your connection' : 'Error de red - verifique su conexi\u00F3n');
+      const errStatus = 'error';
+      const errStatusMsg = language === 'en' ? 'Network error - check your connection' : 'Error de red - verifique su conexi\u00F3n';
+      const errCreditsMsg = language === 'en' ? 'Connection failed' : 'Conexi\u00F3n fallida';
+      
+      setAiKeyStatus(errStatus);
+      setAiKeyStatusMsg(errStatusMsg);
       setAiCreditsStatus('error');
-      setAiCreditsMsg(language === 'en' ? 'Connection failed' : 'Conexi\u00F3n fallida');
+      setAiCreditsMsg(errCreditsMsg);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`rifx_ai_key_status_${currentProvider}`, errStatus);
+        localStorage.setItem(`rifx_ai_key_status_msg_${currentProvider}`, errStatusMsg);
+        localStorage.setItem(`rifx_ai_credits_status_${currentProvider}`, 'error');
+        localStorage.setItem(`rifx_ai_credits_msg_${currentProvider}`, errCreditsMsg);
+      }
     } finally {
       if (!silent) setAiKeyVerifying(false);
     }
@@ -1043,6 +3246,8 @@ export default function PanelClient() {
              openai_key: data.openai_key || '',
              gemini_key: data.gemini_key || '',
              groq_key: data.groq_key || '',
+             fal_key: data.fal_key || '',
+             visual_render_provider: data.visual_render_provider || 'openai',
              payphone_token: data.payphone_token || '',
              payphone_store_id: data.payphone_store_id || '',
              ai_prompt: data.ai_prompt || '',
@@ -1057,6 +3262,9 @@ export default function PanelClient() {
              email_alerts: data.email_alerts !== undefined ? data.email_alerts : true,
              push_notifications: data.push_notifications !== undefined ? data.push_notifications : false,
              daily_briefing: data.daily_briefing !== undefined ? data.daily_briefing : true,
+             facebook_access_token: data.facebook_access_token || '',
+             facebook_ad_account_id: data.facebook_ad_account_id || '',
+             facebook_page_id: data.facebook_page_id || '',
             };
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
@@ -1085,6 +3293,9 @@ export default function PanelClient() {
 
       // Cargar Config
       fetchConfig();
+
+      // Cargar Plantillas de Base de Datos
+      loadDbTemplates();
 
       // Refrescar cada 10 segundos
       const interval = setInterval(() => {
@@ -1341,8 +3552,44 @@ export default function PanelClient() {
     setIsLoggingIn(false);
   };
 
-  // Auto-login from stored token
+  // Auto-login from stored token and restore active states
   React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // 1. Restore OmniPublish states first
+      const savedTab = localStorage.getItem('rifx_active_tab');
+      if (savedTab) setActiveTab(savedTab as any);
+
+      const savedUploadMode = localStorage.getItem('rifx_upload_mode');
+      if (savedUploadMode) setUploadMode(savedUploadMode as any);
+
+      const savedVideoType = localStorage.getItem('rifx_video_type');
+      if (savedVideoType) setVideoType(savedVideoType as any);
+
+      const savedUploadedVideoPath = localStorage.getItem('rifx_uploaded_video_path');
+      if (savedUploadedVideoPath) setUploadedVideoPath(savedUploadedVideoPath);
+
+      const savedUploadedVideos = localStorage.getItem('rifx_uploaded_videos');
+      if (savedUploadedVideos) {
+        try {
+          setUploadedVideos(JSON.parse(savedUploadedVideos));
+        } catch (_) {}
+      }
+
+      const savedTrackingPostIds = localStorage.getItem('rifx_tracking_post_ids');
+      if (savedTrackingPostIds) {
+        try {
+          setTrackingPostIds(JSON.parse(savedTrackingPostIds));
+        } catch (_) {}
+      }
+
+      const savedCurrentPostId = localStorage.getItem('rifx_current_post_id');
+      if (savedCurrentPostId) setCurrentPostId(savedCurrentPostId);
+
+      // Lock isStateLoadedRef so updates can write to localStorage from now on
+      isStateLoadedRef.current = true;
+    }
+
+    // 2. Perform authentication login check
     const token = localStorage.getItem('rifx_token');
     if (token) {
       setAuthToken(token);
@@ -1353,6 +3600,7 @@ export default function PanelClient() {
           setTenantData({ id: payload.tenantId, email: payload.email, plan: payload.plan, isAdmin: payload.isAdmin });
           setCurrentPlan(payload.plan || 'trial');
           setIsLoggedIn(true);
+          setIsCheckingAuth(false);
           // Then fetch fresh data from DB
           fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
             .then(r => r.ok ? r.json() : null)
@@ -1363,11 +3611,13 @@ export default function PanelClient() {
               }
             })
             .catch(() => {});
+          return;
         } else {
           localStorage.removeItem('rifx_token');
         }
       } catch { localStorage.removeItem('rifx_token'); }
     }
+    setIsCheckingAuth(false);
   }, []);
 
   const handleLogout = () => {
@@ -1377,6 +3627,597 @@ export default function PanelClient() {
     setIsLoggedIn(false);
     setLoginUser('');
     setLoginPass('');
+  };
+
+  // Load templates from DB (Client view)
+  const loadDbTemplates = async () => {
+    try {
+      const res = await authFetch('/api/panel/templates');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.templates) {
+          const mapped: CreativeTemplate[] = data.templates.map((tpl: any) => ({
+            id: tpl.id,
+            name: tpl.name,
+            category: tpl.category || 'general',
+            preview_image_url: tpl.preview_image_url,
+            prompt: tpl.config_json.prompt || '',
+            colors: tpl.config_json.colors || { primary: '#6D28D9', accent: '#FFD700', text: '#FFFFFF', badgeBg: 'rgba(109,40,217,0.85)', badgeText: '#FFFFFF' },
+            layout: tpl.config_json.layout || { align: 'left', productPos: { x: 580, y: 250, w: 420, h: 560 }, textW: 480, hasTestimonial: true, hasBenefits: true, hasReviewStars: true },
+            defaultText: tpl.config_json.defaultText || { badge: '✨ CUIDADO PREMIUM', hook: 'Hook', desc: 'Desc', benefits: [], cta: 'CTA' },
+            skipProductOverlay: tpl.config_json.skipProductOverlay || false,
+            style_identity: tpl.config_json.style_identity || '',
+            composition_rules: tpl.config_json.composition_rules || '',
+            visual_hierarchy: tpl.config_json.visual_hierarchy || '',
+            lighting_rules: tpl.config_json.lighting_rules || '',
+            camera_rules: tpl.config_json.camera_rules || '',
+            color_behavior: tpl.config_json.color_behavior || '',
+            branding_style: tpl.config_json.branding_style || '',
+            text_behavior: tpl.config_json.text_behavior || '',
+            render_rules: tpl.config_json.render_rules || '',
+            ai_direction_rules: tpl.config_json.ai_direction_rules || {
+              camera_angle: 'eye_level_horizontal',
+              depth: 'cinematic_bokeh',
+              lighting: 'soft_beauty_studio_box',
+              mood: 'elegant_serene_luxury',
+              product_focus: 'pedestal_centered_right',
+              background_style: 'pastel_lavender_gradient_water',
+              shadow_style: 'soft_organic_diffuse',
+              visual_energy: 'high_end_skincare_ads'
+            },
+            template_structure_lock: tpl.config_json.template_structure_lock || undefined,
+            product_slot: tpl.config_json.product_slot || undefined,
+            text_slots: tpl.config_json.text_slots || undefined,
+            _rawConfigJson: tpl.config_json
+          }));
+          setDbTemplates(mapped);
+          if (mapped.length > 0) {
+            setSelectedTemplate(prev => prev || mapped[0]);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando plantillas DB:', e);
+    }
+  };
+
+  // Load templates for admin panel management
+  const loadAdminTemplates = async () => {
+    if (!tenantData?.isAdmin) return;
+    try {
+      const res = await authFetch('/api/admin/templates');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.templates) {
+          setAdminTemplates(data.templates);
+        }
+      }
+    } catch (e) {
+      console.error('Error cargando plantillas admin:', e);
+    }
+  };
+
+  // Handle template image selection
+  const handleTplImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setToast({ message: language === 'en' ? 'File too large (max 5MB)' : 'Archivo demasiado grande (máx 5MB)', type: 'error' });
+        return;
+      }
+      setTplImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTplImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Pre-fill template configuration with default JSON
+  const handlePreFillDefaultJson = () => {
+    const defaultSkeleton = {
+      prompt: "Premium product standing elegantly on a smooth round stone pedestal, clean reflective water surface with soft ripples, hyperrealistic studio photography, 8k, no text, no letters",
+      colors: {
+        primary: "#6D28D9",
+        accent: "#FFD700",
+        text: "#FFFFFF",
+        badgeBg: "rgba(109, 40, 217, 0.85)",
+        badgeText: "#FFFFFF"
+      },
+      layout: {
+        align: "left",
+        productPos: { x: 580, y: 250, w: 420, h: 560 },
+        textW: 480,
+        hasTestimonial: true,
+        hasBenefits: true,
+        hasReviewStars: true
+      },
+      defaultText: {
+        badge: "✨ PREMIUM",
+        hook: "Descubre lo Mejor",
+        desc: "Calidad que se siente en cada detalle.",
+        benefits: ["Calidad premium", "Diseño exclusivo", "Garantía oficial"],
+        cta: "COMPRAR AHORA",
+        testimonial: "\"Increíble calidad.\" – Cliente V."
+      },
+      skipProductOverlay: false,
+
+      // ==========================================
+      // COMPOSITING ENGINE — Editable Zones Schema
+      // ==========================================
+      product_slot: {
+        x: 0.50,
+        y: 0.50,
+        width: 0.38,
+        height: 0.52,
+        shape: "rectangle",
+        padding: 0.02
+      },
+      text_slots: [
+        {
+          id: "headline",
+          x: 0.50,
+          y: 0.08,
+          width: 0.55,
+          height: 0.10,
+          type: "headline",
+          max_words: 5,
+          style: "bold_uppercase"
+        },
+        {
+          id: "benefit_1",
+          x: 0.15,
+          y: 0.35,
+          width: 0.24,
+          height: 0.14,
+          type: "benefit_title",
+          max_words: 6,
+          style: "white_bold"
+        },
+        {
+          id: "benefit_2",
+          x: 0.85,
+          y: 0.35,
+          width: 0.24,
+          height: 0.14,
+          type: "benefit_title",
+          max_words: 6,
+          style: "white_bold"
+        },
+        {
+          id: "footer",
+          x: 0.50,
+          y: 0.92,
+          width: 0.60,
+          height: 0.10,
+          type: "product_title",
+          max_words: 8,
+          style: "bold_uppercase"
+        }
+      ],
+      editable_regions: ["product", "headline", "benefits", "cta", "footer"],
+      locked_regions: ["background", "curves", "gradients", "pedestal", "icon_geometry", "spacing"],
+      template_visual_dna_lock: true,
+      template_semantic_isolation: true,
+
+      // ==========================================
+      // Visual DNA & Art Direction
+      // ==========================================
+      style_identity: "clean studio premium background",
+      composition_rules: "pedestal on the right side, vertical column of benefits on the left side, brand logo and headline at top left",
+      visual_hierarchy: "headline is primary, product is focal center-right, benefits timeline is secondary on the left",
+      lighting_rules: "soft glowing studio panel light from top-left, soft warm rim light",
+      camera_rules: "eye-level straight commercial shot",
+      color_behavior: "harmonious background gradient matching product primary color",
+      branding_style: "minimalist luxury branding",
+      text_behavior: "large elegant typography, clean branding sans-serif",
+      render_rules: "photo realistic, 8k, Octane render quality, commercial studio background",
+      ai_direction_rules: {
+        camera_angle: "eye_level_horizontal",
+        depth: "cinematic_bokeh",
+        lighting: "soft_studio_box",
+        mood: "elegant_premium",
+        product_focus: "pedestal_centered",
+        background_style: "gradient",
+        shadow_style: "soft_organic_diffuse",
+        visual_energy: "premium_commercial"
+      },
+      template_structure_lock: {
+        canvas_ratio: "vertical_4_5",
+        preserve_layout_similarity: "strict",
+        layout_reference_strength: 95,
+        product_position: {
+          area: "center",
+          x: 0.50,
+          y: 0.50,
+          width: 0.38,
+          height: 0.52,
+          locked: true,
+          size: "medium_large",
+          preserve_original_angle: true
+        },
+        text_zones: [
+          {
+            type: "headline",
+            position: "top_center",
+            x: 0.50,
+            y: 0.08,
+            width: 0.55,
+            height: 0.10,
+            locked: true,
+            size: "large",
+            max_lines: 2
+          },
+          {
+            type: "footer_brand",
+            position: "bottom_center",
+            x: 0.50,
+            y: 0.92,
+            width: 0.60,
+            height: 0.10,
+            locked: true,
+            size: "large"
+          }
+        ],
+        background_rules: {
+          preserve_background_shape: true,
+          preserve_gradient_direction: true,
+          preserve_curved_panel: true
+        },
+        forbidden_changes: [
+          "do not redesign the layout structure",
+          "do not change the background geometry",
+          "do not shift the product position",
+          "do not change the number of text zones"
+        ]
+      }
+    };
+    setTplConfigJson(JSON.stringify(defaultSkeleton, null, 2));
+  };
+
+  // Auto-detect editable zones from template preview image using GPT-4o Vision
+  const handleAutoDetectZones = async () => {
+    // Need either a preview image or URL
+    const imageSource = tplImagePreview || tplPreviewUrl;
+    if (!imageSource) {
+      setToast({ 
+        message: language === 'en' ? 'Upload a preview image first to auto-detect zones' : 'Sube una imagen de preview primero para auto-detectar zonas', 
+        type: 'error' 
+      });
+      return;
+    }
+
+    setDetectingZones(true);
+    try {
+      const res = await authFetch('/api/admin/templates/detect-zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageSource })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setToast({ 
+          message: `Error al detectar zonas: ${data.error || 'Error desconocido'}`, 
+          type: 'error' 
+        });
+        return;
+      }
+
+      const detected = data; // API returns { success, product_slot, text_slots, ... } flat
+      console.log('[AUTO-DETECT] Zones detected:', detected);
+
+      // Merge detected zones into current JSON config
+      let currentConfig: any = {};
+      try {
+        currentConfig = tplConfigJson.trim() ? JSON.parse(tplConfigJson) : {};
+      } catch { /* if invalid JSON, start fresh */ }
+
+      // Apply detected zones (as suggestions — user can edit before saving)
+      if (detected.product_slot) {
+        currentConfig.product_slot = detected.product_slot;
+      }
+      if (detected.text_slots && detected.text_slots.length > 0) {
+        currentConfig.text_slots = detected.text_slots;
+      }
+      if (detected.editable_regions) {
+        currentConfig.editable_regions = detected.editable_regions;
+      }
+      if (detected.locked_regions) {
+        currentConfig.locked_regions = detected.locked_regions;
+      }
+      if (detected.canvas_ratio) {
+        if (!currentConfig.template_structure_lock) currentConfig.template_structure_lock = {};
+        currentConfig.template_structure_lock.canvas_ratio = detected.canvas_ratio;
+      }
+
+      // Ensure compositing flags are set
+      currentConfig.template_visual_dna_lock = true;
+      currentConfig.template_semantic_isolation = true;
+
+      setTplConfigJson(JSON.stringify(currentConfig, null, 2));
+
+      const zoneCount = (detected.text_slots?.length || 0) + (detected.product_slot ? 1 : 0);
+      const confidence = detected.confidence || 'medium';
+      setToast({ 
+        message: `✅ ${zoneCount} zonas detectadas (confianza: ${confidence}). Revisa y ajusta las coordenadas antes de guardar.`, 
+        type: 'success' 
+      });
+    } catch (e: any) {
+      console.error('[AUTO-DETECT] Error:', e);
+      setToast({ message: `Error: ${e.message}`, type: 'error' });
+    } finally {
+      setDetectingZones(false);
+    }
+  };
+
+  // Handle template insertion/updating
+  const handleSaveCreativeTemplate = async () => {
+    if (!tplName.trim() || !tplConfigJson.trim()) {
+      setToast({ 
+        message: language === 'en' ? 'Name and config JSON are required' : 'El nombre y la configuración JSON son requeridos', 
+        type: 'error' 
+      });
+      return;
+    }
+
+    // Validar JSON
+    let parsedConfig = null;
+    try {
+      parsedConfig = JSON.parse(tplConfigJson);
+    } catch (e: any) {
+      setToast({ 
+        message: (language === 'en' ? 'Invalid JSON format: ' : 'Formato JSON inválido: ') + e.message, 
+        type: 'error' 
+      });
+      return;
+    }
+
+    // ==========================================
+    // TEMPLATE EDITABLE ZONES VALIDATION
+    // ==========================================
+    const warnings: string[] = [];
+    const hasProductSlot = !!parsedConfig.product_slot;
+    const hasTextSlots = Array.isArray(parsedConfig.text_slots) && parsedConfig.text_slots.length > 0;
+    const hasSemanticIsolation = parsedConfig.template_semantic_isolation === true;
+    const hasDnaLock = parsedConfig.template_visual_dna_lock === true;
+
+    if (!hasProductSlot) {
+      warnings.push('⚠️ Sin product_slot — el compositing engine estará deshabilitado. La plantilla usará generación completa (modo legacy).');
+    }
+    if (!hasTextSlots) {
+      warnings.push('⚠️ Sin text_slots — los textos originales de la plantilla NO serán reemplazados. Puede haber contaminación semántica.');
+    } else {
+      // Validate text_slots have required fields
+      for (const ts of parsedConfig.text_slots) {
+        if (!ts.id || !ts.type || ts.x === undefined || ts.y === undefined || ts.width === undefined || ts.height === undefined) {
+          warnings.push(`❌ text_slot "${ts.id || 'sin ID'}" incompleto — necesita: id, type, x, y, width, height`);
+        }
+      }
+    }
+    if (!hasSemanticIsolation) {
+      warnings.push('🔶 template_semantic_isolation no está activo — la plantilla puede contaminar el copy con su categoría original.');
+    }
+    if (!hasDnaLock) {
+      warnings.push('🔶 template_visual_dna_lock no está activo — el color grading puede no preservarse.');
+    }
+
+    // Compute readiness for display
+    let readiness: 'ready' | 'draft' | 'legacy' = 'legacy';
+    if (hasProductSlot && hasTextSlots && hasSemanticIsolation) readiness = 'ready';
+    else if (hasProductSlot) readiness = 'draft';
+
+    // Collect warning info but DON'T show toast here — show it after save succeeds
+    let warningInfo = '';
+    if (warnings.length > 0) {
+      const readinessLabel = readiness === 'ready' ? '🟢 Ready' : readiness === 'draft' ? '🟡 Draft' : '🔴 Legacy';
+      const warningText = `[${readinessLabel}] ${warnings.join(' | ')}`;
+      console.warn('[TEMPLATE VALIDATION]', warningText);
+      warningInfo = ` (${readinessLabel})`;
+    }
+
+    setAdminActionLoading(true);
+    try {
+      let finalPreviewUrl = tplPreviewUrl;
+
+      // Upload file first if selected
+      if (tplImageFile) {
+        const formData = new FormData();
+        formData.append('image', tplImageFile);
+        try {
+          const uploadRes = await authFetch('/api/admin/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            finalPreviewUrl = uploadData.imageUrl;
+          } else {
+            let errorMsg = `HTTP ${uploadRes.status}`;
+            try {
+              const uploadError = await uploadRes.json();
+              errorMsg = uploadError.error || errorMsg;
+            } catch { /* response wasn't JSON */ }
+            console.error('Error subiendo imagen de plantilla:', errorMsg);
+            setToast({ 
+              message: (language === 'en' ? 'Failed to upload image: ' : 'Error al subir la imagen: ') + errorMsg, 
+              type: 'error' 
+            });
+            setAdminActionLoading(false);
+            return;
+          }
+        } catch (uploadErr: any) {
+          console.error('Error de red subiendo imagen:', uploadErr);
+          setToast({ 
+            message: (language === 'en' ? 'Network error uploading image: ' : 'Error de red al subir imagen: ') + (uploadErr.message || ''), 
+            type: 'error' 
+          });
+          setAdminActionLoading(false);
+          return;
+        }
+      }
+
+      // Guardar en la DB
+      const saveRes = await authFetch('/api/admin/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingTpl?.id || null,
+          name: tplName,
+          category: tplCategory,
+          preview_image_url: finalPreviewUrl,
+          config_json: parsedConfig,
+          is_active: tplIsActive
+        })
+      });
+
+      if (!saveRes.ok) {
+        let errorMsg = `HTTP ${saveRes.status}`;
+        try {
+          const errData = await saveRes.json();
+          errorMsg = errData.error || errorMsg;
+        } catch { /* response wasn't JSON */ }
+        setToast({ 
+          message: (language === 'en' ? 'Failed to save template: ' : 'Error al guardar la plantilla: ') + errorMsg, 
+          type: 'error' 
+        });
+        return;
+      }
+
+      const saveData = await saveRes.json();
+      if (saveData.success) {
+        setToast({ 
+          message: (editingTpl 
+            ? (language === 'en' ? 'Template updated successfully' : 'Plantilla actualizada exitosamente') 
+            : (language === 'en' ? 'Template created successfully' : 'Plantilla creada exitosamente')) + warningInfo, 
+          type: 'success' 
+        });
+        
+        // Reset estados
+        setTplName('');
+        setTplCategory('general');
+        setTplPreviewUrl('');
+        setTplConfigJson('');
+        setTplIsActive(true);
+        setTplImageFile(null);
+        setTplImagePreview('');
+        setEditingTpl(null);
+        setShowTplForm(false);
+
+        // Recargar datos
+        loadAdminTemplates();
+        loadDbTemplates();
+      } else {
+        setToast({ 
+          message: (language === 'en' ? 'Failed to save template: ' : 'Error al guardar la plantilla: ') + (saveData.error || ''), 
+          type: 'error' 
+        });
+      }
+    } catch (e: any) {
+      console.error('Error saving template:', e);
+      setToast({ message: e.message, type: 'error' });
+    } finally {
+      setAdminActionLoading(false);
+    }
+  };
+
+  const handleSyncBaseTemplates = async () => {
+    setAdminActionLoading(true);
+    try {
+      const res = await authFetch('/api/admin/templates/seed', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setToast({ 
+            message: language === 'en' 
+              ? `Successfully synchronized ${data.count} base templates!` 
+              : `¡Se sincronizaron exitosamente ${data.count} plantillas base!`, 
+            type: 'success' 
+          });
+          loadAdminTemplates();
+          loadDbTemplates();
+        } else {
+          setToast({ 
+            message: (language === 'en' ? 'Sync failed: ' : 'Fallo de sincronización: ') + (data.error || ''), 
+            type: 'error' 
+          });
+        }
+      } else {
+        setToast({ 
+          message: language === 'en' ? 'Server error synchronizing templates' : 'Error en servidor al sincronizar plantillas', 
+          type: 'error' 
+        });
+      }
+    } catch (e: any) {
+      console.error('Error synchronizing templates:', e);
+      setToast({ 
+        message: e.message || 'Error', 
+        type: 'error' 
+      });
+    } finally {
+      setAdminActionLoading(false);
+    }
+  };
+
+  // Toggle active/inactive status
+  const handleToggleTemplateStatus = async (tpl: any) => {
+    try {
+      const saveRes = await authFetch('/api/admin/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...tpl,
+          is_active: !tpl.is_active
+        })
+      });
+
+      const saveData = await saveRes.json();
+      if (saveData.success) {
+        setToast({ 
+          message: tpl.is_active 
+            ? (language === 'en' ? 'Template deactivated successfully' : 'Plantilla desactivada exitosamente') 
+            : (language === 'en' ? 'Template activated successfully' : 'Plantilla activada exitosamente'), 
+          type: 'success' 
+        });
+        loadAdminTemplates();
+        loadDbTemplates();
+      } else {
+        setToast({ message: saveData.error, type: 'error' });
+      }
+    } catch (e: any) {
+      console.error('Error toggling template status:', e);
+      setToast({ message: e.message, type: 'error' });
+    }
+  };
+
+  // Delete a template from database
+  const handleDeleteCreativeTemplate = async (id: string) => {
+    if (!confirm(language === 'en' ? 'Are you sure you want to delete this template?' : '¿Estás seguro de que deseas eliminar esta plantilla?')) return;
+    setAdminActionLoading(true);
+    try {
+      const deleteRes = await authFetch(`/api/admin/templates?id=${id}`, {
+        method: 'DELETE'
+      });
+      const deleteData = await deleteRes.json();
+      if (deleteData.success) {
+        setToast({ 
+          message: language === 'en' ? 'Template deleted successfully' : 'Plantilla eliminada exitosamente', 
+          type: 'success' 
+        });
+        loadAdminTemplates();
+        loadDbTemplates();
+      } else {
+        setToast({ message: deleteData.error, type: 'error' });
+      }
+    } catch (e: any) {
+      console.error('Error deleting template:', e);
+      setToast({ message: e.message, type: 'error' });
+    } finally {
+      setAdminActionLoading(false);
+    }
   };
 
   // ============ ADMIN PANEL FUNCTIONS ============
@@ -1460,12 +4301,12 @@ export default function PanelClient() {
           setAnnShowPreview(true);
         }
       } else {
-        alert('Error de IA: ' + (data.error || 'Respuesta fallida del servidor'));
+        setToast({ message: 'Error de IA: ' + (data.error || 'Respuesta fallida del servidor'), type: 'error' });
         console.error('Error IA API:', data);
       }
     } catch (e: any) { 
       console.error('Error mejorando anuncio:', e); 
-      alert('Error mejorando anuncio: ' + e?.message);
+      setToast({ message: 'Error mejorando anuncio: ' + e?.message, type: 'error' });
     }
     setAnnAiLoading(false);
   };
@@ -1529,15 +4370,17 @@ export default function PanelClient() {
     setAdminActionLoading(false);
   };
 
-  const handleToggleAdmin = async (targetTenantId: string, isAdmin: boolean) => {
+  const handleToggleAdmin = async (targetTenantId: string, isAdmin: boolean, adminSections?: string[]) => {
     try {
+      setAdminActionLoading(true);
       await authFetch('/api/admin/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle_admin', targetTenantId, isAdmin }),
+        body: JSON.stringify({ action: 'toggle_admin', targetTenantId, isAdmin, adminSections: adminSections || ['overview', 'tenants', 'templates', 'announcements'] }),
       });
+      setShowAdminSectionsFor(null);
       loadAdminData();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); } finally { setAdminActionLoading(false); }
   };
 
   // Fetch announcements for user dashboard
@@ -1569,7 +4412,10 @@ export default function PanelClient() {
   };
 
   React.useEffect(() => {
-    if (activeTab === 'admin' && tenantData?.isAdmin) { loadAdminData(); }
+    if (activeTab === 'admin' && tenantData?.isAdmin) {
+      loadAdminData();
+      loadAdminTemplates();
+    }
     if (activeTab === 'dashboard' && isLoggedIn) { fetchAnnouncements(); }
   }, [activeTab, tenantData?.isAdmin]);
 
@@ -1941,7 +4787,7 @@ export default function PanelClient() {
       if (sentAsText > 0) parts.push(`${sentAsText} enviados`);
       if (sentAsTemplate > 0) parts.push(`${sentAsTemplate} como template (ventana 24h)`);
       if (failedCount > 0) parts.push(`${failedCount} fallidos`);
-      alert(`Resultado: ${parts.join(', ')}`);
+      setToast({ message: `Resultado: ${parts.join(', ')}`, type: failedCount > 0 ? 'error' : 'success' });
     }
   };
 
@@ -2003,6 +4849,8 @@ export default function PanelClient() {
         openai_key: configData.openai_key,
         gemini_key: configData.gemini_key,
         groq_key: configData.groq_key,
+        fal_key: configData.fal_key,
+        visual_render_provider: configData.visual_render_provider,
         bulk_wa_token: configData.bulk_wa_token,
         bulk_wa_phone_id: configData.bulk_wa_phone_id,
         payphone_token: configData.payphone_token,
@@ -2013,6 +4861,13 @@ export default function PanelClient() {
         model_selection: configData.model_selection,
         confidence_threshold: configData.confidence_threshold,
         auto_classification: configData.auto_classification,
+        facebook_access_token: configData.facebook_access_token,
+        facebook_ad_account_id: configData.facebook_ad_account_id,
+        facebook_page_id: configData.facebook_page_id,
+        dropi_enabled: configData.dropi_enabled,
+        dropi_token: configData.dropi_token,
+        dropi_default_product_id: configData.dropi_default_product_id,
+        dropi_default_price: configData.dropi_default_price,
       };
       console.log('Enviando config payload:', Object.keys(payload));
       const res = await authFetch('/api/panel/config', {
@@ -2030,19 +4885,29 @@ export default function PanelClient() {
         const errMsg = result.error || 'Error desconocido al guardar';
         setSaveError(errMsg);
         console.error('X  Error guardando config:', errMsg);
-        alert('Error guardando configuración: ' + errMsg);
+        setToast({ message: 'Error guardando configuración: ' + errMsg, type: 'error' });
         setTimeout(() => setSaveError(''), 8000);
       }
     } catch (err: any) {
       console.error(err);
       const errMsg = err?.message || 'Error de conexión al guardar';
       setSaveError(errMsg);
-      alert('Error de conexión: ' + errMsg);
+      setToast({ message: 'Error de conexión: ' + errMsg, type: 'error' });
       setTimeout(() => setSaveError(''), 8000);
     } finally {
       setIsSaving(false);
     }
   };
+
+  // ========== AUTH LOADING SCREEN ==========
+  if (isCheckingAuth) {
+    return (
+      <div className="h-screen w-full bg-[#060918] flex items-center justify-center flex-col space-y-4">
+        <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+        <p className="text-slate-400 text-xs font-semibold tracking-wider uppercase animate-pulse">Cargando panel...</p>
+      </div>
+    );
+  }
 
   // ========== LOGIN SCREEN ==========
   if (!isLoggedIn) {
@@ -2218,7 +5083,7 @@ export default function PanelClient() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
                   </span>
                   <input 
-                    type="email" 
+                    type="text" 
                     value={loginUser}
                     onChange={(e) => setLoginUser(e.target.value)}
                     className="w-full pl-11 pr-4 py-3 rounded-xl glass-input text-sm text-white placeholder-gray-600 focus:ring-0" 
@@ -2290,6 +5155,18 @@ export default function PanelClient() {
               </div>
             </form>
 
+            {/* Google Sign-in Divider and Button */}
+            <div className="my-5 flex flex-col items-center gap-4">
+              <div className="flex items-center w-full justify-between gap-3 text-slate-500 uppercase tracking-widest text-[9px] font-bold">
+                <div className="flex-1 h-[1px] bg-white/[0.08]"></div>
+                <span>{language === 'en' ? 'Or continue with' : 'O continuar con'}</span>
+                <div className="flex-1 h-[1px] bg-white/[0.08]"></div>
+              </div>
+              
+              {/* Programmatic Google GSI button container */}
+              <div id="google-signin-button" className="w-full flex justify-center min-h-[40px]" />
+            </div>
+
             <div className="mt-10 pt-6 border-t border-white/[0.04]">
               {!isRegistering ? (
                 <button type="button" onClick={() => setIsRegistering(true)} className="w-full text-center text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
@@ -2342,6 +5219,15 @@ export default function PanelClient() {
             No tienes cuenta? <button type="button" onClick={() => setIsRegistering(true)} className="text-brand-blue font-semibold ml-1">Registrate</button>
           </div>
         </main>
+        
+        {/* Load Google Identity Services Script in Login Screen */}
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+          onLoad={() => {
+            window.dispatchEvent(new Event('google-gsi-loaded'));
+          }}
+        />
       </div>
     );
   }
@@ -2350,83 +5236,104 @@ export default function PanelClient() {
     <>
     <div className={`min-h-screen ${language === 'es' ? 'lang-es' : 'lang-en'} bg-crm-surface text-on-surface overflow-x-hidden font-inter`}>
       {/* SideNavBar */}
-      <aside className="fixed left-0 top-0 h-screen w-64 border-r border-transparent bg-[#f3f4f5] flex flex-col py-6 px-4 gap-8 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg">
-            <span className="material-symbols-outlined">psychology</span>
-          </div>
-          <div>
-            <h2 className="text-xl font-extrabold text-[#000080] leading-tight font-headline">Sovereign</h2>
-            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Intelligence v1.0</p>
+      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-slate-200/50 bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>
+        <div className="flex justify-center px-2 mb-2 select-none">
+          <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg shrink-0">
+            <span className="material-symbols-outlined text-2xl">psychology</span>
           </div>
         </div>
-        <nav className="flex-1 flex flex-col gap-1">
-          <button onClick={() => safeSetActiveTab('dashboard')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'dashboard' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">dashboard</span>
-            <span>{language === 'en' ? 'Dashboard' : 'Panel Principal'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('crm')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'crm' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>group</span>
-            <span>{language === 'en' ? 'Users' : 'Usuarios'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('settings')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'settings' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">settings</span>
-            <span>{language === 'en' ? 'Settings' : 'Configuraciones'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('billing')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'billing' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300 ${isPlanExpired ? 'ring-2 ring-red-400/50 rounded-lg' : ''}`}>
-            <span className="material-symbols-outlined">payments</span>
-            <span>{language === 'en' ? 'Plans & Billing' : 'Pagos'}</span>
-            {isPlanExpired && <span className="text-[9px] ml-auto bg-red-500 text-white px-1.5 py-0.5 rounded-full font-bold animate-pulse">!</span>}
-          </button>
         
-          <button onClick={() => safeSetActiveTab('playground')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'playground' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">smart_toy</span>
-            <span>{language === 'en' ? 'AI Playground' : 'Playground IA'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('campaigns')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'campaigns' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">campaign</span>
-            <span>{language === 'en' ? 'Ad Campaigns' : 'Pautas Publicitarias'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('segments')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'segments' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">pie_chart</span>
-            <span>{language === 'en' ? 'Segments' : 'Segmentos'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-          <button onClick={() => safeSetActiveTab('analytics')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'analytics' ? 'bg-white text-[#000080] rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-[#000080] font-medium'} transition-all duration-300`}>
-            <span className="material-symbols-outlined">monitoring</span>
-            <span>{language === 'en' ? 'Analytics' : 'Análisis'}</span>
-            {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
-          </button>
-
-          {tenantData?.isAdmin && (
-            <>
-              <div className="my-2 border-t border-slate-200/50"></div>
-              <button onClick={() => safeSetActiveTab('admin')} className={`flex w-full items-center gap-3 px-4 py-3 ${activeTab === 'admin' ? 'bg-gradient-to-r from-amber-50 to-orange-50 text-orange-700 rounded-lg shadow-sm font-bold scale-[0.98]' : isPlanExpired ? 'text-slate-300 cursor-not-allowed' : 'text-orange-500/70 hover:text-orange-600 font-medium'} transition-all duration-300`}>
-                <span className="material-symbols-outlined">admin_panel_settings</span>
-                <span>{language === 'en' ? 'Admin Panel' : 'Panel Admin'}</span>
-                {isPlanExpired && <span className="material-symbols-outlined text-sm ml-auto text-slate-300">lock</span>}
+        <nav className="flex-1 flex flex-col gap-3 items-center overflow-y-auto no-scrollbar py-2 w-full">
+          {[
+            { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
+            { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
+            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+            { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
+            { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
+            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
+            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
+            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+            { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
+            ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
+          ].map(item => {
+            const isActive = activeTab === item.key;
+            const isLocked = isTabLocked(item.key);
+            return (
+              <button
+                key={item.key}
+                onClick={() => safeSetActiveTab(item.key as any)}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${
+                  isActive 
+                    ? (isLocked 
+                        ? 'bg-red-50 text-red-600 shadow-md font-bold scale-[0.98]' 
+                        : 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]') 
+                    : (isLocked 
+                        ? 'text-red-400 hover:text-red-500 hover:bg-red-50/20' 
+                        : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50')
+                }`}
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredTab({
+                    label: language === 'en' ? item.labelEn : item.labelEs,
+                    top: rect.top + rect.height / 2,
+                    isLocked: !!isLocked
+                  });
+                }}
+                onMouseLeave={() => setHoveredTab(null)}
+              >
+                <span className="material-symbols-outlined text-xl shrink-0" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
               </button>
-            </>
-          )}
-</nav>
-        <div className="mt-auto flex flex-col gap-4">
-          <div className="pt-4 border-t border-slate-200/50 flex flex-col gap-1">
-            <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 text-slate-500 hover:text-error transition-colors text-sm w-full text-left">
-              <span className="material-symbols-outlined text-lg">logout</span>
-              {language === 'en' ? 'Logout' : 'Cerrar Sesión'}
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto flex flex-col gap-4 items-center shrink-0 w-full">
+          <div className="pt-4 border-t border-slate-200/50 w-full flex justify-center">
+            <button
+              onClick={handleLogout}
+              className="w-12 h-12 rounded-xl flex items-center justify-center relative text-slate-500 hover:text-error hover:bg-red-50/50 transition-all duration-200"
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setHoveredTab({
+                  label: language === 'en' ? 'Logout' : 'Cerrar Sesión',
+                  top: rect.top + rect.height / 2,
+                  isLocked: false
+                });
+              }}
+              onMouseLeave={() => setHoveredTab(null)}
+            >
+              <span className="material-symbols-outlined text-xl shrink-0">logout</span>
             </button>
           </div>
         </div>
       </aside>
 
+      {/* Floating Sidebar Tooltip */}
+      {hoveredTab && (
+        <div 
+          className={`fixed left-24 px-3.5 py-2 text-white text-xs font-bold rounded-lg shadow-xl z-[9999] pointer-events-none whitespace-nowrap flex items-center gap-1.5 transition-all duration-150 transform -translate-y-1/2 ${
+            hoveredTab.isLocked ? 'bg-red-950/95 border border-red-500/30' : 'bg-slate-900/90'
+          }`}
+          style={{ top: hoveredTab.top }}
+        >
+          <span className={hoveredTab.isLocked ? 'text-red-200' : 'text-white'}>{hoveredTab.label}</span>
+          {hoveredTab.isLocked && (
+            <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider ml-1">
+              {language === 'en' ? 'Locked' : 'Bloqueado'}
+            </span>
+          )}
+          {/* Arrow */}
+          <div className={`absolute right-full top-1/2 -translate-y-1/2 border-y-4 border-y-transparent border-r-4 ml-[-4px] ${
+            hoveredTab.isLocked ? 'border-r-red-950/95' : 'border-r-slate-900/90'
+          }`}></div>
+        </div>
+      )}
+
       {/* TopAppBar */}
-      <header className="fixed top-0 right-0 left-64 flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40">
+      <header className={`fixed top-0 right-0 ${activeTab === 'settings' ? 'left-0' : 'left-20'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>
         <div className="flex items-center gap-4 flex-1">
+
           <div className="relative w-full max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
             <input className="w-full bg-crm-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 transition-all text-black" placeholder={language === 'en' ? 'Search audience or segments...' : 'Buscar audiencia o segmentos...'} type="text" />
@@ -2520,7 +5427,76 @@ export default function PanelClient() {
       </header>
 
       {/* Main Content Canvas */}
-      <main className="ml-64 pt-24 pb-12 px-10 relative overflow-y-auto h-screen">
+      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-20'}`}>
+        {isTabLocked(activeTab) ? (
+          <motion.div
+            key="tab-locked-screen"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-xl mx-auto mt-12 text-center p-12 bg-white rounded-3xl border border-slate-100 shadow-xl flex flex-col items-center"
+          >
+            {/* Beautiful restricted access graphic */}
+            <div className="relative mb-8 w-24 h-24">
+              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse"></div>
+              <div className="relative w-24 h-24 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center shadow-lg shadow-red-500/20">
+                <span className="material-symbols-outlined text-white text-4xl">gpp_bad</span>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-2xl font-black text-slate-800 mb-3">
+              {isPlanExpired 
+                ? (language === 'es' ? 'Plan Expirado' : 'Plan Expired')
+                : (language === 'es' ? 'Sección no disponible' : 'Section unavailable')}
+            </h2>
+            
+            {/* Message */}
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed max-w-md">
+              {isPlanExpired ? (
+                language === 'es' ? (
+                  <>
+                    Tu suscripción ha expirado. Para seguir usando esta sección o renovar tu servicio, cambia tu plan de suscripción en nuestra sección de facturación.
+                  </>
+                ) : (
+                  <>
+                    Your subscription has expired. To continue using this section or renew your service, please change your subscription plan in our billing section.
+                  </>
+                )
+              ) : (
+                language === 'es' ? (
+                  <>
+                    Tu suscripción actual no te permite acceder a esta sección. Debes cambiarte al plan{' '}
+                    <strong className="text-primary font-extrabold text-red-500">
+                      {getRequiredPlanForTab(activeTab)?.name || 'superior'}
+                    </strong>{' '}
+                    para desbloquear esta función y otros módulos avanzados.
+                  </>
+                ) : (
+                  <>
+                    Your current subscription does not allow you to access this section. You need to upgrade to the{' '}
+                    <strong className="text-primary font-extrabold text-red-500">
+                      {getRequiredPlanForTab(activeTab)?.name || 'higher'}
+                    </strong>{' '}
+                    plan to unlock this feature and other advanced modules.
+                  </>
+                )
+              )}
+            </p>
+
+            {/* Upgrade/Change plan Button */}
+            <button
+              onClick={() => setActiveTab('billing')}
+              className="group inline-flex items-center gap-2.5 bg-[#000080] text-white font-bold text-sm px-8 py-3.5 rounded-2xl shadow-lg shadow-[#000080]/20 hover:shadow-[#000080]/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+            >
+              <span className="material-symbols-outlined text-lg">credit_card</span>
+              {isPlanExpired
+                ? (language === 'es' ? 'Cambiar Plan / Renovar' : 'Change Plan / Renew')
+                : (language === 'es' ? 'Cambiar Plan de Suscripción' : 'Change Subscription Plan')}
+              <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
+            </button>
+          </motion.div>
+        ) : (
+          <>
         {activeTab === 'dashboard' && (
           <motion.div
             key="dashboard"
@@ -3094,7 +6070,7 @@ export default function PanelClient() {
                                 setAddContactSuccess(true);
                                 if (!isTest) fetchConversations();
                               } else {
-                                alert(data.error || 'Error al enviar');
+                                setToast({ message: data.error || 'Error al enviar', type: 'error' });
                               }
                             } catch (err) { console.error(err); }
                             finally { setIsAddingContact(false); }
@@ -3624,810 +6600,798 @@ export default function PanelClient() {
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="space-y-10"
+            className="pb-32"
           >
-            {/* Header Section */}
-            <header className="mb-12">
-              <h2 className="text-4xl font-extrabold font-headline text-primary tracking-tight">
-                {language === 'en' ? 'System Configuration' : 'Configuración del Sistema'}
-              </h2>
-              <p className="text-slate-500 mt-2 max-w-2xl font-medium">
-                {language === 'en' 
-                  ? 'Orchestrate your sovereign intelligence parameters and organizational structure from a centralized command interface.' 
-                  : 'Orqueste sus parámetros de inteligencia soberana y estructura organizacional desde una interfaz de comando centralizada.'}
-              </p>
+            {/* Page Header */}
+            <header className="mb-8 flex items-center gap-4">
+              <button 
+                onClick={() => safeSetActiveTab('dashboard')}
+                className="p-2.5 hover:bg-slate-100 active:scale-95 rounded-full transition-all flex items-center justify-center border border-slate-200 bg-white shadow-sm"
+                title={language === 'en' ? 'Back to Dashboard' : 'Volver al Panel'}
+              >
+                <span className="material-symbols-outlined text-[#000080] text-xl">arrow_back</span>
+              </button>
+              <div>
+                <h2 className="text-3xl font-extrabold text-[#0b1c30] tracking-tight">
+                  {language === 'en' ? 'Settings' : 'Configuración'}
+                </h2>
+                <p className="text-slate-400 mt-0.5 text-sm font-medium">
+                  {language === 'en' ? 'Manage your account, integrations and preferences.' : 'Administra tu cuenta, integraciones y preferencias.'}
+                </p>
+              </div>
             </header>
 
-            {/* Bento Grid Layout */}
-            <div className="grid grid-cols-12 gap-8 pb-32">
-              {/* Profile Settings (Large) */}
-              <section className="col-span-12 lg:col-span-8 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-                <div className="flex items-start justify-between mb-8">
-                  <div>
-                    <h3 className="text-xl font-bold font-headline mb-1">{language === 'en' ? 'Administrative Profile' : 'Perfil Administrativo'}</h3>
-                    <p className="text-sm text-slate-500 font-medium">{language === 'en' ? 'Manage your identity and security credentials' : 'Gestione su identidad y credenciales de seguridad'}</p>
-                  </div>
-                  <div className="relative group">
-                    <div className="w-20 h-20 rounded-full border-4 border-slate-50 bg-primary-container flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-                      {configData.admin_name?.substring(0, 2).toUpperCase() || 'AD'}
-                    </div>
-                    <button className="absolute bottom-0 right-0 bg-primary-container text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform">
-                      <span className="material-symbols-outlined text-sm">edit</span>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Full Name' : 'Nombre Completo'}</label>
-                    <input 
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary-container/20 font-bold text-slate-700" 
-                      type="text" 
-                      value={configData.admin_name}
-                      onChange={e => setConfigData({...configData, admin_name: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Email Address' : 'Correo Electrónico'}</label>
-                    <input 
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary-container/20 font-bold text-slate-700" 
-                      type="email" 
-                      value={configData.admin_email}
-                      onChange={e => setConfigData({...configData, admin_email: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2 pt-4 border-t border-slate-50 mt-4">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{language === 'en' ? 'Security Protocol' : 'Protocolo de Seguridad'}</label>
-                    <div className="flex flex-wrap gap-4">
-                      <button 
-                        onClick={() => {
-                          const section = document.getElementById('password-section');
-                          if (section) section.scrollIntoView({ behavior: 'smooth' });
-                        }}
-                        className="flex items-center space-x-2 text-primary font-bold hover:bg-slate-50 px-4 py-2 rounded-xl transition-all"
-                      >
-                        <span className="material-symbols-outlined text-lg">lock_reset</span>
-                        <span>{language === 'en' ? 'Initiate Password Rotation' : 'Iniciar Rotación de Contraseña'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
+            {/* Two-column layout */}
+            <div className="flex gap-8 items-start">
 
-              {/* AI Intelligence Settings */}
-              <section className="col-span-12 lg:col-span-4 bg-primary-container/5 rounded-3xl p-8 border border-primary-container/10">
-                <div className="mb-8">
-                  <span className="material-symbols-outlined text-primary-container text-4xl mb-4" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                  <h3 className="text-xl font-bold font-headline mb-1">{language === 'en' ? 'AI Cognitive Engine' : 'Motor Cognitivo IA'}</h3>
-                  <p className="text-sm text-slate-500 font-medium">{language === 'en' ? 'Fine-tune the intelligence threshold' : 'Ajuste el umbral de inteligencia'}</p>
-                </div>
-                <div className="space-y-8">
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}</label>
-                      <span className="text-primary-container font-black">{(configData.confidence_threshold * 100).toFixed(0)}%</span>
-                    </div>
-                    <input 
-                      className="w-full h-1.5 bg-primary-container/10 rounded-lg appearance-none cursor-pointer accent-primary-container" 
-                      type="range"
-                      min="0.5"
-                      max="0.99"
-                      step="0.01"
-                      value={configData.confidence_threshold}
-                      onChange={e => setConfigData({...configData, confidence_threshold: parseFloat(e.target.value)})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Model Selection' : 'Selección de Modelo IA'}</label>
-                    <select 
-                      className="w-full bg-white border border-slate-100 rounded-xl text-xs font-bold py-3 px-4 focus:ring-2 focus:ring-primary-container/20 appearance-none cursor-pointer"
-                      value={configData.model_selection}
-                      onChange={e => setConfigData({...configData, model_selection: e.target.value})}
-                    >
-                      <optgroup label="OpenAI">
-                        <option value="gpt-4o">GPT-4o (Recomendado)</option>
-                        <option value="gpt-4o-mini">GPT-4o Mini (Rápido)</option>
-                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Económico)</option>
-                      </optgroup>
-                      <optgroup label="Google Gemini">
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Rápido)</option>
-                      </optgroup>
-                      <optgroup label="Groq (Ultra Rápido)">
-                        <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
-                        <option value="llama-3.1-8b-instant">Llama 3.1 8B (Instant)</option>
-                        <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-                      </optgroup>
-                    </select>
-                    <p className="text-[9px] text-slate-400 mt-1">{language === 'en' ? 'Requires the corresponding API key configured above' : 'Requiere la API key del proveedor correspondiente'}</p>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-50">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black text-slate-700">{language === 'en' ? 'Auto-Classification' : 'Auto-Clasificación'}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{language === 'en' ? 'Real-time intent labeling' : 'Etiquetado de intención en tiempo real'}</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={configData.auto_classification}
-                        onChange={e => setConfigData({...configData, auto_classification: e.target.checked})}
-                      />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
-                    </label>
-                  </div>
-                </div>
-              </section>
-
-              {/* AI Provider API Keys Configuration */}
-              <section className="col-span-12 lg:col-span-5 bg-gradient-to-br from-white to-slate-50/50 rounded-3xl p-8 border border-slate-100 shadow-sm relative overflow-hidden">
-                {/* Decorative background accent */}
-                <div className="absolute top-0 right-0 w-32 h-32 rounded-full opacity-[0.03]" style={{
-                  background: selectedAiProvider === 'openai' ? '#10a37f' : selectedAiProvider === 'gemini' ? '#1a73e8' : '#f55036',
-                  transform: 'translate(30%, -30%)',
-                }} />
-
-                {/* Header with live status */}
-                <div className="flex items-center justify-between mb-7">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-11 h-11 flex items-center justify-center rounded-2xl transition-all duration-300 ${
-                      selectedAiProvider === 'openai' ? 'bg-[#10a37f]/10' :
-                      selectedAiProvider === 'gemini' ? 'bg-[#1a73e8]/10' :
-                      'bg-[#f55036]/10'
-                    }`}>
-                      <span className={`material-symbols-outlined text-xl transition-all duration-300 ${
-                        selectedAiProvider === 'openai' ? 'text-[#10a37f]' :
-                        selectedAiProvider === 'gemini' ? 'text-[#1a73e8]' :
-                        'text-[#f55036]'
-                      }`} style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold font-headline">{language === 'en' ? 'AI Provider' : 'Proveedor de IA'}</h3>
-                      <p className="text-[10px] text-slate-400 font-semibold">{language === 'en' ? 'Select and configure your provider' : 'Seleccione y configure su proveedor'}</p>
-                    </div>
-                  </div>
-                  {/* Always-visible live status badge */}
-                  {(() => {
-                    const currentKey = selectedAiProvider === 'openai' ? configData.openai_key : selectedAiProvider === 'gemini' ? configData.gemini_key : configData.groq_key;
-                    const hasKey = currentKey && currentKey.length > 5;
-                    const isOk = aiKeyStatus === 'success';
-                    const isErr = aiKeyStatus === 'error';
-                    const isPending = hasKey && !isOk && !isErr;
-                    return (
-                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 ${
-                        isOk ? 'bg-emerald-50 border-emerald-200' :
-                        isErr ? 'bg-red-50 border-red-200' :
-                        isPending ? 'bg-amber-50 border-amber-200' :
-                        'bg-slate-50 border-slate-200'
-                      }`}>
-                        <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                          isOk ? 'bg-emerald-500 animate-pulse' :
-                          isErr ? 'bg-red-500' :
-                          isPending ? 'bg-amber-400 animate-pulse' :
-                          'bg-slate-300'
-                        }`} />
-                        <span className={`text-[9px] font-black uppercase tracking-wider ${
-                          isOk ? 'text-emerald-600' :
-                          isErr ? 'text-red-600' :
-                          isPending ? 'text-amber-600' :
-                          'text-slate-400'
-                        }`}>
-                          {isOk ? (language === 'en' ? 'Active' : 'Activo') :
-                           isErr ? 'Error' :
-                           isPending ? (language === 'en' ? 'Pending' : 'Pendiente') :
-                           'Offline'}
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Custom Provider Selector */}
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Active Provider' : 'Proveedor Activo'}</label>
-                    <div className="relative">
-                      <select
-                        value={selectedAiProvider}
-                        onChange={e => { setSelectedAiProvider(e.target.value as any); setAiKeyStatus('idle'); setAiCreditsStatus('idle'); setTimeout(() => handleVerifyAiKey(true), 300); }}
-                        className={`w-full bg-white border-2 rounded-2xl text-sm font-bold py-4 pl-12 pr-10 focus:ring-2 appearance-none cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md ${
-                          selectedAiProvider === 'openai' ? 'border-[#10a37f]/30 focus:border-[#10a37f] focus:ring-[#10a37f]/20' :
-                          selectedAiProvider === 'gemini' ? 'border-[#1a73e8]/30 focus:border-[#1a73e8] focus:ring-[#1a73e8]/20' :
-                          'border-[#f55036]/30 focus:border-[#f55036] focus:ring-[#f55036]/20'
-                        }`}
-                      >
-                        <option value="openai">OpenAI (GPT-4o)</option>
-                        <option value="gemini">Google Gemini</option>
-                        <option value="groq">Groq (Ultra R{'\u00e1'}pido)</option>
-                      </select>
-                      {/* Icon overlay */}
-                      <div className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                        selectedAiProvider === 'openai' ? 'bg-[#10a37f]/10' :
-                        selectedAiProvider === 'gemini' ? 'bg-[#1a73e8]/10' :
-                        'bg-[#f55036]/10'
-                      }`}>
-                        <span className={`material-symbols-outlined text-sm ${
-                          selectedAiProvider === 'openai' ? 'text-[#10a37f]' :
-                          selectedAiProvider === 'gemini' ? 'text-[#1a73e8]' :
-                          'text-[#f55036]'
-                        }`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                          {selectedAiProvider === 'openai' ? 'psychology' : selectedAiProvider === 'gemini' ? 'auto_awesome' : 'bolt'}
-                        </span>
-                      </div>
-                      {/* Dropdown arrow */}
-                      <span className="material-symbols-outlined text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-base">expand_more</span>
-                    </div>
-                  </div>
-
-                  {/* API Key Input */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">API Key</label>
-                    <div className="relative group">
-                      <input 
-                        className={`w-full bg-white border-2 rounded-2xl px-4 py-4 pr-20 text-xs font-mono font-bold text-slate-600 transition-all duration-300 focus:ring-2 shadow-sm group-hover:shadow-md ${
-                          aiKeyStatus === 'success' ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-200/40' :
-                          aiKeyStatus === 'error' ? 'border-red-300 focus:border-red-400 focus:ring-red-200/40' :
-                          'border-slate-200 focus:border-primary-container focus:ring-primary-container/20'
-                        }`}
-                        type={showAiApiKey ? 'text' : 'password'} 
-                        placeholder={selectedAiProvider === 'openai' ? 'sk-proj-...' : selectedAiProvider === 'gemini' ? 'AIzaSy...' : 'gsk_...'}
-                        value={selectedAiProvider === 'openai' ? (configData.openai_key || '') : selectedAiProvider === 'gemini' ? (configData.gemini_key || '') : (configData.groq_key || '')}
-                        onChange={e => {
-                          const key = selectedAiProvider === 'openai' ? 'openai_key' : selectedAiProvider === 'gemini' ? 'gemini_key' : 'groq_key';
-                          setConfigData({...configData, [key]: e.target.value});
-                          setAiKeyStatus('idle');
-                          setAiCreditsStatus('idle');
-                        }}
-                      />
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                        {aiKeyStatus === 'success' && <span className="material-symbols-outlined text-emerald-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>}
-                        {aiKeyStatus === 'error' && <span className="material-symbols-outlined text-red-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>}
-                        <button type="button" onClick={() => setShowAiApiKey(!showAiApiKey)} className="text-slate-400 hover:text-slate-600 transition-colors p-0.5">
-                          <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Verify Button */}
-                  <button 
-                    onClick={handleVerifyAiKey}
-                    disabled={aiKeyVerifying}
-                    className={`w-full py-3.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-lg ${
-                      aiKeyStatus === 'success' 
-                        ? 'bg-emerald-500 text-white shadow-emerald-500/25 hover:bg-emerald-600' 
-                        : aiKeyStatus === 'error'
-                          ? 'bg-red-500 text-white shadow-red-500/25 hover:bg-red-600'
-                          : `text-white shadow-slate-900/20 hover:opacity-90 ${
-                              selectedAiProvider === 'openai' ? 'bg-gradient-to-r from-[#10a37f] to-[#0d8c6d]' :
-                              selectedAiProvider === 'gemini' ? 'bg-gradient-to-r from-[#1a73e8] to-[#1557b0]' :
-                              'bg-gradient-to-r from-[#f55036] to-[#d4402a]'
-                            }`
+              {/* ── LEFT NAV SIDEBAR ── */}
+              <aside className="w-56 shrink-0 sticky top-8 space-y-1">
+                {[
+                  { key: 'profile',       icon: 'manage_accounts', label: language === 'en' ? 'Profile' : 'Perfil' },
+                  { key: 'api_helper',    icon: 'support_agent',    label: language === 'en' ? 'API Assistant' : 'Asistente de APIs' },
+                  { key: 'ai',            icon: 'smart_toy',        label: language === 'en' ? 'AI Provider' : 'Proveedor IA' },
+                  { key: 'whatsapp',      icon: 'chat',             label: 'WhatsApp API' },
+                  { key: 'notifications', icon: 'notifications',    label: language === 'en' ? 'Notifications' : 'Notificaciones' },
+                  { key: 'meta',          icon: 'campaign',         label: 'Meta Ads' },
+                  { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },
+                  { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },
+                  { key: 'dropi',         icon: 'local_shipping',   label: 'Dropi Dropshipping' },
+                ].map(item => (
+                  <button
+                    key={item.key}
+                    onClick={() => setSettingsSection(item.key as any)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
+                      settingsSection === item.key
+                        ? 'bg-[#0058bc]/8 text-[#0058bc] font-bold'
+                        : 'text-slate-500 hover:text-[#0b1c30] hover:bg-slate-100'
                     }`}
                   >
-                    {aiKeyVerifying ? (
-                      <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</>
-                    ) : aiKeyStatus === 'success' ? (
-                      <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span> {language === 'en' ? 'Verified' : 'Verificado'}</>
-                    ) : aiKeyStatus === 'error' ? (
-                      <><span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Retry Verification' : 'Reintentar Verificaci\u00f3n'}</>
-                    ) : (
-                      <><span className="material-symbols-outlined text-sm">shield</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexi\u00f3n'}</>
-                    )}
-                  </button>
-
-                  {/* Status detail message */}
-                  {aiKeyStatusMsg && aiKeyStatus !== 'idle' && (
-                    <motion.p 
-                      initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                      className={`text-[10px] font-bold text-center ${aiKeyStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}
-                    >
-                      {aiKeyStatusMsg}
-                    </motion.p>
-                  )}
-
-                  {/* Credits / Status Card */}
-                  <div className={`p-4 rounded-2xl border flex items-center gap-3 transition-all duration-300 ${
-                    aiCreditsStatus === 'active' ? 'bg-emerald-50/80 border-emerald-200/60' :
-                    aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'bg-red-50/80 border-red-200/60' :
-                    aiCreditsStatus === 'low' ? 'bg-amber-50/80 border-amber-200/60' :
-                    'bg-slate-50/80 border-slate-100'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      aiCreditsStatus === 'active' ? 'bg-emerald-100' :
-                      aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'bg-red-100' :
-                      aiCreditsStatus === 'low' ? 'bg-amber-100' :
-                      'bg-slate-100'
-                    }`}>
-                      <span className={`material-symbols-outlined text-sm ${
-                        aiCreditsStatus === 'active' ? 'text-emerald-600' :
-                        aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'text-red-600' :
-                        aiCreditsStatus === 'low' ? 'text-amber-600' :
-                        'text-slate-400'
-                      }`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                        {aiCreditsStatus === 'active' ? 'check_circle' :
-                         aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'error' :
-                         aiCreditsStatus === 'low' ? 'warning' : 'help'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className={`text-[9px] font-black uppercase tracking-widest ${
-                        aiCreditsStatus === 'active' ? 'text-emerald-700' :
-                        aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'text-red-700' :
-                        'text-slate-400'
-                      }`}>{language === 'en' ? 'AI Status' : 'Estado de IA'}</p>
-                      <p className={`text-[10px] font-medium ${
-                        aiCreditsStatus === 'active' ? 'text-emerald-600' :
-                        aiCreditsStatus === 'exhausted' || aiCreditsStatus === 'error' ? 'text-red-600' :
-                        'text-slate-400'
-                      }`}>{aiCreditsMsg || (language === 'en' ? 'Click verify to check' : 'Verifique la conexi\u00f3n')}</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-
-              {/* WhatsApp Configuration */}
-              <section className="col-span-12 lg:col-span-7 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-                <div className="flex items-center space-x-3 mb-8">
-                  <div className="w-10 h-10 bg-[#25D366]/10 flex items-center justify-center rounded-xl">
-                    <span className="material-symbols-outlined text-[#128C7E]">settings_input_component</span>
-                  </div>
-                  <h3 className="text-xl font-bold font-headline">{language === 'en' ? 'WhatsApp API Gateway' : 'Pasarela API WhatsApp'}</h3>
-                </div>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Bearer API Token' : 'Token de API Portador'}</label>
-                    <div className="flex gap-2">
-                      <input 
-                        className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-mono font-bold text-slate-600" 
-                        type="password" 
-                        value={configData.whatsapp_token}
-                        onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})}
-                      />
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(configData.whatsapp_token);
-                        }}
-                        className="bg-slate-100 p-3 rounded-xl hover:bg-slate-200 transition-colors text-slate-500"
-                      >
-                        <span className="material-symbols-outlined text-sm">content_copy</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Phone Number ID' : 'ID de N\u00FAmero de Tel\u00E9fono'}</label>
-                      <input 
-                        className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-xs font-bold text-slate-600" 
-                        type="text" 
-                        value={configData.whatsapp_phone_id}
-                        onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Account Status' : 'Estado de Cuenta'}</label>
-                      <div className={`h-full min-h-[44px] flex items-center px-4 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                        waStatus === 'success' 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                          : waStatus === 'error' 
-                            ? 'bg-red-50 text-red-600 border-red-100'
-                            : 'bg-slate-50 text-slate-500 border-slate-100'
-                      }`}>
-                        {waStatus === 'success' ? (
-                          <><span className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> {language === 'en' ? 'Verified Active' : 'Verificado Activo'}</>
-                        ) : waStatus === 'error' ? (
-                          <><span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span> {language === 'en' ? 'Connection Failed' : 'Conexi\u00F3n Fallida'}</>
-                        ) : (
-                          <><span className="w-2 h-2 bg-slate-300 rounded-full mr-2"></span> {language === 'en' ? 'Not Verified' : 'No Verificado'}</>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2 pt-4 border-t border-slate-50">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Webhook Intelligence URL' : 'URL de Inteligencia Webhook'}</label>
-                    <div className="flex gap-2">
-                      <input 
-                        className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-[11px] font-bold text-slate-400" 
-                        type="text" 
-                        readOnly 
-                        value={`https://api.rifx-sovereign.io/hooks/v1/wa/${configData.whatsapp_phone_id || 'ID'}`} 
-                      />
-                    </div>
-                  </div>
-                  {/* Verify WhatsApp Button */}
-                  <div className="pt-2 space-y-3">
-                    <button 
-                      onClick={handleVerifyWhatsApp}
-                      disabled={waVerifying}
-                      className={`w-full py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-                        waStatus === 'success' 
-                          ? 'bg-[#25D366] text-white shadow-lg shadow-[#25D366]/20' 
-                          : waStatus === 'error'
-                            ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
-                            : 'bg-[#128C7E] text-white hover:bg-[#075E54] shadow-lg shadow-[#128C7E]/20'
-                      }`}
-                    >
-                      {waVerifying ? (
-                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</>
-                      ) : waStatus === 'success' ? (
-                        <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Connection Verified' : 'Conexi\u00F3n Verificada'}</>
-                      ) : waStatus === 'error' ? (
-                        <><span className="material-symbols-outlined text-sm">error</span> {language === 'en' ? 'Verification Failed' : 'Verificaci\u00F3n Fallida'}</>
-                      ) : (
-                        <><span className="material-symbols-outlined text-sm">verified</span> {language === 'en' ? 'Verify WhatsApp Connection' : 'Verificar Conexi\u00F3n WhatsApp'}</>
-                      )}
-                    </button>
-                    {waStatusMsg && waStatus !== 'idle' && (
-                      <motion.p 
-                        initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                        className={`text-[10px] font-bold text-center ${waStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}
-                      >
-                        {waStatusMsg}
-                      </motion.p>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              {/* Bulk WhatsApp Number for Mass Messaging */}
-              <section className="col-span-12 lg:col-span-5 bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-8 border border-amber-200/50 shadow-sm">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-amber-500/10 flex items-center justify-center rounded-xl">
-                    <span className="material-symbols-outlined text-amber-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold font-headline">{language === 'en' ? 'Bulk Messaging Number' : 'N\u00FAmero para Masivos'}</h3>
-                    <p className="text-[10px] text-amber-700/70 font-medium">{language === 'en' ? 'Separate number to protect your main bot' : 'N\u00FAmero separado para proteger tu bot principal'}</p>
-                  </div>
-                </div>
-                <div className="space-y-5">
-                  <div className="p-3 bg-amber-100/50 rounded-xl border border-amber-200/50">
-                    <div className="flex items-start gap-2">
-                      <span className="material-symbols-outlined text-amber-600 text-sm mt-0.5">info</span>
-                      <p className="text-[10px] text-amber-800 leading-relaxed">
-                        {language === 'en' 
-                          ? 'Configure a second WhatsApp number exclusively for bulk messaging. This protects your main bot number from potential blocks.'
-                          : 'Configura un segundo n\u00FAmero de WhatsApp exclusivo para env\u00EDos masivos. Esto protege tu n\u00FAmero principal del bot de posibles bloqueos.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-700/60">Token API Masivos</label>
-                    <input 
-                      className="w-full bg-white border border-amber-200/50 rounded-xl px-4 py-3 text-xs font-mono font-bold text-slate-600 focus:ring-2 focus:ring-amber-300/30 focus:border-amber-300" 
-                      type="password" 
-                      placeholder={language === 'en' ? 'Bearer token for bulk number...' : 'Token de API para n\u00FAmero masivo...'}
-                      value={configData.bulk_wa_token || ''}
-                      onChange={e => setConfigData({...configData, bulk_wa_token: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-amber-700/60">Phone Number ID Masivos</label>
-                    <input 
-                      className="w-full bg-white border border-amber-200/50 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 focus:ring-2 focus:ring-amber-300/30 focus:border-amber-300" 
-                      type="text" 
-                      placeholder={language === 'en' ? 'Phone Number ID for bulk...' : 'ID de tel\u00E9fono para masivos...'}
-                      value={configData.bulk_wa_phone_id || ''}
-                      onChange={e => setConfigData({...configData, bulk_wa_phone_id: e.target.value})}
-                    />
-                  </div>
-                  <div className={`flex items-center px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                    configData.bulk_wa_token && configData.bulk_wa_phone_id
-                      ? 'bg-amber-100 text-amber-700 border-amber-200'
-                      : 'bg-slate-50 text-slate-400 border-slate-100'
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full mr-2 ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`}></span>
-                    {configData.bulk_wa_token && configData.bulk_wa_phone_id
-                      ? (language === 'en' ? 'Bulk number configured' : 'N\u00FAmero masivo configurado')
-                      : (language === 'en' ? 'Not configured -- will use main number' : 'No configurado -- usar\u00E1 n\u00FAmero principal')}
-                  </div>
-                </div>
-              </section>
-              <section className="col-span-12 lg:col-span-5 bg-slate-50 rounded-3xl p-8 border border-slate-100 shadow-sm">
-                <h3 className="text-xl font-bold font-headline mb-6">{language === 'en' ? 'Alert Dispatcher' : 'Despachador de Alertas'}</h3>
-                
-                {/* Email for notifications */}
-                <div className="mb-6">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{language === 'en' ? 'Notification Email' : 'Correo de Notificaciones'}</label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <span className="material-symbols-outlined text-slate-400 text-base">mail</span>
+                    <span className={`material-symbols-outlined text-[18px] ${settingsSection === item.key ? 'text-[#0058bc]' : 'text-slate-400'}`} style={{ fontVariationSettings: settingsSection === item.key ? "'FILL' 1" : "'FILL' 0" }}>
+                      {item.icon}
                     </span>
-                    <input 
-                      type="email" 
-                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-xl text-xs font-bold text-slate-600 placeholder-slate-300 focus:outline-none focus:border-primary-container/30 focus:ring-2 focus:ring-primary-container/10 transition-all" 
-                      placeholder="alertas@ejemplo.com"
-                      value={configData.alert_email || ''}
-                      onChange={e => setConfigData({...configData, alert_email: e.target.value})}
-                    />
-                    {configData.alert_email && (
-                      <span className="absolute inset-y-0 right-0 pr-4 flex items-center">
-                        <span className="material-symbols-outlined text-emerald-500 text-sm" style={{fontVariationSettings: "'FILL' 1"}}>check_circle</span>
-                      </span>
+                    {item.label}
+                    {settingsSection === item.key && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#0058bc]" />
                     )}
-                  </div>
-                  <p className="text-[9px] text-slate-400 mt-1.5 font-medium">
-                    {language === 'en' 
-                      ? 'Errors and critical alerts will be sent to this email' 
-                      : 'Los errores y alertas cr\u00EDticas se enviar\u00E1n a este correo'}
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {[
-                    { key: 'email_alerts', icon: 'mail', label: language === 'en' ? 'Critical Email Alerts' : 'Alertas Cr\u00EDticas por Email' },
-                    { key: 'push_notifications', icon: 'notifications_active', label: language === 'en' ? 'Real-time Push Notifications' : 'Notificaciones Push' },
-                    { key: 'daily_briefing', icon: 'summarize', label: language === 'en' ? 'Daily Intelligence Briefing' : 'Resumen de Inteligencia Diario' }
-                  ].map(alert => (
-                    <div key={alert.key} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                      <div className="flex items-center space-x-3">
-                        <span className="material-symbols-outlined text-slate-400 text-lg">{alert.icon}</span>
-                        <span className="text-xs font-bold text-slate-700">{alert.label}</span>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox" 
-                          className="sr-only peer" 
-                          checked={configData[alert.key]}
-                          onChange={e => setConfigData({...configData, [alert.key]: e.target.checked})}
-                        />
-                        <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-container"></div>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-8 p-4 border border-dashed border-slate-200 rounded-2xl bg-white/50">
-                  <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                    <span className="font-black text-primary uppercase mr-1">Pro Tip:</span> 
-                    {language === 'en' 
-                      ? 'System-level alerts bypass these settings and will always be delivered to the primary account email.' 
-                      : 'Las alertas a nivel de sistema ignoran estas configuraciones y siempre se enviar\u00E1n al correo principal.'}
-                  </p>
-                </div>
-              </section>
-
-              {/* Memory Management */}
-              <section className="col-span-12 lg:col-span-7 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-10 h-10 bg-orange-50 flex items-center justify-center rounded-xl">
-                    <span className="material-symbols-outlined text-orange-500">psychology</span>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold font-headline">{language === 'en' ? 'Memory Management' : 'Gesti\u00F3n de Memoria'}</h3>
-                    <p className="text-xs text-slate-500 font-medium">{language === 'en' ? 'Control AI conversation memory retention' : 'Controle la retenci\u00F3n de memoria de conversaciones IA'}</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-6">
-                  {/* Memory Usage Bar */}
-                  {(() => {
-                    const maxMessages = 10000; // Capacity limit for visualization
-                    const usagePercent = Math.min(100, Math.round((memoryUsage.totalMessages / maxMessages) * 100));
-                    const isWarning = usagePercent >= 70;
-                    const isCritical = usagePercent >= 90;
-                    return (
-                      <div className={`p-4 rounded-xl border ${isCritical ? 'bg-red-50 border-red-200' : isWarning ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={`text-[10px] font-black uppercase tracking-widest ${isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-slate-500'}`}>
-                            {language === 'en' ? 'Memory Capacity' : 'Capacidad de Memoria'}
-                          </span>
-                          <span className={`text-xs font-bold ${isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-slate-600'}`}>
-                            {usagePercent}%
-                          </span>
-                        </div>
-                        <div className="w-full h-3 bg-white rounded-full overflow-hidden border border-slate-200">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-700 ${isCritical ? 'bg-gradient-to-r from-red-400 to-red-600' : isWarning ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'}`}
-                            style={{ width: `${usagePercent}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center gap-4">
-                            <span className="text-[9px] text-slate-500 font-medium flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[10px]">chat</span>
-                              {memoryUsage.totalMessages.toLocaleString()} {language === 'en' ? 'messages' : 'mensajes'}
-                            </span>
-                            <span className="text-[9px] text-slate-500 font-medium flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[10px]">people</span>
-                              {memoryUsage.totalConversations} {language === 'en' ? 'conversations' : 'conversaciones'}
-                            </span>
-                          </div>
-                          {isCritical && (
-                            <span className="text-[9px] font-bold text-red-600 flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[10px]">warning</span>
-                              {language === 'en' ? 'Almost full!' : '\u00A1Casi llena!'}
-                            </span>
-                          )}
-                          {isWarning && !isCritical && (
-                            <span className="text-[9px] font-bold text-amber-600 flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[10px]">info</span>
-                              {language === 'en' ? 'Getting full' : 'Llen\u00E1ndose'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  {/* Retention Period Selector */}
-                  <div className="space-y-3">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Auto-Delete After' : 'Eliminar Autom\u00E1ticamente Despu\u00E9s De'}</label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { value: 7, label: '7 d\u00EDas' },
-                        { value: 15, label: '15 d\u00EDas' },
-                        { value: 30, label: '30 d\u00EDas' },
-                        { value: 90, label: '90 d\u00EDas' },
-                      ].map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => { setMemoryRetentionDays(opt.value); setConfigData({...configData, media_retention_days: opt.value}); }}
-                          className={`py-3 rounded-xl text-xs font-bold transition-all ${
-                            (configData.media_retention_days || memoryRetentionDays) === opt.value
-                              ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                              : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      {language === 'en' 
-                        ? `Conversations older than ${configData.media_retention_days || memoryRetentionDays} days will be automatically purged.`
-                        : `Las conversaciones con m\u00E1s de ${configData.media_retention_days || memoryRetentionDays} d\u00EDas se purgar\u00E1n autom\u00E1ticamente.`}
-                    </p>
-                  </div>
-
-                  {/* Manual Clear */}
-                  <div className="pt-4 border-t border-slate-50 space-y-3">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Manual Memory Reset' : 'Reinicio Manual de Memoria'}</label>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={handleClearMemory}
-                        disabled={memoryClearing}
-                        className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
-                          memoryClearSuccess 
-                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                            : 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20'
-                        }`}
-                      >
-                        {memoryClearing ? (
-                          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Clearing...' : 'Limpiando...'}</>
-                        ) : memoryClearSuccess ? (
-                          <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Memory Cleared!' : '\u00A1Memoria Borrada!'}</>
-                        ) : (
-                          <><span className="material-symbols-outlined text-sm">delete_forever</span> {language === 'en' ? 'Clear All Memory Now' : 'Borrar Toda la Memoria Ahora'}</>
-                        )}
-                      </button>
-                    </div>
-                    <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl">
-                      <p className="text-[10px] text-amber-700 font-medium flex items-start gap-2">
-                        <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">warning</span>
-                        {language === 'en' 
-                          ? 'This action will permanently delete all cached conversations, inference history, and AI context. This cannot be undone.'
-                          : 'Esta acci\u00F3n eliminar\u00E1 permanentemente todas las conversaciones en cach\u00E9, el historial de inferencia y el contexto de IA. No se puede deshacer.'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Password Section (Integrated into the Bento Grid) */}
-              <section id="password-section" className="col-span-12 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm scroll-mt-20">
-                <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-50">
-                  <span className="material-symbols-outlined text-emerald-500">lock</span>
-                  <h3 className="text-xl font-bold font-headline">{language === 'en' ? 'Sovereign Credentials' : 'Credenciales Soberanas'}</h3>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Current Access Key' : 'Llave de Acceso Actual'}</label>
-                    <input 
-                      type="password" 
-                      value={currentPassword}
-                      onChange={e => setCurrentPassword(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'New Intelligence Key' : 'Nueva Llave de Inteligencia'}</label>
-                    <input 
-                      type="password" 
-                      value={newPassword}
-                      onChange={e => setNewPassword(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Verify New Key' : 'Verificar Nueva Llave'}</label>
-                    <input 
-                      type="password" 
-                      value={confirmPassword}
-                      onChange={e => setConfirmPassword(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20" 
-                    />
-                  </div>
-                </div>
-                
-                <div className="mt-8 flex items-center justify-between">
-                  <p className="text-xs text-slate-400 font-medium max-w-md">
-                    {language === 'en' 
-                      ? 'Rotating your credentials regularly ensures maximum sovereignty over your intelligence assets.' 
-                      : 'Rotar sus credenciales regularmente garantiza la máxima soberanía sobre sus activos de inteligencia.'}
-                  </p>
-                  <button 
-                    onClick={handleChangePassword}
-                    disabled={changingPassword || !newPassword}
-                    className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
-                  >
-                    {changingPassword ? '...' : (language === 'en' ? 'Update Access Protocol' : 'Actualizar Protocolo de Acceso')}
                   </button>
-                </div>
-                {passwordError && <p className="mt-4 text-[10px] font-black text-red-500 uppercase tracking-widest">{passwordError}</p>}
-                {passwordSuccess && <p className="mt-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest">{language === 'en' ? 'Credentials successfully rotated!' : '¡Credenciales rotadas con éxito!'}</p>}
-              </section>
-            </div>
+                ))}
 
-            {/* Sticky Action Bar -- Discard only shows when changes exist, Apply always visible */}
-            {(() => {
-              const hasChanges = originalConfigRef.current && JSON.stringify(configData) !== JSON.stringify(originalConfigRef.current);
-              return (
-                <div className="fixed bottom-10 right-10 flex items-center gap-4 z-50">
-                  <AnimatePresence>
-                    {showSuccess && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="bg-emerald-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm"
-                      >
-                        <span className="material-symbols-outlined">check_circle</span>
-                        {language === 'en' ? 'Parameters synchronized successfully!' : '\u00a1Par\u00e1metros sincronizados con \u00e9xito!'}
-                      </motion.div>
-                    )}
-                    {saveError && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        className="bg-red-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm"
-                      >
-                        <span className="material-symbols-outlined">error</span>
-                        {saveError}
-                      </motion.div>
-                    )}
-                    {hasChanges && (
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        onClick={discardChanges}
-                        className="px-8 py-4 bg-white text-slate-700 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl hover:bg-slate-50 transition-all active:scale-95 border border-slate-100"
-                      >
-                        {language === 'en' ? 'Discard Changes' : 'Descartar Cambios'}
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                  <button 
+                {/* Save button in sidebar */}
+                <div className="pt-4 border-t border-slate-100 mt-4">
+                  <button
                     onClick={handleSaveSettings}
                     disabled={isSaving}
-                    className="px-10 py-4 bg-gradient-to-br from-primary-container to-primary text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-[0_12px_24px_rgba(0,0,128,0.3)] hover:opacity-90 transition-all active:scale-95 flex items-center gap-3"
+                    className="w-full py-2.5 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-xs rounded-xl shadow-lg shadow-[#0058bc]/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                   >
                     {isSaving ? (
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <span className="material-symbols-outlined text-sm">sync_saved_locally</span>
+                      <span className="material-symbols-outlined text-sm">save</span>
                     )}
-                    {language === 'en' ? 'Apply Parameters' : 'Aplicar Par\u00e1metros'}
+                    {language === 'en' ? 'Save changes' : 'Guardar cambios'}
                   </button>
+                  {(() => {
+                    const hasChanges = originalConfigRef.current && JSON.stringify(configData) !== JSON.stringify(originalConfigRef.current);
+                    return hasChanges ? (
+                      <button onClick={discardChanges} className="w-full mt-2 py-2 text-slate-400 hover:text-slate-600 text-xs font-semibold transition-colors">
+                        {language === 'en' ? 'Discard changes' : 'Descartar cambios'}
+                      </button>
+                    ) : null;
+                  })()}
+                  {showSuccess && <p className="text-[10px] text-emerald-600 font-bold text-center mt-2">✓ {language === 'en' ? 'Saved!' : '¡Guardado!'}</p>}
+                  {saveError && <p className="text-[10px] text-red-500 font-bold text-center mt-2">{saveError}</p>}
                 </div>
-              );
-            })()}
+              </aside>
+
+              {/* ── RIGHT CONTENT AREA ── */}
+              <div className="flex-1 min-w-0">
+
+                {/* ════ API ASSISTANT ════ */}
+                {settingsSection === 'api_helper' && (
+                  <div className="space-y-6 animate-fadeIn">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'API Setup Assistant' : 'Asistente de Configuración de APIs'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure WhatsApp and Meta Ads step-by-step with conversational guidance.' : 'Configura WhatsApp y Meta Ads paso a paso con ayuda e indicaciones conversacionales.'}</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                      {/* Left: Chat Area */}
+                      <div className="col-span-12 lg:col-span-7 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col h-[600px]">
+                        {/* Messages container */}
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-800">
+                          {apiHelperMessages.map((msg, index) => (
+                            <div
+                              key={index}
+                              className={`flex flex-col ${
+                                msg.sender === 'user' ? 'items-end' : 'items-start'
+                              }`}
+                            >
+                              <div
+                                className={`p-4 rounded-2xl max-w-[85%] text-xs shadow-md space-y-2 ${
+                                  msg.sender === 'user'
+                                    ? 'bg-gradient-to-r from-[#0058bc] to-[#054ADA] text-white rounded-tr-none'
+                                    : 'bg-slate-800 text-slate-300 border border-slate-700/50 rounded-tl-none'
+                                }`}
+                              >
+                                {msg.sender === 'agent' ? renderApiHelperMessageText(msg.text) : <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>}
+                              </div>
+                              <span className="text-[9px] text-slate-500 mt-1 px-1">
+                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+
+                              {/* Action Chips */}
+                              {index === apiHelperMessages.length - 1 && msg.chips && msg.chips.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-3 justify-start max-w-[90%]">
+                                  {msg.chips.map((chip: string, chipIdx: number) => (
+                                    <button
+                                      key={chipIdx}
+                                      onClick={() => handleSendApiHelperMessage(chip)}
+                                      className="px-3.5 py-1.5 bg-slate-850 hover:bg-slate-700 border border-slate-750 hover:border-slate-650 text-slate-200 hover:text-white rounded-full text-[10px] font-bold transition-all active:scale-[0.98]"
+                                    >
+                                      {chip}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          <div ref={apiHelperChatEndRef} />
+                        </div>
+
+                        {/* Input bar */}
+                        <div className="border-t border-slate-800/80 pt-4 mt-4 flex gap-2">
+                          <input
+                            type="text"
+                            value={apiHelperInput}
+                            onChange={e => setApiHelperInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleSendApiHelperMessage();
+                            }}
+                            placeholder={
+                              apiHelperFlow === 'idle'
+                                ? 'Pregúntame algo o selecciona una opción...'
+                                : 'Ingresa la credencial o responde al bot...'
+                            }
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-600 outline-none focus:border-[#0058bc] focus:ring-1 focus:ring-[#0058bc]/30 transition-all"
+                          />
+                          <button
+                            onClick={() => handleSendApiHelperMessage()}
+                            className="bg-[#0058bc] hover:bg-[#054ADA] text-white p-3 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shadow-lg shadow-[#0058bc]/20"
+                          >
+                            <span className="material-symbols-outlined text-sm">send</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right: Live Preview Panel */}
+                      <div className="col-span-12 lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+                        <div>
+                          <h4 className="text-sm font-black uppercase tracking-widest text-[#0b1c30]">{language === 'en' ? 'Live Configuration' : 'Configuración en Tiempo Real'}</h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'See fields fill up as you converse.' : 'Observa cómo se completan los campos al chatear.'}</p>
+                        </div>
+
+                        {/* WhatsApp Status Card */}
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3 relative overflow-hidden group hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <span className="material-symbols-outlined text-[#25D366] text-lg">chat</span>
+                              <span className="text-xs font-bold text-[#0b1c30]">WhatsApp Business API</span>
+                            </div>
+                            <span className={`w-2 h-2 rounded-full ${configData.whatsapp_token && configData.whatsapp_phone_id ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                          </div>
+
+                          <div className="space-y-2 text-[10px] border-t border-slate-100/80 pt-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 font-bold uppercase tracking-wider">Phone ID</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">{configData.whatsapp_phone_id || <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 font-bold uppercase tracking-wider">Bearer Token</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm max-w-[150px] truncate">{configData.whatsapp_token ? '••••••••' + configData.whatsapp_token.substring(configData.whatsapp_token.length - 8) : <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Meta Ads Status Card */}
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3 relative overflow-hidden group hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <span className="material-symbols-outlined text-indigo-600 text-lg">campaign</span>
+                              <span className="text-xs font-bold text-[#0b1c30]">Meta Ads API</span>
+                            </div>
+                            <span className={`w-2 h-2 rounded-full ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                          </div>
+
+                          <div className="space-y-2 text-[10px] border-t border-slate-100/80 pt-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 font-bold uppercase tracking-wider">Ad Account ID</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">{configData.facebook_ad_account_id || <span className="italic text-slate-300 font-normal">act_...</span>}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 font-bold uppercase tracking-wider">Page ID</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm">{configData.facebook_page_id || <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 font-bold uppercase tracking-wider">Access Token</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm max-w-[150px] truncate">{configData.facebook_access_token ? '••••••••' + configData.facebook_access_token.substring(configData.facebook_access_token.length - 8) : <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Connection Verification Info */}
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] text-slate-600 leading-relaxed space-y-2">
+                          <p className="font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm text-slate-500">lock</span> Almacenamiento seguro</p>
+                          <p>Tus credenciales y claves de API se cifran y almacenan localmente de forma segura en tu instancia privada de base de datos PostgreSQL de Supabase.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ PROFILE ════ */}
+                {settingsSection === 'profile' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Administrative Profile' : 'Perfil Administrativo'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Update your name and contact information.' : 'Actualiza tu nombre e información de contacto.'}</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                      {/* Avatar */}
+                      <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0058bc] to-[#054ADA] flex items-center justify-center text-white text-xl font-black shadow-lg shadow-[#0058bc]/20">
+                          {configData.admin_name?.substring(0, 2).toUpperCase() || 'AD'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-[#0b1c30]">{configData.admin_name || 'Administrator'}</p>
+                          <p className="text-xs text-slate-400">{configData.admin_email || ''}</p>
+                          <span className="inline-block mt-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{currentPlan === 'trial' ? 'Free Trial' : `Chatea Pro ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}`}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-50 pt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Full Name' : 'Nombre Completo'}</label>
+                          <input
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#0058bc]/20 focus:border-[#0058bc] outline-none transition-all"
+                            type="text"
+                            value={configData.admin_name}
+                            onChange={e => setConfigData({...configData, admin_name: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Email Address' : 'Correo Electrónico'}</label>
+                          <input
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#0058bc]/20 focus:border-[#0058bc] outline-none transition-all"
+                            type="email"
+                            value={configData.admin_email}
+                            onChange={e => setConfigData({...configData, admin_email: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ AI PROVIDER ════ */}
+                {settingsSection === 'ai' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'AI Provider & Engine' : 'Proveedor de IA y Motor'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your AI provider and connection credentials.' : 'Configura tu proveedor de IA y credenciales de conexión.'}</p>
+                    </div>
+
+                    {/* Provider selector */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Active Provider' : 'Proveedor Activo'}</h4>
+                        {(() => {
+                          const isOk = aiKeyStatus === 'success';
+                          const isErr = aiKeyStatus === 'error';
+                          return (
+                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : isErr ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${isOk ? 'bg-emerald-500 animate-pulse' : isErr ? 'bg-red-500' : 'bg-slate-300'}`} />
+                              {isOk ? (language === 'en' ? 'Connected' : 'Conectado') : isErr ? 'Error' : 'Offline'}
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Provider cards */}
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { id: 'openai', color: '#10a37f', icon: 'psychology', name: 'OpenAI' },
+                          { id: 'gemini', color: '#1a73e8', icon: 'auto_awesome', name: 'Gemini' },
+                          { id: 'groq',   color: '#f55036', icon: 'bolt',        name: 'Groq' },
+                        ].map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => { handleSelectAiProvider(p.id as any); setTimeout(() => handleVerifyAiKey(true), 300); }}
+                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
+                              selectedAiProvider === p.id
+                                ? 'border-[#0058bc] bg-[#0058bc]/5 shadow-md'
+                                : 'border-slate-100 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${p.color}15` }}>
+                              <span className="material-symbols-outlined text-lg" style={{ color: p.color, fontVariationSettings: "'FILL' 1" }}>{p.icon}</span>
+                            </div>
+                            <span className="text-xs font-bold text-[#0b1c30]">{p.name}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* API Key */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">API Key — {selectedAiProvider.charAt(0).toUpperCase() + selectedAiProvider.slice(1)}</label>
+                        <div className="relative">
+                          <input
+                            className={`w-full bg-slate-50 border-2 rounded-xl px-4 py-3 pr-20 text-xs font-mono text-slate-600 outline-none transition-all ${
+                              aiKeyStatus === 'success' ? 'border-emerald-300 focus:border-emerald-400' :
+                              aiKeyStatus === 'error' ? 'border-red-300 focus:border-red-400' :
+                              'border-slate-200 focus:border-[#0058bc]'
+                            }`}
+                            type={showAiApiKey ? 'text' : 'password'}
+                            placeholder={selectedAiProvider === 'openai' ? 'sk-proj-...' : selectedAiProvider === 'gemini' ? 'AIzaSy...' : 'gsk_...'}
+                            value={selectedAiProvider === 'openai' ? (configData.openai_key || '') : selectedAiProvider === 'gemini' ? (configData.gemini_key || '') : (configData.groq_key || '')}
+                            onChange={e => {
+                              const key = selectedAiProvider === 'openai' ? 'openai_key' : selectedAiProvider === 'gemini' ? 'gemini_key' : 'groq_key';
+                              setConfigData({...configData, [key]: e.target.value});
+                              setAiKeyStatus('idle');
+                            }}
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            {aiKeyStatus === 'success' && <span className="material-symbols-outlined text-emerald-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>}
+                            {aiKeyStatus === 'error' && <span className="material-symbols-outlined text-red-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>}
+                            <button type="button" onClick={() => setShowAiApiKey(!showAiApiKey)} className="text-slate-400 hover:text-slate-600">
+                              <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleVerifyAiKey}
+                        disabled={aiKeyVerifying}
+                        className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${
+                          aiKeyStatus === 'success' ? 'bg-emerald-500 text-white' :
+                          aiKeyStatus === 'error' ? 'bg-red-500 text-white' :
+                          'bg-[#0058bc] hover:bg-[#054ADA] text-white'
+                        }`}
+                      >
+                        {aiKeyVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
+                         aiKeyStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span> {language === 'en' ? 'Verified' : 'Verificado'}</> :
+                         aiKeyStatus === 'error' ? <><span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Retry' : 'Reintentar'}</> :
+                         <><span className="material-symbols-outlined text-sm">shield</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
+                      </button>
+                      {aiKeyStatusMsg && aiKeyStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${aiKeyStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{aiKeyStatusMsg}</p>}
+                    </div>
+
+                    {/* AI Settings */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Engine Parameters' : 'Parámetros del Motor'}</h4>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Model' : 'Modelo IA'}</label>
+                        <select
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#0058bc]/20 focus:border-[#0058bc] outline-none"
+                          value={configData.model_selection}
+                          onChange={e => setConfigData({...configData, model_selection: e.target.value})}
+                        >
+                          <optgroup label="OpenAI"><option value="gpt-4o">GPT-4o (Recomendado)</option><option value="gpt-4o-mini">GPT-4o Mini</option><option value="gpt-4-turbo">GPT-4 Turbo</option><option value="gpt-3.5-turbo">GPT-3.5 Turbo</option></optgroup>
+                          <optgroup label="Google Gemini"><option value="gemini-2.0-flash">Gemini 2.0 Flash</option><option value="gemini-1.5-pro">Gemini 1.5 Pro</option><option value="gemini-1.5-flash">Gemini 1.5 Flash</option></optgroup>
+                          <optgroup label="Groq"><option value="llama-3.3-70b-versatile">Llama 3.3 70B</option><option value="llama-3.1-8b-instant">Llama 3.1 8B</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option></optgroup>
+                        </select>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}</label>
+                          <span className="text-sm font-black text-[#0058bc]">{(configData.confidence_threshold * 100).toFixed(0)}%</span>
+                        </div>
+                        <input className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#0058bc]" type="range" min="0.5" max="0.99" step="0.01" value={configData.confidence_threshold} onChange={e => setConfigData({...configData, confidence_threshold: parseFloat(e.target.value)})} />
+                      </div>
+                      <div className="flex items-center justify-between py-3 border-t border-slate-50">
+                        <div>
+                          <span className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Auto-Classification' : 'Auto-Clasificación'}</span>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'Real-time intent labeling' : 'Etiquetado de intención en tiempo real'}</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" checked={configData.auto_classification} onChange={e => setConfigData({...configData, auto_classification: e.target.checked})} />
+                          <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0058bc]"></div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ WHATSAPP ════ */}
+                {settingsSection === 'whatsapp' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">WhatsApp API Gateway</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your WhatsApp Business API connection.' : 'Configura tu conexión con la API de WhatsApp Business.'}</p>
+                    </div>
+
+                    {/* Main WhatsApp */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[#128C7E]" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Main Bot Number' : 'Número Principal del Bot'}</h4>
+                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Primary conversational bot' : 'Bot conversacional principal'}</p>
+                          </div>
+                        </div>
+                        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase border ${waStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : waStatus === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${waStatus === 'success' ? 'bg-emerald-500 animate-pulse' : waStatus === 'error' ? 'bg-red-500' : 'bg-slate-300'}`} />
+                          {waStatus === 'success' ? (language === 'en' ? 'Active' : 'Activo') : waStatus === 'error' ? 'Error' : (language === 'en' ? 'Not verified' : 'Sin verificar')}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Bearer API Token' : 'Token de API'}</label>
+                        <div className="flex gap-2">
+                          <input className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="password" value={configData.whatsapp_token} onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})} />
+                          <button onClick={() => navigator.clipboard.writeText(configData.whatsapp_token)} className="bg-slate-100 p-3 rounded-xl hover:bg-slate-200 transition-colors text-slate-500">
+                            <span className="material-symbols-outlined text-sm">content_copy</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Phone Number ID' : 'ID de Teléfono'}</label>
+                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="text" value={configData.whatsapp_phone_id} onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Webhook URL</label>
+                          <input className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-400 outline-none" type="text" readOnly value={`https://api.rifx-sovereign.io/hooks/v1/wa/${configData.whatsapp_phone_id || 'ID'}`} />
+                        </div>
+                      </div>
+
+                      <button onClick={handleVerifyWhatsApp} disabled={waVerifying} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${waStatus === 'success' ? 'bg-[#25D366] text-white' : waStatus === 'error' ? 'bg-red-500 text-white' : 'bg-[#128C7E] hover:bg-[#075E54] text-white'}`}>
+                        {waVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
+                         waStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Connection Verified' : 'Conexión Verificada'}</> :
+                         waStatus === 'error' ? <><span className="material-symbols-outlined text-sm">error</span> {language === 'en' ? 'Verification Failed' : 'Verificación Fallida'}</> :
+                         <><span className="material-symbols-outlined text-sm">verified</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
+                      </button>
+                      {waStatusMsg && waStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${waStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{waStatusMsg}</p>}
+                    </div>
+
+                    {/* Bulk WhatsApp */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-amber-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bulk Messaging Number' : 'Número para Masivos'}</h4>
+                          <p className="text-[10px] text-slate-400">{language === 'en' ? 'Separate number to protect your main bot' : 'Número separado para proteger tu bot principal'}</p>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed">
+                        {language === 'en' ? 'This protects your main bot number from potential blocks when doing bulk sends.' : 'Esto protege tu número principal del bot de posibles bloqueos al hacer envíos masivos.'}
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Token API Masivos</label>
+                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-amber-400 transition-all" type="password" placeholder="Bearer token..." value={configData.bulk_wa_token || ''} onChange={e => setConfigData({...configData, bulk_wa_token: e.target.value})} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Phone ID Masivos</label>
+                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition-all" type="text" placeholder="ID de teléfono..." value={configData.bulk_wa_phone_id || ''} onChange={e => setConfigData({...configData, bulk_wa_phone_id: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase border ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
+                        {configData.bulk_wa_token && configData.bulk_wa_phone_id ? (language === 'en' ? 'Bulk number configured' : 'Número masivo configurado') : (language === 'en' ? 'Not configured — will use main number' : 'No configurado — usará número principal')}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ NOTIFICATIONS ════ */}
+                {settingsSection === 'notifications' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Notifications & Alerts' : 'Notificaciones y Alertas'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Choose how and when you receive alerts.' : 'Elige cómo y cuándo recibes alertas.'}</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Notification Email' : 'Correo de Notificaciones'}</label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span className="material-symbols-outlined text-slate-400 text-base">mail</span>
+                          </span>
+                          <input type="email" className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" placeholder="alertas@ejemplo.com" value={configData.alert_email || ''} onChange={e => setConfigData({...configData, alert_email: e.target.value})} />
+                          {configData.alert_email && <span className="absolute inset-y-0 right-0 pr-4 flex items-center"><span className="material-symbols-outlined text-emerald-500 text-sm" style={{fontVariationSettings: "'FILL' 1"}}>check_circle</span></span>}
+                        </div>
+                        <p className="text-[10px] text-slate-400">{language === 'en' ? 'Errors and critical alerts will be sent here.' : 'Los errores y alertas críticas se enviarán aquí.'}</p>
+                      </div>
+
+                      <div className="border-t border-slate-50 pt-5 space-y-3">
+                        {[
+                          { key: 'email_alerts', icon: 'mail', label: language === 'en' ? 'Critical Email Alerts' : 'Alertas Críticas por Email', desc: language === 'en' ? 'Receive alerts for critical system events' : 'Recibe alertas para eventos críticos del sistema' },
+                          { key: 'push_notifications', icon: 'notifications_active', label: language === 'en' ? 'Push Notifications' : 'Notificaciones Push', desc: language === 'en' ? 'Real-time browser notifications' : 'Notificaciones en tiempo real en el navegador' },
+                          { key: 'daily_briefing', icon: 'summarize', label: language === 'en' ? 'Daily Briefing' : 'Resumen Diario', desc: language === 'en' ? 'Daily summary of activity and metrics' : 'Resumen diario de actividad y métricas' },
+                        ].map(alert => (
+                          <div key={alert.key} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-slate-400 text-base">{alert.icon}</span>
+                              </div>
+                              <div>
+                                <span className="text-sm font-semibold text-[#0b1c30]">{alert.label}</span>
+                                <p className="text-[10px] text-slate-400">{alert.desc}</p>
+                              </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                              <input type="checkbox" className="sr-only peer" checked={configData[alert.key]} onChange={e => setConfigData({...configData, [alert.key]: e.target.checked})} />
+                              <div className="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0058bc]"></div>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ META ADS ════ */}
+                {settingsSection === 'meta' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">Facebook & Meta Ads</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Connect your Meta advertising account to publish campaigns.' : 'Conecta tu cuenta publicitaria de Meta para publicar campañas.'}</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-indigo-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Meta API Credentials' : 'Credenciales API de Meta'}</h4>
+                          <div className={`inline-flex items-center gap-1.5 mt-0.5 text-[10px] font-bold ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'text-indigo-600' : 'text-slate-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                            {configData.facebook_access_token && configData.facebook_ad_account_id ? (language === 'en' ? 'Configured' : 'Configurado') : (language === 'en' ? 'Not configured' : 'No configurado')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-[10px] text-indigo-800 leading-relaxed">
+                        {language === 'en' ? 'Configure your Facebook Access Token, Ad Account ID, and Page ID to publish ads directly from the campaigns panel.' : 'Configura tu Token de Acceso de Facebook, ID de Cuenta Publicitaria y ID de Página para publicar anuncios directamente desde el panel.'}
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Meta Access Token</label>
+                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-300/30 transition-all" type="password" placeholder="EAASJOMg..." value={configData.facebook_access_token || ''} onChange={e => setConfigData({...configData, facebook_access_token: e.target.value})} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Ad Account ID</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-indigo-400 transition-all" type="text" placeholder="act_123456789" value={configData.facebook_ad_account_id || ''} onChange={e => setConfigData({...configData, facebook_ad_account_id: e.target.value})} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Page ID</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-indigo-400 transition-all" type="text" placeholder="1234567890" value={configData.facebook_page_id || ''} onChange={e => setConfigData({...configData, facebook_page_id: e.target.value})} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ MEMORY ════ */}
+                {settingsSection === 'memory' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Memory Management' : 'Gestión de Memoria'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Control AI conversation memory retention and cleanup.' : 'Controla la retención de memoria de conversaciones IA y limpieza.'}</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                      {/* Usage bar */}
+                      {(() => {
+                        const maxMessages = 10000;
+                        const usagePercent = Math.min(100, Math.round((memoryUsage.totalMessages / maxMessages) * 100));
+                        const isWarning = usagePercent >= 70;
+                        const isCritical = usagePercent >= 90;
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Memory Usage' : 'Uso de Memoria'}</h4>
+                              <span className={`text-sm font-black ${isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-600'}`}>{usagePercent}%</span>
+                            </div>
+                            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-700 ${isCritical ? 'bg-gradient-to-r from-red-400 to-red-600' : isWarning ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'}`} style={{ width: `${usagePercent}%` }} />
+                            </div>
+                            <div className="flex items-center gap-6 mt-2">
+                              <span className="text-[10px] text-slate-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">chat</span>{memoryUsage.totalMessages.toLocaleString()} {language === 'en' ? 'messages' : 'mensajes'}</span>
+                              <span className="text-[10px] text-slate-500 flex items-center gap-1"><span className="material-symbols-outlined text-[10px]">people</span>{memoryUsage.totalConversations} {language === 'en' ? 'conversations' : 'conversaciones'}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Retention */}
+                      <div className="border-t border-slate-50 pt-5 space-y-3">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Auto-Delete After' : 'Eliminar Automáticamente Después De'}</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[{ value: 7, label: '7 días' }, { value: 15, label: '15 días' }, { value: 30, label: '30 días' }, { value: 90, label: '90 días' }].map(opt => (
+                            <button key={opt.value} onClick={() => { setMemoryRetentionDays(opt.value); setConfigData({...configData, media_retention_days: opt.value}); }} className={`py-3 rounded-xl text-xs font-bold transition-all ${(configData.media_retention_days || memoryRetentionDays) === opt.value ? 'bg-[#0058bc] text-white shadow-md shadow-[#0058bc]/20' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'}`}>{opt.label}</button>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-slate-400">{language === 'en' ? `Conversations older than ${configData.media_retention_days || memoryRetentionDays} days will be purged.` : `Las conversaciones con más de ${configData.media_retention_days || memoryRetentionDays} días se purgarán.`}</p>
+                      </div>
+
+                      {/* Clear memory */}
+                      <div className="border-t border-slate-50 pt-5 space-y-3">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Manual Reset' : 'Reinicio Manual'}</label>
+                        <button onClick={handleClearMemory} disabled={memoryClearing} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${memoryClearSuccess ? 'bg-emerald-500 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}>
+                          {memoryClearing ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Clearing...' : 'Limpiando...'}</> :
+                           memoryClearSuccess ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Cleared!' : '¡Borrada!'}</> :
+                           <><span className="material-symbols-outlined text-sm">delete_forever</span> {language === 'en' ? 'Clear All Memory' : 'Borrar Toda la Memoria'}</>}
+                        </button>
+                        <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[10px] text-amber-700 flex items-start gap-2">
+                          <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">warning</span>
+                          {language === 'en' ? 'This permanently deletes all cached conversations and AI context. Cannot be undone.' : 'Esto elimina permanentemente todas las conversaciones en caché y el contexto de IA. No se puede deshacer.'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ SECURITY ════ */}
+                {settingsSection === 'security' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Security & Credentials' : 'Seguridad y Credenciales'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Manage your password and access security.' : 'Administra tu contraseña y seguridad de acceso.'}</p>
+                    </div>
+
+                    <div id="password-section" className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5 scroll-mt-20">
+                      <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-emerald-600">lock_reset</span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Change Password' : 'Cambiar Contraseña'}</h4>
+                          <p className="text-[10px] text-slate-400">{language === 'en' ? 'Update your access credentials regularly.' : 'Actualiza tus credenciales de acceso regularmente.'}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Current Password' : 'Contraseña Actual'}</label>
+                          <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'New Password' : 'Nueva Contraseña'}</label>
+                            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confirm Password' : 'Confirmar Contraseña'}</label>
+                            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2">
+                        <p className="text-[10px] text-slate-400 max-w-xs">{language === 'en' ? 'Use a strong password with at least 8 characters.' : 'Usa una contraseña fuerte con al menos 8 caracteres.'}</p>
+                        <button onClick={handleChangePassword} disabled={changingPassword || !newPassword} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2">
+                          {changingPassword ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">lock</span>}
+                          {language === 'en' ? 'Update Password' : 'Actualizar Contraseña'}
+                        </button>
+                      </div>
+                      {passwordError && <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">{passwordError}</p>}
+                      {passwordSuccess && <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{language === 'en' ? '✓ Password updated successfully!' : '✓ ¡Contraseña actualizada con éxito!'}</p>}
+                    </div>
+                  </div>
+                )}
+
+                {/* ════ DROPI INTEGRATION ════ */}
+                {settingsSection === 'dropi' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Dropi Dropshipping Integration' : 'Integración de Dropshipping con Dropi'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your dropshipping credentials to automate orders from the chatbot.' : 'Configura tus credenciales de dropshipping para automatizar pedidos desde el chatbot.'}</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-blue-600">local_shipping</span>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Enable Dropi Agent' : 'Habilitar Agente de Dropi'}</h4>
+                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Allow the chatbot to take orders and create shipments automatically.' : 'Permite al chatbot tomar pedidos y crear envíos automáticamente.'}</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={configData.dropi_enabled || false}
+                            onChange={e => setConfigData({ ...configData, dropi_enabled: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+
+                      {configData.dropi_enabled && (
+                        <div className="space-y-4 pt-2">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de Integración de Dropi'}
+                            </label>
+                            <input
+                              type="password"
+                              value={configData.dropi_token || ''}
+                              onChange={e => setConfigData({ ...configData, dropi_token: e.target.value })}
+                              placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                            />
+                            <p className="text-[9px] text-slate-400">
+                              {language === 'en' ? 'Get this token from your Dropi dashboard -> Integrations.' : 'Consigue este token en tu panel de Dropi -> Integraciones.'}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {language === 'en' ? 'Default Product ID' : 'ID del Producto por Defecto (Dropi)'}
+                              </label>
+                              <input
+                                type="text"
+                                value={configData.dropi_default_product_id || ''}
+                                onChange={e => setConfigData({ ...configData, dropi_default_product_id: e.target.value })}
+                                placeholder="Ej: 123456"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {language === 'en' ? 'Default Price (USD)' : 'Precio de Venta por Defecto (USD)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={configData.dropi_default_price || ''}
+                                onChange={e => setConfigData({ ...configData, dropi_default_price: Number(e.target.value) })}
+                                placeholder="Ej: 50"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-[10px] text-blue-700 flex items-start gap-2">
+                            <span className="material-symbols-outlined text-blue-500 text-sm mt-0.5">info</span>
+                            <div>
+                              <p className="font-bold">{language === 'en' ? 'How it works:' : 'Cómo funciona:'}</p>
+                              <p className="mt-0.5">
+                                {language === 'en' 
+                                  ? 'The bot will collect name, phone, address, and city from customers, then send them to Dropi. Orders will default to Cash on Delivery (Contra Entrega).' 
+                                  : 'El bot le pedirá al cliente su nombre, teléfono, dirección y ciudad, y luego creará la orden en Dropi. Las órdenes se configuran como Contra Entrega por defecto.'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              </div>{/* end right content */}
+            </div>{/* end two-column */}
           </motion.div>
         )}
+
+
 
 
 
@@ -4449,7 +7413,101 @@ export default function PanelClient() {
             <div className="grid grid-cols-12 gap-8">
               {/* Left Column */}
               <div className="col-span-12 lg:col-span-7 space-y-8">
-                {/* Identity & Tone */}
+                {/* Sub-tabs Ajustes / Fuentes */}
+                <div className="flex space-x-8 border-b border-slate-200 mb-2">
+                  <button
+                    onClick={() => setPlaygroundSubTab('ajustes')}
+                    className={`pb-3 text-sm font-bold tracking-wide transition-all ${
+                      playgroundSubTab === 'ajustes'
+                        ? 'border-b-2 border-[#0058bc] text-[#0b1c30]'
+                        : 'text-slate-400 hover:text-slate-600 border-b border-transparent font-semibold'
+                    }`}
+                  >
+                    {language === 'en' ? 'Settings' : 'Ajustes'}
+                  </button>
+                  <button
+                    onClick={() => setPlaygroundSubTab('fuentes')}
+                    className={`pb-3 text-sm font-bold tracking-wide transition-all ${
+                      playgroundSubTab === 'fuentes'
+                        ? 'border-b-2 border-[#0058bc] text-[#0b1c30]'
+                        : 'text-slate-400 hover:text-slate-600 border-b border-transparent font-semibold'
+                    }`}
+                  >
+                    {language === 'en' ? 'Sources' : 'Fuentes'}
+                  </button>
+                </div>
+
+                {playgroundSubTab === 'fuentes' ? (
+                  <div className="space-y-6">
+                    <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                      <div className="max-w-xl mb-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">
+                          {language === 'en' ? 'Information Sources' : 'Fuentes de Información'}
+                        </h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          {language === 'en' 
+                            ? 'Define the verified sources of information so your AI agent has complete clarity on your products, returns, terms, shipping, and contact info.' 
+                            : 'Defina las fuentes verificadas de información para que su agente de IA tenga total claridad sobre sus productos, devoluciones, términos, envíos y datos de contacto.'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {[
+                          { file_name: 'fuente_productos.txt', nameEs: 'Productos', descEs: 'Lista de catálogo de productos' },
+                          { file_name: 'fuente_devoluciones.txt', nameEs: 'Política de devoluciones y reembolsos', descEs: 'Políticas para reembolsos y devoluciones' },
+                          { file_name: 'fuente_privacidad.txt', nameEs: 'Política de privacidad', descEs: 'Normativas de protección de datos de clientes' },
+                          { file_name: 'fuente_terminos.txt', nameEs: 'Términos y condiciones de servicio', descEs: 'Contrato de términos y condiciones de la tienda' },
+                          { file_name: 'fuente_envio.txt', nameEs: 'Política de envío', descEs: 'Detalles de tiempos y coberturas de envío' },
+                          { file_name: 'fuente_contacto.txt', nameEs: 'Información de contacto', descEs: 'Medios de contacto para atención humana' },
+                        ].map((policy) => {
+                          const file = botKnowledgeFiles.find(f => f.name === policy.file_name);
+                          const isActive = file ? file.active : false;
+                          
+                          return (
+                            <div key={policy.file_name} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100/80 hover:bg-slate-100/30 transition-all">
+                              <div className="flex items-center space-x-3.5">
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                                  isActive ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'
+                                }`}>
+                                  {isActive ? (
+                                    <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
+                                  ) : (
+                                    <span className="material-symbols-outlined text-sm">circle</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <span className="text-xs font-bold text-slate-700 block">{policy.nameEs}</span>
+                                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                                    {isActive 
+                                      ? (language === 'en' ? 'Source active and verified' : 'Fuente activa y verificada') 
+                                      : (language === 'en' ? 'Source not configured' : 'Fuente no configurada')}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setEditingPolicy({
+                                    name: policy.nameEs,
+                                    file_name: policy.file_name,
+                                    content: file ? (file.content || '') : ''
+                                  });
+                                }}
+                                className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-[#0058bc] font-bold text-[10px] rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                              >
+                                <span className="material-symbols-outlined text-xs">edit</span>
+                                {isActive 
+                                  ? (language === 'en' ? 'Edit source' : 'Editar fuente') 
+                                  : (language === 'en' ? 'Configure' : 'Configurar fuente')}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </div>
+                ) : (
+                  <>
+                    {/* Identity & Tone */}
                 <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6 flex items-center"><span className="material-symbols-outlined text-lg mr-2">psychology</span>{language === 'en' ? 'Identity & Tone' : 'Identidad y Tono'}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -4607,6 +7665,8 @@ export default function PanelClient() {
                   </div>
                   <div className="absolute top-0 right-0 w-32 h-32 bg-primary-container/5 blur-3xl rounded-full translate-x-10 -translate-y-10" />
                 </section>
+                  </>
+                )}
               </div>
 
               {/* Right Column: Chat Preview */}
@@ -4728,6 +7788,544 @@ export default function PanelClient() {
           </motion.div>
         )}
 
+        {activeTab === 'banners' && (
+          <motion.div
+            key="banners"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            {/* Header */}
+            <header className="mb-4">
+              <h2 className="text-3xl font-bold tracking-tight text-[#0b1c30] mb-1" style={{ fontFamily: 'Inter' }}>
+                {language === 'en' ? 'Create Banners' : 'Crear Pancartas'}
+              </h2>
+              <p className="text-sm text-[#414754]">
+                {language === 'en' 
+                  ? 'Design expert high-conversion banners using manual templates or AI and recreate them easily.' 
+                  : 'Diseña pancartas publicitarias de alta conversión con plantillas inteligentes y recréalas paso a paso.'}
+              </p>
+            </header>
+
+            {/* ── STEPPER ── */}
+            <div className="bg-white rounded-xl border border-[#c1c6d6] p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                {([
+                  { step: 1 as const, icon: 'palette', label: language === 'en' ? 'Choose Style' : 'Elegir Estilo' },
+                  { step: 2 as const, icon: 'content_copy', label: language === 'en' ? 'Copy Prompt' : 'Copiar Prompt' },
+                  { step: 3 as const, icon: 'auto_awesome', label: language === 'en' ? 'Create Ad' : 'Crear Publicidad' },
+                  { step: 4 as const, icon: 'cloud_upload', label: language === 'en' ? 'Finish & Publish' : 'Subir e Ir a Pautas' },
+                ]).map((s, i, arr) => (
+                  <React.Fragment key={s.step}>
+                    <div className="flex flex-col items-center gap-1.5 min-w-0">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                        bannerFlowStep > s.step
+                          ? 'bg-[#006947] text-white shadow-lg shadow-[#006947]/20'
+                          : bannerFlowStep === s.step
+                          ? 'bg-[#0058bc] text-white shadow-lg shadow-[#0058bc]/30 scale-110'
+                          : 'bg-[#eff4ff] text-[#727785]'
+                      }`}>
+                        {bannerFlowStep > s.step ? (
+                          <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-lg">{s.icon}</span>
+                        )}
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider text-center leading-tight ${
+                        bannerFlowStep === s.step ? 'text-[#0058bc]' : bannerFlowStep > s.step ? 'text-[#006947]' : 'text-[#727785]'
+                      }`}>
+                        {s.label}
+                      </span>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className={`flex-1 h-0.5 mx-2 rounded-full transition-all duration-500 ${
+                        bannerFlowStep > s.step ? 'bg-[#006947]' : 'bg-[#e5eeff]'
+                      }`} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              
+              {/* PASO 1: CONFIGURATION & TEMPLATE SELECTION */}
+              {bannerFlowStep === 1 && (
+                <motion.div
+                  key="banner-step1"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-6"
+                >
+                  <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                    {/* Left Column: Config Panel */}
+                    <div className="xl:col-span-7 space-y-6">
+                      
+                      {/* Template Selection */}
+                      <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-base font-bold text-[#0b1c30] flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[#0058bc]">palette</span>
+                            {language === 'en' ? 'Select Layout Preset' : 'Seleccionar Plantilla de Diseño'}
+                          </h3>
+                        </div>
+                        
+                        {/* Category Filter Tabs */}
+                        <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-none mb-3">
+                          {[
+                            { id: 'all', label: language === 'en' ? 'All Styles' : 'Todos' },
+                            { id: 'belleza', label: language === 'en' ? 'Beauty' : 'Belleza' },
+                            { id: 'suplementos', label: language === 'en' ? 'Fitness' : 'Suplementos' },
+                            { id: 'tech', label: language === 'en' ? 'Tech' : 'Tech' },
+                            { id: 'moda', label: language === 'en' ? 'Fashion' : 'Moda' }
+                          ].map(cat => (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setTemplateCategoryFilter(cat.id as any)}
+                              className={`px-3 py-1 text-[10px] font-bold rounded-full transition-all shrink-0 border ${
+                                templateCategoryFilter === cat.id
+                                  ? 'bg-[#0b1c30] text-white border-[#0b1c30]'
+                                  : 'bg-white text-[#414754] border-[#c1c6d6] hover:bg-[#eff4ff]'
+                              }`}
+                            >
+                              {cat.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Templates Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                          {[...CREATIVE_TEMPLATES, ...dbTemplates].filter(tpl =>
+                            templateCategoryFilter === 'all' || tpl.category === templateCategoryFilter
+                          ).map(tpl => {
+                            const isSelected = selectedTemplate?.id === tpl.id;
+                            const isDbTemplate = !!tpl.preview_image_url;
+
+                            if (isDbTemplate) {
+                              return (
+                                <div
+                                  key={tpl.id}
+                                  onClick={() => setSelectedTemplate(tpl)}
+                                  className={`group relative cursor-pointer rounded-lg overflow-hidden aspect-[4/5] flex flex-col justify-end transition-all select-none border-2 ${
+                                    isSelected ? 'border-[#0058bc] shadow ring-2 ring-[#0058bc]/30 scale-[1.01]' : 'border-slate-200 hover:border-[#0058bc]/40'
+                                  }`}
+                                  style={{ backgroundImage: `url(${tpl.preview_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+                                >
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                                  <div className="relative z-10 p-2 text-white">
+                                    <h4 className="text-[10px] font-bold truncate leading-tight">{tpl.name}</h4>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={tpl.id}
+                                onClick={() => setSelectedTemplate(tpl)}
+                                className={`cursor-pointer rounded-lg border p-2 flex flex-col justify-between transition-all select-none aspect-[4/5] ${
+                                  isSelected ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-[#0058bc]' : 'bg-white border-[#c1c6d6] hover:border-[#0058bc]/40'
+                                }`}
+                              >
+                                <div>
+                                  <span className="text-lg">{tpl.icon}</span>
+                                  <h4 className="text-[10px] font-bold text-slate-800 leading-tight mt-1 line-clamp-1">{tpl.name}</h4>
+                                  <p className="text-[8px] text-slate-400 line-clamp-2 mt-0.5 leading-tight">{tpl.description}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </div>
+
+                    {/* Right Column: Mini Preview & Stepper navigation */}
+                    <div className="xl:col-span-5">
+                      <div className="bg-white rounded-2xl border border-[#c1c6d6] p-5 shadow-sm text-center">
+                        <span className="text-[9px] font-black uppercase text-[#0058bc] tracking-wider block mb-2">{language === 'en' ? 'Selected Style Preview' : 'Estilo de Composición'}</span>
+                        <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 flex items-center justify-center aspect-[4/5] max-w-[220px] mx-auto w-full mb-4">
+                          {selectedTemplate ? (
+                            selectedTemplate.preview_image_url ? (
+                              <img src={selectedTemplate.preview_image_url} alt={selectedTemplate.name} className="w-full h-full object-contain rounded-lg shadow-sm" />
+                            ) : (
+                              <div className="text-center p-3">
+                                <span className="text-3xl block mb-1">{selectedTemplate.icon}</span>
+                                <h4 className="text-xs font-bold text-slate-800">{selectedTemplate.name}</h4>
+                                <p className="text-[10px] text-slate-500 mt-1">{selectedTemplate.description}</p>
+                              </div>
+                            )
+                          ) : (
+                            <div className="text-center p-3 text-slate-300">
+                              <span className="material-symbols-outlined text-4xl mb-1">image_search</span>
+                              <p className="text-[10px] font-bold">{language === 'en' ? 'Select Template' : 'Elige una Plantilla'}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {selectedTemplate && (
+                          <button
+                            type="button"
+                            onClick={() => { setBannerFlowStep(2); setBannerPromptCopied(false); }}
+                            className="w-full py-3 bg-[#0058bc] text-white font-bold text-xs rounded-xl hover:bg-[#054ADA] transition-all flex items-center justify-center gap-1.5 shadow"
+                          >
+                            {language === 'en' ? 'Continue Setup' : 'Continuar con el Diseño'}
+                            <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* PASO 2: COPY CHATGPT PROMPT */}
+              {bannerFlowStep === 2 && selectedTemplate && (
+                <motion.div
+                  key="banner-step2"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                  className="max-w-2xl mx-auto space-y-6"
+                >
+                  <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-[#eff4ff] border border-[#cbd5e1] flex items-center justify-center mx-auto mb-3">
+                      <span className="material-symbols-outlined text-2xl text-[#0058bc]">{bannerPromptCopied ? 'check_circle' : 'content_copy'}</span>
+                    </div>
+                    <h3 className="text-lg font-bold text-[#0b1c30] mb-1">
+                      {bannerPromptCopied ? '¡Instrucciones de Diseño Copiadas!' : 'Tus instrucciones creativas están listas'}
+                    </h3>
+                    <p className="text-xs text-[#414754] max-w-md mx-auto leading-relaxed mb-5">
+                      {bannerPromptCopied 
+                        ? 'Excelente. Presiona Continuar para ver la guía rápida de recreación.' 
+                        : 'Preparamos todas las directrices de empaquetado visual y copys inteligentes. Cópialas con un solo clic.'}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const baseConfig = (selectedTemplate as any)._rawConfigJson || selectedTemplate;
+                        const promptToCopy = agentGeneratedPrompt 
+                          ? `${agentGeneratedPrompt}\n\n====================================\nINSTRUCCIONES CREATIVAS DE DISEÑO:\n====================================\n${JSON.stringify(baseConfig, null, 2)}`
+                          : JSON.stringify(baseConfig, null, 2);
+                        navigator.clipboard.writeText(promptToCopy);
+                        setBannerPromptCopied(true);
+                        setToast({ message: language === 'en' ? '✅ Copied instructions!' : '✅ ¡Instrucciones copiadas!', type: 'success' });
+                      }}
+                      className="px-6 py-3 bg-[#0058bc] text-white font-bold text-xs rounded-xl hover:bg-[#054ADA] transition-all flex items-center gap-2 mx-auto shadow"
+                    >
+                      <span className="material-symbols-outlined text-sm">content_copy</span>
+                      {language === 'en' ? 'Copy Prompt Instructions' : 'Copiar Instrucciones y Prompt'}
+                    </button>
+
+                    {agentGeneratedPrompt && (
+                      <div className="mt-4 text-left p-3.5 bg-slate-50 border border-slate-200 rounded-xl max-h-32 overflow-y-auto scrollbar-thin">
+                        <span className="text-[9px] font-black text-[#0058bc] uppercase tracking-wider block mb-1">📝 Vista previa del Prompt:</span>
+                        <pre className="text-[10px] text-slate-600 whitespace-pre-wrap font-sans leading-normal">{agentGeneratedPrompt}</pre>
+                      </div>
+                    )}
+                  </section>
+
+                  {/* Actions buttons */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setBannerFlowStep(1)}
+                      className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
+                    >
+                      <span className="material-symbols-outlined text-xs">arrow_back</span>
+                      {language === 'en' ? 'Back' : 'Atrás'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setBannerFlowStep(3); setBannerGenerationConfirmed(false); }}
+                      disabled={!bannerPromptCopied}
+                      className="px-5 py-2 bg-[#0058bc] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#054ADA] transition-all shadow"
+                    >
+                      {language === 'en' ? 'Continue' : 'Continuar'}
+                      <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* PASO 3: CHATGPT RECREATION INSTRUCTIONS */}
+              {bannerFlowStep === 3 && (
+                <motion.div
+                  key="banner-step3"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                  className="max-w-2xl mx-auto space-y-6"
+                >
+                  <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
+                    <h3 className="text-base font-bold text-[#0b1c30] mb-4 text-center">Recrea tu Ad Profesional en ChatGPT</h3>
+                    
+                    <div className="space-y-3">
+                      {[
+                        { num: 1, icon: 'content_paste', title: 'Pega las instrucciones', desc: 'Abre ChatGPT y pega las instrucciones creativas y el prompt que copiaste.' },
+                        { num: 2, icon: 'image', title: 'Selecciona Generar Imagen', desc: 'Asegúrate de tener seleccionada la opción de generación de imágenes (DALL-E) en ChatGPT, de lo contrario no funcionará el prompt.' },
+                        { num: 3, icon: 'add_photo_alternate', title: 'Sube la foto del producto', desc: 'Adjunta una foto limpia de tu producto en el mismo mensaje.' },
+                        { num: 4, icon: 'brush', title: 'Crea tu composición', desc: 'ChatGPT fusionará automáticamente los textos e integrará el producto en la plantilla.' },
+                      ].map(step => (
+                        <div key={step.num} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                            <span className="material-symbols-outlined text-sm">{step.icon}</span>
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-[#0b1c30]">Paso {step.num}: {step.title}</h4>
+                            <p className="text-[10px] text-slate-500 leading-normal mt-0.5">{step.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <a
+                      href="https://chat.openai.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-5 w-full py-3 bg-[#10a37f] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow"
+                    >
+                      <span>Abrir ChatGPT</span>
+                      <span className="material-symbols-outlined text-xs">open_in_new</span>
+                    </a>
+
+                    <div className="mt-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                      <label className="flex items-start gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={bannerGenerationConfirmed}
+                          onChange={e => setBannerGenerationConfirmed(e.target.checked)}
+                          className="mt-0.5 rounded border-[#c1c6d6] text-[#0058bc] focus:ring-[#0058bc]"
+                        />
+                        <div>
+                          <p className="text-xs font-bold text-[#0b1c30]">Listo, ya generé mi publicidad</p>
+                          <p className="text-[10px] text-slate-500">Marca esta casilla una vez que tengas la imagen del anuncio lista para subir.</p>
+                        </div>
+                      </label>
+                    </div>
+                  </section>
+
+                  {/* Actions buttons */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setBannerFlowStep(2)}
+                      className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
+                    >
+                      <span className="material-symbols-outlined text-xs">arrow_back</span>
+                      {language === 'en' ? 'Back' : 'Atrás'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setBannerFlowStep(4); setGeneratedBanner(null); }}
+                      disabled={!bannerGenerationConfirmed}
+                      className="px-5 py-2 bg-[#0058bc] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#054ADA] transition-all shadow"
+                    >
+                      {language === 'en' ? 'Continue' : 'Continuar'}
+                      <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* PASO 4: UPLOAD & EXPORT REDIRECT */}
+              {bannerFlowStep === 4 && (
+                <motion.div
+                  key="banner-step4"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-6"
+                >
+                  {generatedBanner ? (
+                    /* Centered success layout when banner exists */
+                    <div className="max-w-md mx-auto bg-white rounded-2xl border border-[#c1c6d6] p-6 text-center space-y-6 shadow-sm">
+                      <h3 className="text-base font-bold text-[#0b1c30] flex items-center justify-center gap-2">
+                        <span className="material-symbols-outlined text-[#006947]">task_alt</span>
+                        {language === 'en' ? 'Perfect, you have your banners!' : 'Perfecto, ya tienes tus pancartas'}
+                      </h3>
+
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 flex items-center justify-center aspect-[4/5] max-w-[240px] mx-auto w-full shadow-inner">
+                        <img src={generatedBanner} alt="Ad Preview" className="w-full h-full object-contain rounded shadow" />
+                      </div>
+
+                      <div className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={handleDownloadBanner}
+                          className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow hover:opacity-95 transition-opacity"
+                        >
+                          <span className="material-symbols-outlined text-sm">download</span>
+                          {language === 'en' ? 'Download Banner' : 'Descargar Banner'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Double pre-fill in campaigns publish image states
+                            setFinalUploadedImage(generatedBanner);
+                            setCampaignImagePreview(generatedBanner);
+                            setCampaignImage(null); // set as pre-loaded URL
+                            
+                            // Route state to Campaigns Step 2 (Configure & Publish)
+                            setChatgptFlowStep(2);
+                            setCampaignSubTab('creative');
+                            setActiveTab('campaigns');
+                            
+                            setToast({
+                              message: language === 'en' 
+                                ? '🚀 Ad uploaded! Pre-filled in your Ad Campaigns configure & publish.' 
+                                : '🚀 ¡Anuncio cargado! Pre-configurado en la publicación de tus pautas.',
+                              type: 'success'
+                            });
+                          }}
+                          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 active:scale-98 hover:opacity-95 transition-opacity"
+                        >
+                          <span className="material-symbols-outlined text-sm">campaign</span>
+                          {language === 'en' ? 'Go to Ad Campaigns' : '¡Listo! Ir a Publicar Campaña'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Reset everything to start a new banner
+                            setGeneratedBanner(null);
+                            setFinalUploadedImage(null);
+                            setCampaignImage(null);
+                            setCampaignImagePreview(null);
+                            setBannerFlowStep(1);
+                            setBannerPromptCopied(false);
+                            setBannerGenerationConfirmed(false);
+                          }}
+                          className="w-full py-2.5 border border-[#c1c6d6] text-[#414754] font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 hover:bg-slate-50 transition-all active:scale-98"
+                        >
+                          <span className="material-symbols-outlined text-sm">autorenew</span>
+                          {language === 'en' ? 'Generate another banner' : 'Generar otra pancarta'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Regular two-column layout when no banner exists */
+                    <>
+                      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                        {/* Left Panel: Dropzone & Settings */}
+                        <div className="xl:col-span-7 space-y-6">
+                          
+                          {/* Upload Area */}
+                          <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
+                            <h3 className="text-base font-bold text-[#0b1c30] mb-2 flex items-center gap-2">
+                              <span className="material-symbols-outlined text-[#0058bc]">cloud_upload</span>
+                              {language === 'en' ? 'Upload Final Advertisement' : 'Sube tu Ad Terminado'}
+                            </h3>
+                            <p className="text-xs text-[#414754] mb-4">
+                              {language === 'en' ? 'Upload the final image banner generated.' : 'Sube la imagen final generada para tu anuncio publicitario.'}
+                            </p>
+
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              ref={finalImageInputRef}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const url = URL.createObjectURL(file);
+                                  setGeneratedBanner(url);
+                                  setFinalUploadedImage(url);
+                                  setCampaignImage(file);
+                                  setCampaignImagePreview(url);
+                                }
+                              }}
+                            />
+
+                            <div
+                              onClick={() => finalImageInputRef.current?.click()}
+                              className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-gradient-to-br from-blue-50/10 to-indigo-50/10 p-8 flex flex-col items-center justify-center cursor-pointer hover:border-[#0058bc] hover:bg-blue-50/40 transition-all text-center"
+                            >
+                              <span className="material-symbols-outlined text-[#0058bc] text-3xl mb-1.5">cloud_upload</span>
+                              <p className="text-xs font-bold text-[#0b1c30]">{language === 'en' ? 'Upload final ad image' : 'Subir la imagen final'}</p>
+                            </div>
+                          </section>
+
+                          {/* Optional Aspect Ratio / Smart colors customization overlays */}
+                          <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
+                            <h3 className="text-base font-bold text-[#0b1c30] mb-3">{language === 'en' ? 'Optional Customizer' : 'Personalizador de Lienzo'}</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Formato</label>
+                                <select
+                                  value={selectedAspectRatio}
+                                  onChange={e => setSelectedAspectRatio(e.target.value)}
+                                  className="w-full p-2 bg-[#eff4ff] border border-[#c1c6d6] rounded-lg text-xs outline-none"
+                                >
+                                  <option value="1:1">1:1 - Post de Feed</option>
+                                  <option value="9:16">9:16 - Instagram Story</option>
+                                  <option value="4:5">4:5 - Feed Vertical</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Paleta Inteligente</label>
+                                <div className="flex gap-2 items-center">
+                                  <input
+                                    type="color"
+                                    value={compositorColors?.primary || '#0058bc'}
+                                    onChange={e => setCompositorColors(prev => prev ? ({ ...prev, primary: e.target.value }) : null)}
+                                    className="w-7 h-7 rounded cursor-pointer border border-[#c1c6d6]"
+                                  />
+                                  <input
+                                    type="color"
+                                    value={compositorColors?.accent || '#ff007f'}
+                                    onChange={e => setCompositorColors(prev => prev ? ({ ...prev, accent: e.target.value }) : null)}
+                                    className="w-7 h-7 rounded cursor-pointer border border-[#c1c6d6]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </section>
+                        </div>
+
+                        {/* Right Panel: Composition Preview & Action Redirect */}
+                        <div className="xl:col-span-5 space-y-6">
+                          <div className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
+                            <h3 className="text-base font-bold text-[#0b1c30] mb-4">Estudio de Composición</h3>
+
+                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 flex items-center justify-center aspect-[4/5] max-w-[240px] mx-auto w-full group mb-4">
+                              <div className="text-center p-3 text-slate-300">
+                                <span className="material-symbols-outlined text-4xl mb-1">image_search</span>
+                                <p className="text-[10px] font-bold">{language === 'en' ? 'Upload Final Ad' : 'Sube tu Ad'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions buttons */}
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setBannerFlowStep(3)}
+                          className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
+                        >
+                          <span className="material-symbols-outlined text-xs">arrow_back</span>
+                          {language === 'en' ? 'Back' : 'Atrás'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              )}
+
+            </AnimatePresence>
+          </motion.div>
+        )}
+
         {activeTab === 'campaigns' && (
           <motion.div
             key="campaigns"
@@ -4747,7 +8345,7 @@ export default function PanelClient() {
                     {campaignSubTab === 'campaigns' 
                       ? (language === 'en' ? 'Manage and monitor your active ad campaigns.' : 'Gestiona y monitorea tus campañas publicitarias activas.')
                       : campaignSubTab === 'creative'
-                      ? (language === 'en' ? 'Design and preview your Facebook ads with high-precision AI assistance.' : 'Diseña y previsualiza tus anuncios de Facebook con asistencia de IA.')
+                      ? (language === 'en' ? 'Create stunning ads using your favorite templates and ChatGPT.' : 'Crea anuncios impactantes usando tus plantillas favoritas y ChatGPT.')
                       : (language === 'en' ? 'Track performance metrics across all your campaigns.' : 'Rastrea las metricas de rendimiento de todas tus campañas.')}
                   </p>
                 </div>
@@ -4760,8 +8358,8 @@ export default function PanelClient() {
               </div>
               <nav className="flex gap-1 bg-[#eff4ff] p-1 rounded-xl border border-[#c1c6d6]">
                 {([
-                  { key: 'campaigns' as const, icon: 'campaign', label: language === 'en' ? 'Campaigns' : 'Campañas' },
                   { key: 'creative' as const, icon: 'brush', label: 'Creative Lab' },
+                  { key: 'campaigns' as const, icon: 'campaign', label: language === 'en' ? 'Campaigns' : 'Campañas' },
                   { key: 'analytics' as const, icon: 'monitoring', label: language === 'en' ? 'Analytics' : 'Analíticas' },
                 ]).map(tab => (
                   <button
@@ -4912,331 +8510,945 @@ export default function PanelClient() {
               </div>
             )}
 
-            {/* ===== SUB-TAB: CREATIVE LAB ===== */}
+            {/* ===== SUB-TAB: CREATIVE LAB (ChatGPT Flow) ===== */}
             {campaignSubTab === 'creative' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Ad Creation Form */}
-              <div className="lg:col-span-7 space-y-6">
-                <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Create New Ad' : 'Crear Nuevo Anuncio'}</h3>
-                    <span className="bg-[#00855b] text-white px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide">RIFX AdGenius</span>
-                  </div>
+              <div className="space-y-6">
 
-                  {/* Title */}
-                  <div className="mb-5">
-                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Ad Title' : 'Titulo del Anuncio'}</label>
-                    <input type="text" value={campaignTitle} onChange={e => setCampaignTitle(e.target.value.slice(0,80))} placeholder={language === 'en' ? 'Ex: Summer Sale 50% Off' : 'Ej: Rebajas de Verano 50% Descuento'} className="w-full p-3 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm font-medium focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all" />
-                  </div>
-
-                  {/* Dual Image Upload */}
-                  <div className="mb-5">
-                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Images' : 'Imagenes'}</label>
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Reference Banner */}
-                      <div>
-                        <p className="text-[11px] font-semibold text-[#0058bc] mb-1.5 flex items-center gap-1"><span className="material-symbols-outlined text-sm">photo_library</span> {language === 'en' ? 'Reference Banner' : 'Pancarta de Referencia'}</p>
-                        <input type="file" accept="image/*" className="hidden" ref={campaignFileRef} onChange={handleCampaignImageUpload} />
-                        {campaignImagePreview ? (
-                          <div className="relative w-full h-40 rounded-xl overflow-hidden group border-2 border-[#0058bc]/30">
-                            <img src={campaignImagePreview} alt="Ref" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
-                              <button onClick={() => campaignFileRef.current?.click()} className="px-3 py-1.5 bg-white text-[#0b1c30] font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Change' : 'Cambiar'}</button>
-                              <button onClick={() => { setCampaignImage(null); setCampaignImagePreview(null); }} className="px-3 py-1.5 bg-red-500 text-white font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Remove' : 'Quitar'}</button>
-                            </div>
-                            <div className="absolute top-2 left-2 bg-[#0058bc] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">REF</div>
+                {/* ── STEPPER ── */}
+                <div className="bg-white rounded-xl border border-[#c1c6d6] p-5" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                  <div className="flex items-center justify-between">
+                    {([
+                      { step: 1 as const, icon: 'palette', label: language === 'en' ? 'Style & Diagnosis' : 'Estilo y Diagnóstico' },
+                      { step: 2 as const, icon: 'campaign', label: language === 'en' ? 'Configure & Publish' : 'Configurar y Publicar' },
+                    ]).map((s, i, arr) => (
+                      <React.Fragment key={s.step}>
+                        <div className="flex flex-col items-center gap-1.5 min-w-0">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                            chatgptFlowStep > s.step
+                              ? 'bg-[#006947] text-white shadow-lg shadow-[#006947]/20'
+                              : chatgptFlowStep === s.step
+                              ? 'bg-[#0058bc] text-white shadow-lg shadow-[#0058bc]/30 scale-110'
+                              : 'bg-[#eff4ff] text-[#727785]'
+                          }`}>
+                            {chatgptFlowStep > s.step ? (
+                              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                            ) : (
+                              <span className="material-symbols-outlined text-lg">{s.icon}</span>
+                            )}
                           </div>
-                        ) : (
-                          <div onClick={() => campaignFileRef.current?.click()} className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-[#eff4ff] p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-[#dce9ff] hover:border-[#0058bc] transition-all h-40">
-                            <span className="material-symbols-outlined text-[#0058bc] text-3xl mb-2">image</span>
-                            <p className="text-[11px] font-semibold text-center">{language === 'en' ? 'Upload reference banner' : 'Sube la pancarta de ejemplo'}</p>
-                            <p className="text-[10px] text-[#414754] mt-1">{language === 'en' ? 'The AI will analyze its layout' : 'La IA analizara su diseño'}</p>
-                          </div>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider text-center leading-tight ${
+                            chatgptFlowStep === s.step ? 'text-[#0058bc]' : chatgptFlowStep > s.step ? 'text-[#006947]' : 'text-[#727785]'
+                          }`}>
+                            {s.label}
+                          </span>
+                        </div>
+                        {i < arr.length - 1 && (
+                          <div className={`flex-1 h-0.5 mx-2 rounded-full transition-all duration-500 ${
+                            chatgptFlowStep > s.step ? 'bg-[#006947]' : 'bg-[#e5eeff]'
+                          }`} />
                         )}
-                      </div>
-                      {/* Product Image */}
-                      <div>
-                        <p className="text-[11px] font-semibold text-[#006947] mb-1.5 flex items-center gap-1"><span className="material-symbols-outlined text-sm">shopping_bag</span> {language === 'en' ? 'Product Image' : 'Imagen del Producto'}</p>
-                        <input type="file" accept="image/*" className="hidden" ref={productFileRef} onChange={handleProductImageUpload} />
-                        {productImagePreview ? (
-                          <div className="relative w-full h-40 rounded-xl overflow-hidden group border-2 border-[#006947]/30">
-                            <img src={productImagePreview} alt="Product" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
-                              <button onClick={() => productFileRef.current?.click()} className="px-3 py-1.5 bg-white text-[#0b1c30] font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Change' : 'Cambiar'}</button>
-                              <button onClick={() => { setProductImage(null); setProductImagePreview(null); }} className="px-3 py-1.5 bg-red-500 text-white font-semibold text-[11px] rounded-lg shadow-lg">{language === 'en' ? 'Remove' : 'Quitar'}</button>
-                            </div>
-                            <div className="absolute top-2 left-2 bg-[#006947] text-white text-[9px] font-bold px-2 py-0.5 rounded-full">PROD</div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                <AnimatePresence mode="wait">
+
+                {/* ════════════════════════════════════════════════════ */}
+                {/* PASO 1: ELEGIR PLANTILLA                            */}
+                {/* ════════════════════════════════════════════════════ */}
+                {chatgptFlowStep === 1 && (
+                  <motion.div
+                    key="step1"
+                    initial={{ opacity: 0, x: 30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -30 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-6"
+                  >
+                    <div className="bg-white rounded-2xl border border-[#cbd5e1] overflow-hidden shadow-xl flex flex-col h-[650px] relative">
+                      {/* Premium Header */}
+                      <div className="bg-gradient-to-r from-[#0b1c30] to-[#0058bc] text-white p-4 px-6 flex items-center justify-between shadow-md">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center border border-white/20 relative">
+                            <span className="material-symbols-outlined text-white text-xl animate-pulse">smart_toy</span>
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#0b1c30]" />
                           </div>
-                        ) : (
-                          <div onClick={() => productFileRef.current?.click()} className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-[#f0fff4] p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-[#dcfce7] hover:border-[#006947] transition-all h-40">
-                            <span className="material-symbols-outlined text-[#006947] text-3xl mb-2">add_photo_alternate</span>
-                            <p className="text-[11px] font-semibold text-center">{language === 'en' ? 'Upload product photo' : 'Sube la foto del producto'}</p>
-                            <p className="text-[10px] text-[#414754] mt-1">{language === 'en' ? 'Will be used in the final ad' : 'Se usara en el anuncio final'}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Description Section */}
-                  <div className="mb-5">
-                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Product Description' : 'Descripcion del Producto'}</label>
-                    <textarea
-                      value={campaignDesc}
-                      onChange={e => setCampaignDesc(e.target.value.slice(0, 500))}
-                      placeholder={language === 'en' ? 'Describe your product or service in detail...' : 'Describe tu producto o servicio en detalle...'}
-                      className="w-full h-28 p-4 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all resize-none"
-                    />
-                    <div className="flex justify-between mt-1">
-                      <span className="text-[10px] text-[#414754]">{campaignDesc.length}/500</span>
-                      <span className="text-[10px] text-[#414754]">{language === 'en' ? 'The more detail, the better the AI result' : 'Mientras mas detalles, mejor resultado de la IA'}</span>
-                    </div>
-                  </div>
-
-                  {/* Daily Budget */}
-                  <div className="mb-6">
-                    <label className="block text-[12px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">{language === 'en' ? 'Daily Budget' : 'Presupuesto Diario'}</label>
-                    <div className="flex items-center gap-4 p-4 bg-[#eff4ff] rounded-xl border border-[#c1c6d6]">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-[#0b1c30]">${dailyBudget}</span>
-                        <span className="text-sm text-[#414754]">/dia</span>
-                      </div>
-                      <input type="range" min={1} max={100} value={dailyBudget} onChange={e => setDailyBudget(Number(e.target.value))} className="flex-1 h-2 bg-[#c1c6d6] rounded-lg appearance-none cursor-pointer accent-[#0058bc]" />
-                      <input type="number" min={1} max={1000} value={dailyBudget} onChange={e => setDailyBudget(Math.max(1, Math.min(1000, Number(e.target.value))))} className="w-20 p-2 bg-white border border-[#c1c6d6] rounded-lg text-sm text-center font-semibold focus:ring-2 focus:ring-[#0058bc] outline-none" />
-                    </div>
-                    <div className="flex justify-between mt-1.5">
-                      <span className="text-[10px] text-[#414754]">{language === 'en' ? 'Monthly estimate' : 'Estimado mensual'}: ${(dailyBudget * 30).toLocaleString()}</span>
-                      {campaignResult?.campaign_config?.daily_budget_usd && <span className="text-[10px] text-[#0058bc] font-semibold">IA sugiere: ${campaignResult.campaign_config.daily_budget_usd}/dia</span>}
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="pt-5 border-t border-[#c1c6d6] flex flex-wrap justify-end gap-3">
-                    <button onClick={() => { setCampaignDesc(''); setCampaignTitle(''); setCampaignImage(null); setCampaignImagePreview(null); setProductImage(null); setProductImagePreview(null); setCampaignResult(null); setDailyBudget(5); setGeneratedBanner(null); }} className="px-5 py-2.5 border border-[#727785] text-[#0b1c30] font-semibold rounded-lg hover:bg-[#dce9ff] transition-colors text-sm">{language === 'en' ? 'Clear All' : 'Limpiar Todo'}</button>
-                    <button onClick={handleGenerateCampaign} disabled={(!campaignDesc && !campaignTitle) || isGeneratingCampaign} className="px-5 py-2.5 border border-[#0058bc] text-[#0058bc] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2">
-                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                      {isGeneratingCampaign ? (language === 'en' ? 'AdGenius working...' : 'AdGenius trabajando...') : (language === 'en' ? 'Generate with AI' : 'Generar con IA')}
-                    </button>
-                    <button onClick={publishToFacebook} disabled={fbPublishing || (!campaignResult && !campaignDesc)} className="px-8 py-2.5 text-white font-semibold rounded-lg shadow-lg hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed text-sm flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
-                      <span className="material-symbols-outlined text-sm">{fbPublishing ? 'sync' : 'publish'}</span>
-                      {fbPublishing ? (language === 'en' ? 'Publishing...' : 'Publicando...') : (language === 'en' ? 'Publish to Facebook' : 'Publicar en Facebook')} · ${dailyBudget}/dia
-                    </button>
-                  </div>
-                </section>
-
-                {/* AdGenius AI Results */}
-                <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="material-symbols-outlined text-[#0058bc]" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-                    <h4 className="text-xl font-semibold">RIFX AdGenius</h4>
-                    {campaignResult?.copy_framework && <span className="bg-[#0058bc]/10 text-[#0058bc] text-[10px] font-bold px-2 py-0.5 rounded-full">{campaignResult.copy_framework}</span>}
-                  </div>
-
-                  {!campaignResult ? (
-                    <div className="text-center py-8 text-[#414754]">
-                      <span className="material-symbols-outlined text-4xl text-[#c1c6d6] block mb-2">psychology</span>
-                      <p className="text-sm">{language === 'en' ? 'Generate content with AI to see professional recommendations' : 'Genera contenido con IA para ver recomendaciones profesionales'}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      {/* Hook Variants for A/B Testing */}
-                      {campaignResult.hook_variants?.length > 0 && (
-                        <div>
-                          <p className="text-[11px] font-bold text-[#414754] uppercase tracking-wider mb-2">Hooks para A/B Testing</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {campaignResult.hook_variants.map((h: string, i: number) => (
-                              <div key={i} className="flex items-center gap-2 p-2.5 bg-[#eff4ff] rounded-lg border border-[#c1c6d6] cursor-pointer hover:border-[#0058bc] transition-colors" onClick={() => setCampaignDesc(h)}>
-                                <span className="text-[10px] font-bold text-white bg-[#0058bc] w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">{String.fromCharCode(65+i)}</span>
-                                <span className="text-sm">{h}</span>
-                              </div>
-                            ))}
+                          <div className="text-left">
+                            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-100">
+                              {language === 'en' ? 'AI Ads Strategy Consultant' : 'Agente Experto en Meta Ads'}
+                            </h4>
+                            <p className="text-[9px] text-green-400 font-bold flex items-center gap-1">
+                              <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
+                              {language === 'en' ? 'Online · Strategy Optimizer' : 'En línea · Optimización Estratégica'}
+                            </p>
                           </div>
                         </div>
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAgentChatStep(0);
+                            setAgentGoal(null);
+                            setAgentAnswers({
+                              businessName: '',
+                              address: '',
+                              phone: '',
+                              webUrl: '',
+                              productName: '',
+                              price: '',
+                              benefits: '',
+                              radius: 5,
+                              budget: 5,
+                            });
+                            setAgentMessages([
+                              {
+                                id: '1',
+                                sender: 'agent',
+                                text: language === 'en'
+                                  ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
+                                  : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+                                options: [
+                                  { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
+                                  { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+                                  { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+                                ]
+                              }
+                            ]);
+                            setAgentInputText('');
+                            setToast({ message: language === 'en' ? 'Chat restarted!' : '¡Conversación reiniciada!', type: 'info' });
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] font-bold text-white transition-all uppercase tracking-wider border border-white/10 active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-xs">restart_alt</span>
+                          {language === 'en' ? 'Reset' : 'Reiniciar'}
+                        </button>
+                      </div>
 
-                      {/* Audience + Config Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Target Audience */}
-                        {campaignResult.target_audience && (
-                          <div className="p-4 bg-[#eff4ff] rounded-lg">
-                            <p className="text-[11px] font-bold text-[#414754] uppercase tracking-wider mb-2 flex items-center gap-1"><span className="material-symbols-outlined text-sm">people</span> Audiencia Sugerida</p>
-                            <div className="space-y-1.5 text-sm">
-                              <p><span className="font-semibold">Edad:</span> {campaignResult.target_audience.age_min} - {campaignResult.target_audience.age_max} {language === 'en' ? 'years' : 'años'}</p>
-                              <p><span className="font-semibold">Género:</span> {campaignResult.target_audience.gender === 'all' ? 'Todos' : campaignResult.target_audience.gender}</p>
-                              {campaignResult.target_audience.interests?.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {campaignResult.target_audience.interests.map((int: string, i: number) => (
-                                    <span key={i} className="bg-white text-[#0058bc] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#0058bc]/20">{int}</span>
+                      {/* Chat Messages Body */}
+                      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/40" style={{ maxHeight: 'calc(650px - 140px)' }}>
+                        {agentMessages.map((msg) => {
+                          const isAgent = msg.sender === 'agent';
+                          return (
+                            <div key={msg.id} className={`flex gap-3 text-left ${isAgent ? 'justify-start' : 'justify-end'}`}>
+                              {isAgent && (
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0b1c30] to-[#0058bc] flex items-center justify-center text-white text-xs shrink-0 shadow border border-slate-200">
+                                  <span className="material-symbols-outlined text-[15px]">smart_toy</span>
+                                </div>
+                              )}
+                              <div className="flex flex-col space-y-1.5 max-w-[82%]">
+                                <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm whitespace-pre-line ${
+                                  isAgent 
+                                    ? 'bg-white border border-slate-200 text-slate-800 rounded-tl-none shadow-sm' 
+                                    : 'bg-gradient-to-br from-[#0058bc] to-[#054ADA] text-white rounded-tr-none font-medium shadow-sm'
+                                }`}>
+                                  {msg.text}
+                                  
+                                  {/* Map Step rendering inside chat bubble */}
+                                  {isAgent && msg.isMapStep && (
+                                    <ChatMapComponent
+                                      radius={agentAnswers.radius || 25}
+                                      setRadius={(r) => setAgentAnswers(prev => ({ ...prev, radius: r }))}
+                                      language={language}
+                                      onConfirm={(locs, name) => {
+                                        const valueStr = JSON.stringify({
+                                          locations: locs,
+                                          radius: agentAnswers.radius || 25,
+                                          name: name || 'Zona Seleccionada'
+                                        });
+                                        handleAgentMessageSubmit(valueStr, `${language === 'en' ? 'Targeting:' : 'Segmentación:'} ${name || '📍'} (+${agentAnswers.radius || 25}km)`);
+                                      }}
+                                    />
+                                  )}
+
+                                  {/* Summary & Diagnosis rendering inside chat bubble */}
+                                  {isAgent && msg.isSummaryStep && (
+                                    <div className="space-y-4">
+                                      <ChatSummaryDiagnosis
+                                        goal={agentGoal || 'local'}
+                                        answers={agentAnswers}
+                                        language={language}
+                                        onConfirm={() => handleAgentMessageSubmit('apply', language === 'en' ? '⚡ Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar')}
+                                      />
+                                      
+                                      {/* ADDITIONAL PREMIUM FEATURE: Inline Copys Selector */}
+                                      <AdCopysSelector
+                                        answers={agentAnswers}
+                                        language={language}
+                                        onSelect={(selectedCopyText) => {
+                                          setAdDescription(selectedCopyText);
+                                          setCampaignDesc(selectedCopyText);
+                                          setToast({ message: language === 'en' ? '✍️ Copy applied to campaign!' : '✍️ ¡Texto persuasivo aplicado a tu campaña!', type: 'success' });
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Option buttons at the bottom of the bubble */}
+                                {isAgent && msg.options && agentMessages[agentMessages.length - 1].id === msg.id && (
+                                  <div className="flex flex-wrap gap-2 justify-start mt-2">
+                                    {msg.options.map((opt, oidx) => (
+                                      <button
+                                        key={oidx}
+                                        type="button"
+                                        onClick={() => handleAgentMessageSubmit(opt.value, opt.label)}
+                                        className="px-3.5 py-2 bg-[#eff4ff] hover:bg-[#e0ecff] border border-[#cbd5e1] text-[#0058bc] font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 text-left flex items-center gap-1 font-sans"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">arrow_right_alt</span>
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {agentIsTyping && (
+                          <div className="flex gap-3 text-left justify-start">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0b1c30] to-[#0058bc] flex items-center justify-center text-white text-xs shrink-0 shadow border border-slate-200">
+                              <span className="material-symbols-outlined text-[15px]">smart_toy</span>
+                            </div>
+                            <div className="bg-white border border-slate-200 text-slate-800 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 bg-[#0058bc] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 bg-[#0058bc] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 bg-[#0058bc] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                      </div>
+
+                      {/* Chat Input Footer Area */}
+                      <div className="p-4 bg-white border-t border-[#cbd5e1] flex items-center gap-2">
+                        {agentMessages.length > 0 && 
+                         (agentMessages[agentMessages.length - 1].isMapStep || 
+                          agentMessages[agentMessages.length - 1].isSummaryStep) ? (
+                          <div className="flex-1 text-center py-2.5 bg-slate-50 border border-dashed border-[#cbd5e1] rounded-xl text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center justify-center gap-2 select-none">
+                            <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                            {language === 'en' 
+                              ? 'Complete the action inside the chat bubble above...' 
+                              : 'Completa la acción interactiva en la burbuja del chat arriba...'}
+                          </div>
+                        ) : (
+                          <>
+                            <input
+                              type={
+                                agentGoal === 'local' && agentChatStep === 5 ? 'number' :
+                                (agentGoal === 'whatsapp' || agentGoal === 'web') && agentChatStep === 5 ? 'number' : 'text'
+                              }
+                              value={agentInputText}
+                              onChange={(e) => setAgentInputText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleAgentMessageSubmit(agentInputText);
+                                }
+                              }}
+                              placeholder={
+                                agentGoal === 'local' && agentChatStep === 1 ? (language === 'en' ? "e.g., Don Giovanni Pizzeria..." : "Ej: Pizzería Don Giovanni...") :
+                                agentGoal === 'local' && agentChatStep === 2 ? (language === 'en' ? "e.g., 123 Main St, Quito..." : "Ej: Av. Amazonas N32-15 y Orellana...") :
+                                agentGoal === 'local' && agentChatStep === 3 ? (language === 'en' ? "e.g., Pepperoni Pizza..." : "Ej: Pizza Familiar Pepperoni...") :
+                                agentGoal === 'local' && agentChatStep === 4 ? (language === 'en' ? "e.g., 2x1 for $12.99..." : "Ej: 2x1 por $14.99...") :
+                                agentGoal === 'whatsapp' && agentChatStep === 1 ? (language === 'en' ? "e.g., +593987654321..." : "Ej: +593987654321...") :
+                                agentGoal === 'whatsapp' && agentChatStep === 2 ? (language === 'en' ? "e.g., Whey Protein Supplement..." : "Ej: Proteína Whey Concentrada...") :
+                                agentGoal === 'whatsapp' && agentChatStep === 3 ? (language === 'en' ? "e.g., $29.99..." : "Ej: $35.00...") :
+                                agentGoal === 'whatsapp' && agentChatStep === 4 ? (language === 'en' ? "e.g., Muscle recovery, 100% pure..." : "Ej: Aumenta energía, 100% orgánico, sabor chocolate...") :
+                                agentGoal === 'web' && agentChatStep === 1 ? (language === 'en' ? "e.g., https://mystore.com..." : "Ej: https://mitienda.com...") :
+                                agentGoal === 'web' && agentChatStep === 2 ? (language === 'en' ? "e.g., Wireless Headset..." : "Ej: Audífonos Inalámbricos Bluetooth...") :
+                                agentGoal === 'web' && agentChatStep === 3 ? (language === 'en' ? "e.g., $89..." : "Ej: $89...") :
+                                agentGoal === 'web' && agentChatStep === 4 ? (language === 'en' ? "e.g., Free Shipping, 10% coupon..." : "Ej: Envío Gratis a todo el país + 3 meses sin intereses...") :
+                                (language === 'en' ? "Type your answer here..." : "Escribe tu respuesta aquí...")
+                              }
+                              className="flex-1 px-4 py-2.5 bg-[#f8fafc] border border-[#cbd5e1] rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#0058bc]/20 transition-all font-sans"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleAgentMessageSubmit(agentInputText)}
+                              className="w-10 h-10 bg-[#0058bc] hover:bg-[#054ADA] text-white rounded-xl flex items-center justify-center transition-all shadow-md active:scale-95 shrink-0 disabled:opacity-40"
+                              disabled={!agentInputText.trim()}
+                            >
+                              <span className="material-symbols-outlined text-lg font-bold">send</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+
+
+                {/* ════════════════════════════════════════════════════ */}
+                {/* PASO 2: SUBIR IMAGEN Y PUBLICAR                     */}
+                {/* ════════════════════════════════════════════════════ */}
+                {chatgptFlowStep === 2 && (
+                  <motion.div
+                    key="step2"
+                    initial={{ opacity: 0, x: 30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -30 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-5"
+                  >
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                      {/* Left: Upload Area */}
+                      <div className="lg:col-span-7 space-y-5">
+                        <section className="bg-white rounded-xl border border-[#c1c6d6] p-6" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                          <div className="flex items-center justify-between mb-5">
+                            <div>
+                              <h3 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Upload & Publish Your Ad' : 'Sube y Publica tu Anuncio'}</h3>
+                              <p className="text-sm text-[#414754] mt-1">{language === 'en' ? 'Upload the final image banner to publish.' : 'Sube la imagen final de tu anuncio para publicar.'}</p>
+                            </div>
+                            <span className="bg-gradient-to-r from-violet-500 to-blue-500 text-white px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide">
+                              {language === 'en' ? 'Step 2 of 2' : 'Paso 2 de 2'}
+                            </span>
+                          </div>
+
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={finalImageInputRef}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const url = URL.createObjectURL(file);
+                                setFinalUploadedImage(url);
+                                setCampaignImage(file);
+                                setCampaignImagePreview(url);
+                                setGeneratedBanner(url);
+                              }
+                            }}
+                          />
+
+                          {finalUploadedImage ? (
+                            <div className="space-y-4">
+                              <div className="relative rounded-xl overflow-hidden border-2 border-[#006947] bg-[#f8fafc] group">
+                                <img src={finalUploadedImage} alt="Final ad" className="w-full max-h-[400px] object-contain" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
+                                  <button
+                                    onClick={() => finalImageInputRef.current?.click()}
+                                    className="px-4 py-2 bg-white text-[#0b1c30] font-bold text-[11px] rounded-lg shadow-xl hover:bg-slate-100 transition-all"
+                                  >
+                                    {language === 'en' ? 'Replace' : 'Reemplazar'}
+                                  </button>
+                                  <button
+                                    onClick={() => { setFinalUploadedImage(null); setCampaignImage(null); setCampaignImagePreview(null); setGeneratedBanner(null); }}
+                                    className="px-4 py-2 bg-red-500 text-white font-bold text-[11px] rounded-lg shadow-xl hover:bg-red-600 transition-all"
+                                  >
+                                    {language === 'en' ? 'Remove' : 'Eliminar'}
+                                  </button>
+                                </div>
+                                <div className="absolute top-3 right-3 bg-[#006947] text-white px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-lg">
+                                  <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                  {language === 'en' ? 'Uploaded' : 'Subida'}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => finalImageInputRef.current?.click()}
+                              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const file = e.dataTransfer.files?.[0];
+                                if (file && file.type.startsWith('image/')) {
+                                  const url = URL.createObjectURL(file);
+                                  setFinalUploadedImage(url);
+                                  setCampaignImage(file);
+                                  setCampaignImagePreview(url);
+                                  setGeneratedBanner(url);
+                                }
+                              }}
+                              className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-gradient-to-br from-blue-50/50 to-violet-50/50 p-12 flex flex-col items-center justify-center cursor-pointer hover:border-[#0058bc] hover:bg-blue-50/80 transition-all group"
+                            >
+                              <div className="w-16 h-16 rounded-2xl bg-[#eff4ff] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                <span className="material-symbols-outlined text-[#0058bc] text-3xl">cloud_upload</span>
+                              </div>
+                              <p className="text-sm font-bold text-[#0b1c30] mb-1">{language === 'en' ? 'Drop your image here' : 'Arrastra tu imagen aquí'}</p>
+                              <p className="text-[12px] text-[#414754] mb-4">{language === 'en' ? 'or click to browse files' : 'o haz clic para buscar archivos'}</p>
+                              <span className="px-4 py-2 bg-[#0058bc] text-white text-[11px] font-bold rounded-lg shadow-md group-hover:bg-[#054ADA] transition-colors">
+                                {language === 'en' ? 'Select Image' : 'Seleccionar Imagen'}
+                              </span>
+                            </div>
+                          )}
+                        </section>
+
+                        {/* Ad Details Section */}
+                        <section className="bg-white rounded-xl border border-[#c1c6d6] p-6 mt-5" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                          <h3 className="text-lg font-semibold text-[#0b1c30] mb-1 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-violet-500">edit_note</span>
+                            {language === 'en' ? 'Ad Details' : 'Detalles del Anuncio'}
+                          </h3>
+                          <p className="text-[12px] text-[#414754] mb-4">{language === 'en' ? 'Add information about your ad for the post caption.' : 'Agrega información de tu anuncio para la publicación.'}</p>
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
+                                <span className="material-symbols-outlined text-sm text-violet-500">description</span>
+                                {language === 'en' ? 'Description' : 'Descripción'}
+                              </label>
+                              <textarea
+                                value={adDescription}
+                                onChange={e => setAdDescription(e.target.value.slice(0, 500))}
+                                placeholder={language === 'en' ? 'Describe what you are promoting...' : 'Describe lo que estás promocionando...'}
+                                className="w-full h-20 p-3 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all resize-none placeholder:text-[#a5b4c8]"
+                              />
+                              <span className="text-[10px] text-[#727785]">{adDescription.length}/500</span>
+                            </div>
+
+                            {/* Generate Description Button */}
+                            <button
+                              onClick={async () => {
+                                if (!adDescription || adDescription.trim().length < 5) {
+                                  setToast({ message: language === 'en' ? 'Write a brief description first' : 'Escribe una descripción breve primero', type: 'info' });
+                                  return;
+                                }
+                                setIsGeneratingDescription(true);
+                                try {
+                                  const res = await authFetch('/api/panel/campaigns/generate', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      description: adDescription + (adPhone ? ` | Tel: ${adPhone}` : '') + (adAddress ? ` | Dir: ${adAddress}` : ''),
+                                      title: selectedTemplate?.name || '',
+                                      daily_budget: dailyBudget,
+                                      has_reference_image: !!finalUploadedImage,
+                                      has_product_image: false
+                                    })
+                                  });
+                                  const data = await res.json();
+                                  if (data.success && data.campaign) {
+                                    const generated = data.campaign;
+                                    
+                                    // Fill description with caption + hashtags
+                                    let fullCaption = generated.caption || '';
+                                    if (generated.hashtags) fullCaption += '\n\n' + generated.hashtags;
+                                    setAdDescription(fullCaption.slice(0, 500));
+                                    
+                                    // Fill budget from AI suggestion
+                                    if (generated.campaign_config?.daily_budget_usd) {
+                                      setDailyBudget(Math.max(1, Math.min(1000, generated.campaign_config.daily_budget_usd)));
+                                    }
+                                    
+                                    // Store full campaign result for publish
+                                    setCampaignResult(generated);
+                                    
+                                    setToast({ message: language === 'en' ? '✨ Ad fully generated! Description, budget & targeting ready.' : '✨ ¡Anuncio generado! Descripción, presupuesto y segmentación listos.', type: 'success' });
+                                  } else {
+                                    setToast({ message: data.error || 'Error generating description', type: 'error' });
+                                  }
+                                } catch (e: any) {
+                                  setToast({ message: e.message || 'Error connecting', type: 'error' });
+                                } finally {
+                                  setIsGeneratingDescription(false);
+                                }
+                              }}
+                              disabled={isGeneratingDescription || adDescription.trim().length < 5}
+                              className="w-full py-3 font-bold text-sm rounded-xl transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 border-0 relative overflow-hidden group"
+                              style={{
+                                background: isGeneratingDescription
+                                  ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)'
+                                  : 'linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #4f46e5 100%)',
+                                color: 'white',
+                                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.35)'
+                              }}
+                            >
+                              <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <span className={`material-symbols-outlined text-lg ${isGeneratingDescription ? 'animate-spin' : ''}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                {isGeneratingDescription ? 'progress_activity' : 'auto_awesome'}
+                              </span>
+                              {isGeneratingDescription
+                                ? (language === 'en' ? 'AI is creating your description...' : 'La IA está creando tu descripción...')
+                                : (language === 'en' ? 'Generate Description with AI' : 'Generar Descripción con IA')}
+                            </button>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
+                                  <span className="material-symbols-outlined text-sm text-blue-500">call</span>
+                                  {language === 'en' ? 'Phone (optional)' : 'Teléfono (opcional)'}
+                                </label>
+                                <input
+                                  type="tel"
+                                  value={adPhone}
+                                  onChange={e => setAdPhone(e.target.value.slice(0, 30))}
+                                  placeholder={language === 'en' ? '+1 555-123-4567' : '+52 55 1234 5678'}
+                                  className="w-full p-3 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all placeholder:text-[#a5b4c8]"
+                                />
+                              </div>
+                              <div>
+                                <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
+                                  <span className="material-symbols-outlined text-sm text-emerald-500">location_on</span>
+                                  {language === 'en' ? 'Address (optional)' : 'Dirección (opcional)'}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={adAddress}
+                                  onChange={e => setAdAddress(e.target.value.slice(0, 100))}
+                                  placeholder={language === 'en' ? '123 Main St, City' : 'Av. Reforma 123, CDMX'}
+                                  className="w-full p-3 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all placeholder:text-[#a5b4c8]"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Daily Budget */}
+                            <div className="mt-4 p-4 bg-gradient-to-r from-[#f0f7ff] to-[#eff4ff] rounded-xl border border-[#c1c6d6]">
+                              <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
+                                <span className="material-symbols-outlined text-sm text-amber-500">payments</span>
+                                {language === 'en' ? 'Daily Budget (USD)' : 'Presupuesto Diario (USD)'}
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0058bc] font-bold text-sm">$</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="1000"
+                                  step="1"
+                                  value={dailyBudget}
+                                  onChange={e => setDailyBudget(Math.max(1, Math.min(1000, Number(e.target.value) || 1)))}
+                                  className="w-full pl-8 pr-16 py-3 bg-white border border-[#c1c6d6] rounded-xl text-sm font-semibold focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">USD/día</span>
+                              </div>
+                              <p className="text-[10px] text-[#727785] mt-1.5">{language === 'en' ? 'Minimum $1/day. Campaign starts paused, you can activate it from Facebook.' : 'Mínimo $1/día. La campaña inicia pausada, puedes activarla desde Facebook.'}</p>
+                            </div>
+
+                            {/* Location Targeting — Meta-style */}
+                            <div className="mt-4 rounded-xl border border-[#c1c6d6] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                              {/* Header */}
+                              <div className="px-4 py-3 bg-gradient-to-r from-[#f0f7ff] to-[#eff4ff] border-b border-[#c1c6d6]">
+                                <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] uppercase tracking-widest">
+                                  <span className="material-symbols-outlined text-sm text-[#0058bc]">my_location</span>
+                                  {language === 'en' ? 'Location Targeting' : 'Segmentación por Ubicación'}
+                                </label>
+                                <p className="text-[9px] text-[#727785] mt-0.5">{language === 'en' ? 'Search cities, drop pins on map, or select countries' : 'Busca ciudades, coloca pines en el mapa o selecciona países'}</p>
+                              </div>
+
+                              {/* Search Bar */}
+                              <div className="px-4 py-3 bg-white border-b border-[#e5eeff]">
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-sm text-[#727785]">search</span>
+                                  <input
+                                    type="text"
+                                    value={locationSearch}
+                                    onChange={e => setLocationSearch(e.target.value)}
+                                    onKeyDown={async (e) => {
+                                      if (e.key === 'Enter' && locationSearch.length > 2) {
+                                        try {
+                                          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationSearch)}&limit=5&addressdetails=1`);
+                                          const data = await res.json();
+                                          setLocationResults(data);
+                                        } catch { setLocationResults([]); }
+                                      }
+                                    }}
+                                    placeholder={language === 'en' ? 'Search city, province, or region... (Enter)' : 'Buscar ciudad, provincia o región... (Enter)'}
+                                    className="w-full pl-9 pr-4 py-2.5 bg-[#f8faff] border border-[#c1c6d6] rounded-xl text-xs focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all placeholder:text-[#a5b4c8]"
+                                  />
+                                </div>
+                                {/* Search Results */}
+                                {locationResults.length > 0 && (
+                                  <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-[#e5eeff] bg-white divide-y divide-[#f0f2f5]">
+                                    {locationResults.map((r: any, i: number) => (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        className="w-full px-3 py-2 text-left hover:bg-[#eff4ff] transition-colors flex items-center gap-2"
+                                        onClick={() => {
+                                          const newLoc = {
+                                            lat: parseFloat(r.lat),
+                                            lng: parseFloat(r.lon),
+                                            radius: radiusRef.current,
+                                            name: r.display_name?.split(',').slice(0, 2).join(',') || r.display_name,
+                                          };
+                                          setAdLocations(prev => [...prev, newLoc]);
+                                          
+                                          // Derive country code from result
+                                          const cc = r.address?.country_code?.toUpperCase();
+                                          if (cc && !adCountries.includes(cc)) {
+                                            setAdCountries(prev => [...prev, cc]);
+                                          }
+                                          
+                                          setLocationResults([]);
+                                          setLocationSearch('');
+                                          
+                                          // Update map
+                                          if (mapInstanceRef.current && (window as any).L) {
+                                            const L = (window as any).L;
+                                            const map = mapInstanceRef.current;
+                                            map.setView([newLoc.lat, newLoc.lng], 10);
+                                            const circle = L.circle([newLoc.lat, newLoc.lng], {
+                                              radius: newLoc.radius * 1000,
+                                              color: '#0058bc',
+                                              fillColor: '#0058bc',
+                                              fillOpacity: 0.15,
+                                              weight: 2,
+                                            }).addTo(map);
+                                            const marker = L.marker([newLoc.lat, newLoc.lng]).addTo(map)
+                                              .bindPopup(`<b>${newLoc.name}</b><br>${newLoc.radius}km`);
+                                            mapMarkersRef.current.push({ circle, marker });
+                                          }
+                                        }}
+                                      >
+                                        <span className="material-symbols-outlined text-sm text-[#0058bc]">location_on</span>
+                                        <span className="text-[11px] text-[#0b1c30] truncate">{r.display_name}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Interactive Map */}
+                              <div className="relative">
+                                <div
+                                  ref={(el) => {
+                                    if (el && !mapInstanceRef.current) {
+                                      const tryInit = () => {
+                                        const L = (window as any).L;
+                                        if (!L) { setTimeout(tryInit, 200); return; }
+                                        
+                                        const map = L.map(el, {
+                                          center: [20, 0],
+                                          zoom: 2,
+                                          minZoom: 2,
+                                          zoomControl: true,
+                                          attributionControl: false,
+                                          scrollWheelZoom: true,
+                                        });
+
+                                        // Prevent page scroll when mouse is over the map
+                                        el.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
+                                        
+                                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                          maxZoom: 18,
+                                        }).addTo(map);
+                                        
+                                        map.on('click', (e: any) => {
+                                          const { lat, lng } = e.latlng;
+                                          const radius = radiusRef.current;
+                                          const circle = L.circle([lat, lng], {
+                                            radius: radius * 1000,
+                                            color: '#0058bc',
+                                            fillColor: '#0058bc',
+                                            fillOpacity: 0.15,
+                                            weight: 2,
+                                          }).addTo(map);
+                                          const marker = L.marker([lat, lng]).addTo(map)
+                                            .bindPopup(`<b>📍</b><br>${radius}km`);
+                                          mapMarkersRef.current.push({ circle, marker });
+                                          
+                                          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                                            .then(r => r.json())
+                                            .then(data => {
+                                              const name = data.address?.city || data.address?.town || data.address?.state || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+                                              const cc = data.address?.country_code?.toUpperCase();
+                                              setAdLocations(prev => [...prev, { lat, lng, radius, name }]);
+                                              if (cc && !adCountries.includes(cc)) {
+                                                setAdCountries(prev => [...prev, cc]);
+                                              }
+                                              marker.setPopupContent(`<b>${name}</b><br>${radius}km`);
+                                            })
+                                            .catch(() => {
+                                              setAdLocations(prev => [...prev, { lat, lng, radius, name: `${lat.toFixed(2)}, ${lng.toFixed(2)}` }]);
+                                            });
+                                        });
+                                        
+                                        mapInstanceRef.current = map;
+                                        setTimeout(() => map.invalidateSize(), 300);
+                                      };
+                                      setTimeout(tryInit, 300);
+                                    }
+                                  }}
+                                  id="ad-location-map"
+                                  style={{ height: '240px', width: '100%', background: '#e8ecf2' }}
+                                />
+                                
+                                {/* Map overlay hint */}
+                                {adLocations.length === 0 && (
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[500]">
+                                    <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg border border-[#c1c6d6]">
+                                      <p className="text-[11px] text-[#414754] font-medium flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm text-[#0058bc]">ads_click</span>
+                                        {language === 'en' ? 'Click on map to add targeting area' : 'Clic en el mapa para agregar zona de segmentación'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Radius Control */}
+                              <div className="px-4 py-3 bg-white border-t border-[#e5eeff] flex items-center gap-3">
+                                <span className="material-symbols-outlined text-sm text-[#0058bc]">radar</span>
+                                <span className="text-[10px] font-semibold text-[#414754] whitespace-nowrap">{language === 'en' ? 'Radius' : 'Radio'}:</span>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="80"
+                                  value={adLocationRadius}
+                                  onChange={e => setAdLocationRadius(Number(e.target.value))}
+                                  className="flex-1 h-1.5 bg-[#e5eeff] rounded-full appearance-none cursor-pointer accent-[#0058bc]"
+                                />
+                                <span className="text-[11px] font-bold text-[#0058bc] min-w-[3rem] text-right">{adLocationRadius} km</span>
+                              </div>
+
+                              {/* Locations List */}
+                              {adLocations.length > 0 && (
+                                <div className="px-4 py-2 bg-[#f8faff] border-t border-[#e5eeff] max-h-32 overflow-y-auto">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="text-[9px] font-bold text-[#727785] uppercase">{language === 'en' ? 'Targeted Locations' : 'Ubicaciones Segmentadas'}</span>
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        setAdLocations([]);
+                                        mapMarkersRef.current.forEach(m => {
+                                          m.circle?.remove();
+                                          m.marker?.remove();
+                                        });
+                                        mapMarkersRef.current = [];
+                                      }}
+                                      className="text-[9px] text-red-500 hover:text-red-700 font-medium"
+                                    >
+                                      {language === 'en' ? 'Clear all' : 'Limpiar todo'}
+                                    </button>
+                                  </div>
+                                  {adLocations.map((loc, i) => (
+                                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#e5eeff] last:border-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-xs text-[#0058bc]">location_on</span>
+                                        <span className="text-[10px] text-[#0b1c30] font-medium">{loc.name}</span>
+                                        <span className="text-[9px] text-[#727785] bg-[#eff4ff] px-1.5 py-0.5 rounded">{loc.radius}km</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAdLocations(prev => prev.filter((_, idx) => idx !== i));
+                                          if (mapMarkersRef.current[i]) {
+                                            mapMarkersRef.current[i].circle?.remove();
+                                            mapMarkersRef.current[i].marker?.remove();
+                                            mapMarkersRef.current.splice(i, 1);
+                                          }
+                                        }}
+                                        className="text-[#727785] hover:text-red-500 transition-colors"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">close</span>
+                                      </button>
+                                    </div>
                                   ))}
                                 </div>
                               )}
-                            </div>
-                          </div>
-                        )}
 
-                        {/* Campaign Config */}
-                        {campaignResult.campaign_config && (
-                          <div className="p-4 bg-[#eff4ff] rounded-lg">
-                            <p className="text-[11px] font-bold text-[#414754] uppercase tracking-wider mb-2 flex items-center gap-1"><span className="material-symbols-outlined text-sm">tune</span> Config. Recomendada</p>
-                            <div className="space-y-1.5 text-sm">
-                              <p><span className="font-semibold">Objetivo:</span> {campaignResult.campaign_config.objective?.replace('OUTCOME_', '')}</p>
-                              <p><span className="font-semibold">Presupuesto:</span> ${campaignResult.campaign_config.daily_budget_usd}/dia</p>
-                              <p><span className="font-semibold">Formato:</span> {campaignResult.campaign_config.ad_format}</p>
-                              <p><span className="font-semibold">Placement:</span> {campaignResult.campaign_config.placement_recommendation}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Emotional Triggers + A/B Suggestion */}
-                      <div className="flex flex-wrap gap-4">
-                        {campaignResult.emotional_triggers?.length > 0 && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-bold text-[#414754] uppercase">Gatillos:</span>
-                            {campaignResult.emotional_triggers.map((t: string, i: number) => (
-                              <span key={i} className="bg-[#006947]/10 text-[#006947] text-[10px] font-semibold px-2.5 py-1 rounded-full">{t}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {campaignResult.a_b_test_suggestion && (
-                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
-                          <span className="material-symbols-outlined text-yellow-600 text-sm mt-0.5">lightbulb</span>
-                          <p className="text-[12px] text-yellow-800"><span className="font-bold">A/B Test:</span> {campaignResult.a_b_test_suggestion}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </section>
-              </div>
-
-              {/* Right Column: Live Preview - Facebook Phone Mockup */}
-              <div className="lg:col-span-5">
-                <div className="bg-white rounded-xl border border-[#c1c6d6] p-6 sticky top-24" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Real-Time Preview' : 'Vista Previa en Tiempo Real'}</h3>
-                    <div className="flex gap-2">
-                      <button className="p-2 rounded-lg bg-[#d2e0fe] text-[#55637d]"><span className="material-symbols-outlined text-lg">smartphone</span></button>
-                      <button className="p-2 rounded-lg text-[#414754] hover:bg-[#dce9ff] transition-colors"><span className="material-symbols-outlined text-lg">desktop_windows</span></button>
-                    </div>
-                  </div>
-
-                  {/* Mobile Mockup */}
-                  <div className="relative mx-auto w-[300px] bg-[#213145] rounded-[36px] p-3 shadow-2xl border-4 border-[#727785]" style={{ aspectRatio: '9/18.5' }}>
-                    <div className="w-full h-full bg-white rounded-[28px] overflow-hidden flex flex-col relative">
-                      {/* Facebook Header */}
-                      <div className="px-3 py-2.5 border-b border-[#e5eeff] flex items-center justify-between shrink-0">
-                        <h5 className="text-[#1877F2] font-bold text-lg tracking-tight">facebook</h5>
-                        <div className="flex gap-3">
-                          <span className="material-symbols-outlined text-[#414754] text-lg">search</span>
-                          <span className="material-symbols-outlined text-[#414754] text-lg">menu</span>
-                        </div>
-                      </div>
-
-                      {/* Feed */}
-                      <div className="flex-1 overflow-y-auto bg-[#F0F2F5]" style={{ scrollbarWidth: 'none' }}>
-                        <div className="bg-white mt-2 pb-2">
-                          {/* Post Header */}
-                          <div className="flex items-center px-3 py-2.5 justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-9 h-9 bg-[#0070eb] rounded-full flex items-center justify-center text-white font-bold text-xs">R</div>
-                              <div>
-                                <p className="text-[12px] font-bold text-[#0b1c30] flex items-center gap-1">{tenantData?.company || 'RIFX'} <span className="material-symbols-outlined text-[12px] text-[#0058bc]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></p>
-                                <p className="text-[10px] text-[#414754]">{language === 'en' ? 'Sponsored' : 'Publicidad'} · 1h · <span className="material-symbols-outlined text-[8px]">public</span></p>
-                              </div>
-                            </div>
-                            <span className="material-symbols-outlined text-[#414754] text-lg">more_horiz</span>
-                          </div>
-
-                          {/* Ad Copy */}
-                          <div className="px-3 pb-2">
-                            <p className="text-[13px] text-[#0b1c30] leading-snug">{campaignResult ? campaignResult.caption : (campaignDesc || (language === 'en' ? 'Your ad copy will appear here...' : 'El copy de tu anuncio aparecerá aquí...'))}</p>
-                            {campaignResult && <p className="text-[#0058bc] text-[12px] mt-1">{campaignResult.hashtags}</p>}
-                          </div>
-
-                          {/* Ad Image */}
-                          <div className="w-full aspect-square bg-[#dce9ff] relative overflow-hidden">
-                            {isGeneratingBanner ? (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#0058bc] to-[#1877F2]">
-                                <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mb-4"></div>
-                                <p className="text-white font-semibold text-sm">{language === 'en' ? 'AI generating banner...' : 'IA generando pancarta...'}</p>
-                                <p className="text-white/70 text-[10px] mt-1">Pollinations AI + FLUX</p>
-                              </div>
-                            ) : generatedBanner ? (
-                              <img src={generatedBanner} className="w-full h-full object-cover" alt="Generated Banner" />
-                            ) : productImagePreview ? (
-                              <img src={productImagePreview} className="w-full h-full object-cover" alt="Product" />
-                            ) : campaignImagePreview ? (
-                              <img src={campaignImagePreview} className="w-full h-full object-cover" alt="Ref" />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="bg-white/90 backdrop-blur p-4 rounded-lg shadow-sm border border-white text-center">
-                                  <span className="material-symbols-outlined text-[#0058bc] text-2xl block mb-1">auto_awesome</span>
-                                  <p className="text-[11px] font-bold text-[#0b1c30]">{language === 'en' ? 'Banner will be generated' : 'El banner se generara'}</p>
-                                  <p className="text-[9px] text-[#414754]">{language === 'en' ? 'after AI generation' : 'despues de generar con IA'}</p>
+                              {/* Country Quick Select */}
+                              <div className="px-4 py-3 bg-white border-t border-[#e5eeff]">
+                                <span className="text-[9px] font-bold text-[#727785] uppercase tracking-wider block mb-2">{language === 'en' ? 'Quick select by country' : 'Selección rápida por país'}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {[
+                                    { code: 'EC', flag: '🇪🇨', name: 'Ecuador' }, { code: 'MX', flag: '🇲🇽', name: 'México' }, { code: 'CO', flag: '🇨🇴', name: 'Colombia' },
+                                    { code: 'PE', flag: '🇵🇪', name: 'Perú' }, { code: 'AR', flag: '🇦🇷', name: 'Argentina' }, { code: 'CL', flag: '🇨🇱', name: 'Chile' },
+                                    { code: 'BR', flag: '🇧🇷', name: 'Brasil' }, { code: 'US', flag: '🇺🇸', name: 'EE.UU.' }, { code: 'ES', flag: '🇪🇸', name: 'España' },
+                                    { code: 'VE', flag: '🇻🇪', name: 'Venezuela' }, { code: 'BO', flag: '🇧🇴', name: 'Bolivia' }, { code: 'PA', flag: '🇵🇦', name: 'Panamá' },
+                                  ].map(c => (
+                                    <button
+                                      key={c.code}
+                                      type="button"
+                                      onClick={() => {
+                                        const isSelected = adCountries.includes(c.code);
+                                        if (isSelected) {
+                                          setAdCountries(prev => prev.filter(x => x !== c.code));
+                                        } else {
+                                          setAdCountries(prev => [...prev, c.code]);
+                                          if (mapInstanceRef.current) {
+                                            const coords: Record<string, { lat: number; lng: number; z: number }> = {
+                                              EC: { lat: -1.8312, lng: -78.1834, z: 6 },
+                                              MX: { lat: 23.6345, lng: -102.5528, z: 5 },
+                                              CO: { lat: 4.5709, lng: -74.2973, z: 6 },
+                                              PE: { lat: -9.1900, lng: -75.0152, z: 6 },
+                                              AR: { lat: -38.4161, lng: -63.6167, z: 4 },
+                                              CL: { lat: -35.6751, lng: -71.5430, z: 4 },
+                                              BR: { lat: -14.2350, lng: -51.9253, z: 4 },
+                                              US: { lat: 37.0902, lng: -95.7129, z: 4 },
+                                              ES: { lat: 40.4637, lng: -3.7492, z: 6 },
+                                              VE: { lat: 6.4238, lng: -66.5897, z: 6 },
+                                              BO: { lat: -16.2902, lng: -63.5887, z: 5 },
+                                              PA: { lat: 8.5380, lng: -80.7821, z: 7 },
+                                            };
+                                            const target = coords[c.code];
+                                            if (target) {
+                                              mapInstanceRef.current.setView([target.lat, target.lng], target.z);
+                                            }
+                                          }
+                                        }
+                                      }}
+                                      className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-all border ${
+                                        adCountries.includes(c.code) ? 'bg-[#0058bc] text-white border-[#0058bc]' : 'bg-[#f8faff] text-[#414754] border-[#e5eeff] hover:bg-[#eff4ff]'
+                                      }`}
+                                    >
+                                      {c.flag} {c.name}
+                                    </button>
+                                  ))}
                                 </div>
                               </div>
-                            )}
-                          </div>
 
-                          {/* CTA Bar */}
-                          <div className="px-3 py-2.5 bg-white flex items-center justify-between border-t border-[#e5eeff]">
-                            <div>
-                              <p className="text-[10px] text-[#414754] uppercase tracking-tighter">{tenantData?.company || 'RIFX'}</p>
-                              <p className="text-[11px] font-bold">{campaignResult?.hook || (language === 'en' ? 'Power your ads with AI' : 'Potencia tus anuncios con IA')}</p>
-                            </div>
-                            <button className="bg-[#dce9ff] text-[#0b1c30] font-bold py-1 px-3 rounded text-[11px]">{language === 'en' ? 'Learn more' : 'Más información'}</button>
-                          </div>
-
-                          {/* Engagement */}
-                          <div className="px-3 py-2 flex items-center justify-between border-t border-[#e5eeff]">
-                            <div className="flex items-center gap-1">
-                              <div className="flex -space-x-1">
-                                <span className="w-4 h-4 bg-[#0058bc] rounded-full flex items-center justify-center border border-white"><span className="material-symbols-outlined text-[9px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>thumb_up</span></span>
-                                <span className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center border border-white"><span className="material-symbols-outlined text-[9px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>favorite</span></span>
+                              {/* Summary */}
+                              <div className="px-4 py-2.5 bg-gradient-to-r from-[#f0f7ff] to-[#eff4ff] border-t border-[#c1c6d6] flex items-center gap-2">
+                                <span className="material-symbols-outlined text-sm text-[#0058bc]">check_circle</span>
+                                <span className="text-[10px] text-[#414754] font-medium">
+                                  {adLocations.length > 0 
+                                    ? `${adLocations.length} ${language === 'en' ? 'locations' : 'ubicaciones'} + ${adCountries.length} ${language === 'en' ? 'countries' : 'países'}`
+                                    : `${adCountries.length} ${adCountries.length === 1 ? (language === 'en' ? 'country' : 'país') : (language === 'en' ? 'countries' : 'países')}`
+                                  }
+                                </span>
                               </div>
-                              <span className="text-[10px] text-[#414754] ml-1">128</span>
                             </div>
-                            <span className="text-[10px] text-[#414754]">12 {language === 'en' ? 'comments' : 'comentarios'} · 8 {language === 'en' ? 'shares' : 'compartidos'}</span>
+
+                            {/* Publish to Facebook Button */}
+                            <div className="mt-6">
+                              <button
+                                onClick={publishToFacebook}
+                                disabled={fbPublishing}
+                                className="w-full py-4 text-white font-bold text-base rounded-2xl shadow-xl hover:opacity-95 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                                style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}
+                              >
+                                {fbPublishing ? (
+                                  <>
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    {language === 'en' ? 'Publishing...' : 'Publicando...'}
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                    </svg>
+                                    {language === 'en' ? 'Publish Campaign to Facebook' : 'Publicar Campaña en Facebook'}
+                                  </>
+                                )}
+                              </button>
+                              <p className="text-[11px] text-[#727785] text-center mt-2.5">
+                                {language === 'en' 
+                                  ? 'This will export your ad and targeting settings directly to Meta Ads Manager as a paused campaign.' 
+                                  : 'Esto exportará tu anuncio y segmentación directamente a Meta Ads Manager como una campaña pausada.'}
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        </section>
                       </div>
 
-                      {/* Mobile Nav */}
-                      <div className="h-10 bg-white border-t border-[#e5eeff] flex items-center justify-around shrink-0">
-                        <span className="material-symbols-outlined text-[#1877F2] text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">ondemand_video</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">store</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">notifications</span>
-                        <span className="material-symbols-outlined text-[#414754] text-lg">menu</span>
-                      </div>
-                      <div className="h-5 flex items-center justify-center shrink-0"><div className="w-28 h-1 bg-[#414754]/20 rounded-full"></div></div>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-[#414754] text-center mt-6">{language === 'en' ? 'Preview may vary slightly on the end user device.' : 'La visualizacion puede variar ligeramente segun el dispositivo del usuario final.'}</p>
-                  {generatedBanner && (
-                    <div className="mt-4 space-y-3">
-                      <div className="flex gap-2 justify-center">
-                        <a href={generatedBanner} download="rifx-banner-1080x1080.png" className="px-4 py-2 bg-[#0058bc] text-white text-[11px] font-semibold rounded-lg hover:bg-[#054ADA] transition-colors flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm">download</span> {language === 'en' ? 'Download Banner' : 'Descargar Banner'}
-                        </a>
-                        <button onClick={() => generateBannerImage(campaignResult)} className="px-4 py-2 border border-[#0058bc] text-[#0058bc] text-[11px] font-semibold rounded-lg hover:bg-[#0058bc]/5 transition-colors flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Regenerate' : 'Regenerar'}
-                        </button>
-                      </div>
-                      <div className="bg-[#eff4ff] rounded-lg p-3 text-center">
-                        <p className="text-[10px] font-bold text-[#414754] uppercase">Calificacion IA del Banner</p>
-                        <div className="flex items-center justify-center gap-2 mt-1">
-                          <span className="text-2xl font-bold text-[#006947]">{campaignResult ? '8.5' : '--'}/10</span>
-                          <div className="flex gap-0.5">{[1,2,3,4,5].map(s => <span key={s} className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1", color: s <= 4 ? '#FFD700' : '#c1c6d6' }}>star</span>)}</div>
+                      {/* Right: Facebook Mockup Preview */}
+                      <div className="lg:col-span-5">
+                        <div className="bg-white rounded-xl border border-[#c1c6d6] p-6 sticky top-24" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                          <h3 className="text-lg font-semibold text-[#0b1c30] mb-4 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[#1877F2]">smartphone</span>
+                            {language === 'en' ? 'Preview' : 'Vista Previa'}
+                          </h3>
+
+                          {/* Mobile Mockup */}
+                          <div className="relative mx-auto w-[280px] bg-[#213145] rounded-[36px] p-3 shadow-2xl border-4 border-[#727785]" style={{ aspectRatio: '9/18.5' }}>
+                            <div className="w-full h-full bg-white rounded-[28px] overflow-hidden flex flex-col relative">
+                              {/* Facebook Header */}
+                              <div className="px-3 py-2 border-b border-[#e5eeff] flex items-center justify-between shrink-0">
+                                <h5 className="text-[#1877F2] font-bold text-base tracking-tight">facebook</h5>
+                                <div className="flex gap-2">
+                                  <span className="material-symbols-outlined text-[#414754] text-sm">search</span>
+                                  <span className="material-symbols-outlined text-[#414754] text-sm">menu</span>
+                                </div>
+                              </div>
+                              {/* Feed */}
+                              <div className="flex-1 overflow-y-auto bg-[#F0F2F5]" style={{ scrollbarWidth: 'none' }}>
+                                <div className="bg-white mt-2 pb-2">
+                                  {/* Post Header */}
+                                  <div className="flex items-center px-3 py-2 justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 bg-[#0070eb] rounded-full flex items-center justify-center text-white font-bold text-[10px]">R</div>
+                                      <div>
+                                        <p className="text-[11px] font-bold text-[#0b1c30] flex items-center gap-1">{tenantData?.company || 'RIFX'} <span className="material-symbols-outlined text-[10px] text-[#0058bc]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></p>
+                                        <p className="text-[9px] text-[#414754]">{language === 'en' ? 'Sponsored' : 'Publicidad'} · 1h</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {/* Post Caption */}
+                                  {adDescription && (
+                                    <div className="px-3 pb-2">
+                                      <p className="text-[10px] text-[#0b1c30] leading-relaxed whitespace-pre-line" style={{ 
+                                        display: '-webkit-box', 
+                                        WebkitLineClamp: 4, 
+                                        WebkitBoxOrient: 'vertical', 
+                                        overflow: 'hidden' 
+                                      }}>
+                                        {adDescription}
+                                      </p>
+                                      {adDescription.length > 120 && (
+                                        <span className="text-[9px] text-[#414754] font-medium cursor-pointer">...ver más</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* Ad Image */}
+                                  <div className="w-full bg-[#f0f2f5]">
+                                    {finalUploadedImage ? (
+                                      <img src={finalUploadedImage} className="w-full h-auto block" alt="Ad Preview" />
+                                    ) : (
+                                      <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                                        <span className="material-symbols-outlined text-[#c1c6d6] text-4xl mb-2">image</span>
+                                        <p className="text-[11px] text-[#727785] font-medium">{language === 'en' ? 'Your ad will appear here' : 'Tu anuncio aparecerá aquí'}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* CTA */}
+                                  <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-[#e5eeff]">
+                                    <div>
+                                      <p className="text-[9px] text-[#414754] uppercase">{tenantData?.company || 'RIFX'}</p>
+                                      <p className="text-[10px] font-bold">{selectedTemplate?.name || (language === 'en' ? 'Your ad title' : 'Título de tu anuncio')}</p>
+                                    </div>
+                                    <button className="bg-[#dce9ff] text-[#0b1c30] font-bold py-1 px-2.5 rounded text-[10px]">{language === 'en' ? 'Learn more' : 'Más info'}</button>
+                                  </div>
+                                  {/* Engagement */}
+                                  <div className="px-3 py-1.5 flex items-center justify-between border-t border-[#e5eeff]">
+                                    <div className="flex items-center gap-1">
+                                      <span className="w-3.5 h-3.5 bg-[#0058bc] rounded-full flex items-center justify-center border border-white"><span className="material-symbols-outlined text-[7px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>thumb_up</span></span>
+                                      <span className="text-[9px] text-[#414754]">128</span>
+                                    </div>
+                                    <span className="text-[9px] text-[#414754]">12 {language === 'en' ? 'comments' : 'comentarios'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Nav */}
+                              <div className="h-8 bg-white border-t border-[#e5eeff] flex items-center justify-around shrink-0">
+                                <span className="material-symbols-outlined text-[#1877F2] text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
+                                <span className="material-symbols-outlined text-[#414754] text-sm">ondemand_video</span>
+                                <span className="material-symbols-outlined text-[#414754] text-sm">store</span>
+                                <span className="material-symbols-outlined text-[#414754] text-sm">notifications</span>
+                                <span className="material-symbols-outlined text-[#414754] text-sm">menu</span>
+                              </div>
+                              <div className="h-4 flex items-center justify-center shrink-0"><div className="w-24 h-1 bg-[#414754]/20 rounded-full"></div></div>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-[#414754] text-center mt-4">{language === 'en' ? 'Preview may vary on the final device.' : 'La visualización puede variar en el dispositivo final.'}</p>
                         </div>
-                        <p className="text-[9px] text-[#414754] mt-1">{language === 'en' ? 'Score based on composition, contrast and readability' : 'Puntuacion basada en composicion, contraste y legibilidad'}</p>
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    {/* Navigation */}
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setChatgptFlowStep(1)} className="px-5 py-2.5 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl hover:bg-[#eff4ff] transition-colors text-sm flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">arrow_back</span>
+                        {language === 'en' ? 'Back' : 'Atrás'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setChatgptFlowStep(1);
+                          setSelectedTemplate(null);
+                          setPromptCopied(false);
+                          setGenerationConfirmed(false);
+                          setFinalUploadedImage(null);
+                        }}
+                        className="px-5 py-2.5 border border-[#006947] text-[#006947] font-semibold rounded-xl hover:bg-[#006947]/5 transition-colors text-sm flex items-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">restart_alt</span>
+                        {language === 'en' ? 'Create Another Ad' : 'Crear Otro Anuncio'}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                </AnimatePresence>
               </div>
             )}
 
@@ -5316,19 +9528,41 @@ export default function PanelClient() {
                       </div>
                     </div>
                     <div className="h-[300px] flex items-end justify-between relative px-4">
-                      {[
-                        { day: 'Lun', h1: 40, h2: 15 },
-                        { day: 'Mar', h1: 60, h2: 25 },
-                        { day: language === 'en' ? 'Wed' : 'Mie', h1: 50, h2: 20 },
-                        { day: 'Jue', h1: 85, h2: 45 },
-                        { day: 'Vie', h1: 70, h2: 35 },
-                        { day: language === 'en' ? 'Sat' : 'Sab', h1: 55, h2: 25 },
-                        { day: 'Dom', h1: 95, h2: 60 },
-                      ].map((d, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      {(fbInsights?.dailyInsights?.length > 0 
+                        ? (() => {
+                            const maxImpressions = Math.max(...fbInsights.dailyInsights.map((d: any) => parseInt(d.impressions || '0')), 1);
+                            const maxConversions = Math.max(...fbInsights.dailyInsights.map((d: any) => parseInt(d.conversions || '0')), 1);
+                            return fbInsights.dailyInsights.map((d: any) => {
+                              const dateObj = new Date(d.date + 'T00:00:00');
+                              const label = isNaN(dateObj.getTime()) 
+                                ? d.date 
+                                : dateObj.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { weekday: 'short', day: 'numeric' });
+                              return {
+                                day: label,
+                                h1: Math.max(Math.round((parseInt(d.impressions || '0') / maxImpressions) * 80), 5),
+                                h2: Math.max(Math.round((parseInt(d.conversions || '0') / maxConversions) * 80), 5),
+                                tooltip: `${language === 'en' ? 'Impressions' : 'Impresiones'}: ${parseInt(d.impressions).toLocaleString()} | ${language === 'en' ? 'Conversions' : 'Conversiones'}: ${d.conversions}`
+                              };
+                            });
+                          })()
+                        : [
+                            { day: 'Lun', h1: 40, h2: 15, tooltip: '4,000 imp · 150 conv' },
+                            { day: 'Mar', h1: 60, h2: 25, tooltip: '6,000 imp · 250 conv' },
+                            { day: language === 'en' ? 'Wed' : 'Mie', h1: 50, h2: 20, tooltip: '5,000 imp · 200 conv' },
+                            { day: 'Jue', h1: 85, h2: 45, tooltip: '8,500 imp · 450 conv' },
+                            { day: 'Vie', h1: 70, h2: 35, tooltip: '7,000 imp · 350 conv' },
+                            { day: language === 'en' ? 'Sat' : 'Sab', h1: 55, h2: 25, tooltip: '5,500 imp · 250 conv' },
+                            { day: 'Dom', h1: 95, h2: 60, tooltip: '9,500 imp · 600 conv' },
+                          ]
+                      ).map((d: any, i: number) => (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                          {/* Tooltip on Hover */}
+                          <div className="absolute bottom-full mb-2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 font-semibold font-sans">
+                            {d.tooltip}
+                          </div>
                           <div className="w-5 rounded-t" style={{ height: d.h1+'%', backgroundColor: '#0058bc' }} />
                           <div className="w-5 rounded-t -mt-8" style={{ height: d.h2+'%', backgroundColor: '#006947' }} />
-                          <span className="text-[10px] text-[#414754] mt-2">{d.day}</span>
+                          <span className="text-[10px] text-[#414754] mt-2 capitalize">{d.day}</span>
                         </div>
                       ))}
                     </div>
@@ -5840,11 +10074,47 @@ export default function PanelClient() {
                 <h2 className="text-xl font-extrabold text-primary">{language === 'en' ? 'Plans & Billing' : 'Planes y Pagos'}</h2>
                 <p className="text-xs text-slate-400 mt-1">{language === 'en' ? 'Choose the plan that best fits your business' : 'Elige el plan que mejor se adapte a tu negocio'}</p>
               </div>
-              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
-                <span className={`w-2.5 h-2.5 rounded-full ${currentPlan === 'trial' ? 'bg-slate-400' : 'bg-emerald-500'} animate-pulse`}></span>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{language === 'en' ? 'Current Plan' : 'Plan Actual'}</p>
-                  <p className="text-xs font-extrabold text-primary">{currentPlan === 'trial' ? (language === 'en' ? 'Free Trial' : 'Prueba Gratuita') : `Chatea Pro ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}`}</p>
+              <div className="flex items-center gap-3">
+                {currentPlan !== 'trial' && tenantData?.planStatus !== 'cancelled' && (
+                  <button
+                    onClick={() => setShowCancelPlanConfirm(true)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-red-50/50 text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-200 rounded-xl text-xs font-bold transition-all shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-sm">cancel</span>
+                    {language === 'en' ? 'Cancel Plan' : 'Cancelar Plan'}
+                  </button>
+                )}
+
+                {currentPlan !== 'trial' && tenantData?.planStatus === 'cancelled' && (
+                  <button
+                    onClick={handleReactivatePlan}
+                    disabled={isReactivatingPlan}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-95 text-white shadow-md shadow-emerald-500/10 rounded-xl text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none animate-fade-in"
+                  >
+                    <span className="material-symbols-outlined text-sm">{isReactivatingPlan ? 'progress_activity' : 'restart_alt'}</span>
+                    {isReactivatingPlan 
+                      ? (language === 'en' ? 'Activating...' : 'Activando...')
+                      : (language === 'en' ? 'Re-subscribe' : 'Volver a suscribirse')}
+                  </button>
+                )}
+
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
+                  <span className={`w-2.5 h-2.5 rounded-full ${currentPlan === 'trial' ? 'bg-slate-400' : tenantData?.planStatus === 'cancelled' ? 'bg-amber-500' : 'bg-emerald-500'} animate-pulse`}></span>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">{language === 'en' ? 'Current Plan' : 'Plan Actual'}</p>
+                    <p className="text-xs font-extrabold text-primary">
+                      {currentPlan === 'trial' 
+                        ? (language === 'en' ? 'Free Trial' : 'Prueba Gratuita') 
+                        : `Chatea Pro ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}`}
+                    </p>
+                    {tenantData?.planStatus === 'cancelled' && tenantData?.planExpiresAt && (
+                      <p className="text-[9px] font-bold text-amber-600 mt-0.5 leading-none">
+                        {language === 'en' ? 'Cancelled (Active until ' : 'Cancelado (Activo hasta '}
+                        {new Date(tenantData.planExpiresAt).toLocaleDateString()}
+                        )
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -5957,23 +10227,23 @@ export default function PanelClient() {
           </motion.div>
         )}
 
-        {/* Plan Confirmation Modal */}
-        {showPlanConfirm && (
+        {/* Plan Confirmation Modal - via Portal so it escapes overflow/transform containers */}
+        {showPlanConfirm && typeof window !== 'undefined' && createPortal(
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => setShowPlanConfirm(null)}>
             <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined text-white text-2xl">payments</span></div>
-                <h3 className="text-lg font-extrabold text-primary">{language === 'en' ? 'Confirm Plan Change' : 'Confirmar Cambio de Plan'}</h3>
+                <h3 className="text-lg font-extrabold text-[#0b1c30]">{language === 'en' ? 'Confirm Plan Change' : 'Confirmar Cambio de Plan'}</h3>
                 <p className="text-xs text-slate-400 mt-2">
-                  {language === 'en' 
-                    ? `You are about to switch to Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}` 
-                    : `Est\u00E1s a punto de cambiar a Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`}
+                  {language === 'en'
+                    ? `You are about to switch to Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`
+                    : `Estás a punto de cambiar a Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">{language === 'en' ? 'Monthly charge' : 'Cobro mensual'}</span>
-                  <span className="text-lg font-black text-primary">${showPlanConfirm === 'start' ? '49' : showPlanConfirm === 'advanced' ? '109' : showPlanConfirm === 'plus' ? '189' : '399'} USD</span>
+                  <span className="text-lg font-black text-[#0b1c30]">${showPlanConfirm === 'start' ? '49' : showPlanConfirm === 'advanced' ? '109' : showPlanConfirm === 'plus' ? '189' : '399'} USD</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -5984,7 +10254,152 @@ export default function PanelClient() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Policy Editing Modal - via Portal */}
+        {editingPolicy && typeof window !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => setEditingPolicy(null)}>
+            <div className="bg-white rounded-3xl p-8 w-full max-w-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-primary-container/10 rounded-xl flex items-center justify-center text-primary-container">
+                    <span className="material-symbols-outlined text-lg">description</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-[#0b1c30]">
+                      {language === 'en' ? `Edit Source: ${editingPolicy.name}` : `Editar Fuente: ${editingPolicy.name}`}
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {language === 'en' ? 'Modify this document to update chatbot knowledge base' : 'Modifique este documento para actualizar la base de conocimiento del chatbot'}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setEditingPolicy(null)} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors">
+                  <span className="material-symbols-outlined text-slate-400 text-sm">close</span>
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-[300px] mb-6 flex flex-col">
+                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">
+                  {language === 'en' ? 'Document Content' : 'Contenido del Documento'}
+                </label>
+                <textarea
+                  className="flex-1 w-full bg-slate-50 border border-slate-100 rounded-2xl p-5 text-slate-700 focus:ring-2 focus:ring-primary-container/20 focus:outline-none transition-all resize-none text-xs leading-relaxed"
+                  value={editingPolicy.content}
+                  onChange={e => setEditingPolicy({ ...editingPolicy, content: e.target.value })}
+                  placeholder={language === 'en' ? 'Write the document details here...' : 'Escriba los detalles del documento aquí...'}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button 
+                  onClick={() => setEditingPolicy(null)} 
+                  className="px-6 py-2.5 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
+                >
+                  {language === 'en' ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button 
+                  onClick={async () => {
+                    setIsSavingPolicy(true);
+                    try {
+                      const fileObj = new File([editingPolicy.content], editingPolicy.file_name, { type: 'text/plain' });
+                      const formData = new FormData();
+                      formData.append('file', fileObj);
+                      
+                      const res = await authFetch('/api/panel/knowledge', {
+                        method: 'POST',
+                        body: formData
+                      });
+                      
+                      const data = await res.json();
+                      if (data.success) {
+                        setToast({
+                          message: language === 'en' ? '✅ Source updated successfully!' : '✅ ¡Fuente actualizada exitosamente!',
+                          type: 'success'
+                        });
+                        await fetchKBFiles();
+                        setEditingPolicy(null);
+                      } else {
+                        setToast({ message: `Error: ${data.error}`, type: 'error' });
+                      }
+                    } catch (e) {
+                      console.error('Error saving policy:', e);
+                      setToast({ message: language === 'en' ? 'Error saving policy' : 'Error al guardar la política', type: 'error' });
+                    } finally {
+                      setIsSavingPolicy(false);
+                    }
+                  }}
+                  disabled={isSavingPolicy}
+                  className="px-6 py-2.5 bg-gradient-to-r from-primary-container to-primary text-white text-xs font-bold rounded-xl shadow-lg shadow-primary-container/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingPolicy ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                      {language === 'en' ? 'Saving...' : 'Guardando...'}
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">save</span>
+                      {language === 'en' ? 'Save Changes' : 'Guardar Cambios'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Cancel Plan Confirmation Modal - via Portal */}
+        {showCancelPlanConfirm && typeof window !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => !isCancellingPlan && setShowCancelPlanConfirm(false)}>
+            <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white text-2xl">cancel</span>
+                </div>
+                <h3 className="text-lg font-extrabold text-[#0b1c30]">{language === 'en' ? 'Cancel Subscription' : 'Cancelar Suscripción'}</h3>
+                <p className="text-xs text-slate-400 mt-2">
+                  {language === 'en'
+                    ? "Are you sure you want to cancel your plan's auto-renewal? You will keep full access to all premium features until your paid period ends."
+                    : '¿Estás seguro de cancelar la renovación automática de tu plan? Mantendrás el acceso a todas las características premium hasta que finalice tu periodo pagado.'}
+                </p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <div className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-amber-600 text-sm mt-0.5">info</span>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    {language === 'en'
+                      ? 'Your plan will not auto-renew. You will continue to have normal access to all RIFX tools until the end of your billing cycle.'
+                      : 'Tu plan no se renovará automáticamente al finalizar el periodo contratado. Podrás seguir usando todas las herramientas con normalidad hasta entonces, y reactivarlo en cualquier momento.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelPlanConfirm(false)}
+                  disabled={isCancellingPlan}
+                  className="flex-1 py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50"
+                >
+                  {language === 'en' ? 'Keep My Plan' : 'Mantener mi Plan'}
+                </button>
+                <button
+                  onClick={handleCancelPlan}
+                  disabled={isCancellingPlan}
+                  className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-red-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isCancellingPlan ? (
+                    <><span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>{language === 'en' ? 'Cancelling...' : 'Cancelando...'}</>
+                  ) : (
+                    <><span className="material-symbols-outlined text-sm">cancel</span>{language === 'en' ? 'Cancel Plan' : 'Cancelar Plan'}</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
 
         {activeTab === 'analytics' && (
@@ -6337,6 +10752,618 @@ export default function PanelClient() {
           </motion.div>
         )}
 
+        {/* ========== OMNIPUBLISH V1 TAB ========== */}
+        {activeTab === 'social' && (
+          <motion.div
+            key="social"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-6 text-on-surface"
+          >
+            {/* Hero Header */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a1145] via-[#2d1b69] to-[#0f0a2e] p-8 shadow-2xl shadow-indigo-900/20">
+              {/* Animated background elements */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br from-indigo-500/20 to-violet-500/10 rounded-full blur-3xl animate-pulse" />
+                <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-gradient-to-tr from-blue-600/10 to-cyan-400/5 rounded-full blur-3xl" />
+                <div className="absolute top-10 right-1/3 w-2 h-2 bg-indigo-400/60 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+                <div className="absolute bottom-8 right-1/4 w-1.5 h-1.5 bg-violet-300/50 rounded-full animate-ping" style={{ animationDuration: '2.5s', animationDelay: '1s' }} />
+                <div className="absolute top-1/2 left-1/4 w-1 h-1 bg-cyan-300/40 rounded-full animate-ping" style={{ animationDuration: '4s', animationDelay: '0.5s' }} />
+              </div>
+
+              <div className="relative z-10 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                      <span className="material-symbols-outlined text-white text-2xl">rocket_launch</span>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
+                        OmniPublish
+                        <span className="text-[9px] bg-white/10 text-indigo-300 px-3 py-1 rounded-full uppercase tracking-[0.15em] font-extrabold border border-white/10 backdrop-blur-sm">Multi-Redes</span>
+                      </h2>
+                      <p className="text-[13px] text-indigo-200/60 font-medium mt-0.5">
+                        Publica y distribuye tus videos automáticamente en todas tus redes
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats Pills */}
+                  <div className="flex flex-wrap items-center gap-2 ml-[60px]">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 backdrop-blur-sm">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] font-bold text-emerald-300/90 uppercase tracking-wider">{socialAccounts.length} Canales</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 backdrop-blur-sm">
+                      <span className="material-symbols-outlined text-[12px] text-indigo-300">bolt</span>
+                      <span className="text-[10px] font-bold text-indigo-300/90 uppercase tracking-wider">IA Integrada</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Platform Connection Buttons */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    onClick={handleConnectMetaOAuth}
+                    className="group px-4 py-2.5 bg-white/10 hover:bg-[#1877F2]/90 border border-white/10 hover:border-[#1877F2] text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    Meta
+                  </button>
+                  <button
+                    onClick={handleConnectTikTokOAuth}
+                    className="group px-4 py-2.5 bg-white/10 hover:bg-white/95 hover:text-black border border-white/10 text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+                    TikTok
+                  </button>
+                  <button
+                    onClick={handleConnectYouTubeOAuth}
+                    className="group px-4 py-2.5 bg-white/10 hover:bg-[#FF0000]/90 border border-white/10 hover:border-[#FF0000] text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                    YouTube
+                  </button>
+                  <div className="w-px h-6 bg-white/10 mx-1 hidden xl:block" />
+                  <button
+                    onClick={() => setShowManualSocialLink(!showManualSocialLink)}
+                    className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                  >
+                    <span className="material-symbols-outlined text-sm">settings_ethernet</span>
+                    Manual
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Formulario Manual Ocultable */}
+            {showManualSocialLink && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="bg-white border border-slate-200/80 p-6 rounded-2xl shadow-sm space-y-5 overflow-hidden"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[16px] text-slate-600">cable</span>
+                    </div>
+                    Conexión Manual de Cuenta
+                  </h3>
+                  <button onClick={() => setShowManualSocialLink(false)} className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors">
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                </div>
+                <form onSubmit={handleManualSocialLink} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] block">Plataforma</label>
+                    <select
+                      value={manualPlatform}
+                      onChange={(e) => setManualPlatform(e.target.value as any)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all"
+                    >
+                      <option value="facebook">Facebook Page</option>
+                      <option value="instagram">Instagram Account</option>
+                      <option value="tiktok">TikTok Profile</option>
+                      <option value="youtube">YouTube Channel</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] block">ID de Cuenta / Página</label>
+                    <input
+                      type="text"
+                      placeholder="10293847..."
+                      value={manualUserId}
+                      onChange={(e) => setManualUserId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] block">Nombre de usuario</label>
+                    <input
+                      type="text"
+                      placeholder="Mi Tienda Online"
+                      value={manualUsername}
+                      onChange={(e) => setManualUsername(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] block">Access Token</label>
+                    <input
+                      type="password"
+                      placeholder="EAASJOMgR..."
+                      value={manualToken}
+                      onChange={(e) => setManualToken(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all placeholder:text-slate-300"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualSocialLink(false)}
+                      className="px-5 py-2.5 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-sm">save</span>
+                      Guardar Conexión
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+
+            {/* Dashboard Content */}
+            <div className="space-y-5">
+              {/* Configuration Bar */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Selector de Modo de Carga */}
+                <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 flex items-center justify-center border border-indigo-100/50">
+                      <span className="text-[11px] font-black text-indigo-600">01</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-800">Modo de Publicación</h3>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Individual o lote</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadMode('single');
+                        setUploadedVideos([]);
+                        setUploadedVideoPath(null);
+                        setTrackingPostIds([]);
+                      }}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                        uploadMode === 'single'
+                          ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20'
+                          : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">play_circle</span>
+                      Individual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadMode('batch');
+                        setUploadedVideos([]);
+                        setUploadedVideoPath(null);
+                        setTrackingPostIds([]);
+                      }}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                        uploadMode === 'batch'
+                          ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20'
+                          : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">grid_view</span>
+                      Lote
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selector de Formato (Cortos vs Largos) */}
+                <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-50 to-fuchsia-50 flex items-center justify-center border border-violet-100/50">
+                      <span className="text-[11px] font-black text-violet-600">02</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-800">Formato del Video</h3>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Corto o larga duración</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVideoType('short');
+                        setUploadedVideos([]);
+                        setUploadedVideoPath(null);
+                        setTrackingPostIds([]);
+                      }}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                        videoType === 'short'
+                          ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/20'
+                          : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">bolt</span>
+                      Short / Reel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVideoType('long');
+                        setUploadedVideos([]);
+                        setUploadedVideoPath(null);
+                        setTrackingPostIds([]);
+                      }}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all duration-200 ${
+                        videoType === 'long'
+                          ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-md shadow-violet-500/20'
+                          : 'text-slate-400 hover:text-slate-600 hover:bg-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[14px]">movie</span>
+                      Largo
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Columna Izquierda: Formulario e Interfaces de Subida */}
+                <div className="lg:col-span-2 space-y-5">
+                  {/* 1. Subida del Video */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-500/20">
+                          <span className="material-symbols-outlined text-white text-[16px]">cloud_upload</span>
+                        </div>
+                        {uploadMode === 'batch' ? 'Subir Videos en Lote' : 'Subir Archivo de Video'}
+                      </h3>
+                      <span className="text-[10px] bg-slate-50 text-slate-500 px-3 py-1 rounded-lg font-bold border border-slate-100 flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[12px]">storage</span>
+                        Máx: {videoType === 'long' ? '500 MB' : '100 MB'}
+                      </span>
+                    </div>
+                    
+                    {uploadMode === 'single' ? (
+                      !uploadedVideoPath ? (
+                        <VideoUploader
+                          tenantId={tenantData?.id || 'default'}
+                          onUploadStart={() => setIsPublishing(true)}
+                          onUploadComplete={handleUploadComplete}
+                          mode="single"
+                          maxSize={videoType === 'long' ? 500 * 1024 * 1024 : 100 * 1024 * 1024}
+                        />
+                      ) : (
+                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200/40 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-4">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                            <span className="material-symbols-outlined text-white text-2xl">check_circle</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">¡Video listo para publicar!</p>
+                            <p className="text-[10px] text-slate-400 font-mono mt-1.5 truncate max-w-md mx-auto bg-white/60 px-3 py-1 rounded-lg border border-slate-100">{uploadedVideoPath.split('/').pop()}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (uploadedVideoPath) deleteStorageVideo(uploadedVideoPath);
+                              setUploadedVideoPath(null);
+                              setCurrentPostId(null);
+                              setTrackingPostIds([]);
+                            }}
+                            className="px-4 py-2 border border-red-200/60 hover:bg-red-50 text-red-400 hover:text-red-500 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">swap_horiz</span>
+                            Reemplazar video
+                          </button>
+                        </div>
+                      )
+                    ) : (
+                      /* Batch upload section */
+                      <div className="space-y-4">
+                        <VideoUploader
+                          tenantId={tenantData?.id || 'default'}
+                          onUploadStart={() => setIsPublishing(true)}
+                          onUploadComplete={handleUploadComplete}
+                          mode="batch"
+                          maxSize={videoType === 'long' ? 500 * 1024 * 1024 : 100 * 1024 * 1024}
+                        />
+
+
+                        {uploadedVideos.length > 0 && (
+                          <div className="space-y-4 mt-6">
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                              <h4 className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px] text-indigo-500">queue</span>
+                                Videos Cargados
+                                <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-extrabold">{uploadedVideos.length}</span>
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={handleClearAllBatchItems}
+                                className="text-[10px] text-red-400 hover:text-red-500 font-bold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-[12px]">delete_sweep</span>
+                                Limpiar
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              {uploadedVideos.map((video) => (
+                                <div key={video.id} className="p-4 bg-slate-50/70 border border-slate-100 rounded-2xl space-y-4 relative hover:bg-slate-50 transition-colors">
+                                  {/* Header del Video Card */}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2.5 overflow-hidden">
+                                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-500/15">
+                                        <span className="material-symbols-outlined text-white text-[16px]">movie</span>
+                                      </div>
+                                      <div className="overflow-hidden">
+                                        <p className="text-xs font-bold text-slate-800 truncate max-w-[280px]">
+                                          {video.name}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveBatchItem(video.id)}
+                                      className="w-7 h-7 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"
+                                    >
+                                      <span className="material-symbols-outlined text-[16px]">delete</span>
+                                    </button>
+                                  </div>
+
+                                  {/* Campos del Video */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                      <div>
+                                        <input
+                                          type="text"
+                                          placeholder="Título del video (Opcional)"
+                                          value={video.title}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setUploadedVideos(prev => prev.map(v => v.id === video.id ? { ...v, title: val } : v));
+                                          }}
+                                          className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-[#727785] outline-none transition-all"
+                                        />
+                                      </div>
+                                      
+                                      <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center space-x-1.5">
+                                            <span className="material-symbols-outlined text-[16px] text-indigo-500">schedule</span>
+                                            <span className="text-[11px] font-semibold text-slate-700">Programar</span>
+                                          </div>
+                                          <label className="relative inline-flex items-center cursor-pointer select-none">
+                                            <input
+                                              type="checkbox"
+                                              checked={video.isScheduled}
+                                              onChange={(e) => {
+                                                const val = e.target.checked;
+                                                setUploadedVideos(prev => prev.map(v => v.id === video.id ? { ...v, isScheduled: val } : v));
+                                              }}
+                                              className="sr-only peer"
+                                            />
+                                            <div className="w-8 h-4.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-500 peer-checked:after:bg-white" />
+                                          </label>
+                                        </div>
+                                        
+                                        {video.isScheduled && (
+                                          <div className="pt-2 border-t border-slate-100 flex flex-col space-y-1">
+                                            <input
+                                              type="datetime-local"
+                                              min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)}
+                                              value={video.scheduledAt || ''}
+                                              onChange={(e) => {
+                                                const val = e.target.value;
+                                                setUploadedVideos(prev => prev.map(v => v.id === video.id ? { ...v, scheduledAt: val } : v));
+                                              }}
+                                              className="w-full bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-800 outline-none transition-all"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-2.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                                          <span className="material-symbols-outlined text-[13px] text-slate-400">description</span>
+                                          Descripción / Caption
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleGenerateIAForBatchItem(video.id)}
+                                          disabled={video.generating || isPublishing}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white rounded-lg text-[10px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm shadow-indigo-500/15"
+                                        >
+                                          {video.generating ? (
+                                            <>
+                                              <svg className="animate-spin h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                              </svg>
+                                              <span>Optimizando...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                                              <span>Mejorar con IA</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                      <textarea
+                                        placeholder="Escribe un borrador, ideas clave o palabras clave para tu descripción..."
+                                        value={video.caption}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setUploadedVideos(prev => prev.map(v => v.id === video.id ? { ...v, caption: val } : v));
+                                        }}
+                                        rows={3}
+                                        className="w-full bg-white border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 placeholder-slate-300 outline-none transition-all resize-none"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Formulario de Publicación */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                    <PublishForm
+                      accounts={socialAccounts}
+                      onSubmit={uploadMode === 'batch' ? handleBatchPublish : handleSocialPublish}
+                      isPublishing={isPublishing}
+                      videoStoragePath={uploadMode === 'batch' ? (uploadedVideos.length > 0 ? 'batch' : null) : uploadedVideoPath}
+                      mode={uploadMode}
+                    />
+                  </div>
+                </div>
+
+                {/* Columna Derecha: Canales y Realtime Monitor */}
+                <div className="space-y-5">
+                  {trackingPostIds.length > 0 ? (
+                    /* Monitor de publicación en vivo */
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/20">
+                            <span className="material-symbols-outlined text-white text-[16px] animate-spin" style={{ animationDuration: '2s' }}>sync</span>
+                          </div>
+                          Publicando...
+                        </h3>
+                        <button
+                          onClick={() => {
+                            setTrackingPostIds([]);
+                            setUploadedVideoPath(null);
+                            setUploadedVideos([]);
+                            setIsPublishing(false);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[12px]">add</span>
+                          Nuevo Envío
+                        </button>
+                      </div>
+                      <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
+                        {trackingPostIds.map((postId, idx) => (
+                          <div key={postId} className="border-b border-slate-50 pb-5 last:border-b-0 last:pb-0">
+                            <h4 className="text-xs font-bold text-slate-700 mb-3 flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-black">{idx + 1}</span>
+                                Video #{idx + 1}
+                              </span>
+                              <span className="text-[9px] text-slate-300 font-mono bg-slate-50 px-2 py-0.5 rounded">{postId.substring(0, 8)}</span>
+                            </h4>
+                            <PublicationTracker
+                              postId={postId}
+                              onFinished={() => {
+                                // Opcional
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Listado de Canales Conectados */
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[16px] text-slate-500">hub</span>
+                          </div>
+                          Canales Vinculados
+                        </h3>
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                          {socialAccounts.length}
+                        </span>
+                      </div>
+
+                      {socialAccountsLoading ? (
+                        <div className="flex flex-col items-center justify-center py-10 space-y-3">
+                          <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cargando canales...</span>
+                        </div>
+                      ) : socialAccounts.length === 0 ? (
+                        <div className="py-10 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 mx-auto flex items-center justify-center mb-3 border border-slate-200/50">
+                            <span className="material-symbols-outlined text-2xl text-slate-300">link</span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-500">Sin canales conectados</p>
+                          <p className="text-[10px] text-slate-400 mt-1 max-w-[200px] mx-auto leading-relaxed">Conecta tus cuentas con los botones de arriba para empezar a publicar</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {socialAccounts.map((acc) => {
+                            const platformStyles: Record<string, { bg: string; text: string; icon: string }> = {
+                              facebook: { bg: 'bg-blue-50', text: 'text-[#1877F2]', icon: '🔵' },
+                              instagram: { bg: 'bg-gradient-to-r from-pink-50 to-purple-50', text: 'text-[#E4405F]', icon: '📸' },
+                              tiktok: { bg: 'bg-slate-50', text: 'text-slate-800', icon: '🎵' },
+                              youtube: { bg: 'bg-red-50', text: 'text-[#FF0000]', icon: '▶️' },
+                            };
+                            const style = platformStyles[acc.platform] || { bg: 'bg-slate-50', text: 'text-slate-500', icon: '🔗' };
+                            return (
+                              <div key={acc.id} className={`flex items-center justify-between p-3.5 rounded-xl border border-slate-100 ${style.bg} font-sans group hover:shadow-sm transition-all`}>
+                                <div className="flex items-center space-x-3 overflow-hidden">
+                                  <div className="w-9 h-9 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center flex-shrink-0 text-white font-black overflow-hidden border border-white/60 shadow-sm">
+                                    {acc.profile_picture_url ? (
+                                      <img src={acc.profile_picture_url} alt={acc.platform_username} className="w-full h-full object-cover rounded-xl" />
+                                    ) : (
+                                      <span className="text-sm">{style.icon}</span>
+                                    )}
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <span className="text-xs font-bold text-slate-800 block truncate leading-tight">
+                                      {acc.platform_username}
+                                    </span>
+                                    <span className={`text-[9px] font-extrabold block uppercase tracking-[0.15em] mt-0.5 ${style.text}`}>
+                                      {acc.platform}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteSocialAccount(acc.id)}
+                                  className="w-7 h-7 rounded-lg hover:bg-red-100 text-slate-300 group-hover:text-slate-400 hover:!text-red-500 flex items-center justify-center transition-all flex-shrink-0"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">link_off</span>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* ========== ADMIN PANEL TAB ========== */}
         {activeTab === 'admin' && tenantData?.isAdmin && (
           <motion.div
@@ -6361,7 +11388,10 @@ export default function PanelClient() {
                 {[
                   { key: 'overview', label: 'Resumen', icon: 'dashboard' },
                   { key: 'tenants', label: 'Usuarios', icon: 'group' },
+                  { key: 'permissions', label: 'Permisos', icon: 'lock_open' },
                   { key: 'announcements', label: 'Anuncios', icon: 'campaign' },
+                  { key: 'templates', label: 'Plantillas', icon: 'palette' },
+                  { key: 'ai_engine', label: 'Motor Visual IA', icon: 'auto_awesome' },
                 ].map(t => (
                   <button key={t.key} onClick={() => setAdminTab(t.key as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${adminTab === t.key ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
@@ -6482,6 +11512,80 @@ export default function PanelClient() {
                         </table>
                       </div>
                     </div>
+
+                    {/* Subscriptions & Payments Summary */}
+                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-lg">
+                          <span className="material-symbols-outlined">payments</span>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-extrabold text-primary">Suscripciones y Pagos</h3>
+                          <p className="text-[10px] text-slate-400 font-medium">Resumen de ingresos y suscripciones activas</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        {[
+                          { label: 'Ingresos Totales', value: `$${((adminData.totalRevenue || 0) / 100).toFixed(2)}`, icon: 'attach_money', color: 'from-emerald-500 to-green-600' },
+                          { label: 'Ingresos (30d)', value: `$${((adminData.monthlyRevenue || 0) / 100).toFixed(2)}`, icon: 'trending_up', color: 'from-blue-500 to-cyan-600' },
+                          { label: 'Suscripciones Activas', value: adminData.activeSubscriptions || 0, icon: 'card_membership', color: 'from-violet-500 to-purple-600' },
+                          { label: 'Total Pagos', value: adminData.payments?.length || 0, icon: 'receipt_long', color: 'from-orange-500 to-amber-600' },
+                        ].map((kpi, i) => (
+                          <div key={i} className="bg-gradient-to-br from-slate-50 to-white rounded-xl p-4 border border-slate-100">
+                            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${kpi.color} flex items-center justify-center text-white mb-3`}>
+                              <span className="material-symbols-outlined text-sm">{kpi.icon}</span>
+                            </div>
+                            <p className="text-xl font-black text-primary">{kpi.value}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Recent Payments Table */}
+                      {(adminData.recentPayments?.length > 0 || adminData.payments?.length > 0) && (
+                        <div>
+                          <h4 className="text-sm font-extrabold text-primary mb-3">Últimos Pagos</h4>
+                          <div className="overflow-x-auto rounded-xl border border-slate-100">
+                            <table className="w-full text-left">
+                              <thead>
+                                <tr className="bg-slate-50/50">
+                                  <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Usuario</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Monto</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
+                                  <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Fecha</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-50">
+                                {(adminData.recentPayments || adminData.payments || []).slice(0, 10).map((p: any, i: number) => {
+                                  const matchedTenant = adminData.tenants?.find((t: any) => t.id === p.tenant_id);
+                                  return (
+                                    <tr key={i} className="hover:bg-slate-50/30 transition-colors">
+                                      <td className="px-4 py-3">
+                                        <p className="text-xs font-bold text-primary">{matchedTenant?.companyName || p.tenantCompany || 'Desconocido'}</p>
+                                        <p className="text-[10px] text-slate-400">{matchedTenant?.email || p.tenantEmail || ''}</p>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-md uppercase ${p.plan === 'master' ? 'bg-orange-100 text-orange-700' : p.plan === 'plus' ? 'bg-emerald-100 text-emerald-700' : p.plan === 'advanced' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{p.plan}</span>
+                                      </td>
+                                      <td className="px-4 py-3 text-right text-sm font-black text-primary">${((p.amount || 0) / 100).toFixed(2)}</td>
+                                      <td className="px-4 py-3 text-center">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${p.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${p.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                          {p.status === 'completed' ? 'Completado' : p.status}
+                                        </span>
+                                      </td>
+                                      <td className="px-4 py-3 text-right text-[10px] text-slate-400">{new Date(p.created_at).toLocaleDateString()}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -6492,7 +11596,7 @@ export default function PanelClient() {
                       <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                         <div>
                           <h3 className="text-lg font-extrabold text-primary">Usuarios Registrados</h3>
-                          <p className="text-xs text-slate-400 mt-1">{adminData.totalTenants} usuarios en la plataforma</p>
+                          <p className="text-xs text-slate-400 mt-1">{adminData.totalTenants} usuarios en la plataforma — click en un usuario para ver detalles</p>
                         </div>
                         <button onClick={loadAdminData} className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-500 transition-colors">
                           <span className="material-symbols-outlined text-sm">refresh</span> Actualizar
@@ -6505,6 +11609,7 @@ export default function PanelClient() {
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Empresa</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Plan</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Días Rest.</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Admin</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acciones</th>
@@ -6512,14 +11617,14 @@ export default function PanelClient() {
                           </thead>
                           <tbody className="divide-y divide-slate-50">
                             {adminData.tenants?.map((t: any) => (
-                              <tr key={t.id} className="hover:bg-slate-50/30 transition-colors">
+                              <tr key={t.id} className="hover:bg-blue-50/30 transition-colors cursor-pointer group" onClick={() => { setSelectedTenant(t); setShowTenantModal(true); }}>
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
                                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black ${t.isAdmin ? 'bg-gradient-to-br from-orange-500 to-amber-500' : 'bg-gradient-to-br from-indigo-500 to-blue-600'}`}>
                                       {t.companyName?.charAt(0)?.toUpperCase() || 'U'}
                                     </div>
                                     <div>
-                                      <p className="text-sm font-bold text-primary">{t.companyName || 'Sin nombre'}</p>
+                                      <p className="text-sm font-bold text-primary group-hover:text-blue-600 transition-colors">{t.companyName || 'Sin nombre'}</p>
                                       <p className="text-[10px] text-slate-400">{t.ownerName || ''}</p>
                                     </div>
                                   </div>
@@ -6527,7 +11632,7 @@ export default function PanelClient() {
                                 <td className="px-6 py-4 text-sm text-slate-500 font-medium">{t.email}</td>
                                 <td className="px-6 py-4 text-center">
                                   {editingTenantId === t.id ? (
-                                    <select value={editingTenantPlan} onChange={e => setEditingTenantPlan(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-white">
+                                    <select value={editingTenantPlan} onChange={e => { e.stopPropagation(); setEditingTenantPlan(e.target.value); }} onClick={e => e.stopPropagation()} className="px-2 py-1 border border-slate-200 rounded-lg text-xs font-bold bg-white">
                                       <option value="trial">Trial</option>
                                       <option value="start">Start</option>
                                       <option value="advanced">Advanced</option>
@@ -6539,13 +11644,21 @@ export default function PanelClient() {
                                   )}
                                 </td>
                                 <td className="px-6 py-4 text-center">
+                                  <span className={`text-xs font-black ${(t.daysRemaining || 0) <= 3 ? 'text-red-500' : (t.daysRemaining || 0) <= 7 ? 'text-amber-500' : 'text-emerald-600'}`}>
+                                    {t.daysRemaining != null ? `${t.daysRemaining}d` : '—'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
                                   <span className={`w-2.5 h-2.5 rounded-full inline-block ${t.planStatus === 'active' ? 'bg-emerald-500' : 'bg-red-400'}`}></span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                   {t.isAdmin && <span className="material-symbols-outlined text-orange-500 text-lg">shield</span>}
                                 </td>
-                                <td className="px-6 py-4 text-right">
+                                <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                                   <div className="flex items-center justify-end gap-2">
+                                    <button onClick={() => { setSelectedTenant(t); setShowTenantModal(true); }} className="px-3 py-1.5 bg-slate-50 text-slate-500 text-[10px] font-bold rounded-lg hover:bg-slate-100 transition-colors">
+                                      <span className="material-symbols-outlined text-xs align-middle mr-1">visibility</span>Detalle
+                                    </button>
                                     {editingTenantId === t.id ? (
                                       <>
                                         <button onClick={() => handleUpdateTenantPlan(t.id, editingTenantPlan)} disabled={adminActionLoading} className="px-3 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-lg hover:bg-emerald-600 transition-colors">Guardar</button>
@@ -6553,15 +11666,67 @@ export default function PanelClient() {
                                       </>
                                     ) : (
                                       <>
-                                        <button onClick={() => { setEditingTenantId(t.id); setEditingTenantPlan(t.plan); }} className="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-colors">Cambiar Plan</button>
+                                        <button onClick={() => { setEditingTenantId(t.id); setEditingTenantPlan(t.plan); }} className="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-colors">Plan</button>
                                         {t.id !== tenantData?.id && (
-                                          <button onClick={() => handleToggleAdmin(t.id, !t.isAdmin)} className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${t.isAdmin ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
-                                            {t.isAdmin ? 'Quitar Admin' : 'Hacer Admin'}
-                                          </button>
+                                          t.isAdmin ? (
+                                            <button onClick={() => handleToggleAdmin(t.id, false)} className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-orange-50 text-orange-600 hover:bg-orange-100">
+                                              Quitar Admin
+                                            </button>
+                                          ) : (
+                                            <button onClick={() => { setShowAdminSectionsFor(t.id); setAdminSectionsSelection(['overview', 'tenants', 'templates', 'announcements']); }} className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-slate-50 text-slate-400 hover:bg-slate-100">
+                                              Hacer Admin
+                                            </button>
+                                          )
                                         )}
                                       </>
                                     )}
                                   </div>
+
+                                  {/* Admin Sections Selector Dropdown */}
+                                  {showAdminSectionsFor === t.id && (
+                                    <div className="absolute right-4 mt-2 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 z-50 w-72" onClick={e => e.stopPropagation()}>
+                                      <h4 className="text-xs font-extrabold text-primary mb-3">Seleccionar Secciones de Admin</h4>
+                                      <p className="text-[10px] text-slate-400 mb-3">Escoge a qué secciones tendrá acceso este administrador:</p>
+                                      <div className="space-y-2 mb-4">
+                                        {[
+                                          { key: 'overview', label: 'Resumen', icon: 'dashboard', desc: 'KPIs y estadísticas' },
+                                          { key: 'tenants', label: 'Usuarios', icon: 'group', desc: 'Gestión de usuarios y planes' },
+                                          { key: 'templates', label: 'Plantillas', icon: 'palette', desc: 'Crear y editar plantillas' },
+                                          { key: 'announcements', label: 'Anuncios', icon: 'campaign', desc: 'Anuncios de la plataforma' },
+                                        ].map(section => (
+                                          <label key={section.key} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${adminSectionsSelection.includes(section.key) ? 'bg-orange-50 border border-orange-200' : 'bg-slate-50 border border-transparent hover:bg-slate-100'}`}>
+                                            <input
+                                              type="checkbox"
+                                              checked={adminSectionsSelection.includes(section.key)}
+                                              onChange={e => {
+                                                if (e.target.checked) {
+                                                  setAdminSectionsSelection(prev => [...prev, section.key]);
+                                                } else {
+                                                  setAdminSectionsSelection(prev => prev.filter(s => s !== section.key));
+                                                }
+                                              }}
+                                              className="w-4 h-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+                                            />
+                                            <span className="material-symbols-outlined text-sm text-slate-500">{section.icon}</span>
+                                            <div>
+                                              <p className="text-xs font-bold text-primary">{section.label}</p>
+                                              <p className="text-[9px] text-slate-400">{section.desc}</p>
+                                            </div>
+                                          </label>
+                                        ))}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleToggleAdmin(t.id, true, adminSectionsSelection)}
+                                          disabled={adminActionLoading || adminSectionsSelection.length === 0}
+                                          className="flex-1 px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-bold rounded-lg hover:from-orange-600 hover:to-amber-600 transition-colors disabled:opacity-50"
+                                        >
+                                          {adminActionLoading ? 'Guardando...' : `Confirmar Admin (${adminSectionsSelection.length} secciones)`}
+                                        </button>
+                                        <button onClick={() => setShowAdminSectionsFor(null)} className="px-3 py-2 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg hover:bg-slate-200 transition-colors">Cancelar</button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -6569,9 +11734,642 @@ export default function PanelClient() {
                         </table>
                       </div>
                     </div>
+
+                    {/* ===== USER DETAIL MODAL ===== */}
+                    {showTenantModal && selectedTenant && (
+                      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowTenantModal(false)}>
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                          className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] overflow-y-auto m-4"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {/* Modal Header */}
+                          <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-sm rounded-t-2xl z-10">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-sm font-black ${selectedTenant.isAdmin ? 'bg-gradient-to-br from-orange-500 to-amber-500' : 'bg-gradient-to-br from-indigo-500 to-blue-600'}`}>
+                                {selectedTenant.companyName?.charAt(0)?.toUpperCase() || 'U'}
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-extrabold text-primary">{selectedTenant.companyName || 'Sin nombre'}</h3>
+                                <p className="text-xs text-slate-400">{selectedTenant.email}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => setShowTenantModal(false)} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+                              <span className="material-symbols-outlined text-sm text-slate-400">close</span>
+                            </button>
+                          </div>
+
+                          {/* User Info Cards */}
+                          <div className="px-8 py-6 space-y-6">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              {[
+                                { label: 'Plan Activo', value: selectedTenant.plan?.toUpperCase(), icon: 'workspace_premium', color: selectedTenant.plan === 'master' ? 'text-orange-600 bg-orange-50' : selectedTenant.plan === 'plus' ? 'text-emerald-600 bg-emerald-50' : selectedTenant.plan === 'advanced' ? 'text-violet-600 bg-violet-50' : 'text-blue-600 bg-blue-50' },
+                                { label: 'Estado', value: selectedTenant.planStatus === 'active' ? 'Activo' : 'Inactivo', icon: selectedTenant.planStatus === 'active' ? 'check_circle' : 'cancel', color: selectedTenant.planStatus === 'active' ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50' },
+                                { label: 'Días Restantes', value: selectedTenant.daysRemaining != null ? `${selectedTenant.daysRemaining} días` : 'N/A', icon: 'timer', color: (selectedTenant.daysRemaining || 0) <= 3 ? 'text-red-600 bg-red-50' : (selectedTenant.daysRemaining || 0) <= 7 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
+                                { label: 'Total Gastado', value: `$${((selectedTenant.totalSpent || 0) / 100).toFixed(2)}`, icon: 'payments', color: 'text-blue-600 bg-blue-50' },
+                              ].map((info, i) => (
+                                <div key={i} className={`rounded-xl p-4 ${info.color}`}>
+                                  <span className="material-symbols-outlined text-lg">{info.icon}</span>
+                                  <p className="text-lg font-black mt-2">{info.value}</p>
+                                  <p className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-70">{info.label}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Detailed Info */}
+                            <div className="grid md:grid-cols-2 gap-4">
+                              <div className="bg-slate-50 rounded-xl p-5">
+                                <h4 className="text-xs font-extrabold text-primary mb-3 flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-sm">person</span> Información General
+                                </h4>
+                                <div className="space-y-2.5">
+                                  {[
+                                    { label: 'Empresa', value: selectedTenant.companyName || '—' },
+                                    { label: 'Propietario', value: selectedTenant.ownerName || '—' },
+                                    { label: 'Email', value: selectedTenant.email },
+                                    { label: 'Registro', value: new Date(selectedTenant.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) },
+                                    { label: 'Inicio Plan', value: selectedTenant.planStartedAt ? new Date(selectedTenant.planStartedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                                    { label: 'Expira', value: selectedTenant.planExpiresAt ? new Date(selectedTenant.planExpiresAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                                  ].map((item, i) => (
+                                    <div key={i} className="flex justify-between items-center">
+                                      <span className="text-[10px] font-bold text-slate-400">{item.label}</span>
+                                      <span className="text-xs font-bold text-primary">{item.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="bg-slate-50 rounded-xl p-5">
+                                <h4 className="text-xs font-extrabold text-primary mb-3 flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-sm">storage</span> Uso de Recursos
+                                </h4>
+                                <div className="space-y-3">
+                                  <div>
+                                    <div className="flex justify-between mb-1">
+                                      <span className="text-[10px] font-bold text-slate-400">Almacenamiento</span>
+                                      <span className="text-[10px] font-bold text-primary">
+                                        {((selectedTenant.storageUsed || 0) / 1024 / 1024).toFixed(1)} MB / {((selectedTenant.storageLimit || 0) / 1024 / 1024).toFixed(0)} MB
+                                      </span>
+                                    </div>
+                                    <div className="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${((selectedTenant.storageUsed || 0) / (selectedTenant.storageLimit || 1)) > 0.9 ? 'bg-red-500' : ((selectedTenant.storageUsed || 0) / (selectedTenant.storageLimit || 1)) > 0.7 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                        style={{ width: `${Math.min(100, ((selectedTenant.storageUsed || 0) / (selectedTenant.storageLimit || 1)) * 100)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-slate-400">Límite Contactos</span>
+                                    <span className="text-xs font-bold text-primary">{selectedTenant.contactLimit?.toLocaleString() || '—'}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-bold text-slate-400">Es Admin</span>
+                                    <span className={`text-xs font-bold ${selectedTenant.isAdmin ? 'text-orange-600' : 'text-slate-400'}`}>{selectedTenant.isAdmin ? 'Sí' : 'No'}</span>
+                                  </div>
+                                  {selectedTenant.isAdmin && selectedTenant.adminSections && (
+                                    <div>
+                                      <span className="text-[10px] font-bold text-slate-400 block mb-1">Secciones Admin</span>
+                                      <div className="flex flex-wrap gap-1">
+                                        {(selectedTenant.adminSections || []).map((sec: string) => (
+                                          <span key={sec} className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-bold rounded-md">{sec}</span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Special Permissions / Overrides */}
+                            <div className="bg-slate-50 rounded-xl p-5 space-y-4">
+                              <h4 className="text-xs font-extrabold text-primary flex items-center gap-2">
+                                <span className="material-symbols-outlined text-sm">lock_open</span> Accesos Especiales (Overrides)
+                              </h4>
+                              <p className="text-[10px] text-slate-400 font-medium">Permite habilitar temporalmente secciones que estén bloqueadas en el plan de este usuario.</p>
+                              
+                              <div className="space-y-3">
+                                {TABS_TO_MANAGE.filter(t => t.key !== 'dashboard' && t.key !== 'billing').map(tab => {
+                                  const currentExpiry = selectedTenantOverrides[tab.key];
+                                  const hasOverride = !!currentExpiry;
+                                  const isExpired = hasOverride && new Date(currentExpiry).getTime() < Date.now();
+                                  
+                                  return (
+                                    <div key={tab.key} className="flex flex-col md:flex-row md:items-center justify-between gap-2 p-3 bg-white rounded-lg border border-slate-100 shadow-sm">
+                                      <div>
+                                        <p className="text-xs font-extrabold text-primary">{tab.label}</p>
+                                        {hasOverride ? (
+                                          <p className={`text-[9px] font-bold mt-0.5 ${isExpired ? 'text-red-500' : 'text-emerald-600'}`}>
+                                            {isExpired 
+                                              ? `Expiró el ${new Date(currentExpiry).toLocaleString('es-ES')}` 
+                                              : `Activo hasta el ${new Date(currentExpiry).toLocaleString('es-ES')}`}
+                                          </p>
+                                        ) : (
+                                          <p className="text-[9px] text-slate-400 mt-0.5">Sin accesos especiales activos</p>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-2">
+                                        {hasOverride ? (
+                                          <button
+                                            onClick={() => {
+                                              const updated = { ...selectedTenantOverrides };
+                                              delete updated[tab.key];
+                                              setSelectedTenantOverrides(updated);
+                                              handleSaveTenantOverrides(selectedTenant.id, updated);
+                                            }}
+                                            disabled={savingOverrides}
+                                            className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all disabled:opacity-50"
+                                          >
+                                            <span className="material-symbols-outlined text-xs">delete</span>
+                                            Quitar
+                                          </button>
+                                        ) : (
+                                          <div className="flex items-center gap-1">
+                                            <select
+                                              id={`duration-select-${tab.key}`}
+                                              defaultValue="1"
+                                              className="px-2 py-1 border border-slate-200 rounded-lg text-[10px] font-semibold bg-white"
+                                            >
+                                              <option value="1">1 Día</option>
+                                              <option value="7">7 Días</option>
+                                              <option value="30">30 Días</option>
+                                              <option value="365">Indefinido (1 Año)</option>
+                                            </select>
+                                            <button
+                                              onClick={() => {
+                                                const selectEl = document.getElementById(`duration-select-${tab.key}`) as HTMLSelectElement;
+                                                const days = parseInt(selectEl?.value || '1');
+                                                const expiryDate = new Date();
+                                                expiryDate.setDate(expiryDate.getDate() + days);
+                                                
+                                                const updated = {
+                                                  ...selectedTenantOverrides,
+                                                  [tab.key]: expiryDate.toISOString()
+                                                };
+                                                setSelectedTenantOverrides(updated);
+                                                handleSaveTenantOverrides(selectedTenant.id, updated);
+                                              }}
+                                              disabled={savingOverrides}
+                                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all disabled:opacity-50"
+                                            >
+                                              <span className="material-symbols-outlined text-xs">add</span>
+                                              Conceder
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Purchase History */}
+                            <div>
+                              <h4 className="text-sm font-extrabold text-primary mb-3 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-base">receipt_long</span> Historial de Compras
+                              </h4>
+                              {(selectedTenant.payments?.length > 0) ? (
+                                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                                  <table className="w-full text-left">
+                                    <thead>
+                                      <tr className="bg-slate-50/50">
+                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan</th>
+                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Monto</th>
+                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Proveedor</th>
+                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
+                                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Fecha</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                      {selectedTenant.payments.map((p: any, i: number) => (
+                                        <tr key={i} className="hover:bg-slate-50/30 transition-colors">
+                                          <td className="px-4 py-3">
+                                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-md uppercase ${p.plan === 'master' ? 'bg-orange-100 text-orange-700' : p.plan === 'plus' ? 'bg-emerald-100 text-emerald-700' : p.plan === 'advanced' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{p.plan || '—'}</span>
+                                          </td>
+                                          <td className="px-4 py-3 text-right text-sm font-black text-primary">${((p.amount || 0) / 100).toFixed(2)} {p.currency || 'USD'}</td>
+                                          <td className="px-4 py-3 text-center text-[10px] text-slate-400 font-medium">{p.provider || '—'}</td>
+                                          <td className="px-4 py-3 text-center">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${p.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                              <span className={`w-1.5 h-1.5 rounded-full ${p.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                              {p.status === 'completed' ? 'Completado' : p.status}
+                                            </span>
+                                          </td>
+                                          <td className="px-4 py-3 text-right text-[10px] text-slate-400">{new Date(p.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-50 rounded-xl p-6 text-center">
+                                  <span className="material-symbols-outlined text-3xl text-slate-300 mb-2">shopping_cart</span>
+                                  <p className="text-xs text-slate-400 font-medium">No hay compras registradas</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      </div>
+                    )}
                   </div>
                 )}
 
+                {/* ===== PLAN PERMISSIONS SUB-TAB ===== */}
+                {adminTab === 'permissions' && (
+                  <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 space-y-6">
+                    <div>
+                      <h3 className="text-xl font-black text-primary tracking-tight">Matriz de Permisos de Planes</h3>
+                      <p className="text-xs text-slate-400 font-medium mt-1">Configura a qué secciones tiene acceso cada plan de suscripción en la plataforma.</p>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan</th>
+                            {TABS_TO_MANAGE.map(tab => (
+                              <th key={tab.key} className="px-4 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
+                                {tab.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {PLANS.map(plan => {
+                            const allowedList = localPlanPermissions?.[plan] || [];
+                            return (
+                              <tr key={plan} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="px-6 py-4">
+                                  <span className="text-sm font-extrabold capitalize text-primary">{plan}</span>
+                                </td>
+                                {TABS_TO_MANAGE.map(tab => {
+                                  const isChecked = allowedList.includes(tab.key);
+                                  const isAlwaysAllowed = tab.key === 'dashboard' || tab.key === 'billing'; // Core sections
+                                  return (
+                                    <td key={tab.key} className="px-4 py-4 text-center">
+                                      <input
+                                        type="checkbox"
+                                        disabled={isAlwaysAllowed}
+                                        checked={isChecked || isAlwaysAllowed}
+                                        onChange={(e) => {
+                                          const updatedList = e.target.checked
+                                            ? [...allowedList, tab.key]
+                                            : allowedList.filter((k: string) => k !== tab.key);
+                                          setLocalPlanPermissions((prev: any) => ({
+                                            ...prev,
+                                            [plan]: updatedList
+                                          }));
+                                        }}
+                                        className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                      />
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        onClick={handleSavePlanPermissions}
+                        disabled={savingPermissions}
+                        className="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-bold shadow-md shadow-orange-500/10 flex items-center gap-2 transition-all disabled:opacity-50"
+                      >
+                        {savingPermissions ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <span className="material-symbols-outlined text-sm">save</span>
+                        )}
+                        Guardar Configuración de Planes
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== DYNAMIC TEMPLATES SUB-TAB ===== */}
+                {adminTab === 'templates' && (
+                  <div className="space-y-6">
+                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-lg font-extrabold text-primary">Plantillas Publicitarias Dinámicas</h3>
+                          <p className="text-xs text-slate-400 mt-1">Crea y administra plantillas premium impulsadas por configuraciones JSON integradas</p>
+                        </div>
+                        <div className="flex gap-2">
+                          {CREATIVE_TEMPLATES.length > 0 && (
+                            <button 
+                              onClick={handleSyncBaseTemplates}
+                              disabled={adminActionLoading}
+                              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50"
+                            >
+                              <span className="material-symbols-outlined text-sm">sync</span>
+                              Sincronizar Plantillas Base
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => {
+                              setEditingTpl(null);
+                              setTplName('');
+                              setTplCategory('general');
+                              setTplPreviewUrl('');
+                              setTplConfigJson('');
+                              setTplIsActive(true);
+                              setTplImageFile(null);
+                              setTplImagePreview('');
+                              setShowTplForm(!showTplForm);
+                            }} 
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all"
+                          >
+                            <span className="material-symbols-outlined text-sm">{showTplForm ? 'close' : 'add'}</span>
+                            {showTplForm ? 'Cerrar Formulario' : 'Nueva Plantilla'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {showTplForm && (
+                        <div className="p-6 bg-slate-50 rounded-xl mb-6 border border-slate-200/50">
+                          <div className="grid md:grid-cols-3 gap-4 mb-4">
+                            <div className="md:col-span-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Nombre de la Plantilla</label>
+                              <input 
+                                value={tplName} 
+                                onChange={e => setTplName(e.target.value)} 
+                                placeholder="Ej: Cosmético Lavanda Oasis Premium" 
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" 
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Categoría</label>
+                              <select 
+                                value={tplCategory} 
+                                onChange={e => setTplCategory(e.target.value)} 
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500"
+                              >
+                                <option value="general">General</option>
+                                <option value="belleza">Belleza</option>
+                                <option value="suplementos">Suplementos</option>
+                                <option value="moda">Moda</option>
+                                <option value="tech">Tecnología</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid md:grid-cols-2 gap-6 mb-4">
+                            {/* JSON config */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Configuración JSON</label>
+                                <div className="flex items-center gap-3">
+                                  <button 
+                                    type="button" 
+                                    onClick={handleAutoDetectZones} 
+                                    disabled={detectingZones || (!tplImagePreview && !tplPreviewUrl)}
+                                    className="text-[10px] text-violet-500 hover:text-violet-600 font-extrabold flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    {detectingZones ? (
+                                      <div className="w-3 h-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
+                                    ) : (
+                                      <span className="material-symbols-outlined text-[12px]">search</span>
+                                    )}
+                                    {detectingZones ? 'Detectando...' : '🔍 Auto-detectar zonas'}
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    onClick={handlePreFillDefaultJson} 
+                                    className="text-[10px] text-orange-500 hover:text-orange-600 font-extrabold flex items-center gap-1 transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                                    Autorellenar estructura
+                                  </button>
+                                </div>
+                              </div>
+                              <textarea 
+                                value={tplConfigJson} 
+                                onChange={e => setTplConfigJson(e.target.value)} 
+                                placeholder="Pega o escribe el JSON de la plantilla..." 
+                                rows={8} 
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-xs font-mono text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" 
+                              />
+                              {/* Inline readiness indicator */}
+                              {tplConfigJson.trim() && (() => {
+                                try {
+                                  const cfg = JSON.parse(tplConfigJson);
+                                  const ps = !!cfg.product_slot;
+                                  const ts = Array.isArray(cfg.text_slots) && cfg.text_slots.length > 0;
+                                  const si = cfg.template_semantic_isolation === true;
+                                  const readiness = ps && ts && si ? 'ready' : ps ? 'draft' : 'legacy';
+                                  const label = readiness === 'ready' ? '🟢 Ready' : readiness === 'draft' ? '🟡 Draft' : '🔴 Legacy';
+                                  const details = [
+                                    ps ? `✅ product_slot` : `❌ product_slot`,
+                                    ts ? `✅ ${cfg.text_slots.length} text_slots` : `❌ text_slots`,
+                                    si ? `✅ semantic_isolation` : `❌ semantic_isolation`,
+                                    cfg.template_visual_dna_lock ? `✅ dna_lock` : `❌ dna_lock`
+                                  ].join('  •  ');
+                                  return (
+                                    <div className={`mt-2 px-3 py-2 rounded-lg text-[10px] font-bold border ${
+                                      readiness === 'ready' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                                      readiness === 'draft' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                                      'bg-red-50 border-red-200 text-red-600'
+                                    }`}>
+                                      <span>{label}</span>
+                                      <span className="ml-3 font-medium opacity-75">{details}</span>
+                                    </div>
+                                  );
+                                } catch { return null; }
+                              })()}
+                            </div>
+
+                            {/* Preview Image Upload */}
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Imagen de Vista Previa (Banner)</label>
+                              <input 
+                                ref={tplImageInputRef} 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleTplImageSelect} 
+                                className="hidden" 
+                              />
+                              {tplImagePreview || tplPreviewUrl ? (
+                                <div className="relative rounded-xl overflow-hidden border border-slate-200 h-[178px]">
+                                  <img 
+                                    src={tplImagePreview || tplPreviewUrl} 
+                                    alt="Preview" 
+                                    className="w-full h-full object-cover" 
+                                  />
+                                  <button 
+                                    onClick={() => { 
+                                      setTplImageFile(null); 
+                                      setTplImagePreview(''); 
+                                      setTplPreviewUrl(''); 
+                                    }} 
+                                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">close</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => tplImageInputRef.current?.click()} 
+                                  className="w-full h-[178px] border-2 border-dashed border-slate-200 rounded-xl hover:border-orange-400 hover:bg-orange-50/30 transition-all flex flex-col items-center justify-center gap-2 group"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                                    <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500 transition-colors">add_photo_alternate</span>
+                                  </div>
+                                  <p className="text-xs font-bold text-slate-400 group-hover:text-orange-500 transition-colors">Haz clic para subir imagen de preview</p>
+                                  <p className="text-[10px] text-slate-300">Formato horizontal recomendado -- Máx. 5MB</p>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center mt-6">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input 
+                                type="checkbox" 
+                                checked={tplIsActive} 
+                                onChange={e => setTplIsActive(e.target.checked)} 
+                                className="rounded text-orange-500 focus:ring-orange-500 h-4 w-4 border-slate-300" 
+                              />
+                              <span className="text-xs font-bold text-slate-600">Activa (disponible para usuarios)</span>
+                            </label>
+                            
+                            <div className="flex justify-end gap-3">
+                              <button 
+                                onClick={() => { 
+                                  setShowTplForm(false); 
+                                  setTplImageFile(null); 
+                                  setTplImagePreview(''); 
+                                  setEditingTpl(null); 
+                                }} 
+                                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
+                              >
+                                Cancelar
+                              </button>
+                              <button 
+                                onClick={handleSaveCreativeTemplate} 
+                                disabled={adminActionLoading || !tplName.trim() || !tplConfigJson.trim()} 
+                                className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+                              >
+                                {adminActionLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">save</span>}
+                                {editingTpl ? 'Guardar Cambios' : 'Crear Plantilla'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {adminTemplates?.length === 0 ? (
+                          <div className="col-span-full text-center py-12 text-slate-300">
+                            <span className="material-symbols-outlined text-5xl mb-3 block">palette</span>
+                            <p className="text-sm font-bold">No hay plantillas dinámicas creadas</p>
+                            <p className="text-xs mt-1">Crea tu primera plantilla publicitaria dinámica para que los usuarios puedan generar creativos premium</p>
+                          </div>
+                        ) : (
+                          adminTemplates?.map((tpl: any) => (
+                            <div 
+                              key={tpl.id} 
+                              className={`p-4 rounded-xl border flex flex-col justify-between ${
+                                tpl.is_active ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50/70 opacity-80'
+                              } transition-all shadow-sm`}
+                            >
+                              <div>
+                                {tpl.preview_image_url ? (
+                                  <div className="mb-3 rounded-lg overflow-hidden h-28 border border-slate-100">
+                                    <img 
+                                      src={tpl.preview_image_url} 
+                                      alt={tpl.name} 
+                                      className="w-full h-full object-cover" 
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="mb-3 rounded-lg bg-slate-100 border border-slate-200/50 flex flex-col items-center justify-center h-28 text-slate-300">
+                                    <span className="material-symbols-outlined text-3xl">image</span>
+                                    <span className="text-[10px] font-bold mt-1">Sin imagen</span>
+                                  </div>
+                                )}
+                                
+                                <div className="mb-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-sm font-extrabold text-primary leading-tight">{tpl.name}</h4>
+                                    <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-slate-100 text-slate-600 uppercase tracking-wider">{tpl.category}</span>
+                                    {(() => {
+                                      const cfg = tpl.config_json || {};
+                                      const r = cfg.template_readiness || (cfg.product_slot ? (Array.isArray(cfg.text_slots) && cfg.text_slots.length > 0 && cfg.template_semantic_isolation ? 'ready' : 'draft') : 'legacy');
+                                      return r === 'ready' ? (
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-emerald-100 text-emerald-700 uppercase">🟢 Ready</span>
+                                      ) : r === 'draft' ? (
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-amber-100 text-amber-700 uppercase">🟡 Draft</span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-red-100 text-red-600 uppercase">🔴 Legacy</span>
+                                      );
+                                    })()}
+                                    {!tpl.is_active && (
+                                      <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-red-100 text-red-600 uppercase">Inactiva</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 mt-1 font-mono leading-none">ID: {tpl.id.substring(0, 8)}...</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100 gap-2">
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(JSON.stringify(tpl.config_json, null, 2));
+                                    setToast({ message: language === 'en' ? 'JSON copied to clipboard!' : '¡JSON copiado al portapapeles!', type: 'success' });
+                                  }} 
+                                  className="px-2.5 py-1.5 bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1"
+                                >
+                                  <span className="material-symbols-outlined text-xs">content_copy</span>
+                                  JSON
+                                </button>
+                                
+                                <div className="flex items-center gap-1">
+                                  <button 
+                                    onClick={() => handleToggleTemplateStatus(tpl)} 
+                                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${
+                                      tpl.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                    }`}
+                                  >
+                                    {tpl.is_active ? 'Desactivar' : 'Activar'}
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      setEditingTpl(tpl);
+                                      setTplName(tpl.name);
+                                      setTplCategory(tpl.category || 'general');
+                                      setTplPreviewUrl(tpl.preview_image_url || '');
+                                      setTplConfigJson(JSON.stringify(tpl.config_json, null, 2));
+                                      setTplIsActive(tpl.is_active);
+                                      setTplImageFile(null);
+                                      setTplImagePreview('');
+                                      setShowTplForm(true);
+                                    }} 
+                                    className="px-2.5 py-1.5 bg-slate-50 text-slate-500 hover:text-slate-700 hover:bg-slate-100 text-[10px] font-bold rounded-lg transition-all"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteCreativeTemplate(tpl.id)} 
+                                    className="px-2.5 py-1.5 bg-red-50 text-red-500 hover:bg-red-100 text-[10px] font-bold rounded-lg transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-xs block">delete</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* ===== ANNOUNCEMENTS SUB-TAB ===== */}
                 {adminTab === 'announcements' && (
                   <div className="space-y-6">
@@ -6738,6 +12536,205 @@ export default function PanelClient() {
                     </div>
                   </div>
                 )}
+                {/* ===== AI ENGINE SUB-TAB ===== */}
+                {adminTab === 'ai_engine' && (
+                  <div className="space-y-8">
+                    {/* Section header */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-500/20">
+                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>palette</span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-primary">Proveedor de Render Visual</h3>
+                        <p className="text-sm text-slate-400 font-medium">Selecciona el motor de IA que se usará para generar todas las imágenes de campaña</p>
+                      </div>
+                    </div>
+
+                    {/* Radio Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                      {/* OpenAI Card */}
+                      <button
+                        id="admin-visual-provider-openai"
+                        type="button"
+                        onClick={() => setConfigData({ ...configData, visual_render_provider: 'openai' })}
+                        className={`relative p-7 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-[1.02] ${
+                          configData.visual_render_provider !== 'flux'
+                            ? 'border-emerald-400 bg-emerald-50 shadow-lg shadow-emerald-200/60'
+                            : 'border-slate-200 bg-white hover:border-slate-300 shadow-sm'
+                        }`}
+                      >
+                        {/* Selection indicator */}
+                        <div className={`absolute top-5 right-5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          configData.visual_render_provider !== 'flux'
+                            ? 'border-emerald-500 bg-emerald-500'
+                            : 'border-slate-300'
+                        }`}>
+                          {configData.visual_render_provider !== 'flux' && (
+                            <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1", fontSize: '12px' }}>check</span>
+                          )}
+                        </div>
+
+                        <div className="w-14 h-14 rounded-2xl bg-[#10a37f]/10 flex items-center justify-center mb-5">
+                          <span className="material-symbols-outlined text-[#10a37f] text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>psychology</span>
+                        </div>
+
+                        <h4 className={`text-lg font-black mb-1 ${ configData.visual_render_provider !== 'flux' ? 'text-emerald-800' : 'text-slate-700' }`}>OpenAI Images</h4>
+                        <p className="text-slate-500 text-xs leading-relaxed mb-5">
+                          GPT-Image-1 con compositing de máscara. Máxima fidelidad estructural al layout de la plantilla.
+                        </p>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">
+                            ✦ Mayor fidelidad estructural
+                          </span>
+                          <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500">
+                            Costo: $$$
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* FLUX Card */}
+                      <button
+                        id="admin-visual-provider-flux"
+                        type="button"
+                        onClick={() => setConfigData({ ...configData, visual_render_provider: 'flux' })}
+                        className={`relative p-7 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-[1.02] ${
+                          configData.visual_render_provider === 'flux'
+                            ? 'border-violet-400 bg-violet-50 shadow-lg shadow-violet-200/60'
+                            : 'border-slate-200 bg-white hover:border-slate-300 shadow-sm'
+                        }`}
+                      >
+                        {/* Selection indicator */}
+                        <div className={`absolute top-5 right-5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          configData.visual_render_provider === 'flux'
+                            ? 'border-violet-500 bg-violet-500'
+                            : 'border-slate-300'
+                        }`}>
+                          {configData.visual_render_provider === 'flux' && (
+                            <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1", fontSize: '12px' }}>check</span>
+                          )}
+                        </div>
+
+                        <div className="w-14 h-14 rounded-2xl bg-violet-100 flex items-center justify-center mb-5">
+                          <span className="material-symbols-outlined text-violet-600 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
+                        </div>
+
+                        <h4 className={`text-lg font-black mb-1 ${ configData.visual_render_provider === 'flux' ? 'text-violet-800' : 'text-slate-700' }`}>
+                          FLUX <span className="font-medium text-slate-400 text-sm">(fal.ai)</span>
+                        </h4>
+                        <p className="text-slate-500 text-xs leading-relaxed mb-5">
+                          FLUX Inpainting via fal.ai. Rápido y económico para pruebas rápidas e iteración de campañas.
+                        </p>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-violet-100 text-violet-700 border border-violet-200">
+                            ⚡ Más económico
+                          </span>
+                          <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500">
+                            Costo: $
+                          </span>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* API Keys */}
+                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
+                      <h4 className="text-base font-black text-primary mb-6 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-slate-400" style={{ fontVariationSettings: "'FILL' 1" }}>key</span>
+                        API Keys de Proveedores
+                      </h4>
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* OpenAI Key */}
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            OPENAI_API_KEY
+                            <span className={`ml-2 px-2 py-0.5 rounded-md text-[8px] font-black ${
+                              configData.visual_render_provider !== 'flux'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}>
+                              {configData.visual_render_provider !== 'flux' ? 'ACTIVO' : 'ESPERA'}
+                            </span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              className={`w-full rounded-xl px-4 py-3.5 pr-10 text-xs font-mono font-bold transition-all border-2 ${
+                                configData.visual_render_provider !== 'flux'
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800 placeholder-emerald-300'
+                                  : 'border-slate-100 bg-slate-50 text-slate-500 placeholder-slate-300'
+                              }`}
+                              type="password"
+                              placeholder="sk-proj-..."
+                              value={configData.openai_key || ''}
+                              onChange={e => setConfigData({ ...configData, openai_key: e.target.value })}
+                            />
+                            {configData.openai_key && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-emerald-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] text-slate-400">Necesaria para OpenAI Images (GPT-Image-1)</p>
+                        </div>
+
+                        {/* FAL Key */}
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            FAL_KEY
+                            <span className={`ml-2 px-2 py-0.5 rounded-md text-[8px] font-black ${
+                              configData.visual_render_provider === 'flux'
+                                ? 'bg-violet-100 text-violet-700'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}>
+                              {configData.visual_render_provider === 'flux' ? 'ACTIVO' : 'ESPERA'}
+                            </span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              className={`w-full rounded-xl px-4 py-3.5 pr-10 text-xs font-mono font-bold transition-all border-2 ${
+                                configData.visual_render_provider === 'flux'
+                                  ? 'border-violet-200 bg-violet-50 text-violet-800 placeholder-violet-300'
+                                  : 'border-slate-100 bg-slate-50 text-slate-500 placeholder-slate-300'
+                              }`}
+                              type="password"
+                              placeholder="fal-key-..."
+                              value={configData.fal_key || ''}
+                              onChange={e => setConfigData({ ...configData, fal_key: e.target.value })}
+                            />
+                            {configData.fal_key && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-violet-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] text-slate-400">Necesaria para FLUX Inpainting (fal.ai)</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Save button */}
+                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-slate-50 to-white rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full animate-pulse ${
+                          configData.visual_render_provider === 'flux' ? 'bg-violet-500' : 'bg-emerald-500'
+                        }`} />
+                        <p className="text-sm font-bold text-slate-700">
+                          Proveedor activo: <span className={configData.visual_render_provider === 'flux' ? 'text-violet-600' : 'text-emerald-600'}>
+                            {configData.visual_render_provider === 'flux' ? 'FLUX (fal.ai)' : 'OpenAI Images (GPT-Image-1)'}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleSaveSettings as any}
+                        disabled={isSaving}
+                        className="flex items-center gap-2.5 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+                      >
+                        {isSaving
+                          ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
+                          : <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>save</span> Guardar Configuración</>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                )}
+
               </>
             )}
           </motion.div>
@@ -6984,6 +12981,8 @@ export default function PanelClient() {
         </div>
       )}
 
+          </>
+        )}
 </main>
     </div>
 
@@ -7192,7 +13191,7 @@ export default function PanelClient() {
                             }
                           } else {
                             const errData = await resPatch.json();
-                            alert(`Error al cambiar modo: ${errData.error}`);
+                            setToast({ message: `Error al cambiar modo: ${errData.error}`, type: 'error' });
                           }
                         }}
                         className={`flex flex-col items-center justify-center p-3 rounded-lg transition-all group ${
@@ -7210,7 +13209,7 @@ export default function PanelClient() {
                             : (language === 'en' ? 'Control' : 'Control')}
                         </span>
                       </button>
-                      <button onClick={() => { const phone = (selectedChat.phone_number || '').replace(/[^0-9]/g, ''); if (phone) window.open(`https://wa.me/${phone}`, '_blank'); else alert(language === 'es' ? 'No hay número de teléfono registrado' : 'No phone number registered'); }} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
+                      <button onClick={() => { const phone = (selectedChat.phone_number || '').replace(/[^0-9]/g, ''); if (phone) window.open(`https://wa.me/${phone}`, '_blank'); else setToast({ message: language === 'es' ? 'No hay número de teléfono registrado' : 'No phone number registered', type: 'info' }); }} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
                         <span className="material-symbols-outlined text-primary-container group-hover:text-white">call</span>
                         <span className="text-[10px] mt-1 font-bold uppercase">{language === 'en' ? 'Call' : 'Llamar'}</span>
                       </button>
@@ -7227,7 +13226,7 @@ export default function PanelClient() {
                             if (res.ok) {
                               setSelectedChat({ ...selectedChat, name: editName, phone_number: editPhone });
                             } else {
-                              alert("Error al guardar contacto");
+                              setToast({ message: 'Error al guardar contacto', type: 'error' });
                             }
                             setIsSaving(false);
                             setIsEditingContact(false);
@@ -7248,7 +13247,7 @@ export default function PanelClient() {
                           {isEditingContact ? (language === 'en' ? 'Save' : 'Guardar') : (language === 'en' ? 'Edit' : 'Editar')}
                         </span>
                       </button>
-                      <button onClick={() => alert(language === 'en' ? 'Feature coming soon' : 'Función próximamente')} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
+                      <button onClick={() => setToast({ message: language === 'en' ? 'Feature coming soon' : 'Función próximamente', type: 'info' })} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
                         <span className="material-symbols-outlined text-primary-container group-hover:text-white">more_horiz</span>
                         <span className="text-[10px] mt-1 font-bold uppercase">{language === 'en' ? 'More' : 'Más'}</span>
                       </button>
@@ -7917,6 +13916,53 @@ export default function PanelClient() {
         }
       }}
     />
+
+    {/* Google Identity Services GSI Script */}
+    <Script
+      src="https://accounts.google.com/gsi/client"
+      strategy="afterInteractive"
+      onLoad={() => {
+        window.dispatchEvent(new Event('google-gsi-loaded'));
+      }}
+    />
+
+    {/* Premium Glassmorphic Toast Notification */}
+    {toast && (
+      <div className="fixed bottom-6 right-6 z-[9999] max-w-sm w-full">
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes toastSlideIn {
+            from { transform: translateY(1rem); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+        `}} />
+        <div 
+          className="p-4 rounded-2xl backdrop-blur-lg shadow-2xl border flex items-start gap-3 transition-all duration-300"
+          style={{
+            animation: 'toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            backgroundColor: toast.type === 'success' ? 'rgba(6, 78, 59, 0.9)' : toast.type === 'error' ? 'rgba(159, 18, 57, 0.9)' : 'rgba(30, 58, 138, 0.9)',
+            borderColor: toast.type === 'success' ? 'rgba(52, 211, 153, 0.4)' : toast.type === 'error' ? 'rgba(251, 113, 133, 0.4)' : 'rgba(96, 165, 250, 0.4)',
+            color: toast.type === 'success' ? '#34d399' : toast.type === 'error' ? '#fb7185' : '#60a5fa',
+            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1), inset 0 1px 0 0 rgb(255 255 255 / 0.1)'
+          }}
+        >
+          <span className="material-symbols-outlined mt-0.5 text-xl">
+            {toast.type === 'success' ? 'check_circle' : toast.type === 'error' ? 'error' : 'info'}
+          </span>
+          <div className="flex-1">
+            <h5 className="text-[9px] font-extrabold uppercase tracking-widest text-slate-300">
+              {toast.type === 'success' ? (language === 'en' ? 'Success' : 'Éxito') : toast.type === 'error' ? (language === 'en' ? 'Error' : 'Error') : (language === 'en' ? 'Information' : 'Información')}
+            </h5>
+            <p className="text-xs font-semibold text-white mt-0.5 leading-relaxed">{toast.message}</p>
+          </div>
+          <button 
+            onClick={() => setToast(null)}
+            className="text-slate-300 hover:text-white transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      </div>
+    )}
 
     </>
   );
