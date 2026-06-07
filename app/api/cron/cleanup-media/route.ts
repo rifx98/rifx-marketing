@@ -5,6 +5,23 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 // Se llama silenciosamente desde el frontend al iniciar sesión.
 export async function GET(req: NextRequest) {
   try {
+    const authHeader = req.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (process.env.NODE_ENV === 'production') {
+      if (!cronSecret) {
+        console.error('❌ CRON_SECRET is missing in production env variables.');
+        return NextResponse.json({ error: 'Internal Server Error: Cron is not configured' }, { status: 500 });
+      }
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      }
+    } else {
+      if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      }
+    }
+
     const supabase = createSupabaseAdmin();
     
     // Obtener configuración de días de retención

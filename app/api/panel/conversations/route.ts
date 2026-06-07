@@ -6,18 +6,28 @@ import { getTenantFromRequest } from '@/lib/auth';
 // CONVERSACIONES Y MENSAJES PARA EL PANEL
 // ============================================
 
-// GET: Obtener todas las conversaciones agrupadas por estado
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createSupabaseAdmin();
     const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const supabase = createSupabaseAdmin();
     const conversationId = req.nextUrl.searchParams.get('id');
 
     // Si se pide una conversación específica, devolver con sus mensajes
     if (conversationId) {
-      let convQuery = supabase.from('conversations').select('*').eq('id', conversationId);
-      if (tenant?.tenantId) convQuery = convQuery.eq('tenant_id', tenant.tenantId);
-      const { data: conversation } = await convQuery.single();
+      const { data: conversation } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .eq('tenant_id', tenant.tenantId)
+        .single();
+
+      if (!conversation) {
+        return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
+      }
 
       const { data: messages } = await supabase
         .from('messages')
@@ -29,9 +39,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Obtener todas las conversaciones
-    let allQuery = supabase.from('conversations').select('*').order('updated_at', { ascending: false });
-    if (tenant?.tenantId) allQuery = allQuery.eq('tenant_id', tenant.tenantId);
-    const { data: conversations } = await allQuery;
+    const { data: conversations } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('tenant_id', tenant.tenantId)
+      .order('updated_at', { ascending: false });
 
     const chatting = (conversations || []).filter((c) => c.status === 'chatting');
     const interested = (conversations || []).filter((c) => c.status === 'interested');
@@ -47,6 +59,12 @@ export async function GET(req: NextRequest) {
 // PATCH: Actualizar estado, nombre o número de una conversación
 export async function PATCH(req: NextRequest) {
   try {
+    // Auth check — VULN-06 fix
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
     const supabase = createSupabaseAdmin();
     const { id, status, name, phone_number } = await req.json();
 
@@ -70,7 +88,8 @@ export async function PATCH(req: NextRequest) {
     const { error } = await supabase
       .from('conversations')
       .update(updates)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('tenant_id', tenant.tenantId); // Only allow modifying own conversations
 
     if (error) {
       console.error('❌ Error actualizando conversación:', error.message);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 
 // ============================================
 // PAUSAR / REANUDAR IA PARA UNA CONVERSACIÓN
@@ -13,11 +14,28 @@ const RESUME_SIGNAL = '__SYSTEM_RESUME__';
 // POST: Pausar o reanudar la IA
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createSupabaseAdmin();
     const { conversationId, paused } = await req.json();
 
     if (!conversationId || typeof paused !== 'boolean') {
       return NextResponse.json({ error: 'Faltan conversationId o paused (boolean)' }, { status: 400 });
+    }
+
+    // Verify ownership of the conversation
+    const { data: conversation, error: convErr } = await supabase
+      .from('conversations')
+      .select('id, phone_number, customer_name')
+      .eq('id', conversationId)
+      .eq('tenant_id', tenant.tenantId)
+      .single();
+
+    if (convErr || !conversation) {
+      return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
     }
 
     const signal = paused ? PAUSE_SIGNAL : RESUME_SIGNAL;
@@ -39,16 +57,14 @@ export async function POST(req: NextRequest) {
     // Si estamos REANUDANDO la IA, enviar mensaje al cliente por WhatsApp
     if (!paused) {
       try {
-        // Obtener la conversación para saber el número
-        const { data: conversation } = await supabase
-          .from('conversations')
-          .select('phone_number, customer_name')
-          .eq('id', conversationId)
-          .single();
-
         if (conversation) {
-          // Obtener credenciales de WhatsApp
-          const { data: config } = await supabase.from('config').select('*').limit(1).single();
+          // Obtener credenciales de WhatsApp for the authenticated tenant
+          const { data: config } = await supabase
+            .from('config')
+            .select('*')
+            .eq('tenant_id', tenant.tenantId)
+            .limit(1)
+            .single();
           const token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
           const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -96,11 +112,28 @@ export async function POST(req: NextRequest) {
 // GET: Verificar si una conversación está pausada
 export async function GET(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createSupabaseAdmin();
     const conversationId = req.nextUrl.searchParams.get('conversationId');
 
     if (!conversationId) {
       return NextResponse.json({ error: 'Falta conversationId' }, { status: 400 });
+    }
+
+    // Verify conversation ownership
+    const { data: conversation, error: convErr } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('tenant_id', tenant.tenantId)
+      .single();
+
+    if (convErr || !conversation) {
+      return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
     }
 
     const { data: messages } = await supabase

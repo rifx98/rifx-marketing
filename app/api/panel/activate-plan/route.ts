@@ -10,7 +10,6 @@ import { getTenantFromRequest, signToken } from '@/lib/auth';
 const LIMITS: Record<string, { contacts: number; storage: number }> = {
   trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
   start:    { contacts: 1000,  storage: 250 * 1024 * 1024 },
-  advanced: { contacts: 10000, storage: 500 * 1024 * 1024 },
   plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
   master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
 };
@@ -25,6 +24,10 @@ export async function POST(req: NextRequest) {
     const { plan } = await req.json();
     if (!plan || !LIMITS[plan]) {
       return NextResponse.json({ error: 'Plan inválido' }, { status: 400 });
+    }
+
+    if (plan !== 'trial') {
+      return NextResponse.json({ error: 'No autorizado. Los planes de pago solo pueden activarse a través de la pasarela de pagos.' }, { status: 403 });
     }
 
     const supabase = createSupabaseAdmin();
@@ -92,13 +95,27 @@ export async function POST(req: NextRequest) {
     });
 
     // Calculate allowedTabs to match auth/me format
+    // Fetch global plan permissions from platform_settings
     let planPermissions: any = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics"]
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
     };
+
+    try {
+      const { data: settingsData } = await supabase
+        .from('platform_settings')
+        .select('plan_permissions')
+        .limit(1)
+        .maybeSingle();
+      if (settingsData?.plan_permissions) {
+        planPermissions = settingsData.plan_permissions;
+      }
+    } catch (e) {
+      console.warn("Could not load plan_permissions from database in activate-plan, using defaults:", e);
+    }
+
     const baseAllowedTabs = planPermissions[plan] || planPermissions.trial;
     const overrides = tenantData.permission_overrides || {};
     const activeOverrides: string[] = [];

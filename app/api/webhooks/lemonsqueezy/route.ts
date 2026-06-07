@@ -17,7 +17,6 @@ function verifySignature(rawBody: string, signature: string, secret: string): bo
 function getPlanFromVariantId(variantId: string): string | null {
   const map: Record<string, string> = {};
   if (process.env.LEMONSQUEEZY_VARIANT_START) map[process.env.LEMONSQUEEZY_VARIANT_START] = 'start';
-  if (process.env.LEMONSQUEEZY_VARIANT_ADVANCED) map[process.env.LEMONSQUEEZY_VARIANT_ADVANCED] = 'advanced';
   if (process.env.LEMONSQUEEZY_VARIANT_PLUS) map[process.env.LEMONSQUEEZY_VARIANT_PLUS] = 'plus';
   if (process.env.LEMONSQUEEZY_VARIANT_MASTER) map[process.env.LEMONSQUEEZY_VARIANT_MASTER] = 'master';
   return map[variantId] || null;
@@ -26,7 +25,6 @@ function getPlanFromVariantId(variantId: string): string | null {
 const LIMITS: Record<string, { contacts: number; storage: number }> = {
   trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
   start:    { contacts: 1000,  storage: 250 * 1024 * 1024 },
-  advanced: { contacts: 10000, storage: 500 * 1024 * 1024 },
   plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
   master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
 };

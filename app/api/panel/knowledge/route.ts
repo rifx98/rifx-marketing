@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth';
 
 // ============================================
 // KNOWLEDGE BASE API — Gestión de archivos de conocimiento
@@ -16,14 +17,14 @@ interface KBEntry {
   created_at: string;
 }
 
-// Helper: Get tenant_id from auth token
+// Helper: Get tenant_id from auth token (verified signature — VULN-10 fix)
 async function getTenantId(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get('authorization');
   if (!authHeader) return null;
   const token = authHeader.replace('Bearer ', '');
   try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.tenant_id || null;
+    const payload = await verifyToken(token);
+    return payload?.tenantId || null;
   } catch {
     return null;
   }
@@ -115,15 +116,40 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
+
+    // Validate size (Max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: 'El archivo excede el tamaño máximo permitido de 10MB.' }, { status: 400 });
+    }
+
+    // Validate extension
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExtensions = ['txt', 'text', 'csv', 'pdf', 'doc', 'docx'];
+    if (!allowedExtensions.includes(ext)) {
+      return NextResponse.json({ error: 'Extensión de archivo no permitida. Use txt, csv, pdf, doc o docx.' }, { status: 400 });
+    }
+
+    // Validate MIME type
+    const allowedMimes = [
+      'text/plain',
+      'text/csv',
+      'text/x-csv',
+      'application/csv',
+      'application/x-csv',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/octet-stream'
+    ];
+    if (file.type && !allowedMimes.includes(file.type)) {
+      return NextResponse.json({ error: 'Tipo de archivo (MIME) no permitido.' }, { status: 400 });
+    }
     
     const supabase = createSupabaseAdmin();
     
     // Read file content
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
-    // Get file extension
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'txt';
     
     // Extract text content
     const textContent = await extractText(buffer, file.name, ext);

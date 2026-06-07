@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const apiKey = extConfig.groq_key || process.env.GROQ_API_KEY;
     console.log(`[Generate Metadata] Env GROQ_API_KEY:`, process.env.GROQ_API_KEY ? 'Presente' : 'Ausente');
     console.log(`[Generate Metadata] DB groq_key:`, extConfig.groq_key ? 'Presente' : 'Ausente');
-    console.log(`[Generate Metadata] Resolvió API Key como:`, apiKey ? `${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}` : 'Nula');
+    console.log(`[Generate Metadata] Resolvió API Key como:`, apiKey ? '[CONFIGURED]' : 'Nula');
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Clave de Groq no configurada en el sistema. Asegúrate de configurar la clave de Groq.' }, { status: 500 });

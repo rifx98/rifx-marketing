@@ -39,5 +39,5 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
 -- 3. RLS
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscription_payments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role full access" ON subscriptions FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON subscription_payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON subscriptions TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON subscription_payments TO service_role FOR ALL USING (true) WITH CHECK (true);

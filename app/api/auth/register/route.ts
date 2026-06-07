@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { signToken, PLAN_LIMITS } from '@/lib/auth';
+import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 
 // POST: Registrar nuevo tenant
 export async function POST(req: NextRequest) {
   try {
+    // VULN-09 fix: Rate limiting
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const { allowed, retryAfterMs } = await checkRateLimit(
+      `register:${clientIp}`,
+      AUTH_RATE_LIMITS.register.maxAttempts,
+      AUTH_RATE_LIMITS.register.windowMs
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Demasiados intentos de registro. Intenta de nuevo en ${Math.ceil(retryAfterMs / 1000)} segundos.` },
+        { status: 429 }
+      );
+    }
+
     const { email, password, companyName, ownerName } = await req.json();
 
     if (!email || !password) {

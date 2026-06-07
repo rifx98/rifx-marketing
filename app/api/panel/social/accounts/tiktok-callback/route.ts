@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { verifyToken } from '@/lib/auth';
 import { encryptToken } from '@/lib/encryption';
 
 export async function GET(req: NextRequest) {
@@ -15,10 +16,13 @@ export async function GET(req: NextRequest) {
   try {
     let tenantId = '';
     try {
-      const decodedState = JSON.parse(decodeURIComponent(state));
-      tenantId = decodedState.tenantId;
-    } catch {
-      console.error('❌ [TikTok OAuth] Error decoding state parameter');
+      const decodedPayload = await verifyToken(decodeURIComponent(state));
+      if (!decodedPayload || decodedPayload.purpose !== 'oauth_state' || !decodedPayload.tenantId) {
+        throw new Error('Invalid or expired state parameter');
+      }
+      tenantId = decodedPayload.tenantId;
+    } catch (err: any) {
+      console.error('❌ [TikTok OAuth] Error decoding or verifying state parameter:', err.message);
       return NextResponse.redirect(new URL('/panel?tab=social&error=invalid_state', req.url));
     }
 

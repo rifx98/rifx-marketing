@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    const { data: config } = await supabase
+      .from('config')
+      .select('*')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .single();
     
     const prompt = config?.ai_prompt || '';
     let groqKey = '';

@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createSupabaseAdmin();
 
-    // 1. Get all conversations with their recent messages
+    // 1. Get all conversations with their recent messages for the authenticated tenant
     const { data: conversations } = await supabase
       .from('conversations')
       .select('id, customer_name, phone_number, status, created_at, updated_at')
+      .eq('tenant_id', tenant.tenantId)
       .order('updated_at', { ascending: false })
       .limit(30);
 
@@ -55,8 +62,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Get AI config
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    // 3. Get AI config for the authenticated tenant
+    const { data: config } = await supabase
+      .from('config')
+      .select('*')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .single();
     let groqKey = '';
     try { const p = JSON.parse(config?.openai_key || '{}'); groqKey = p.groq_key || p.openai_key || ''; } catch { groqKey = config?.openai_key || ''; }
     if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';

@@ -21,7 +21,22 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Faltan parámetros: filename y contentType' }, { status: 400 });
       }
 
-      const fileExt = filename.split('.').pop() || 'mp4';
+      // Validate file extension
+      const fileExt = filename.split('.').pop()?.toLowerCase() || '';
+      const allowedExtensions = ['mp4', 'mov', 'webm', 'mkv', 'jpg', 'jpeg', 'png', 'webp', 'gif'];
+      if (!allowedExtensions.includes(fileExt)) {
+        return NextResponse.json({ error: 'Extensión de archivo no permitida para redes sociales.' }, { status: 400 });
+      }
+
+      // Validate Content-Type
+      const allowedMimes = [
+        'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/mpeg', 'video/avi', 'video/x-msvideo',
+        'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/jpg'
+      ];
+      if (!allowedMimes.includes(contentType.toLowerCase())) {
+        return NextResponse.json({ error: 'Tipo de contenido (MIME) no permitido para redes sociales.' }, { status: 400 });
+      }
+
       const uniqueId = Math.random().toString(36).substring(2, 15);
       // Estructura: tenant_id/unique_id-timestamp.ext
       const key = `${tenant.tenantId}/${uniqueId}-${Date.now()}.${fileExt}`;

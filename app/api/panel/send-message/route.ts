@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 
 // Helper: Send a WhatsApp template message when the 24h window is closed
 async function sendTemplateMessage(
@@ -59,6 +60,12 @@ function is24hWindowError(waResult: any): boolean {
 // POST: Enviar mensaje manual desde el panel (Soporta JSON y FormData para imágenes)
 export async function POST(req: NextRequest) {
   try {
+    // Auth check — VULN-05 fix
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
     const supabase = createSupabaseAdmin();
     
     const contentType = req.headers.get('content-type') || '';
@@ -72,6 +79,34 @@ export async function POST(req: NextRequest) {
       conversationId = formData.get('conversationId') as string;
       message = formData.get('message') as string;
       file = formData.get('file') as File | null;
+
+      if (file) {
+        // Enforce max size: 16MB
+        if (file.size > 16 * 1024 * 1024) {
+          return NextResponse.json({ error: 'El archivo excede el tamaño máximo de 16MB.' }, { status: 400 });
+        }
+
+        // Validate extension
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'mp3', 'mp4', 'pdf', 'csv', 'txt', 'doc', 'docx', 'xls', 'xlsx'];
+        if (!allowedExtensions.includes(ext)) {
+          return NextResponse.json({ error: 'Extensión de archivo no permitida.' }, { status: 400 });
+        }
+
+        // Validate MIME type
+        const allowedMimes = [
+          'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/jpg',
+          'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac', 'audio/mp4', 'audio/amr',
+          'video/mp4', 'video/3gpp', 'video/webm', 'video/quicktime',
+          'application/pdf', 'text/plain', 'text/csv',
+          'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'application/octet-stream'
+        ];
+        if (file.type && !allowedMimes.includes(file.type)) {
+          return NextResponse.json({ error: 'Tipo de archivo (MIME) no permitido.' }, { status: 400 });
+        }
+      }
     } else {
       const json = await req.json();
       conversationId = json.conversationId;
@@ -225,12 +260,12 @@ export async function POST(req: NextRequest) {
       });
 
       if (uploadError && uploadError.message.includes('Bucket not found')) {
-        await supabase.storage.createBucket('chat_media', { public: true });
+        await supabase.storage.createBucket('chat_media', { public: false });
         await supabase.storage.from('chat_media').upload(fileName, buffer, { contentType: file.type });
       }
       
-      const { data: urlData } = supabase.storage.from('chat_media').getPublicUrl(fileName);
-      publicUrl = urlData.publicUrl;
+      const { data: signedData } = await supabase.storage.from('chat_media').createSignedUrl(fileName, 86400); // 24 hours
+      publicUrl = signedData?.signedUrl || '';
     }
 
     // Preparar payload del mensaje

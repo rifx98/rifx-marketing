@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { contactIds } = await req.json();
     if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
       return NextResponse.json({ error: 'contactIds required' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    const { data: config } = await supabase
+      .from('config')
+      .select('*')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .single();
     // Decode AI keys from JSON-encoded openai_key column
     let groqKey = '';
     try {
@@ -28,6 +39,7 @@ export async function POST(req: NextRequest) {
         .from('conversations')
         .select('id, customer_name, phone_number, status, updated_at, created_at')
         .eq('id', id)
+        .eq('tenant_id', tenant.tenantId)
         .single();
       if (!conv) continue;
 

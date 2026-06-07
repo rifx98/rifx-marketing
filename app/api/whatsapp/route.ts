@@ -23,7 +23,32 @@ export async function GET(req: NextRequest) {
 // POST: Recibir mensajes de WhatsApp
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    // VULN-12 fix: Verify Meta HMAC signature
+    const rawBody = await req.text();
+    const signature = req.headers.get('x-hub-signature-256');
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+
+    if (process.env.NODE_ENV === 'production' && !appSecret) {
+      console.error('❌ WhatsApp webhook: FACEBOOK_APP_SECRET is missing in production!');
+      return NextResponse.json({ error: 'Configuration error: webhook signature verification key is missing' }, { status: 500 });
+    }
+
+    if (appSecret) {
+      if (!signature) {
+        console.warn('⚠️ WhatsApp webhook: Missing X-Hub-Signature-256 header');
+        return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+      }
+      const crypto = await import('crypto');
+      const expectedSig = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
+      if (signature !== expectedSig) {
+        console.error('❌ WhatsApp webhook: Invalid HMAC signature');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+    } else {
+      console.warn('⚠️ FACEBOOK_APP_SECRET not set — skipping webhook signature verification (non-production only)');
+    }
+
+    const body = JSON.parse(rawBody);
 
     // Extraer el mensaje del payload de Meta
     const entry = body?.entry?.[0];
@@ -375,18 +400,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (extConfig.dropi_enabled) {
-      aiPrompt += `\n\n[AGENTE DE DROPSHIPPING ACTIVADO - DROPI]:
-Cuando el cliente demuestre interés claro en comprar o realizar un pedido del producto, debes pedirle de manera amable y profesional los siguientes datos completos de envío:
-1. Nombre Completo
-2. Teléfono de contacto
-3. Dirección exacta de entrega (calle, número de casa, indicaciones)
-4. Ciudad y Departamento
-
-IMPORTANTE:
-- Explícale que el envío es "Contra Entrega" (paga en efectivo al recibir el producto) a menos que pida lo contrario.
-- Una vez (y SOLO cuando) tengas TODOS los datos anteriores (Nombre, Teléfono, Dirección, Ciudad), debes confirmar el pedido al cliente y generar la orden en Dropi respondiendo con el siguiente tag exacto al final de tu mensaje:
+      aiPrompt += `\n\n[AGENTE DE VENTAS Y DROPSHIPPING ACTIVADO - DROPI]:
+Tu objetivo principal es actuar como un excelente asesor de ventas y conectar de forma amigable con el cliente:
+1. **Interactúa y Vende primero**: No pidas los datos de envío de inmediato ni de forma "seca". Si el cliente muestra interés o hace preguntas, háblale con entusiasmo del producto, destaca sus beneficios principales, resuelve sus dudas de forma persuasiva e interactúa de manera natural para convencerlo.
+2. **Confirma la intención de compra**: Solo cuando el cliente confirme explícitamente que desea adquirir el producto (por ejemplo: "Sí, lo quiero", "Quiero hacer el pedido", "Quiero comprarlo", "Apúntame uno"), procede a solicitar sus datos de envío de manera atenta.
+3. **Solicita los datos de envío**: Para procesar el pedido, pídele de forma ordenada la siguiente información:
+   - Nombre Completo
+   - Teléfono de contacto
+   - Dirección exacta de entrega (calle, número de casa/apto, referencias de ubicación)
+   - Ciudad y Departamento
+4. **Método de pago**: Explícale que el envío es **Contra Entrega** (paga en efectivo cuando reciba el producto en la puerta de su casa) para su total seguridad y tranquilidad.
+5. **Crear la orden**: Una vez (y SOLO cuando) el cliente te haya proporcionado los 4 datos de envío completos (Nombre, Teléfono, Dirección, Ciudad), debes confirmar el pedido al cliente y generar la orden en Dropi agregando este tag exacto al final de tu mensaje:
 [CREAR_ORDEN_DROPI:nombre_cliente:telefono:direccion:ciudad:${extConfig.dropi_default_product_id || 'DEFAULT_PRODUCT'}:1:contra_entrega]
-Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos.`;
+Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos de envío.`;
     }
 
     // Determine which provider & model to use
@@ -417,7 +443,7 @@ Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la informa
 
     // 5. Enviar al proveedor de IA seleccionado
     console.log(`🤖 Modelo seleccionado: ${selectedModel} (${isGroq ? 'Groq' : isGemini ? 'Gemini' : 'OpenAI'})`);
-    console.log(`🔑 Usando API key: ${apiKey.substring(0, 8)}...${apiKey.substring(apiKey.length - 4)}`);
+    console.log(`🔑 Usando API key: [CONFIGURED]`);
     console.log(`📝 Prompt del sistema: ${aiPrompt.substring(0, 80)}...`);
     console.log(`💬 Historial: ${(rawHistory || []).length} total, ${history.length} después de filtrar`);
 

@@ -85,7 +85,6 @@ export async function POST(req: NextRequest) {
             const LIMITS: Record<string, { contacts: number; storage: number }> = {
               trial: { contacts: 200, storage: 100*1024*1024 },
               start: { contacts: 1000, storage: 250*1024*1024 },
-              advanced: { contacts: 10000, storage: 500*1024*1024 },
               plus: { contacts: 20000, storage: 1024*1024*1024 },
               master: { contacts: 50000, storage: 2048*1024*1024 },
             };
@@ -143,9 +142,8 @@ export async function POST(req: NextRequest) {
     let planPermissions: any = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics"]
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
     };
 
     try {

@@ -4,7 +4,10 @@ const ALGORITHM = 'aes-256-gcm';
 
 // Ensures we always get a 32-byte key from the environment variable
 function getEncryptionKey(): Buffer {
-  const keySecret = process.env.ENCRYPTION_KEY || 'default_secret_key_rifx_marketing_2026_omnipublish';
+  const keySecret = process.env.ENCRYPTION_KEY;
+  if (!keySecret) {
+    throw new Error('FATAL: ENCRYPTION_KEY environment variable is not set. Add it to .env.local');
+  }
   return crypto.createHash('sha256').update(keySecret).digest();
 }
 

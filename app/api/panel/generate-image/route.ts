@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Autorización
     const tenant = await getTenantFromRequest(req);
-    if (!tenant) {
+    if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -139,8 +139,7 @@ export async function POST(req: NextRequest) {
     try {
       const { createSupabaseAdmin } = await import('@/lib/supabase');
       const supabase = createSupabaseAdmin();
-      let cfgQuery = supabase.from('config').select('openai_key').limit(1);
-      if (tenant?.tenantId) cfgQuery = cfgQuery.eq('tenant_id', tenant.tenantId);
+      let cfgQuery = supabase.from('config').select('openai_key').eq('tenant_id', tenant.tenantId).limit(1);
       const { data: cfgRow } = await cfgQuery.single();
 
       if (cfgRow?.openai_key) {

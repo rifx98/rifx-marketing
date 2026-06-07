@@ -65,7 +65,7 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 
 -- Políticas: permitir acceso completo al service_role (backend)
-CREATE POLICY "Service role full access" ON config FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON conversations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON messages FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON sales FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON config TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON conversations TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON messages TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON sales TO service_role FOR ALL USING (true) WITH CHECK (true);

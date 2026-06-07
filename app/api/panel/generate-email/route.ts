@@ -1,16 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { contactId, prompt } = await req.json();
     if (!contactId) {
       return NextResponse.json({ error: 'contactId required' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+
+    // Verify ownership of the conversation (contactId is conversation_id)
+    const { data: conversation, error: convErr } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('id', contactId)
+      .eq('tenant_id', tenant.tenantId)
+      .single();
+
+    if (convErr || !conversation) {
+      return NextResponse.json({ error: 'Conversación no encontrada o no autorizada' }, { status: 404 });
+    }
+
+    const { data: config } = await supabase
+      .from('config')
+      .select('*')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .single();
     let groqKey = '';
     try { const p = JSON.parse(config?.openai_key || '{}'); groqKey = p.groq_key || p.openai_key || ''; } catch { groqKey = config?.openai_key || ''; }
     if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';

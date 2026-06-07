@@ -6,7 +6,7 @@ import { getTenantFromRequest } from '@/lib/auth';
 export async function GET(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant) {
+    if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 

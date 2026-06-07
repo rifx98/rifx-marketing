@@ -86,13 +86,13 @@ ALTER TABLE ad_creatives ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ad_analytics ENABLE ROW LEVEL SECURITY;
 
 -- Permitir acceso total al service_role (backend)
-CREATE POLICY "Service role full access on ad_campaigns" ON ad_campaigns
+CREATE POLICY "Service role full access on ad_campaigns" ON ad_campaigns TO service_role
   FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Service role full access on ad_creatives" ON ad_creatives
+CREATE POLICY "Service role full access on ad_creatives" ON ad_creatives TO service_role
   FOR ALL USING (true) WITH CHECK (true);
 
-CREATE POLICY "Service role full access on ad_analytics" ON ad_analytics
+CREATE POLICY "Service role full access on ad_analytics" ON ad_analytics TO service_role
   FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================

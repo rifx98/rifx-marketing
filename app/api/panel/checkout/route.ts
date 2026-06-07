@@ -7,14 +7,12 @@ import { getTenantFromRequest } from '@/lib/auth';
 
 const VARIANT_MAP: Record<string, string> = {
   start: process.env.LEMONSQUEEZY_VARIANT_START || '',
-  advanced: process.env.LEMONSQUEEZY_VARIANT_ADVANCED || '',
   plus: process.env.LEMONSQUEEZY_VARIANT_PLUS || '',
   master: process.env.LEMONSQUEEZY_VARIANT_MASTER || '',
 };
 
 const PLAN_PRICES: Record<string, number> = {
-  start: 4900,
-  advanced: 10900,
+  start: 1500,
   plus: 18900,
   master: 39900,
 };

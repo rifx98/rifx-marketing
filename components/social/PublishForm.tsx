@@ -208,7 +208,7 @@ export default function PublishForm({ accounts, onSubmit, isPublishing, videoSto
     if (allSelected) {
       setSelectedAccountIds(prev => prev.filter(id => !allIds.includes(id)));
     } else {
-      setSelectedAccountIds(prev => [...new Set([...prev, ...allIds])]);
+      setSelectedAccountIds(prev => Array.from(new Set([...prev, ...allIds])));
     }
   };
 

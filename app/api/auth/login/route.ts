@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { signToken } from '@/lib/auth';
+import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 
 // POST: Login de tenant
 export async function POST(req: NextRequest) {
   try {
+    // VULN-09 fix: Rate limiting
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const { allowed, retryAfterMs } = await checkRateLimit(
+      `login:${clientIp}`,
+      AUTH_RATE_LIMITS.login.maxAttempts,
+      AUTH_RATE_LIMITS.login.windowMs
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Demasiados intentos. Intenta de nuevo en ${Math.ceil(retryAfterMs / 1000)} segundos.` },
+        { status: 429 }
+      );
+    }
+
     const { email, password } = await req.json();
 
     if (!email || !password) {
@@ -32,11 +47,6 @@ export async function POST(req: NextRequest) {
 
     // Verify password
     let isValid = await bcrypt.compare(password, tenant.password_hash);
-    
-    // Soporte para credenciales heredadas (legacy/fallback admin)
-    if (!isValid && (loginEmail === 'admin@rifx.com' || loginEmail === 'admin@rifx.online') && (password === 'rifx2026' || password === 'admin123')) {
-      isValid = true;
-    }
 
     if (!isValid) {
       return NextResponse.json({ error: 'Email o contraseña incorrectos' }, { status: 401 });
@@ -81,7 +91,6 @@ export async function POST(req: NextRequest) {
     let planPermissions: any = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
       plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
       master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
     };

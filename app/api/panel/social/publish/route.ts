@@ -100,6 +100,10 @@ export async function POST(req: NextRequest) {
             'Upstash-Retries': '3'
           };
 
+          if (process.env.JWT_SECRET) {
+            qstashHeaders['Upstash-Forward-X-Worker-Secret'] = process.env.JWT_SECRET;
+          }
+
           // Programar usando Upstash-Not-Before si se define scheduledAt
           if (scheduledAt) {
             const scheduledTimeUnix = Math.floor(new Date(scheduledAt).getTime() / 1000);

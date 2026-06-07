@@ -23,13 +23,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tipo de archivo no permitido. Use JPG, PNG, WebP o GIF.' }, { status: 400 });
     }
 
+    // Validate file extension
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    if (!allowedExtensions.includes(ext)) {
+      return NextResponse.json({ error: 'Extensión de archivo no permitida. Use JPG, PNG, WebP o GIF.' }, { status: 400 });
+    }
+
     // Max 5MB
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json({ error: 'La imagen no puede exceder 5MB' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-    const ext = file.name.split('.').pop() || 'jpg';
     const fileName = `announcements/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
     
     const buffer = Buffer.from(await file.arrayBuffer());

@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const activeTenants = tenants.filter(t => t.plan_status === 'active').length;
 
     // Plan distribution
-    const planCounts: Record<string, number> = { trial: 0, start: 0, advanced: 0, plus: 0, master: 0 };
+    const planCounts: Record<string, number> = { trial: 0, start: 0, plus: 0, master: 0 };
     tenants.forEach(t => { planCounts[t.plan] = (planCounts[t.plan] || 0) + 1; });
 
     // Recent registrations (last 7 days)
@@ -101,9 +101,8 @@ export async function GET(req: NextRequest) {
     let planPermissions = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics"]
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
     };
     try {
       const { data: settingsData } = await supabase
@@ -233,7 +232,7 @@ export async function POST(req: NextRequest) {
       }
 
       const { targetTenantId, plan } = body;
-      const validPlans = ['trial', 'start', 'advanced', 'plus', 'master'];
+      const validPlans = ['trial', 'start', 'plus', 'master'];
       if (!validPlans.includes(plan)) {
         return NextResponse.json({ error: 'Plan inválido' }, { status: 400 });
       }
@@ -241,7 +240,6 @@ export async function POST(req: NextRequest) {
       const LIMITS: Record<string, { contacts: number; storage: number }> = {
         trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
         start:    { contacts: 1000,  storage: 250 * 1024 * 1024 },
-        advanced: { contacts: 10000, storage: 500 * 1024 * 1024 },
         plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
         master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
       };

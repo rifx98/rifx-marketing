@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createSupabaseClient } from '@/lib/supabase';
 
 interface Publication {
   id: string;
@@ -29,11 +28,8 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
   const [logs, setLogs] = useState<SocialLog[]>([]);
   const [loading, setLoading] = useState(true);
   const terminalEndRef = useRef<HTMLDivElement>(null);
-  const supabase = createSupabaseClient();
 
   useEffect(() => {
-    let pubChannel: any;
-    let logChannel: any;
     let pollInterval: NodeJS.Timeout;
     let isMounted = true;
 
@@ -41,67 +37,30 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
       try {
         if (showLoading) setLoading(true);
 
-        // 1. Obtener las publicaciones asociadas al post y cruzar con la info de la cuenta
-        const { data: pubsData, error: pubsErr } = await supabase
-          .from('social_publications')
-          .select(`
-            id,
-            status,
-            last_error,
-            social_account_id,
-            social_accounts (
-              platform,
-              platform_username
-            )
-          `)
-          .eq('post_id', postId);
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/panel/social/tracker?postId=${postId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
 
-        if (pubsErr) throw pubsErr;
+        if (!res.ok) throw new Error(data.error || 'Failed to fetch tracker data');
         if (!isMounted) return;
 
-        const formattedPubs = (pubsData || []).map((p: any) => ({
-          id: p.id,
-          status: p.status,
-          last_error: p.last_error,
-          social_account_id: p.social_account_id,
-          platform: p.social_accounts?.platform,
-          platform_username: p.social_accounts?.platform_username || 'Cuenta'
-        }));
+        setPublications(data.publications || []);
 
-        setPublications(formattedPubs);
-
-        const pubIds = formattedPubs.map(p => p.id);
-
-        if (pubIds.length > 0) {
-          // 2. Obtener logs históricos de estas publicaciones
-          const { data: logsData, error: logsErr } = await supabase
-            .from('social_logs')
-            .select('*')
-            .in('publication_id', pubIds)
-            .order('created_at', { ascending: true });
-
-          if (logsErr) throw logsErr;
-          if (!isMounted) return;
-
-          const formattedLogs = (logsData || []).map((l: any) => {
-            const pub = formattedPubs.find(p => p.id === l.publication_id);
-            return {
-              ...l,
-              platform: pub?.platform,
-            };
+        // Avoid duplicate logs and sort them chronologically
+        setLogs((prev) => {
+          const merged = [...prev];
+          (data.logs || []).forEach((newLog: any) => {
+            if (!merged.some((existing) => existing.id === newLog.id)) {
+              merged.push(newLog);
+            }
           });
+          return merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        });
 
-          // Evitar duplicados en los logs si se cruzan llamadas de polling y realtime
-          setLogs((prev) => {
-            const merged = [...prev];
-            formattedLogs.forEach((newLog) => {
-              if (!merged.some((existing) => existing.id === newLog.id)) {
-                merged.push(newLog);
-              }
-            });
-            return merged.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-          });
-        }
       } catch (err) {
         console.error('Error fetching tracker data:', err);
       } finally {
@@ -112,54 +71,7 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
     if (postId) {
       fetchData(true);
 
-      // 3. Suscribirse a cambios en tiempo real en las publicaciones
-      pubChannel = supabase
-        .channel(`realtime-pubs-${postId}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'social_publications', filter: `post_id=eq.${postId}` },
-          (payload: any) => {
-            console.log('[Realtime Pub Update]', payload.new);
-            setPublications((prev) =>
-              prev.map((p) =>
-                p.id === payload.new.id
-                  ? { ...p, status: payload.new.status, last_error: payload.new.last_error }
-                  : p
-              )
-            );
-          }
-        )
-        .subscribe();
-
-      // 4. Suscribirse a inserciones de logs en tiempo real
-      logChannel = supabase
-        .channel(`realtime-logs-${postId}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'social_logs' },
-          (payload: any) => {
-            console.log('[Realtime Log Insert]', payload.new);
-            setPublications((currentPubs) => {
-              const affectedPub = currentPubs.find(p => p.id === payload.new.publication_id);
-              if (affectedPub) {
-                setLogs((prev) => {
-                  if (prev.some(l => l.id === payload.new.id)) return prev;
-                  return [
-                    ...prev,
-                    {
-                      ...payload.new,
-                      platform: affectedPub.platform
-                    }
-                  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-                });
-              }
-              return currentPubs;
-            });
-          }
-        )
-        .subscribe();
-
-      // 5. Polling de respaldo cada 3 segundos si hay publicaciones activas
+      // Secure polling every 6 seconds if publications are pending/processing or on start
       pollInterval = setInterval(() => {
         setPublications((currentPubs) => {
           const hasActive = currentPubs.length === 0 || currentPubs.some(p => p.status === 'pending' || p.status === 'processing');
@@ -168,13 +80,11 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
           }
           return currentPubs;
         });
-      }, 3000);
+      }, 6000);
     }
 
     return () => {
       isMounted = false;
-      if (pubChannel) supabase.removeChannel(pubChannel);
-      if (logChannel) supabase.removeChannel(logChannel);
       if (pollInterval) clearInterval(pollInterval);
     };
   }, [postId]);

@@ -50,15 +50,12 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Validar firma de seguridad (Bypass en entorno local de pruebas)
     const isDevBypass = req.headers.get('X-Dev-Worker-Signature') === 'local_secret_development_bypass';
-    const qstashToken = process.env.QSTASH_TOKEN;
+    const jwtSecret = process.env.JWT_SECRET;
 
-    if (qstashToken && !isDevBypass) {
-      // QStash signature verification (Producción)
-      // Nota: Para un webhook de producción formal, verificarías la cabecera 'upstash-signature'
-      // usando el SDK de @upstash/qstash. Como no tenemos el paquete instalado, verificamos la presencia
-      // de la cabecera como validación básica, o puedes confiar en que QStash llama a la ruta oculta.
-      const signature = req.headers.get('upstash-signature');
-      if (!signature) {
+    if (jwtSecret && !isDevBypass) {
+      const workerSecret = req.headers.get('X-Worker-Secret');
+      if (workerSecret !== jwtSecret) {
+        console.error('❌ [Social Worker] Unauthorized request: X-Worker-Secret header does not match JWT_SECRET');
         return NextResponse.json({ error: 'Firma de cola no autorizada' }, { status: 401 });
       }
     }

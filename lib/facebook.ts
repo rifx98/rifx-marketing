@@ -19,35 +19,35 @@ function decodeExtendedConfig(stored: string) {
 export async function getFacebookCredentials(req: NextRequest): Promise<FacebookCredentials> {
   const tenant = await getTenantFromRequest(req);
   
-  if (tenant?.tenantId) {
-    const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase
-      .from('config')
-      .select('openai_key')
-      .eq('tenant_id', tenant.tenantId)
-      .limit(1)
-      .maybeSingle();
+  if (!tenant?.tenantId) {
+    throw new Error(
+      'No autenticado. Inicia sesión para continuar.'
+    );
+  }
 
-    if (config?.openai_key) {
-      const extended = decodeExtendedConfig(config.openai_key);
-      const token = extended.facebook_access_token;
-      const adAccountId = extended.facebook_ad_account_id;
-      const pageId = extended.facebook_page_id;
+  const supabase = createSupabaseAdmin();
+  const { data: config } = await supabase
+    .from('config')
+    .select('openai_key')
+    .eq('tenant_id', tenant.tenantId)
+    .limit(1)
+    .maybeSingle();
 
-      if (token && adAccountId) {
-        return { token, adAccountId, pageId };
-      }
+  if (config?.openai_key) {
+    const extended = decodeExtendedConfig(config.openai_key);
+    const token = extended.facebook_access_token;
+    const adAccountId = extended.facebook_ad_account_id;
+    const pageId = extended.facebook_page_id;
+
+    if (token && adAccountId) {
+      return { token, adAccountId, pageId };
     }
   }
 
-  // Fallback to system-level defaults in .env.local
-  const token = process.env.FACEBOOK_ACCESS_TOKEN;
-  const adAccountId = process.env.FACEBOOK_AD_ACCOUNT_ID;
-  const pageId = process.env.FACEBOOK_PAGE_ID;
-
-  if (!token || !adAccountId) {
-    throw new Error('Faltan credenciales de Facebook Marketing API');
-  }
-
-  return { token, adAccountId, pageId };
+  // No credentials found for this tenant — do NOT fall back to system env vars.
+  // Each tenant must configure their own Meta API credentials.
+  throw new Error(
+    'No tienes credenciales de Meta Ads configuradas. ' +
+    'Ve a Configuración > Meta Ads en tu panel y configura tu Access Token y Ad Account ID propios.'
+  );
 }

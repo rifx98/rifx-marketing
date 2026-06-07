@@ -30,5 +30,5 @@ CREATE INDEX IF NOT EXISTS idx_templates_created ON templates(created_at DESC);
 ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
 
 -- Permitir acceso total al service_role (backend)
-CREATE POLICY "Service role full access on templates" ON templates
+CREATE POLICY "Service role full access on templates" ON templates TO service_role
   FOR ALL USING (true) WITH CHECK (true);

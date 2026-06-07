@@ -1,9 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 
 // POST /api/panel/migrate - Ejecutar migraciones de base de datos
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant || !tenant.isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const supabase = createSupabaseAdmin();
 
     // Crear tabla ad_campaigns
@@ -114,8 +120,13 @@ export async function POST() {
 }
 
 // GET /api/panel/migrate - Verificar estado de las tablas
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant || !tenant.isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const supabase = createSupabaseAdmin();
 
     const tables = ['ad_campaigns', 'ad_creatives', 'ad_analytics', 'templates'];

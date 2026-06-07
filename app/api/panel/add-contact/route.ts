@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     const { name, phone, message, testMode } = await req.json();
     
     if (!phone) {
@@ -19,12 +25,13 @@ export async function POST(req: NextRequest) {
 
     // In test mode: skip contact creation entirely
     if (!testMode) {
-      // Check if contact already exists
+      // Check if contact already exists for this tenant
       const { data: existing } = await supabase
         .from('conversations')
         .select('id')
         .eq('phone_number', phone)
-        .single();
+        .eq('tenant_id', tenant.tenantId)
+        .maybeSingle();
 
       if (existing) {
         return NextResponse.json({ error: 'Este número ya existe en la base de datos', id: existing.id }, { status: 409 });
@@ -37,6 +44,7 @@ export async function POST(req: NextRequest) {
           customer_name: name,
           phone_number: phone,
           status: 'chatting',
+          tenant_id: tenant.tenantId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -52,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     // If a message description is provided, use AI to craft and send it
     if (message && message.trim()) {
-      const { data: config } = await supabase.from('config').select('*').limit(1).single();
+      const { data: config } = await supabase.from('config').select('*').eq('tenant_id', tenant.tenantId).maybeSingle();
       
       // Decode AI keys from JSON-encoded openai_key column
       let groqKey = '';
@@ -140,6 +148,7 @@ REGLAS:
                 conversation_id: convId,
                 role: 'assistant',
                 content: finalMessage,
+                tenant_id: tenant.tenantId,
               });
             }
             
@@ -171,6 +180,7 @@ REGLAS:
                     conversation_id: convId,
                     role: 'assistant',
                     content: `[Template enviado - ventana 24h cerrada]\n${finalMessage}`,
+                    tenant_id: tenant.tenantId,
                   });
                 }
               } else {

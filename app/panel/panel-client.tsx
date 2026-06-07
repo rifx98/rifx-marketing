@@ -490,7 +490,7 @@ const TABS_TO_MANAGE = [
   { key: 'analytics', label: 'Análisis' }
 ];
 
-const PLANS = ['trial', 'start', 'advanced', 'plus', 'master'];
+const PLANS = ['trial', 'start', 'plus', 'master'];
 
 export default function PanelClient() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -640,7 +640,7 @@ export default function PanelClient() {
       try {
         const google = (window as any).google;
         google.accounts.id.initialize({
-          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "870636365851-p9q8n6vch9hsgc5h9tjeve9588o0u29k.apps.googleusercontent.com",
+          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "671540501780-2r133l4e2an246lta9mtns64um046kcn.apps.googleusercontent.com",
           callback: (window as any).onGoogleSignIn,
         });
         google.accounts.id.renderButton(container, {
@@ -1244,7 +1244,7 @@ export default function PanelClient() {
   };
 
 
-  const [currentPlan, setCurrentPlan] = useState<'trial' | 'start' | 'advanced' | 'plus' | 'master'>('trial');
+  const [currentPlan, setCurrentPlan] = useState<'trial' | 'start' | 'plus' | 'master'>('trial');
   const [planExpiry, setPlanExpiry] = useState<string>('');
   const [subscriptionData, setSubscriptionData] = useState<any[]>([]);
   const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);
@@ -2015,11 +2015,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [fbInsights, setFbInsights] = useState<any>(null);
   const [fbLoading, setFbLoading] = useState(false);
   const [fbError, setFbError] = useState<string | null>(null);
-  const loadFbCampaigns = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/campaigns?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbCampaigns(d.campaigns||[]); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
-  const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await fetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbInsights(d); else setFbError(d.error||'Error'); } catch(e:any){setFbError(e.message)} finally{setFbLoading(false)} };
-  const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await fetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
-  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await fetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
+  const isNoMetaApiError = (msg: string) => msg?.toLowerCase().includes('no tienes credenciales') || msg?.toLowerCase().includes('meta ads configuradas') || msg?.toLowerCase().includes('faltan credenciales');
+  const loadFbCampaigns = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/campaigns?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbCampaigns(d.campaigns||[]); else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
+  const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbInsights(d); else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
+  const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await authFetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
+  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await authFetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const [fbPublishing, setFbPublishing] = useState(false);
+  const [showMetaPermissionsModal, setShowMetaPermissionsModal] = useState(false);
+  const [showMetaNoApiModal, setShowMetaNoApiModal] = useState(false);
   const publishToFacebook = async () => {
     if (!finalUploadedImage) { 
       setToast({ message: language === 'en' ? 'First upload your ad image' : 'Primero sube tu imagen de publicidad', type: 'info' }); 
@@ -2039,7 +2042,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
       const objective = validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC';
 
-      const r = await fetch('/api/panel/facebook/publish', {
+      const r = await authFetch('/api/panel/facebook/publish', {
         method: 'POST', 
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
@@ -2067,10 +2070,30 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         loadFbCampaigns();
         setCampaignSubTab('campaigns');
       } else { 
-        setToast({ message: `Error (${d.step || '?'}): ${d.error || 'Error desconocido'}`, type: 'error' }); 
+        // Check if it's a "no API configured" error
+        if (isNoMetaApiError(d.error)) {
+          setShowMetaNoApiModal(true);
+        } else {
+          const isPermError = d.step === 'creative' && (
+            d.error?.toLowerCase().includes('permiso') || 
+            d.error?.toLowerCase().includes('perfil') || 
+            d.error?.toLowerCase().includes('permission') || 
+            d.error?.toLowerCase().includes('profile') ||
+            d.error?.toLowerCase().includes('instagram')
+          );
+          if (isPermError) {
+            setShowMetaPermissionsModal(true);
+          } else {
+            setToast({ message: `Error (${d.step || '?'}): ${d.error || 'Error desconocido'}`, type: 'error' }); 
+          }
+        }
       }
     } catch(e:any) { 
-      setToast({ message: 'Error de conexión: ' + e.message, type: 'error' }); 
+      if (isNoMetaApiError(e.message)) {
+        setShowMetaNoApiModal(true);
+      } else {
+        setToast({ message: 'Error de conexión: ' + e.message, type: 'error' }); 
+      }
     } finally { 
       setFbPublishing(false); 
     }
@@ -2435,6 +2458,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   }, [tenantData?.planExpiresAt, tenantData?.planStatus]);
 
   // Helper to check if a tab is locked for the current tenant
+  // Uses server-provided allowedTabs (which reflect admin's plan permission matrix)
   const isTabLocked = React.useCallback((tab: string) => {
     if (tab === 'billing') return false;
     if (tab === 'admin' && tenantData?.isAdmin) return false;
@@ -2448,10 +2472,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
     if (isPlanExpired) return true; // Expired plan is locked
 
+    // Use server-provided allowedTabs (includes admin's updated plan permissions from platform_settings)
+    if (tenantData?.allowedTabs && Array.isArray(tenantData.allowedTabs)) {
+      return !tenantData.allowedTabs.includes(tab);
+    }
+
+    // Fallback to hardcoded defaults only if allowedTabs not yet loaded from server
     const planPermissions: Record<string, string[]> = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments"],
       plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
       master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
     };
@@ -2467,7 +2496,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     allowedSet.add('billing');
 
     return !allowedSet.has(tab);
-  }, [isPlanExpired, tenantData?.plan, tenantData?.permissionOverrides, tenantData?.isAdmin]);
+  }, [isPlanExpired, tenantData?.plan, tenantData?.permissionOverrides, tenantData?.isAdmin, tenantData?.allowedTabs]);
 
   const getRequiredPlanForTab = React.useCallback((tab: string) => {
     switch (tab) {
@@ -2476,7 +2505,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         return { key: 'start', name: 'Chatea Pro Start' };
       case 'banners':
       case 'segments':
-        return { key: 'advanced', name: 'Chatea Pro Advanced' };
       case 'analytics':
       case 'social':
         return { key: 'plus', name: 'Chatea Pro Plus' };
@@ -2893,6 +2921,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     email_alerts: true,
     push_notifications: false,
     daily_briefing: true,
+    dropi_enabled: false,
+    dropi_token: '',
+    dropi_default_product_id: '',
+    dropi_default_price: 50,
   });
   const originalConfigRef = React.useRef<any>(null);
   const configDataRef = React.useRef(configData);
@@ -2986,6 +3018,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [waVerifying, setWaVerifying] = useState(false);
   const [waStatus, setWaStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [waStatusMsg, setWaStatusMsg] = useState('');
+  const [waFbToken, setWaFbToken] = useState('');
+  const [waPhoneOptions, setWaPhoneOptions] = useState<any[]>([]);
+  const [waShowPhonePicker, setWaShowPhonePicker] = useState(false);
+  const [metaFbToken, setMetaFbToken] = useState('');
+  const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
+  const [metaPages, setMetaPages] = useState<any[]>([]);
+  const [metaShowPicker, setMetaShowPicker] = useState(false);
   const [memoryClearing, setMemoryClearing] = useState(false);
   const [memoryClearSuccess, setMemoryClearSuccess] = useState(false);
   const [memoryRetentionDays, setMemoryRetentionDays] = useState(30);
@@ -3265,6 +3304,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              facebook_access_token: data.facebook_access_token || '',
              facebook_ad_account_id: data.facebook_ad_account_id || '',
              facebook_page_id: data.facebook_page_id || '',
+             dropi_enabled: data.dropi_enabled !== undefined ? data.dropi_enabled : false,
+             dropi_token: data.dropi_token || '',
+             dropi_default_product_id: data.dropi_default_product_id || '',
+             dropi_default_price: data.dropi_default_price ?? 50,
             };
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
@@ -3603,14 +3646,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setIsCheckingAuth(false);
           // Then fetch fresh data from DB
           fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : null)
+            .then(r => {
+              if (!r.ok) {
+                localStorage.removeItem('rifx_token');
+                setAuthToken(null);
+                setTenantData(null);
+                setIsLoggedIn(false);
+                return null;
+              }
+              return r.json();
+            })
             .then(data => {
               if (data) {
                 setTenantData(data);
                 setCurrentPlan(data.plan || 'trial');
               }
             })
-            .catch(() => {});
+            .catch(() => {
+              localStorage.removeItem('rifx_token');
+              setAuthToken(null);
+              setTenantData(null);
+              setIsLoggedIn(false);
+            });
           return;
         } else {
           localStorage.removeItem('rifx_token');
@@ -5619,12 +5676,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   {/* Plan Info Bar */}
                   {(() => {
                     const plan = tenantData?.plan || currentPlan || 'trial';
-                    const planNames: Record<string, string> = { trial: 'Prueba Gratuita (14 d\u00edas)', start: 'Chatea Pro Start', advanced: 'Chatea Pro Advanced', plus: 'Chatea Pro Plus', master: 'Chatea Pro Master' };
-                    const planDays: Record<string, number> = { trial: 14, start: 30, advanced: 30, plus: 30, master: 30 };
-                    const planContacts: Record<string, number> = { trial: 200, start: 1000, advanced: 10000, plus: 20000, master: 50000 };
-                    const planBots: Record<string, number> = { trial: 1, start: 1, advanced: 1, plus: 1, master: 5 };
-                    const planMembers: Record<string, number> = { trial: 1, start: 5, advanced: 5, plus: 5, master: 10 };
-                    const planStorage: Record<string, string> = { trial: '100 MB', start: '250 MB', advanced: '500 MB', plus: '1.0 GB', master: '2.0 GB' };
+                    const planNames: Record<string, string> = { trial: 'Prueba Gratuita (14 d\u00edas)', start: 'Chatea Pro Start', plus: 'Chatea Pro Plus', master: 'Chatea Pro Master' };
+                    const planDays: Record<string, number> = { trial: 14, start: 30, plus: 30, master: 30 };
+                    const planContacts: Record<string, number> = { trial: 200, start: 1000, plus: 20000, master: 50000 };
+                    const planBots: Record<string, number> = { trial: 1, start: 1, plus: 1, master: 5 };
+                    const planMembers: Record<string, number> = { trial: 1, start: 5, plus: 5, master: 10 };
+                    const planStorage: Record<string, string> = { trial: '100 MB', start: '250 MB', plus: '1.0 GB', master: '2.0 GB' };
 
                     // Calculate days remaining
                     const expiresAt = tenantData?.planExpiresAt ? new Date(tenantData.planExpiresAt) : null;
@@ -7004,94 +7061,241 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 )}
 
                 {/* ════ WHATSAPP ════ */}
-                {settingsSection === 'whatsapp' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-base font-extrabold text-[#0b1c30]">WhatsApp API Gateway</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your WhatsApp Business API connection.' : 'Configura tu conexión con la API de WhatsApp Business.'}</p>
-                    </div>
+                {settingsSection === 'whatsapp' && (() => {
+                  const fbAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '814217575104750';
+                  const isWaConnected = !!(configData.whatsapp_token && configData.whatsapp_phone_id);
 
-                    {/* Main WhatsApp */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                      <div className="flex items-center justify-between">
+                  const handleFacebookLogin = () => {
+                    const redirectUri = `${window.location.origin}/panel`;
+                    const scope = 'whatsapp_business_messaging,whatsapp_business_management,business_management';
+                    const state = btoa(JSON.stringify({ action: 'wa_connect', ts: Date.now() }));
+                    const configId = process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID || '966293476243422';
+                    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}`;
+                    const w = 600, h = 700;
+                    const left = (window.screen.width - w) / 2;
+                    const top = (window.screen.height - h) / 2;
+                    const popup = window.open(fbUrl, 'fb_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+                    const poll = setInterval(async () => {
+                      try {
+                        if (!popup || popup.closed) { clearInterval(poll); return; }
+                        const popupUrl = popup.location.href;
+                        if (popupUrl.includes('code=')) {
+                          clearInterval(poll);
+                          popup.close();
+                          const url = new URL(popupUrl);
+                          const code = url.searchParams.get('code');
+                          if (!code) return;
+                          setToast({ type: 'info', message: language === 'en' ? 'Connecting to Facebook...' : 'Conectando con Facebook...' });
+                          const res = await authFetch('/api/panel/whatsapp/facebook-connect', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code, redirectUri: `${window.location.origin}/panel` }),
+                          });
+                          const data = await res.json();
+                          if (data.error) { setToast({ type: 'error', message: data.error }); return; }
+                          if (data.phoneOptions && data.phoneOptions.length > 0) {
+                            setWaFbToken(data.accessToken);
+                            setWaPhoneOptions(data.phoneOptions);
+                            setWaShowPhonePicker(true);
+                          } else {
+                            setWaFbToken(data.accessToken);
+                            setConfigData((prev: any) => ({ ...prev, whatsapp_token: data.accessToken }));
+                            setWaShowPhonePicker(false);
+                            setToast({ type: 'info', message: language === 'en' ? 'Token saved. Enter your Phone Number ID below.' : 'Token guardado. Ingresa tu Phone Number ID abajo.' });
+                          }
+                        }
+                      } catch {}
+                    }, 500);
+                  };
+
+                  const handleSelectPhone = async (phone: any) => {
+                    setToast({ type: 'info', message: language === 'en' ? 'Saving connection...' : 'Guardando conexión...' });
+                    const res = await authFetch('/api/panel/whatsapp/facebook-connect', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        phoneNumberId: phone.phoneNumberId,
+                        accessToken: waFbToken || configData.whatsapp_token,
+                        wabaId: phone.wabaId,
+                        displayPhone: phone.displayPhone,
+                        verifiedName: phone.verifiedName,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setConfigData((prev: any) => ({ ...prev, whatsapp_token: waFbToken || prev.whatsapp_token, whatsapp_phone_id: phone.phoneNumberId }));
+                      setWaShowPhonePicker(false);
+                      setWaStatus('success');
+                      setWaStatusMsg(data.phoneNumber ? `✓ ${data.phoneNumber}` : '✓ Conectado');
+                      setToast({ type: 'success', message: language === 'en' ? '✓ WhatsApp connected!' : '✓ WhatsApp conectado!' });
+                    } else {
+                      setToast({ type: 'error', message: data.error || 'Error saving' });
+                    }
+                  };
+
+                  return (
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-base font-extrabold text-[#0b1c30]">WhatsApp Business</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Connect your WhatsApp number in one click via Facebook.' : 'Conecta tu número de WhatsApp en un clic con Facebook.'}</p>
+                      </div>
+
+                      {/* Main Connection Card */}
+                      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        {/* Blue Facebook header */}
+                        <div className="bg-gradient-to-r from-[#1877F2] to-[#0C63D4] px-6 py-4 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow">
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            </div>
+                            <div>
+                              <p className="text-white font-bold text-sm">Facebook & WhatsApp Business</p>
+                              <p className="text-blue-100 text-[10px]">OAuth 2.0 — Seguro y Oficial</p>
+                            </div>
+                          </div>
+                          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${isWaConnected ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30' : 'bg-white/10 text-white/60 border border-white/20'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isWaConnected ? 'bg-emerald-400 animate-pulse' : 'bg-white/40'}`} />
+                            {isWaConnected ? (language === 'en' ? 'Active' : 'Activo') : (language === 'en' ? 'Not connected' : 'Sin conectar')}
+                          </div>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                          {/* Connected state */}
+                          {isWaConnected && !waShowPhonePicker && (
+                            <div className="flex items-center gap-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                              <div className="w-11 h-11 rounded-full bg-[#25D366] flex items-center justify-center flex-shrink-0 shadow">
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black text-emerald-800">{language === 'en' ? 'WhatsApp Connected' : 'WhatsApp Conectado'}</p>
+                                <p className="text-[11px] text-emerald-600 font-mono truncate">{waStatusMsg || configData.whatsapp_phone_id}</p>
+                              </div>
+                              <button
+                                onClick={() => { setConfigData((prev: any) => ({ ...prev, whatsapp_token: '', whatsapp_phone_id: '' })); setWaStatus('idle'); setWaStatusMsg(''); setToast({ type: 'info', message: language === 'en' ? 'WhatsApp disconnected' : 'WhatsApp desconectado' }); }}
+                                className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all"
+                              >{language === 'en' ? 'Disconnect' : 'Desconectar'}</button>
+                            </div>
+                          )}
+
+                          {/* Phone picker */}
+                          {waShowPhonePicker && waPhoneOptions.length > 0 && (
+                            <div className="space-y-3">
+                              <p className="text-xs font-black text-slate-600 uppercase tracking-wider">{language === 'en' ? 'Select your WhatsApp number:' : 'Selecciona tu número de WhatsApp:'}</p>
+                              {waPhoneOptions.map((phone: any) => (
+                                <button key={phone.phoneNumberId} onClick={() => handleSelectPhone(phone)}
+                                  className="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-100 rounded-xl transition-all group text-left">
+                                  <div className="w-10 h-10 rounded-full bg-[#25D366]/10 flex items-center justify-center flex-shrink-0">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-black text-slate-800 group-hover:text-emerald-700">{phone.verifiedName || phone.displayPhone}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">{phone.displayPhone} · ID: {phone.phoneNumberId}</p>
+                                    <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full mt-1 ${phone.status === 'CONNECTED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                      <span className="w-1 h-1 rounded-full bg-current" />{phone.status || 'READY'}
+                                    </span>
+                                  </div>
+                                  <span className="material-symbols-outlined text-slate-300 group-hover:text-emerald-500 transition-colors">arrow_forward</span>
+                                </button>
+                              ))}
+                              <button onClick={() => setWaShowPhonePicker(false)} className="w-full text-[10px] text-slate-400 hover:text-slate-600 py-2 transition-colors">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
+                            </div>
+                          )}
+
+                          {/* Connect button */}
+                          {!isWaConnected && !waShowPhonePicker && (
+                            <>
+                              <button onClick={handleFacebookLogin}
+                                className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#0C63D4] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-blue-500/30 transition-all">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                {language === 'en' ? 'Connect with Facebook' : 'Conectar con Facebook'}
+                              </button>
+                              <div className="grid grid-cols-3 gap-3">
+                                {[
+                                  { icon: 'login', label: '1. ' + (language === 'en' ? 'Login' : 'Ingresa'), desc: language === 'en' ? 'Facebook account' : 'Con tu cuenta' },
+                                  { icon: 'phone_iphone', label: '2. ' + (language === 'en' ? 'Select' : 'Elige'), desc: language === 'en' ? 'Your number' : 'Tu número WA' },
+                                  { icon: 'check_circle', label: '3. ' + (language === 'en' ? 'Done!' : '¡Listo!'), desc: language === 'en' ? 'Auto activated' : 'Activado auto' },
+                                ].map((step) => (
+                                  <div key={step.icon} className="text-center p-3 bg-slate-50 rounded-xl">
+                                    <span className="material-symbols-outlined text-[#1877F2] text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>{step.icon}</span>
+                                    <p className="text-[10px] font-black text-slate-700 mt-1">{step.label}</p>
+                                    <p className="text-[9px] text-slate-400 leading-tight">{step.desc}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Advanced Manual Config */}
+                      <details className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        <summary className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-slate-400 text-sm">settings</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">{language === 'en' ? 'Advanced — Manual Config' : 'Avanzado — Config. Manual'}</span>
+                          </div>
+                          <span className="material-symbols-outlined text-slate-300 text-sm group-open:rotate-180 transition-transform">expand_more</span>
+                        </summary>
+                        <div className="px-6 pb-6 pt-2 space-y-4 border-t border-slate-100">
+                          <p className="text-[10px] text-slate-400">{language === 'en' ? 'Paste your token and Phone Number ID directly.' : 'Pega tu token y Phone Number ID directamente.'}</p>
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Bearer API Token' : 'Token de API'}</label>
+                            <div className="flex gap-2">
+                              <input className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="password" autoComplete="new-password" value={configData.whatsapp_token} onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})} />
+                              <button onClick={() => navigator.clipboard.writeText(configData.whatsapp_token)} className="bg-slate-100 p-3 rounded-xl hover:bg-slate-200 transition-colors text-slate-500"><span className="material-symbols-outlined text-sm">content_copy</span></button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Phone Number ID' : 'ID de Teléfono'}</label>
+                              <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="text" value={configData.whatsapp_phone_id} onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})} />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Webhook URL</label>
+                              <input className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-400 outline-none" type="text" readOnly value={`https://api.rifx-sovereign.io/hooks/v1/wa/${configData.whatsapp_phone_id || 'ID'}`} />
+                            </div>
+                          </div>
+                          <button onClick={handleVerifyWhatsApp} disabled={waVerifying} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${waStatus === 'success' ? 'bg-[#25D366] text-white' : waStatus === 'error' ? 'bg-red-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}>
+                            {waVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
+                             waStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>{language === 'en' ? 'Verified' : 'Verificado'}</> :
+                             <><span className="material-symbols-outlined text-sm">verified</span>{language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
+                          </button>
+                          {waStatusMsg && waStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${waStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{waStatusMsg}</p>}
+                        </div>
+                      </details>
+
+                      {/* Bulk WA Number */}
+                      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-[#128C7E]" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-amber-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Main Bot Number' : 'Número Principal del Bot'}</h4>
-                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Primary conversational bot' : 'Bot conversacional principal'}</p>
+                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bulk Messaging Number' : 'Número para Masivos'}</h4>
+                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Separate number to protect your main bot' : 'Número separado para proteger tu bot principal'}</p>
                           </div>
                         </div>
-                        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase border ${waStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : waStatus === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${waStatus === 'success' ? 'bg-emerald-500 animate-pulse' : waStatus === 'error' ? 'bg-red-500' : 'bg-slate-300'}`} />
-                          {waStatus === 'success' ? (language === 'en' ? 'Active' : 'Activo') : waStatus === 'error' ? 'Error' : (language === 'en' ? 'Not verified' : 'Sin verificar')}
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed">{language === 'en' ? 'This protects your main bot number from potential blocks when doing bulk sends.' : 'Esto protege tu número principal del bot de posibles bloqueos al hacer envíos masivos.'}</div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Token API Masivos</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-amber-400 transition-all" type="password" autoComplete="new-password" placeholder="Bearer token..." value={configData.bulk_wa_token || ''} onChange={e => setConfigData({...configData, bulk_wa_token: e.target.value})} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Phone ID Masivos</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition-all" type="text" placeholder="ID de teléfono..." value={configData.bulk_wa_phone_id || ''} onChange={e => setConfigData({...configData, bulk_wa_phone_id: e.target.value})} />
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Bearer API Token' : 'Token de API'}</label>
-                        <div className="flex gap-2">
-                          <input className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="password" value={configData.whatsapp_token} onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})} />
-                          <button onClick={() => navigator.clipboard.writeText(configData.whatsapp_token)} className="bg-slate-100 p-3 rounded-xl hover:bg-slate-200 transition-colors text-slate-500">
-                            <span className="material-symbols-outlined text-sm">content_copy</span>
-                          </button>
+                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase border ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
+                          {configData.bulk_wa_token && configData.bulk_wa_phone_id ? (language === 'en' ? 'Bulk number configured' : 'Número masivo configurado') : (language === 'en' ? 'Not configured — will use main number' : 'No configurado — usará número principal')}
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Phone Number ID' : 'ID de Teléfono'}</label>
-                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="text" value={configData.whatsapp_phone_id} onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Webhook URL</label>
-                          <input className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-400 outline-none" type="text" readOnly value={`https://api.rifx-sovereign.io/hooks/v1/wa/${configData.whatsapp_phone_id || 'ID'}`} />
-                        </div>
-                      </div>
-
-                      <button onClick={handleVerifyWhatsApp} disabled={waVerifying} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${waStatus === 'success' ? 'bg-[#25D366] text-white' : waStatus === 'error' ? 'bg-red-500 text-white' : 'bg-[#128C7E] hover:bg-[#075E54] text-white'}`}>
-                        {waVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
-                         waStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Connection Verified' : 'Conexión Verificada'}</> :
-                         waStatus === 'error' ? <><span className="material-symbols-outlined text-sm">error</span> {language === 'en' ? 'Verification Failed' : 'Verificación Fallida'}</> :
-                         <><span className="material-symbols-outlined text-sm">verified</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
-                      </button>
-                      {waStatusMsg && waStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${waStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{waStatusMsg}</p>}
-                    </div>
-
-                    {/* Bulk WhatsApp */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-amber-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bulk Messaging Number' : 'Número para Masivos'}</h4>
-                          <p className="text-[10px] text-slate-400">{language === 'en' ? 'Separate number to protect your main bot' : 'Número separado para proteger tu bot principal'}</p>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed">
-                        {language === 'en' ? 'This protects your main bot number from potential blocks when doing bulk sends.' : 'Esto protege tu número principal del bot de posibles bloqueos al hacer envíos masivos.'}
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Token API Masivos</label>
-                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-amber-400 transition-all" type="password" placeholder="Bearer token..." value={configData.bulk_wa_token || ''} onChange={e => setConfigData({...configData, bulk_wa_token: e.target.value})} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Phone ID Masivos</label>
-                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition-all" type="text" placeholder="ID de teléfono..." value={configData.bulk_wa_phone_id || ''} onChange={e => setConfigData({...configData, bulk_wa_phone_id: e.target.value})} />
-                        </div>
-                      </div>
-                      <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase border ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
-                        {configData.bulk_wa_token && configData.bulk_wa_phone_id ? (language === 'en' ? 'Bulk number configured' : 'Número masivo configurado') : (language === 'en' ? 'Not configured — will use main number' : 'No configurado — usará número principal')}
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
-                {/* ════ NOTIFICATIONS ════ */}
+{/* ════ NOTIFICATIONS ════ */}
                 {settingsSection === 'notifications' && (
                   <div className="space-y-6">
                     <div>
@@ -7140,52 +7344,231 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 )}
 
                 {/* ════ META ADS ════ */}
-                {settingsSection === 'meta' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-base font-extrabold text-[#0b1c30]">Facebook & Meta Ads</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Connect your Meta advertising account to publish campaigns.' : 'Conecta tu cuenta publicitaria de Meta para publicar campañas.'}</p>
-                    </div>
+                {settingsSection === 'meta' && (() => {
+                  const fbAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '814217575104750';
+                  const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
 
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-indigo-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Meta API Credentials' : 'Credenciales API de Meta'}</h4>
-                          <div className={`inline-flex items-center gap-1.5 mt-0.5 text-[10px] font-bold ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'text-indigo-600' : 'text-slate-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
-                            {configData.facebook_access_token && configData.facebook_ad_account_id ? (language === 'en' ? 'Configured' : 'Configurado') : (language === 'en' ? 'Not configured' : 'No configurado')}
+                  const handleMetaFacebookLogin = () => {
+                    const redirectUri = `${window.location.origin}/panel`;
+                    const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
+                    const state = btoa(JSON.stringify({ action: 'meta_connect', ts: Date.now() }));
+                    const configId = process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '1718329089178291';
+                    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}`;
+                    const w = 600, h = 700;
+                    const left = (window.screen.width - w) / 2;
+                    const top = (window.screen.height - h) / 2;
+                    const popup = window.open(fbUrl, 'fb_meta_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+                    const poll = setInterval(async () => {
+                      try {
+                        if (!popup || popup.closed) { clearInterval(poll); return; }
+                        const popupUrl = popup.location.href;
+                        if (popupUrl.includes('code=')) {
+                          clearInterval(poll);
+                          popup.close();
+                          const url = new URL(popupUrl);
+                          const code = url.searchParams.get('code');
+                          if (!code) return;
+                          setToast({ type: 'info', message: language === 'en' ? 'Connecting to Meta...' : 'Conectando con Meta...' });
+                          const res = await authFetch('/api/panel/meta/facebook-connect', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code, redirectUri: `${window.location.origin}/panel` }),
+                          });
+                          const data = await res.json();
+                          if (data.error) { setToast({ type: 'error', message: data.error }); return; }
+                          if (data.adAccounts && data.adAccounts.length > 0) {
+                            setMetaFbToken(data.accessToken);
+                            setMetaAdAccounts(data.adAccounts);
+                            setMetaPages(data.pages || []);
+                            setMetaShowPicker(true);
+                          } else {
+                            setConfigData((prev: any) => ({ ...prev, facebook_access_token: data.accessToken }));
+                            setToast({ type: 'info', message: language === 'en' ? 'Token saved. Enter your Ad Account ID manually.' : 'Token guardado. Ingresa tu Ad Account ID.' });
+                          }
+                        }
+                      } catch {}
+                    }, 500);
+                  };
+
+                  const handleSelectMetaAccount = async (account: any, page: any) => {
+                    setToast({ type: 'info', message: language === 'en' ? 'Saving Meta connection...' : 'Guardando conexión Meta...' });
+                    const res = await authFetch('/api/panel/meta/facebook-connect', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        accessToken: metaFbToken || configData.facebook_access_token,
+                        adAccountId: account.id,
+                        adAccountName: account.name,
+                        pageId: page?.id || '',
+                        pageName: page?.name || '',
+                      }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setConfigData((prev: any) => ({
+                        ...prev,
+                        facebook_access_token: metaFbToken || prev.facebook_access_token,
+                        facebook_ad_account_id: account.id,
+                        facebook_page_id: page?.id || prev.facebook_page_id,
+                      }));
+                      setMetaShowPicker(false);
+                      setToast({ type: 'success', message: language === 'en' ? '✓ Meta Ads connected!' : '✓ Meta Ads conectado!' });
+                    } else {
+                      setToast({ type: 'error', message: data.error || 'Error saving' });
+                    }
+                  };
+
+                  return (
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-base font-extrabold text-[#0b1c30]">Facebook & Meta Ads</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Connect your Meta advertising account in one click.' : 'Conecta tu cuenta publicitaria de Meta en un clic.'}</p>
+                      </div>
+
+                      {/* Main Connection Card */}
+                      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-[#1877F2] to-[#0C63D4] px-6 py-4 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow">
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            </div>
+                            <div>
+                              <p className="text-white font-bold text-sm">Meta Business Suite</p>
+                              <p className="text-blue-100 text-[10px]">Ads Manager · Pages · Insights — OAuth 2.0</p>
+                            </div>
+                          </div>
+                          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${isMetaConnected ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30' : 'bg-white/10 text-white/60 border border-white/20'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isMetaConnected ? 'bg-emerald-400 animate-pulse' : 'bg-white/40'}`} />
+                            {isMetaConnected ? (language === 'en' ? 'Active' : 'Activo') : (language === 'en' ? 'Not connected' : 'Sin conectar')}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-[10px] text-indigo-800 leading-relaxed">
-                        {language === 'en' ? 'Configure your Facebook Access Token, Ad Account ID, and Page ID to publish ads directly from the campaigns panel.' : 'Configura tu Token de Acceso de Facebook, ID de Cuenta Publicitaria y ID de Página para publicar anuncios directamente desde el panel.'}
-                      </div>
+                        <div className="p-6 space-y-5">
+                          {/* Connected state */}
+                          {isMetaConnected && !metaShowPicker && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                <div className="w-11 h-11 rounded-xl bg-[#1877F2] flex items-center justify-center flex-shrink-0 shadow">
+                                  <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-black text-blue-800">{language === 'en' ? 'Meta Ads Connected' : 'Meta Ads Conectado'}</p>
+                                  <p className="text-[11px] text-blue-600 font-mono truncate">{configData.facebook_ad_account_id}</p>
+                                  {configData.facebook_page_id && <p className="text-[10px] text-blue-400 mt-0.5">Page ID: {configData.facebook_page_id}</p>}
+                                </div>
+                                <button
+                                  onClick={() => { setConfigData((prev: any) => ({ ...prev, facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '' })); setToast({ type: 'info', message: language === 'en' ? 'Meta disconnected' : 'Meta desconectado' }); }}
+                                  className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all"
+                                >{language === 'en' ? 'Disconnect' : 'Desconectar'}</button>
+                              </div>
+                              {/* Permissions summary */}
+                              <div className="grid grid-cols-3 gap-2">
+                                {['Ads Manager', 'Pages', 'Insights'].map((perm) => (
+                                  <div key={perm} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    <span className="text-[10px] font-bold text-emerald-700">{perm}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Meta Access Token</label>
-                          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-300/30 transition-all" type="password" placeholder="EAASJOMg..." value={configData.facebook_access_token || ''} onChange={e => setConfigData({...configData, facebook_access_token: e.target.value})} />
+                          {/* Account + Page picker */}
+                          {metaShowPicker && (
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-xs font-black text-slate-600 uppercase tracking-wider mb-2">{language === 'en' ? 'Select Ad Account:' : 'Selecciona Cuenta Publicitaria:'}</p>
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                  {metaAdAccounts.map((account: any) => (
+                                    <button key={account.id} onClick={() => handleSelectMetaAccount(account, metaPages[0])}
+                                      className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-blue-50 hover:border-blue-200 border border-slate-100 rounded-xl transition-all group text-left">
+                                      <div className="w-9 h-9 rounded-lg bg-[#1877F2]/10 flex items-center justify-center flex-shrink-0">
+                                        <span className="material-symbols-outlined text-[#1877F2] text-base" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-black text-slate-800 group-hover:text-blue-700">{account.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-mono">{account.id}</p>
+                                        <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full mt-1 ${account.account_status === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                          <span className="w-1 h-1 rounded-full bg-current" />{account.account_status === 1 ? 'ACTIVE' : 'INACTIVE'}
+                                        </span>
+                                      </div>
+                                      <span className="material-symbols-outlined text-slate-300 group-hover:text-blue-500 transition-colors">arrow_forward</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              {metaPages.length > 0 && (
+                                <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-[10px] text-blue-700">
+                                  <strong>Página detectada:</strong> {metaPages[0]?.name} (ID: {metaPages[0]?.id})
+                                </div>
+                              )}
+                              <button onClick={() => setMetaShowPicker(false)} className="w-full text-[10px] text-slate-400 hover:text-slate-600 py-2 transition-colors">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
+                            </div>
+                          )}
+
+                          {/* Connect button */}
+                          {!isMetaConnected && !metaShowPicker && (
+                            <>
+                              <button onClick={handleMetaFacebookLogin}
+                                className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#0C63D4] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-blue-500/30 transition-all">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                {language === 'en' ? 'Connect Meta Business' : 'Conectar Meta Business'}
+                              </button>
+                              <div className="grid grid-cols-3 gap-3">
+                                {[
+                                  { icon: 'login', label: '1. ' + (language === 'en' ? 'Login' : 'Ingresa'), desc: language === 'en' ? 'Facebook account' : 'Con tu cuenta' },
+                                  { icon: 'business_center', label: '2. ' + (language === 'en' ? 'Select' : 'Elige'), desc: language === 'en' ? 'Your ad account' : 'Cuenta de Ads' },
+                                  { icon: 'check_circle', label: '3. ' + (language === 'en' ? 'Done!' : '¡Listo!'), desc: language === 'en' ? 'Campaigns ready' : 'Campañas listas' },
+                                ].map((step) => (
+                                  <div key={step.icon} className="text-center p-3 bg-slate-50 rounded-xl">
+                                    <span className="material-symbols-outlined text-[#1877F2] text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>{step.icon}</span>
+                                    <p className="text-[10px] font-black text-slate-700 mt-1">{step.label}</p>
+                                    <p className="text-[9px] text-slate-400 leading-tight">{step.desc}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-[10px] text-blue-700 flex items-start gap-2">
+                                <span className="material-symbols-outlined text-blue-500 text-sm mt-0.5">info</span>
+                                {language === 'en' ? 'Permissions requested: Ads Manager, Pages, Insights. Your data is safe and only used to publish campaigns.' : 'Permisos solicitados: Ads Manager, Páginas, Insights. Tus datos están seguros y solo se usan para publicar campañas.'}
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                      </div>
+
+                      {/* Advanced Manual Config */}
+                      <details className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                        <summary className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-slate-400 text-sm">settings</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">{language === 'en' ? 'Advanced — Manual Config' : 'Avanzado — Config. Manual'}</span>
+                          </div>
+                          <span className="material-symbols-outlined text-slate-300 text-sm group-open:rotate-180 transition-transform">expand_more</span>
+                        </summary>
+                        <div className="px-6 pb-6 pt-2 space-y-4 border-t border-slate-100">
+                          <p className="text-[10px] text-slate-400">{language === 'en' ? 'Paste your Facebook Token, Ad Account ID and Page ID directly.' : 'Pega tu Token de Facebook, Ad Account ID y Page ID directamente.'}</p>
                           <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Ad Account ID</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-indigo-400 transition-all" type="text" placeholder="act_123456789" value={configData.facebook_ad_account_id || ''} onChange={e => setConfigData({...configData, facebook_ad_account_id: e.target.value})} />
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Meta Access Token</label>
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-300/30 transition-all" type="password" autoComplete="new-password" placeholder="EAASJOMg..." value={configData.facebook_access_token || ''} onChange={e => setConfigData({...configData, facebook_access_token: e.target.value})} />
                           </div>
-                          <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Page ID</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-indigo-400 transition-all" type="text" placeholder="1234567890" value={configData.facebook_page_id || ''} onChange={e => setConfigData({...configData, facebook_page_id: e.target.value})} />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Ad Account ID</label>
+                              <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-indigo-400 transition-all" type="text" placeholder="act_123456789" value={configData.facebook_ad_account_id || ''} onChange={e => setConfigData({...configData, facebook_ad_account_id: e.target.value})} />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Page ID</label>
+                              <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-indigo-400 transition-all" type="text" placeholder="1234567890" value={configData.facebook_page_id || ''} onChange={e => setConfigData({...configData, facebook_page_id: e.target.value})} />
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </details>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
-                {/* ════ MEMORY ════ */}
+{/* ════ MEMORY ════ */}
                 {settingsSection === 'memory' && (
                   <div className="space-y-6">
                     <div>
@@ -7332,6 +7715,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </label>
                             <input
                               type="password"
+                              autoComplete="new-password"
                               value={configData.dropi_token || ''}
                               onChange={e => setConfigData({ ...configData, dropi_token: e.target.value })}
                               placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -7410,29 +7794,31 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <p className="text-xl text-slate-500 max-w-2xl font-normal leading-relaxed">{language === 'en' ? 'Refine the intelligence, personality, and operational logic of your Sovereign AI agent.' : 'Refine la inteligencia, personalidad y l\u00F3gica operacional de su agente de IA Soberano.'}</p>
             </header>
 
-            <div className="grid grid-cols-12 gap-8">
+            <div className="grid grid-cols-12 gap-6">
               {/* Left Column */}
-              <div className="col-span-12 lg:col-span-7 space-y-8">
-                {/* Sub-tabs Ajustes / Fuentes */}
-                <div className="flex space-x-8 border-b border-slate-200 mb-2">
+              <div className="col-span-12 lg:col-span-6 space-y-8">
+                {/* Premium Sub-tabs Ajustes / Fuentes */}
+                <div className="flex bg-slate-100/70 rounded-2xl p-1 gap-1 mb-2" style={{ backdropFilter: 'blur(10px)' }}>
                   <button
                     onClick={() => setPlaygroundSubTab('ajustes')}
-                    className={`pb-3 text-sm font-bold tracking-wide transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all ${
                       playgroundSubTab === 'ajustes'
-                        ? 'border-b-2 border-[#0058bc] text-[#0b1c30]'
-                        : 'text-slate-400 hover:text-slate-600 border-b border-transparent font-semibold'
+                        ? 'bg-white text-[#0b1c30] shadow-sm shadow-slate-200/80'
+                        : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
+                    <span className="material-symbols-outlined text-sm">settings</span>
                     {language === 'en' ? 'Settings' : 'Ajustes'}
                   </button>
                   <button
                     onClick={() => setPlaygroundSubTab('fuentes')}
-                    className={`pb-3 text-sm font-bold tracking-wide transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all ${
                       playgroundSubTab === 'fuentes'
-                        ? 'border-b-2 border-[#0058bc] text-[#0b1c30]'
-                        : 'text-slate-400 hover:text-slate-600 border-b border-transparent font-semibold'
+                        ? 'bg-white text-[#0b1c30] shadow-sm shadow-slate-200/80'
+                        : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
+                    <span className="material-symbols-outlined text-sm">auto_stories</span>
                     {language === 'en' ? 'Sources' : 'Fuentes'}
                   </button>
                 </div>
@@ -7551,14 +7937,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </optgroup>
                           <optgroup label="Groq">
                             <option value="llama-3.3-70b">Llama 3.3 70B (Groq)</option>
-                            <option value="mixtral-8x7b">Mixtral 8x7B (Groq)</option>
+                            <option value="llama-3.1-8b-instant">Llama 3.1 8B · Rápido (Groq)</option>
                           </optgroup>
                           <optgroup label="Anthropic">
                             <option value="claude-sonnet-4">Claude Sonnet 4</option>
                             <option value="claude-haiku">Claude Haiku</option>
-                          </optgroup>
-                          <optgroup label="Meta (Llama)">
-                            <option value="llama-3.1-405b">Llama 3.1 405B</option>
                           </optgroup>
                         </select>
                       </div>
@@ -7650,7 +8033,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         { key: 'handoff', icon: 'support_agent', label: language === 'en' ? 'Human Handoff' : 'Derivar a Humano', desc: language === 'en' ? 'Triggers operator when bot confidence is < 40%' : 'Activa operador cuando la confianza del bot es menor al 40%', state: botHumanHandoff, setter: setBotHumanHandoff },
                         { key: 'profanity', icon: 'block', label: language === 'en' ? 'Profanity Filter' : 'Filtro de Lenguaje', desc: language === 'en' ? 'Blocks explicit language in bidirectional flow' : 'Bloquea lenguaje expl\u00EDcito en flujo bidireccional', state: botProfanityFilter, setter: setBotProfanityFilter },
                         { key: 'topic', icon: 'lock', label: language === 'en' ? 'Topic Locks' : 'Bloqueo de Temas', desc: language === 'en' ? 'Restricts conversation to product domain only' : 'Restringe la conversaci\u00F3n solo al dominio del producto', state: botTopicLocks, setter: setBotTopicLocks },
-                      ].map((guard, idx) => (
+                      ].map((guard) => (
                         <div key={guard.key} className={`p-4 rounded-2xl transition-all ${guard.state ? 'bg-white shadow-sm border border-primary-container/10' : 'bg-white/40 border border-transparent'}`}>
                           <div className="flex items-center gap-3 mb-3">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${guard.state ? 'bg-primary-container text-white' : 'bg-slate-200 text-slate-400'}`}><span className="material-symbols-outlined text-sm">{guard.icon}</span></div>
@@ -7669,94 +8052,229 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 )}
               </div>
 
-              {/* Right Column: Chat Preview */}
-              <div className="col-span-12 lg:col-span-5">
-                <div className="bg-white rounded-3xl flex flex-col overflow-hidden shadow-2xl border border-slate-100 sticky top-24 max-h-[620px]">
-                  {/* Chat Header */}
-                  <div className="bg-gradient-to-r from-primary to-primary-container p-6 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white border border-white/10"><span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span></div>
-                      <div>
-                        <h4 className="text-white font-bold text-sm">{botName || 'Bot'}</h4>
-                        <div className="flex items-center space-x-2">
-                          <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
-                          <span className="text-[10px] text-white/70 font-bold">{language === 'en' ? 'Online' : 'En l\u00EDnea'} {'\u2022'} {botModelSelected}</span>
+              {/* Right Column: WhatsApp Phone Mockup */}
+              <div className="col-span-12 lg:col-span-6">
+                <div className="sticky top-24 flex flex-col items-center">
+                  {/* Label above phone */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Live Preview' : 'Vista Previa en Vivo'}</span>
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 rounded-full">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <span className="text-[9px] font-black text-emerald-600 uppercase">Live</span>
+                    </span>
+                  </div>
+
+                  {/* iPhone Frame */}
+                  <div className="relative" style={{ width: '360px' }}>
+
+                    {/* Side Buttons Left - Volume */}
+                    <div className="absolute left-0 top-[90px] w-[3px] h-8 bg-gradient-to-b from-[#b0b0b8] to-[#8a8a92] rounded-l-sm shadow-inner" style={{ left: '-3px' }} />
+                    <div className="absolute left-0 top-[132px] w-[3px] h-8 bg-gradient-to-b from-[#b0b0b8] to-[#8a8a92] rounded-l-sm shadow-inner" style={{ left: '-3px' }} />
+                    <div className="absolute left-0 top-[72px] w-[3px] h-[14px] bg-gradient-to-b from-[#b0b0b8] to-[#8a8a92] rounded-l-sm" style={{ left: '-3px' }} />
+
+                    {/* Side Button Right - Power */}
+                    <div className="absolute top-[110px] w-[3px] h-12 bg-gradient-to-b from-[#b0b0b8] to-[#8a8a92] rounded-r-sm" style={{ right: '-3px' }} />
+
+                    {/* iPhone Body */}
+                    <div
+                      className="relative overflow-hidden"
+                      style={{
+                        borderRadius: '44px',
+                        background: 'linear-gradient(145deg, #e8e8ed 0%, #d1d1d6 30%, #c7c7cc 60%, #d1d1d6 100%)',
+                        padding: '10px',
+                        boxShadow: '0 40px 100px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.08)',
+                      }}
+                    >
+                      {/* Inner Screen Bezel */}
+                      <div
+                        className="overflow-hidden"
+                        style={{
+                          borderRadius: '36px',
+                          background: '#000',
+                          boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.05)',
+                        }}
+                      >
+                        {/* Dynamic Island */}
+                        <div className="bg-[#075e54] flex justify-center pt-3 pb-0">
+                          <div
+                            style={{
+                              width: '120px',
+                              height: '34px',
+                              background: '#000',
+                              borderRadius: '20px',
+                              boxShadow: '0 0 0 2px #000',
+                            }}
+                          />
                         </div>
+
+                        {/* WA Status Bar */}
+                        <div className="bg-[#075e54] px-5 py-1.5 flex items-center justify-between">
+                          <span className="text-white text-[11px] font-bold">9:41</span>
+                      <div className="flex items-center gap-1.5">
+                        <svg width="12" height="8" viewBox="0 0 12 8" fill="white" opacity="0.9"><rect x="0" y="4" width="2" height="4" rx="0.5"/><rect x="3" y="2" width="2" height="6" rx="0.5"/><rect x="6" y="0" width="2" height="8" rx="0.5"/><rect x="9" y="0" width="2" height="8" rx="0.5" opacity="0.4"/></svg>
+                        <svg width="14" height="8" viewBox="0 0 14 8" fill="white" opacity="0.9"><rect x="0" y="1" width="11" height="6" rx="1.5" stroke="white" strokeWidth="1" fill="none"/><rect x="1.5" y="2.5" width="7" height="3" rx="0.5" fill="white"/><rect x="12" y="2.5" width="2" height="3" rx="1" fill="white" opacity="0.5"/></svg>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => { 
-                          setBotPreviewMessages([{ role: 'bot', content: language === 'en' ? `Hello! I'm ${botName}. How can I assist you?` : `\u00A1Hola! Soy ${botName}. \u00BFEn qu\u00E9 puedo ayudarte?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
-                          setTestHistory([]); // Clear inference history
-                        }} 
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-md rounded-lg text-white/80 hover:text-white hover:bg-red-500/20 hover:text-red-300 transition-all text-[10px] font-bold uppercase tracking-wider group"
-                        title={language === 'en' ? 'Clear Memory' : 'Borrar Memoria'}
-                      >
-                        <span className="material-symbols-outlined text-sm group-hover:hidden">delete_outline</span>
-                        <span className="material-symbols-outlined text-sm hidden group-hover:block">delete</span>
-                        <span className="hidden sm:block">{language === 'en' ? 'Clear Memory' : 'Borrar Memoria'}</span>
+
+                    {/* WA Header Bar */}
+                    <div className="bg-[#075e54] px-4 pb-4 flex items-center gap-3">
+                      <button className="text-white/80 hover:text-white transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
                       </button>
-                      <button onClick={() => { setBotPreviewMessages([{ role: 'bot', content: language === 'en' ? `Hello! I'm ${botName}. How can I assist you?` : `\u00A1Hola! Soy ${botName}. \u00BFEn qu\u00E9 puedo ayudarte?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]); }} className="w-8 h-8 bg-white/10 backdrop-blur-md rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-all"><span className="material-symbols-outlined text-sm">refresh</span></button>
-                    </div>
-                  </div>
-                  {/* Chat History */}
-                  <div className="flex-1 p-5 space-y-4 overflow-y-auto bg-gradient-to-b from-slate-50/50 to-white min-h-0">
-                    {botPreviewMessages.map((msg, idx) => (
-                      <motion.div key={idx} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-end gap-2`}>
-                        {msg.role === 'bot' && <div className="w-7 h-7 bg-primary-container/10 rounded-full flex items-center justify-center flex-shrink-0 mb-1"><span className="material-symbols-outlined text-primary-container text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span></div>}
-                        <div className={`max-w-[78%] ${msg.role === 'user' ? 'bg-primary-container text-white rounded-2xl rounded-br-md shadow-lg shadow-primary-container/20' : `bg-white text-slate-700 rounded-2xl rounded-bl-md shadow-sm border border-slate-100 ${msg.isKb ? 'border-l-[3px] border-l-amber-400' : ''}`} p-4`}>
-                          {msg.isKb && <div className="flex items-center gap-1.5 mb-2 bg-amber-50 px-2 py-1 rounded-md w-fit"><span className="material-symbols-outlined text-amber-500 text-xs">auto_stories</span><span className="text-[9px] font-black text-amber-600 uppercase tracking-wider">{language === 'en' ? 'From Knowledge Base' : 'Base de Conocimiento'}</span></div>}
-                          <p className="text-[13px] leading-relaxed">{msg.content}</p>
-                          <span className={`text-[9px] font-bold block mt-2 ${msg.role === 'user' ? 'text-right text-white/50' : 'text-slate-400'}`}>{msg.time}</span>
+                      {/* Avatar morado con destellos */}
+                      <div className="relative w-11 h-11 rounded-full flex-shrink-0 bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center shadow-lg">
+                        <span className="text-white text-base">✨</span>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#075e54]"></span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-white text-sm font-bold truncate">{botName || 'Agente IA'}</span>
+                          {/* WhatsApp verified badge */}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="#60a5fa"><path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/><path d="M9 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </div>
-                        {msg.role === 'user' && <div className="w-7 h-7 bg-primary-container rounded-full flex items-center justify-center flex-shrink-0 mb-1"><span className="material-symbols-outlined text-white text-xs">person</span></div>}
-                      </motion.div>
-                    ))}
-                    {isTestingAi && (
-                      <div className="flex justify-start items-end gap-2">
-                        <div className="w-7 h-7 bg-primary-container/10 rounded-full flex items-center justify-center flex-shrink-0"><span className="material-symbols-outlined text-primary-container text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span></div>
-                        <div className="bg-white p-4 rounded-2xl rounded-bl-md shadow-sm border border-slate-100">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 bg-primary-container rounded-full animate-bounce" />
-                            <div className="w-2 h-2 bg-primary-container/60 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                            <div className="w-2 h-2 bg-primary-container/30 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                          <span className="text-white/70 text-[10px]">en línea</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setBotPreviewMessages([{ role: 'bot', content: language === 'en' ? `Hello! I'm ${botName}. How can I assist you?` : `¡Hola! Soy ${botName}. ¿En qué puedo ayudarte?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+                            setTestHistory([]);
+                          }}
+                          className="text-white/70 hover:text-white transition-colors"
+                          title={language === 'en' ? 'Clear Memory' : 'Borrar Memoria'}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+                        </button>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" opacity="0.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                      </div>
+                    </div>
+
+                    {/* Chat Body with WA doodle background */}
+                    <div
+                      className="flex-1 overflow-y-auto px-2 py-3 space-y-2"
+                      style={{
+                        height: '450px',
+                        backgroundColor: '#efeae2',
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%23c8c0b0' opacity='0.5'/%3E%3Cpath d='M10 20 Q15 15 20 20' stroke='%23c8c0b0' stroke-width='1' fill='none' opacity='0.4'/%3E%3Cpath d='M40 10 Q45 5 50 10' stroke='%23c8c0b0' stroke-width='1' fill='none' opacity='0.4'/%3E%3Ccircle cx='8' cy='45' r='1' fill='%23c8c0b0' opacity='0.4'/%3E%3Ccircle cx='52' cy='38' r='1' fill='%23c8c0b0' opacity='0.4'/%3E%3C/svg%3E")`,
+                      }}
+                    >
+                      {/* Date divider */}
+                      <div className="flex justify-center my-1">
+                        <span className="text-[10px] text-[#667781] bg-[#d4d4d4]/60 px-3 py-1 rounded-full font-medium">
+                          {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </span>
+                      </div>
+
+                      {botPreviewMessages.map((msg, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ delay: idx * 0.04 }}
+                          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-end gap-2`}
+                        >
+                          {/* Bot avatar on left */}
+                          {msg.role === 'bot' && (
+                            <div className="w-8 h-8 rounded-full flex-shrink-0 mb-1 bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center shadow-md">
+                              <span className="text-xs">✨</span>
+                            </div>
+                          )}
+                          {/* Bubble */}
+                          <div
+                            className={`max-w-[78%] relative px-4 py-3 ${
+                              msg.role === 'user'
+                                ? 'bg-[#d9fdd3] rounded-tl-2xl rounded-tr-2xl rounded-bl-2xl rounded-br-sm shadow-sm'
+                                : 'bg-white rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl shadow-sm'
+                            }`}
+                          >
+                            {msg.isKb && (
+                              <div className="flex items-center gap-1 mb-1">
+                                <span className="text-[8px] font-bold text-amber-600">📚 KB</span>
+                              </div>
+                            )}
+                            <p className="text-[13px] leading-[1.5] text-[#111b21]">{msg.content}</p>
+                            <div className="flex items-center justify-end gap-1 mt-1">
+                              <span className="text-[9px] text-[#667781]">{msg.time}</span>
+                              {msg.role === 'user' && (
+                                <svg width="12" height="8" viewBox="0 0 16 11" fill="#53bdeb"><path d="M11 1L5.5 7 1 3" stroke="#53bdeb" strokeWidth="1.5" strokeLinecap="round" fill="none"/><path d="M15 1L9.5 7 7 4.5" stroke="#53bdeb" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+
+                      {isTestingAi && (
+                        <div className="flex justify-start items-end gap-1.5">
+                          <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center shadow-md">
+                            <span className="text-xs">✨</span>
+                          </div>
+                          <div className="bg-white rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl px-4 py-3 shadow-sm">
+                            <div className="flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 bg-[#667781] rounded-full animate-bounce" />
+                              <div className="w-1.5 h-1.5 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                              <div className="w-1.5 h-1.5 bg-[#667781] rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+
+                    {/* WA Input Bar */}
+                    <div className="bg-[#f0f2f5] px-3 py-3 flex items-center gap-2">
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!botPreviewInput.trim() || isTestingAi) return;
+                          const userMsg = botPreviewInput.trim();
+                          const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                          setBotPreviewMessages(prev => [...prev, { role: 'user', content: userMsg, time: now }]);
+                          setBotPreviewInput('');
+                          setIsTestingAi(true);
+                          try {
+                            const res = await authFetch('/api/panel/test-ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg, history: botPreviewMessages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })), botName, botRole, botTone, temperature: botTemperature, humanHandoff: botHumanHandoff, profanityFilter: botProfanityFilter, topicLocks: botTopicLocks, model: botModelSelected }) });
+                            const data = await res.json();
+                            if (data.response) {
+                              const respTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                              setBotPreviewMessages(prev => [...prev, { role: 'bot', content: data.response, time: respTime, isKb: data.inference?.category === 'interesado' }]);
+                              if (data.inference) { setLastInference(data.inference); setTestHistory(prev => [{ message: userMsg, inference: data.inference, timestamp: new Date().toISOString() }, ...prev]); }
+                            }
+                          } catch (err) { console.error(err); }
+                          finally { setIsTestingAi(false); }
+                        }}
+                        className="flex items-center gap-2 w-full"
+                      >
+                        <div className="flex-1 bg-white rounded-2xl flex items-center px-4 py-2.5 gap-2 shadow-sm">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
+                          <input className="flex-1 text-[13px] bg-transparent outline-none text-[#111b21] placeholder-[#8696a0]" placeholder="Mensaje..." type="text" value={botPreviewInput} onChange={e => setBotPreviewInput(e.target.value)} />
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8696a0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                                </div>
+                        <button
+                          type="submit"
+                          disabled={!botPreviewInput.trim() || isTestingAi}
+                          className="w-11 h-11 bg-[#00a884] rounded-full flex items-center justify-center flex-shrink-0 shadow-md hover:bg-[#00916f] active:scale-90 transition-all disabled:opacity-40"
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        </button>
+                      </form>
+                    </div>
                   </div>
-                  {/* Chat Input */}
-                  <div className="p-4 bg-white border-t border-slate-100">
-                    <form onSubmit={async (e) => {
-                      e.preventDefault();
-                      if (!botPreviewInput.trim() || isTestingAi) return;
-                      const userMsg = botPreviewInput.trim();
-                      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                      setBotPreviewMessages(prev => [...prev, { role: 'user', content: userMsg, time: now }]);
-                      setBotPreviewInput('');
-                      setIsTestingAi(true);
-                      try {
-                        const res = await authFetch('/api/panel/test-ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: userMsg, history: botPreviewMessages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })), botName, botRole, botTone, temperature: botTemperature, humanHandoff: botHumanHandoff, profanityFilter: botProfanityFilter, topicLocks: botTopicLocks, model: botModelSelected }) });
-                        const data = await res.json();
-                        if (data.response) {
-                          const respTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                          setBotPreviewMessages(prev => [...prev, { role: 'bot', content: data.response, time: respTime, isKb: data.inference?.category === 'interesado' }]);
-                          if (data.inference) { setLastInference(data.inference); setTestHistory(prev => [{ message: userMsg, inference: data.inference, timestamp: new Date().toISOString() }, ...prev]); }
-                        }
-                      } catch (err) { console.error(err); }
-                      finally { setIsTestingAi(false); }
-                    }} className="flex items-center gap-3">
-                      <div className="flex-1 relative">
-                        <input className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3.5 pl-5 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 focus:border-primary-container/30 transition-all" placeholder={language === 'en' ? 'Type a message...' : 'Escribe un mensaje...'} type="text" value={botPreviewInput} onChange={e => setBotPreviewInput(e.target.value)} />
-                      </div>
-                      <button type="submit" disabled={!botPreviewInput.trim() || isTestingAi} className="w-11 h-11 bg-primary-container text-white rounded-2xl flex items-center justify-center active:scale-90 transition-all disabled:opacity-30 shadow-lg shadow-primary-container/20 hover:shadow-xl hover:shadow-primary-container/30"><span className="material-symbols-outlined text-lg">send</span></button>
-                    </form>
-                    <p className="text-[9px] text-center text-slate-400 mt-3 font-medium">{language === 'en' ? 'Real-time preview updates as you modify settings' : 'Vista previa en tiempo real al modificar la configuraci\u00F3n'}</p>
+                      </div>{/* end Inner Screen Bezel */}
+                    </div>{/* end iPhone Body */}
+
+                  {/* Model badge below phone */}
+                  <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                    <span className="material-symbols-outlined text-sm text-slate-400">bolt</span>
+                    <span>{botModelSelected}</span>
+                    <span>•</span>
+                    <span className="text-emerald-500 font-bold">{language === 'en' ? 'Connected' : 'Conectado'}</span>
                   </div>
                 </div>
               </div>
-            </div>
+
+            </div>{/* end grid grid-cols-12 */}
 
             {/* Save Playground Config */}
             <div className="flex items-center justify-between bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
@@ -9327,6 +9845,176 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   ? 'This will export your ad and targeting settings directly to Meta Ads Manager as a paused campaign.' 
                                   : 'Esto exportará tu anuncio y segmentación directamente a Meta Ads Manager como una campaña pausada.'}
                               </p>
+                              
+                              {showMetaPermissionsModal && (
+                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in">
+                                  <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-100 shadow-2xl relative overflow-hidden animate-scale-in text-left">
+                                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500"></div>
+                                    
+                                    <div className="flex items-start gap-4 mt-2">
+                                      <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center flex-shrink-0 border border-amber-200">
+                                        <span className="material-symbols-outlined text-amber-500 text-2xl">warning</span>
+                                      </div>
+                                      <div>
+                                        <h3 className="text-xl font-bold text-[#0b1c30]">
+                                          {language === 'en' ? 'Meta Permission Conflict' : 'Conflicto de Permisos en Meta'}
+                                        </h3>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Error: Creative Instagram Account Access</p>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-5 text-sm text-[#414754] leading-relaxed space-y-4">
+                                      <p className="text-xs">
+                                        {language === 'en'
+                                          ? 'It looks like the Facebook Page you selected has a connected Instagram profile, but your current Facebook User or Ad Account does not have permission to access that Instagram profile.'
+                                          : 'Parece que la página de Facebook que seleccionaste tiene un perfil de Instagram vinculado, pero tu cuenta de Facebook o tu cuenta publicitaria no tienen los permisos requeridos para acceder a dicho perfil.'}
+                                      </p>
+
+                                      <div className="bg-[#f8fafc] border border-slate-100 rounded-2xl p-4 space-y-3">
+                                        <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-500">
+                                          {language === 'en' ? 'How to resolve this:' : 'Cómo solucionarlo paso a paso:'}
+                                        </h4>
+                                        <ol className="list-decimal pl-4 space-y-2.5 text-[11px] text-[#414754]">
+                                          <li>
+                                            <strong>{language === 'en' ? 'Assign assets in Meta Business Settings' : 'Asigna los activos en la configuración de Meta'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'Go to Meta Business Settings > Instagram Accounts. Select your Instagram profile, click "Add People" to assign yourself, then go to "Connected Assets" and add your Ad Account.'
+                                                : 'Ve a Configuración del negocio en Meta > Cuentas de Instagram. Selecciona tu perfil, haz clic en "Añadir personas" para asignarte a ti mismo, luego ve a "Activos conectados" y añade tu Cuenta Publicitaria.'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Confirm Page Connection' : 'Confirma la conexión en tu página'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'Open your Facebook Page settings > Linked Accounts > Instagram. If there is a warning or a "Review Connection" button, complete it to refresh the connection.'
+                                                : 'Entra a tu página de Facebook > Configuración > Cuentas vinculadas > Instagram. Si ves un botón de "Revisar conexión" o "Confirmar", complétalo.'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Publish again' : 'Vuelve a publicar'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'Once configured in Meta, return here and click "Publish Campaign" again.'
+                                                : 'Una vez hechos los cambios en Meta, regresa aquí y vuelve a hacer clic en "Publicar Campaña".'}
+                                            </span>
+                                          </li>
+                                        </ol>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                                      <a
+                                        href="https://business.facebook.com/settings"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-1 py-3 text-center text-white bg-[#1877F2] font-bold text-xs rounded-xl hover:bg-[#166fe5] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10"
+                                      >
+                                        {language === 'en' ? 'Open Meta Business Settings' : 'Ir a Configuración de Meta'}
+                                        <span className="material-symbols-outlined text-xs">open_in_new</span>
+                                      </a>
+                                      <button
+                                        onClick={() => setShowMetaPermissionsModal(false)}
+                                        className="py-3 px-6 text-[#414754] bg-slate-50 hover:bg-slate-100 font-bold text-xs rounded-xl active:scale-[0.98] transition-all border border-slate-200"
+                                      >
+                                        {language === 'en' ? 'Close' : 'Cerrar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Modal: No Meta API Configured */}
+                              {showMetaNoApiModal && (
+                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in">
+                                  <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-100 shadow-2xl relative overflow-hidden animate-scale-in text-left">
+                                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-500"></div>
+                                    
+                                    <div className="flex items-start gap-4 mt-2">
+                                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center flex-shrink-0 border border-blue-200">
+                                        <span className="material-symbols-outlined text-blue-500 text-3xl">key_off</span>
+                                      </div>
+                                      <div>
+                                        <h3 className="text-xl font-bold text-[#0b1c30]">
+                                          {language === 'en' ? 'Meta API Not Configured' : 'API de Meta No Configurada'}
+                                        </h3>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                          {language === 'en' ? 'Action required before publishing' : 'Acción requerida antes de publicar'}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-5 text-sm text-[#414754] leading-relaxed space-y-4">
+                                      <p className="text-xs">
+                                        {language === 'en'
+                                          ? 'You don\'t have Meta Ads API credentials set up yet. To publish campaigns, you need to connect your own Meta Business account first.'
+                                          : 'Aún no tienes credenciales de la API de Meta Ads configuradas. Para publicar campañas, primero debes conectar tu propia cuenta de Meta Business.'}
+                                      </p>
+
+                                      <div className="bg-gradient-to-br from-[#f8fafc] to-[#f0f4ff] border border-slate-100 rounded-2xl p-4 space-y-3">
+                                        <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                          <span className="material-symbols-outlined text-xs text-indigo-400">checklist</span>
+                                          {language === 'en' ? 'Steps to configure:' : 'Pasos para configurar:'}
+                                        </h4>
+                                        <ol className="list-decimal pl-4 space-y-2.5 text-[11px] text-[#414754]">
+                                          <li>
+                                            <strong>{language === 'en' ? 'Go to Settings' : 'Ve a Configuración'}</strong>
+                                            <span className="block text-slate-500 mt-0.5 font-normal">
+                                              {language === 'en'
+                                                ? 'Click the button below to navigate to the Settings section of your panel.'
+                                                : 'Haz clic en el botón de abajo para ir a la sección de Configuración de tu panel.'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Connect with Facebook' : 'Conecta con Facebook'}</strong>
+                                            <span className="block text-slate-500 mt-0.5 font-normal">
+                                              {language === 'en'
+                                                ? 'In the Meta Ads section, click "Connect with Facebook" to authorize your business account and select your Ad Account.'
+                                                : 'En la sección de Meta Ads, haz clic en "Conectar con Facebook" para autorizar tu cuenta de negocio y seleccionar tu Cuenta Publicitaria.'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Return and publish' : 'Regresa y publica'}</strong>
+                                            <span className="block text-slate-500 mt-0.5 font-normal">
+                                              {language === 'en'
+                                                ? 'Once connected, come back to Campaigns and publish your ad — it will use your own Meta account.'
+                                                : 'Una vez conectado, regresa a Campañas y publica tu anuncio — se usará tu propia cuenta de Meta.'}
+                                            </span>
+                                          </li>
+                                        </ol>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                                        <span className="material-symbols-outlined text-blue-500 text-sm">info</span>
+                                        <p className="text-[10px] text-blue-700">
+                                          {language === 'en'
+                                            ? 'Each user must connect their own Meta account. Credentials are never shared between accounts.'
+                                            : 'Cada usuario debe conectar su propia cuenta de Meta. Las credenciales nunca se comparten entre cuentas.'}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                                      <button
+                                        onClick={() => {
+                                          setShowMetaNoApiModal(false);
+                                          setActiveTab('settings');
+                                        }}
+                                        className="flex-1 py-3 text-center text-white bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-xs rounded-xl hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">settings</span>
+                                        {language === 'en' ? 'Go to API Settings' : 'Ir a Configuración de API'}
+                                      </button>
+                                      <button
+                                        onClick={() => setShowMetaNoApiModal(false)}
+                                        className="py-3 px-6 text-[#414754] bg-slate-50 hover:bg-slate-100 font-bold text-xs rounded-xl active:scale-[0.98] transition-all border border-slate-200"
+                                      >
+                                        {language === 'en' ? 'Close' : 'Cerrar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </section>
@@ -10139,27 +10827,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {currentPlan === 'start' && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-container text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{language === 'en' ? 'Current' : 'Actual'}</div>}
                 <div className="flex items-center gap-2 mb-4"><span className="material-symbols-outlined text-sky-500">star_half</span><h3 className="text-sm font-extrabold text-primary">Chatea Pro Start</h3></div>
                 <p className="text-[10px] text-slate-400 -mt-3 mb-3">{language === 'en' ? 'Starting from' : 'Empezando desde'}</p>
-                <div className="mb-5"><span className="text-4xl font-black text-primary">$49</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
+                <div className="mb-5"><span className="text-4xl font-black text-primary">$15</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
                 <div className="space-y-2.5 mb-6 flex-1">
                   <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1 Bot Inteligente</span></div>
                   <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1,000 {language === 'en' ? 'Contacts' : 'Contactos'}</span></div>
                   <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">5 {language === 'en' ? 'Members' : 'Miembros'}</span></div>
                 </div>
                 <button onClick={() => setShowPlanConfirm('start')} className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] ${currentPlan === 'start' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:opacity-90'}`}>{currentPlan === 'start' ? (language === 'en' ? '\u2713 Active Plan' : '\u2713 Plan Activo') : (language === 'en' ? 'Choose Plan' : 'Cambiar plan')}</button>
-              </div>
-
-              {/* Advanced - Popular */}
-              <div className={`relative bg-white rounded-2xl border-2 ${currentPlan === 'advanced' ? 'border-primary-container shadow-lg shadow-primary-container/10' : 'border-sky-400'} p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-0.5 ring-2 ring-sky-400/20`}>
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{currentPlan === 'advanced' ? (language === 'en' ? '\u2713 Current' : '\u2713 Actual') : (language === 'en' ? '\u2B50 Popular' : '\u2B50 Popular')}</div>
-                <div className="flex items-center gap-2 mb-4"><span className="material-symbols-outlined text-blue-600">star</span><h3 className="text-sm font-extrabold text-primary">Chatea Pro Advanced</h3></div>
-                <p className="text-[10px] text-slate-400 -mt-3 mb-3">{language === 'en' ? 'Starting from' : 'Empezando desde'}</p>
-                <div className="mb-5"><span className="text-4xl font-black text-primary">$109</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
-                <div className="space-y-2.5 mb-6 flex-1">
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1 Bot Inteligente</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">10,000 {language === 'en' ? 'Contacts' : 'Contactos'}</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">5 {language === 'en' ? 'Members' : 'Miembros'}</span></div>
-                </div>
-                <button onClick={() => setShowPlanConfirm('advanced')} className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] ${currentPlan === 'advanced' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:opacity-90'}`}>{currentPlan === 'advanced' ? (language === 'en' ? '\u2713 Active Plan' : '\u2713 Plan Activo') : (language === 'en' ? 'Choose Plan' : 'Cambiar plan')}</button>
               </div>
 
               {/* Plus */}
@@ -10200,16 +10874,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <th className="text-left py-3 px-2 text-slate-400 font-bold uppercase tracking-wider">{language === 'en' ? 'Feature' : 'Caracter\u00EDstica'}</th>
                     <th className="text-center py-3 px-2 text-slate-400 font-bold">Trial</th>
                     <th className="text-center py-3 px-2 text-slate-400 font-bold">Start</th>
-                    <th className="text-center py-3 px-2 text-sky-500 font-bold">Advanced</th>
                     <th className="text-center py-3 px-2 text-slate-400 font-bold">Plus</th>
                     <th className="text-center py-3 px-2 text-amber-500 font-bold">Master</th>
                   </tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Price' : 'Precio'}</td><td className="text-center font-bold text-slate-800">$0</td><td className="text-center font-bold text-slate-800">$49</td><td className="text-center font-bold text-sky-600">$109</td><td className="text-center font-bold text-slate-800">$189</td><td className="text-center font-bold text-amber-600">$399</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">Bots</td><td className="text-center">1</td><td className="text-center">1</td><td className="text-center text-sky-600">1</td><td className="text-center">1</td><td className="text-center text-amber-600 font-bold">5</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Contacts' : 'Contactos'}</td><td className="text-center">200</td><td className="text-center">1K</td><td className="text-center text-sky-600">10K</td><td className="text-center">20K</td><td className="text-center text-amber-600 font-bold">50K</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Members' : 'Miembros'}</td><td className="text-center">1</td><td className="text-center">5</td><td className="text-center text-sky-600">5</td><td className="text-center">5</td><td className="text-center text-amber-600 font-bold">10</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Duration' : 'Duraci\u00F3n'}</td><td className="text-center">14 {language === 'en' ? 'days' : 'd\u00EDas'}</td><td className="text-center">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center text-sky-600">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center text-amber-600">{language === 'en' ? 'Monthly' : 'Mensual'}</td></tr>
+                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Price' : 'Precio'}</td><td className="text-center font-bold text-slate-800">$0</td><td className="text-center font-bold text-slate-800">$15</td><td className="text-center font-bold text-slate-800">$189</td><td className="text-center font-bold text-amber-600">$399</td></tr>
+                    <tr><td className="py-3 px-2 font-semibold text-slate-600">Bots</td><td className="text-center">1</td><td className="text-center">1</td><td className="text-center">1</td><td className="text-center text-amber-600 font-bold">5</td></tr>
+                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Contacts' : 'Contactos'}</td><td className="text-center">200</td><td className="text-center">1K</td><td className="text-center">20K</td><td className="text-center text-amber-600 font-bold">50K</td></tr>
+                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Members' : 'Miembros'}</td><td className="text-center">1</td><td className="text-center">5</td><td className="text-center">5</td><td className="text-center text-amber-600 font-bold">10</td></tr>
+                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Duration' : 'Duraci\u00F3n'}</td><td className="text-center">14 {language === 'en' ? 'days' : 'd\u00EDas'}</td><td className="text-center">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center text-amber-600">{language === 'en' ? 'Monthly' : 'Mensual'}</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -10243,7 +10916,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <div className="bg-slate-50 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">{language === 'en' ? 'Monthly charge' : 'Cobro mensual'}</span>
-                  <span className="text-lg font-black text-[#0b1c30]">${showPlanConfirm === 'start' ? '49' : showPlanConfirm === 'advanced' ? '109' : showPlanConfirm === 'plus' ? '189' : '399'} USD</span>
+                  <span className="text-lg font-black text-[#0b1c30]">${showPlanConfirm === 'start' ? '15' : showPlanConfirm === 'plus' ? '189' : '399'} USD</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -12665,6 +13338,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   : 'border-slate-100 bg-slate-50 text-slate-500 placeholder-slate-300'
                               }`}
                               type="password"
+                              autoComplete="new-password"
                               placeholder="sk-proj-..."
                               value={configData.openai_key || ''}
                               onChange={e => setConfigData({ ...configData, openai_key: e.target.value })}
@@ -12696,6 +13370,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   : 'border-slate-100 bg-slate-50 text-slate-500 placeholder-slate-300'
                               }`}
                               type="password"
+                              autoComplete="new-password"
                               placeholder="fal-key-..."
                               value={configData.fal_key || ''}
                               onChange={e => setConfigData({ ...configData, fal_key: e.target.value })}

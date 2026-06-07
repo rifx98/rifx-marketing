@@ -13,47 +13,36 @@ export async function POST(req: NextRequest) {
     const { action, plan } = body;
 
     if (action === 'update_plan') {
-      const validPlans = ['trial', 'start', 'advanced', 'plus', 'master'];
-      if (!validPlans.includes(plan)) {
-        return NextResponse.json({ error: 'Plan inválido' }, { status: 400 });
+      // SECURITY FIX (VULN-07): Only allow downgrade to 'trial' (free).
+      // Paid plan upgrades MUST go through /api/panel/checkout → Lemon Squeezy webhook.
+      if (plan !== 'trial') {
+        return NextResponse.json(
+          { error: 'Los planes de pago solo se activan después de completar el checkout. Usa el botón de upgrade en el panel.' },
+          { status: 403 }
+        );
       }
 
-      const LIMITS: Record<string, { contacts: number; storage: number }> = {
-        trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
-        start:    { contacts: 1000,  storage: 250 * 1024 * 1024 },
-        advanced: { contacts: 10000, storage: 500 * 1024 * 1024 },
-        plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
-        master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
-      };
+      const TRIAL_LIMITS = { contacts: 200, storage: 100 * 1024 * 1024 };
 
       const supabase = createSupabaseAdmin();
 
-      // Fetch current tenant data
-      const { data: currentTenant } = await supabase
-        .from('tenants')
-        .select('plan, plan_status, plan_expires_at')
-        .eq('id', tenant.tenantId)
-        .single();
-
-      // ✅ IMMEDIATE ACTIVATION: Trial, expired plan, downgrade, or same plan
-      const limits = LIMITS[plan];
       const { error } = await supabase
         .from('tenants')
         .update({
-          plan,
+          plan: 'trial',
           plan_status: 'active',
           plan_started_at: new Date().toISOString(),
           plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          storage_limit_bytes: limits.storage,
-          contact_limit: limits.contacts,
+          storage_limit_bytes: TRIAL_LIMITS.storage,
+          contact_limit: TRIAL_LIMITS.contacts,
         })
         .eq('id', tenant.tenantId);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      console.log(`✅ Plan activado inmediatamente: ${plan}`);
+      console.log(`✅ Plan downgraded a trial para tenant ${tenant.tenantId}`);
 
-      return NextResponse.json({ success: true, plan, scheduled: false });
+      return NextResponse.json({ success: true, plan: 'trial', scheduled: false });
     }
 
     // Action: cancel_subscription (keep plan and expires_at, only set status to cancelled)

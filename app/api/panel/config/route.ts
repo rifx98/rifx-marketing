@@ -94,17 +94,19 @@ export async function GET(req: NextRequest) {
     const supabase = createSupabaseAdmin();
     const tenant = await getTenantFromRequest(req);
 
-    let query = supabase.from('config').select('*');
-    if (tenant?.tenantId) {
-      query = query.eq('tenant_id', tenant.tenantId);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
-    const { data: config, error } = await query.limit(1).single();
+
+    const { data: config, error } = await supabase
+      .from('config')
+      .select('*')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .maybeSingle();
 
     if (error) {
-      console.error('⚠️ Error o tabla vacía al obtener config:', error.message);
-      if (error.code === 'PGRST116') {
-        return NextResponse.json(EMPTY_CONFIG);
-      }
+      console.error('⚠️ Error al obtener config:', error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -151,9 +153,13 @@ export async function GET(req: NextRequest) {
 // POST: Guardar/actualizar configuración
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
     const body = await req.json();
     const supabase = createSupabaseAdmin();
-    const tenant = await getTenantFromRequest(req);
 
     console.log('📝 Recibiendo datos para guardar config:', Object.keys(body));
 
@@ -166,9 +172,13 @@ export async function POST(req: NextRequest) {
     const hasExtendedFields = body.openai_key !== undefined || body.gemini_key !== undefined || body.groq_key !== undefined || body.alert_email !== undefined || body.bulk_wa_token !== undefined || body.bulk_wa_phone_id !== undefined || body.model_selection !== undefined || body.confidence_threshold !== undefined || body.auto_classification !== undefined || body.fal_key !== undefined || body.visual_render_provider !== undefined || body.facebook_access_token !== undefined || body.facebook_ad_account_id !== undefined || body.facebook_page_id !== undefined || body.dropi_enabled !== undefined || body.dropi_token !== undefined || body.dropi_default_product_id !== undefined || body.dropi_default_price !== undefined;
     if (hasExtendedFields) {
       // First, get existing values so we don't lose them when only one is updated
-      let existingQuery = supabase.from('config').select('openai_key');
-      if (tenant?.tenantId) existingQuery = existingQuery.eq('tenant_id', tenant.tenantId);
-      const { data: existing } = await existingQuery.limit(1).single();
+      const { data: existing } = await supabase
+        .from('config')
+        .select('openai_key')
+        .eq('tenant_id', tenant.tenantId)
+        .limit(1)
+        .maybeSingle();
+
       const current = decodeExtendedConfig(existing?.openai_key || '');
       
       updateData.openai_key = encodeExtendedConfig({
@@ -202,31 +212,37 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('📝 Campos a guardar:', Object.keys(updateData));
-    console.log('📝 Tenant ID:', tenant?.tenantId || '(sin tenant)');
+    console.log('📝 Tenant ID:', tenant.tenantId);
 
     // Obtener config existente
-    let fetchQuery = supabase.from('config').select('id, tenant_id');
-    if (tenant?.tenantId) fetchQuery = fetchQuery.eq('tenant_id', tenant.tenantId);
-    const { data: existingRow, error: fetchError } = await fetchQuery.limit(1).single();
+    const { data: existingRow, error: fetchError } = await supabase
+      .from('config')
+      .select('id, tenant_id')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
+    if (fetchError) {
       console.error('❌ Error consultando config existente:', fetchError.message);
       return NextResponse.json({ error: `Error al consultar: ${fetchError.message}` }, { status: 500 });
     }
 
     if (existingRow) {
       console.log('📝 Actualizando config existente (id:', existingRow.id, ')');
-      const { error: updateError } = await supabase.from('config').update(updateData).eq('id', existingRow.id);
+      const { error: updateError } = await supabase
+        .from('config')
+        .update(updateData)
+        .eq('id', existingRow.id)
+        .eq('tenant_id', tenant.tenantId);
+
       if (updateError) {
         console.error('❌ Error actualizando config:', updateError.message, updateError.details, updateError.hint);
         return NextResponse.json({ error: `Error al actualizar: ${updateError.message}` }, { status: 500 });
       }
       console.log('✅ Config actualizada correctamente (id:', existingRow.id, ')');
     } else {
-      // Include tenant_id on insert if available
-      if (tenant?.tenantId) {
-        updateData.tenant_id = tenant.tenantId;
-      }
+      // Include tenant_id on insert
+      updateData.tenant_id = tenant.tenantId;
       console.log('📝 Insertando nueva config con campos:', Object.keys(updateData));
       const { error: insertError } = await supabase.from('config').insert(updateData);
       if (insertError) {

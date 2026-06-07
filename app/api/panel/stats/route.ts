@@ -8,21 +8,29 @@ import { getTenantFromRequest } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createSupabaseAdmin();
     const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const supabase = createSupabaseAdmin();
 
     // Ingresos totales (ventas completadas)
-    let salesQuery = supabase.from('sales').select('amount, created_at').eq('status', 'completed');
-    if (tenant?.tenantId) salesQuery = salesQuery.eq('tenant_id', tenant.tenantId);
-    const { data: completedSales } = await salesQuery;
+    const { data: completedSales } = await supabase
+      .from('sales')
+      .select('amount, created_at')
+      .eq('status', 'completed')
+      .eq('tenant_id', tenant.tenantId);
 
     const totalRevenue = (completedSales || []).reduce((sum, s) => sum + s.amount, 0) / 100;
     const totalSales = completedSales?.length || 0;
 
     // Conversaciones activas
-    let convQuery = supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('status', 'chatting');
-    if (tenant?.tenantId) convQuery = convQuery.eq('tenant_id', tenant.tenantId);
-    const { count: activeConversations } = await convQuery;
+    const { count: activeConversations } = await supabase
+      .from('conversations')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'chatting')
+      .eq('tenant_id', tenant.tenantId);
 
     // Ingresos por día (últimos 30 días)
     const thirtyDaysAgo = new Date();
@@ -35,9 +43,13 @@ export async function GET(req: NextRequest) {
     });
 
     // Ventas recientes (últimas 10)
-    let recentQuery = supabase.from('sales').select('*').eq('status', 'completed').order('created_at', { ascending: false }).limit(10);
-    if (tenant?.tenantId) recentQuery = recentQuery.eq('tenant_id', tenant.tenantId);
-    const { data: recentSales } = await recentQuery;
+    const { data: recentSales } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('status', 'completed')
+      .eq('tenant_id', tenant.tenantId)
+      .order('created_at', { ascending: false })
+      .limit(10);
 
     return NextResponse.json({
       totalRevenue,

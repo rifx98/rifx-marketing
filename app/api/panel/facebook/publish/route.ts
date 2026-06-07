@@ -254,6 +254,20 @@ function createErrorResponse(
   }, { status: 400 });
 }
 
+// Helper to delete a campaign in case of error (rollback)
+async function rollbackCampaign(campaignId: string, token: string) {
+  try {
+    console.log(`🧹 [ROLLBACK] Deleting incomplete campaign: ${campaignId}`);
+    const res = await fetch(`${FB_BASE}/${campaignId}?access_token=${token}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    console.log(`🧹 [ROLLBACK RESULT]`, data);
+  } catch (err) {
+    console.error(`❌ [ROLLBACK FAILED] Error deleting campaign ${campaignId}:`, err);
+  }
+}
+
 // ─── Meta API helper ──────────────────────────────────────
 async function metaPost(url: string, payload: Record<string, any>) {
   console.log(`📤 [META POST] ${url.replace(/access_token=[^&]+/, 'access_token=***')}`);
@@ -354,6 +368,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (adSetData.error) {
+      await rollbackCampaign(campaignId, token);
       return createErrorResponse('adset', adSetData.error, {
         campaign_id: campaignId,
         targeting_mode: mode,
@@ -388,6 +403,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (creativeData.error) {
+      await rollbackCampaign(campaignId, token);
       return createErrorResponse('creative', creativeData.error, {
         campaign_id: campaignId,
         adset_id: adSetId,
@@ -410,6 +426,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (adData.error) {
+      await rollbackCampaign(campaignId, token);
       return createErrorResponse('ad', adData.error, {
         campaign_id: campaignId,
         adset_id: adSetId,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest } from '@/lib/auth';
+import { getTenantFromRequest, signToken, verifyToken } from '@/lib/auth';
 import { encryptToken } from '@/lib/encryption';
 
 const META_API_VERSION = 'v19.0';
@@ -17,10 +17,13 @@ export async function GET(req: NextRequest) {
     try {
       let tenantId = '';
       try {
-        const decodedState = JSON.parse(decodeURIComponent(state));
-        tenantId = decodedState.tenantId;
-      } catch {
-        console.error('❌ [Social Accounts] Error decoding state parameter');
+        const decodedPayload = await verifyToken(decodeURIComponent(state));
+        if (!decodedPayload || decodedPayload.purpose !== 'oauth_state' || !decodedPayload.tenantId) {
+          throw new Error('Invalid or expired state parameter');
+        }
+        tenantId = decodedPayload.tenantId;
+      } catch (err: any) {
+        console.error('❌ [Social Accounts] Error decoding or verifying state parameter:', err.message);
         return NextResponse.redirect(new URL('/panel?tab=social&error=invalid_state', req.url));
       }
 
@@ -242,8 +245,11 @@ export async function POST(req: NextRequest) {
     if (action === 'get_auth_url') {
       const { platform } = body;
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-      const stateObj = { tenantId: tenant.tenantId, timestamp: Date.now() };
-      const state = encodeURIComponent(JSON.stringify(stateObj));
+      const stateToken = await signToken({
+        tenantId: tenant.tenantId,
+        purpose: 'oauth_state',
+      });
+      const state = encodeURIComponent(stateToken);
 
       if (platform === 'youtube') {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;

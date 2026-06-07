@@ -125,8 +125,8 @@ CREATE POLICY "Members can view their social logs" ON social_logs
   );
 
 -- Permitir acceso completo al service_role (backend de Next.js)
-CREATE POLICY "Service role full access tenant_members" ON tenant_members FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access social_accounts" ON social_accounts FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access social_posts" ON social_posts FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access social_publications" ON social_publications FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access social_logs" ON social_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access tenant_members" ON tenant_members TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access social_accounts" ON social_accounts TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access social_posts" ON social_posts TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access social_publications" ON social_publications TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access social_logs" ON social_logs TO service_role FOR ALL USING (true) WITH CHECK (true);
