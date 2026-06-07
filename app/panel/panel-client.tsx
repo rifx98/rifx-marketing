@@ -3030,6 +3030,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [memoryClearSuccess, setMemoryClearSuccess] = useState(false);
   const [memoryRetentionDays, setMemoryRetentionDays] = useState(30);
   const [memoryUsage, setMemoryUsage] = useState<{totalMessages: number, totalConversations: number, oldestDays: number}>({ totalMessages: 0, totalConversations: 0, oldestDays: 0 });
+  const [botProductDetails, setBotProductDetails] = useState('');
+  const [botPromptGenerating, setBotPromptGenerating] = useState(false);
   const [aiCreditsStatus, setAiCreditsStatus] = useState<'idle' | 'active' | 'low' | 'exhausted' | 'error'>(() => {
     if (typeof window !== 'undefined') {
       const provider = localStorage.getItem('rifx_selected_ai_provider') || 'openai';
@@ -3261,6 +3263,29 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return fetch(url, { ...options, headers });
+  };
+
+  const handleGenerateSalesPrompt = async () => {
+    if (!botProductDetails.trim()) return;
+    setBotPromptGenerating(true);
+    try {
+      const res = await authFetch('/api/panel/generate-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productDetails: botProductDetails }),
+      });
+      const data = await res.json();
+      if (data.prompt) {
+        setConfigData((prev: any) => ({ ...prev, dropi_prompt: data.prompt }));
+        setToast({ type: 'success', message: language === 'en' ? '✓ Prompt generated successfully!' : '✓ ¡Prompt generado con éxito!' });
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error' });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message });
+    } finally {
+      setBotPromptGenerating(false);
+    }
   };
 
   const fetchConversations = () => {
@@ -8142,6 +8167,52 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {configData.dropi_enabled ? 'DROPI' : 'SERVICES'}
                     </span>
                   </div>
+
+                  {configData.dropi_enabled && (
+                    <div className="mb-5 p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 border border-blue-100/50 rounded-2xl">
+                      <div className="flex items-center gap-2.5 mb-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/10">
+                          <span className="material-symbols-outlined text-base">psychology_alt</span>
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wide text-slate-700">{language === 'en' ? 'AI Sales Prompt Generator' : 'Especialista en Prompts de Venta IA'}</h4>
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{language === 'en' ? 'Describe your product to generate a high-converting system prompt.' : 'Ingresa los detalles del producto y la IA generará un prompt optimizado.'}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={botProductDetails}
+                          onChange={e => setBotProductDetails(e.target.value)}
+                          placeholder={language === 'en' ? 'e.g. Smartwatch Ultra 9, waterproof, wireless charging, $49' : 'Ej: Smartwatch Ultra 9, resistente al agua, carga rápida, $49'}
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15 transition-all text-black"
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && !botPromptGenerating) {
+                              handleGenerateSalesPrompt();
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={handleGenerateSalesPrompt}
+                          disabled={botPromptGenerating || !botProductDetails.trim()}
+                          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/15 transition-all flex items-center gap-1.5 flex-shrink-0"
+                        >
+                          {botPromptGenerating ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>{language === 'en' ? 'Generating...' : 'Creando...'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="material-symbols-outlined text-xs">auto_awesome</span>
+                              <span>{language === 'en' ? 'Generate' : 'Generar Prompt'}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="relative">
                     <textarea 
                       className="w-full bg-slate-50/50 border border-slate-100 rounded-xl p-6 font-mono text-xs leading-relaxed focus:ring-2 focus:ring-primary-container/20 focus:outline-none transition-all text-slate-700" 
