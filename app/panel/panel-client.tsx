@@ -4952,6 +4952,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         dropi_token: configData.dropi_token,
         dropi_default_product_id: configData.dropi_default_product_id,
         dropi_default_price: configData.dropi_default_price,
+        dropi_prompt: configData.dropi_prompt,
       };
       console.log('Enviando config payload:', Object.keys(payload));
       const res = await authFetch('/api/panel/config', {
