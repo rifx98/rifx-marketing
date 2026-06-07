@@ -342,10 +342,30 @@ export async function POST(req: NextRequest) {
     // Limitar a los últimos 10 mensajes limpios para no exceder el contexto
     const history = cleanHistory.slice(-10);
 
-    // 4. Obtener configuración (ya resuelta arriba, reusar `config`)
-    let aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
+    // 4. Decode extended config for AI keys + model settings first
+    let extConfig = {
+      openai_key: '', gemini_key: '', groq_key: '',
+      model_selection: 'gpt-4o', confidence_threshold: 0.85,
+      dropi_enabled: false, dropi_token: '',
+      dropi_default_product_id: '', dropi_default_price: 50,
+      dropi_prompt: ''
+    };
+    try { 
+      const p = JSON.parse(config?.openai_key || '{}');
+      extConfig = { ...extConfig, ...p };
+    } catch { 
+      extConfig.openai_key = config?.openai_key || '';
+    }
 
-    // 4.0 Cargar Base de Conocimiento del tenant
+    // 4.1 Select system prompt based on mode (Services vs Dropshipping)
+    let aiPrompt = '';
+    if (extConfig.dropi_enabled) {
+      aiPrompt = extConfig.dropi_prompt || 'Eres un asesor de ventas amigable y experto en nuestro catálogo de productos.';
+    } else {
+      aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
+    }
+
+    // 4.2 Cargar Base de Conocimiento del tenant
     if (tenantId) {
       try {
         const kbIndexPath = `${tenantId}/index.json`;
@@ -383,20 +403,6 @@ export async function POST(req: NextRequest) {
       } catch (kbErr) {
         console.log(`📚 KB: Sin base de conocimiento para tenant ${tenantId} (${kbErr})`);
       }
-    }
-
-    // Decode extended config for AI keys + model settings
-    let extConfig = {
-      openai_key: '', gemini_key: '', groq_key: '',
-      model_selection: 'gpt-4o', confidence_threshold: 0.85,
-      dropi_enabled: false, dropi_token: '',
-      dropi_default_product_id: '', dropi_default_price: 50
-    };
-    try { 
-      const p = JSON.parse(config?.openai_key || '{}');
-      extConfig = { ...extConfig, ...p };
-    } catch { 
-      extConfig.openai_key = config?.openai_key || '';
     }
 
     if (extConfig.dropi_enabled) {

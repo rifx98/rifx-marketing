@@ -51,12 +51,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Configuración no encontrada. Por favor configure sus API keys primero.' }, { status: 404 });
     }
     
-    const basePrompt = config.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
-    
-    // Decode AI key from JSON-encoded openai_key column
+    // Decode AI key and extended config from JSON-encoded openai_key column
     let extConfig = {
       openai_key: '', gemini_key: '', groq_key: '', anthropic_key: '', model_selection: 'gpt-4o',
-      dropi_enabled: false, dropi_token: '', dropi_default_product_id: '', dropi_default_price: 50
+      dropi_enabled: false, dropi_token: '', dropi_default_product_id: '', dropi_default_price: 50,
+      dropi_prompt: ''
     };
     try {
       const parsed = JSON.parse(config?.openai_key || '{}');
@@ -64,6 +63,11 @@ export async function POST(req: NextRequest) {
     } catch {
       extConfig.openai_key = config?.openai_key || '';
     }
+
+    // Select system prompt based on mode (Services vs Dropshipping)
+    const basePrompt = extConfig.dropi_enabled 
+      ? (extConfig.dropi_prompt || 'Eres un asesor de ventas amigable y experto en nuestro catálogo de productos.')
+      : (config.ai_prompt || 'Eres un asesor de ventas amigable y profesional.');
 
     // Resolve model to use
     let selectedModel = model;

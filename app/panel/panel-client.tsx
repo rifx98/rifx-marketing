@@ -2925,6 +2925,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     dropi_token: '',
     dropi_default_product_id: '',
     dropi_default_price: 50,
+    dropi_prompt: '',
   });
   const originalConfigRef = React.useRef<any>(null);
   const configDataRef = React.useRef(configData);
@@ -3308,6 +3309,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              dropi_token: data.dropi_token || '',
              dropi_default_product_id: data.dropi_default_product_id || '',
              dropi_default_price: data.dropi_default_price ?? 50,
+             dropi_prompt: data.dropi_prompt || '',
             };
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
@@ -7893,8 +7895,125 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 ) : (
                   <>
+                    {/* Bot Mode Grid */}
+                    <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow space-y-6">
+                      <div>
+                        <h3 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bot Operation Mode' : 'Modo de Operación del Bot'}</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Choose the main focus and flow of your AI agent.' : 'Elige el enfoque y flujo principal de tu agente de IA.'}</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Services Mode Button */}
+                        <button
+                          type="button"
+                          onClick={() => setConfigData({ ...configData, dropi_enabled: false })}
+                          className={`flex flex-col text-left p-5 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden ${
+                            !configData.dropi_enabled
+                              ? 'border-blue-600 bg-blue-50/20 ring-2 ring-blue-600/10 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 mb-2.5">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${!configData.dropi_enabled ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-slate-100 text-slate-500'}`}>
+                              <span className="material-symbols-outlined text-base">work</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-[#0b1c30]">{language === 'en' ? 'Services Sales Mode' : 'Modo Venta de Servicios'}</p>
+                              <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">{language === 'en' ? 'Active' : 'Activo'}</p>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                            {language === 'en'
+                              ? 'The bot behaves as a digital consultant. It interacts to sell services (development, marketing), answers inquiries, and qualifies/registers prospects.'
+                              : 'El bot se comporta como un asesor digital. Interactúa para vender servicios (desarrollo, marketing), responde dudas y califica/registra prospectos.'}
+                          </p>
+                          {!configData.dropi_enabled && (
+                            <div className="absolute top-3 right-3 text-blue-600">
+                              <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
+                            </div>
+                          )}
+                        </button>
+
+                        {/* Dropshipping Mode Button */}
+                        <button
+                          type="button"
+                          onClick={() => setConfigData({ ...configData, dropi_enabled: true })}
+                          className={`flex flex-col text-left p-5 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden ${
+                            configData.dropi_enabled
+                              ? 'border-blue-600 bg-blue-50/20 ring-2 ring-blue-600/10 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 mb-2.5">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${configData.dropi_enabled ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-slate-100 text-slate-500'}`}>
+                              <span className="material-symbols-outlined text-base">local_shipping</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-[#0b1c30]">{language === 'en' ? 'Dropshipping (Dropi)' : 'Modo Dropshipping (Dropi)'}</p>
+                              <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">{language === 'en' ? 'Active' : 'Activo'}</p>
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                            {language === 'en'
+                              ? 'The bot promotes e-commerce products. It captures shipping data (name, phone, address, city) and automatically generates orders in Dropi.'
+                              : 'El bot promociona productos de comercio electrónico. Captura datos de envío (nombre, teléfono, dirección, ciudad) y genera órdenes automáticas en Dropi.'}
+                          </p>
+                          {configData.dropi_enabled && (
+                            <div className="absolute top-3 right-3 text-blue-600">
+                              <span className="material-symbols-outlined text-sm font-bold">check_circle</span>
+                            </div>
+                          )}
+                        </button>
+                      </div>
+
+                      {configData.dropi_enabled && (
+                        <div className="space-y-4 pt-4 border-t border-slate-100">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de Integración de Dropi'}
+                            </label>
+                            <input
+                              type="password"
+                              autoComplete="new-password"
+                              value={configData.dropi_token || ''}
+                              onChange={e => setConfigData({ ...configData, dropi_token: e.target.value })}
+                              placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {language === 'en' ? 'Default Product ID' : 'ID del Producto por Defecto (Dropi)'}
+                              </label>
+                              <input
+                                type="text"
+                                value={configData.dropi_default_product_id || ''}
+                                onChange={e => setConfigData({ ...configData, dropi_default_product_id: e.target.value })}
+                                placeholder="Ej: 123456"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {language === 'en' ? 'Default Price (USD)' : 'Precio de Venta por Defecto (USD)'}
+                              </label>
+                              <input
+                                type="number"
+                                value={configData.dropi_default_price || ''}
+                                onChange={e => setConfigData({ ...configData, dropi_default_price: Number(e.target.value) })}
+                                placeholder="Ej: 50"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+
                     {/* Identity & Tone */}
-                <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6 flex items-center"><span className="material-symbols-outlined text-lg mr-2">psychology</span>{language === 'en' ? 'Identity & Tone' : 'Identidad y Tono'}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="md:col-span-2">
@@ -8012,13 +8131,35 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {/* Prompt Architecture */}
                 <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
                   <div className="flex justify-between items-center mb-4">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-container flex items-center gap-2"><span className="material-symbols-outlined text-lg">code</span>{language === 'en' ? 'System Instruction Architecture' : 'Arquitectura de Instrucciones del Sistema'}</label>
-                    <span className="text-[10px] bg-primary-container/10 text-primary-container px-2.5 py-1 rounded-full font-black">V 2.4.1</span>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-primary-container flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg">code</span>
+                      {configData.dropi_enabled 
+                        ? (language === 'en' ? 'System Instructions (Dropshipping)' : 'Instrucciones del Sistema (Dropshipping)')
+                        : (language === 'en' ? 'System Instructions (Services)' : 'Instrucciones del Sistema (Servicios)')
+                      }
+                    </label>
+                    <span className="text-[10px] bg-primary-container/10 text-primary-container px-2.5 py-1 rounded-full font-black">
+                      {configData.dropi_enabled ? 'DROPI' : 'SERVICES'}
+                    </span>
                   </div>
                   <div className="relative">
-                    <textarea className="w-full bg-slate-50/50 border border-slate-100 rounded-xl p-6 font-mono text-xs leading-relaxed focus:ring-2 focus:ring-primary-container/20 focus:outline-none transition-all text-slate-700" placeholder={language === 'en' ? 'Enter system instructions...' : 'Ingresa las instrucciones del sistema...'} rows={10} value={configData.ai_prompt} onChange={e => setConfigData({...configData, ai_prompt: e.target.value})} />
+                    <textarea 
+                      className="w-full bg-slate-50/50 border border-slate-100 rounded-xl p-6 font-mono text-xs leading-relaxed focus:ring-2 focus:ring-primary-container/20 focus:outline-none transition-all text-slate-700" 
+                      placeholder={language === 'en' ? 'Enter system instructions...' : 'Ingresa las instrucciones del sistema...'} 
+                      rows={10} 
+                      value={configData.dropi_enabled ? (configData.dropi_prompt || '') : (configData.ai_prompt || '')} 
+                      onChange={e => setConfigData({
+                        ...configData, 
+                        [configData.dropi_enabled ? 'dropi_prompt' : 'ai_prompt']: e.target.value
+                      })} 
+                    />
                     <div className="absolute bottom-4 right-4 flex gap-2">
-                      <button onClick={() => navigator.clipboard.writeText(configData.ai_prompt)} className="bg-white border border-slate-100 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-slate-400 hover:text-primary shadow-sm"><span className="material-symbols-outlined text-sm">content_copy</span></button>
+                      <button 
+                        onClick={() => navigator.clipboard.writeText(configData.dropi_enabled ? (configData.dropi_prompt || '') : (configData.ai_prompt || ''))} 
+                        className="bg-white border border-slate-100 p-2.5 rounded-lg hover:bg-slate-50 transition-colors text-slate-400 hover:text-primary shadow-sm"
+                      >
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                      </button>
                       <button onClick={(e) => handleSaveSettings(e as any)} disabled={isSaving} className="bg-primary-container text-white p-2.5 rounded-lg hover:bg-primary-container/90 transition-colors shadow-lg shadow-primary-container/20 disabled:opacity-50"><span className="material-symbols-outlined text-sm">{isSaving ? 'sync' : 'save'}</span></button>
                     </div>
                   </div>
