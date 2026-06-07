@@ -416,9 +416,9 @@ Tu objetivo principal es actuar como un excelente asesor de ventas y conectar de
    - Dirección exacta de entrega (calle, número de casa/apto, referencias de ubicación)
    - Ciudad y Departamento
 4. **Método de pago**: Explícale que el envío es **Contra Entrega** (paga en efectivo cuando reciba el producto en la puerta de su casa) para su total seguridad y tranquilidad.
-5. **Crear la orden**: Una vez (y SOLO cuando) el cliente te haya proporcionado los 4 datos de envío completos (Nombre, Teléfono, Dirección, Ciudad), debes confirmar el pedido al cliente y generar la orden en Dropi agregando este tag exacto al final de tu mensaje:
+5. **Crear la orden**: Una vez (y SOLO cuando) el cliente te haya proporcionado los 4 datos de envío completos (Nombre, Teléfono, Dirección, Ciudad), debes indicarle al cliente que estás procesando sus datos de envío en nuestro sistema logístico, y agregar este tag exacto al final de tu mensaje:
 [CREAR_ORDEN_DROPI:nombre_cliente:telefono:direccion:ciudad:${extConfig.dropi_default_product_id || 'DEFAULT_PRODUCT'}:1:contra_entrega]
-Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos de envío.`;
+NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generado con éxito" en tu propia respuesta. El sistema backend automáticamente procesará la orden e inyectará los detalles de confirmación (número de guía y transportadora) o informará de cualquier error de conexión. Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos de envío.`;
     }
 
     // Determine which provider & model to use
@@ -801,6 +801,24 @@ interface DropiOrderParams {
   price: number;
 }
 
+function getDropiApiUrl(token: string): string {
+  if (!token) return 'https://api.dropi.co/api/orders/myorders';
+  try {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+      if (payload.iss) {
+        if (payload.iss.includes('dropi.ec')) return 'https://api.dropi.ec/api/orders/myorders';
+        if (payload.iss.includes('dropi.mx')) return 'https://api.dropi.mx/api/orders/myorders';
+        if (payload.iss.includes('dropi.pe')) return 'https://api.dropi.pe/api/orders/myorders';
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing Dropi token issuer:', e);
+  }
+  return 'https://api.dropi.co/api/orders/myorders';
+}
+
 async function createDropiOrder(params: DropiOrderParams) {
   const { customerName, phone, address, city, productId, quantity, paymentType, token, price } = params;
 
@@ -830,12 +848,13 @@ async function createDropiOrder(params: DropiOrderParams) {
       ]
     };
 
-    console.log('Sending order payload to Dropi:', JSON.stringify(payload));
+    const url = getDropiApiUrl(token);
+    console.log(`Sending order payload to Dropi (${url}):`, JSON.stringify(payload));
 
-    const response = await fetch('https://api.dropi.co/api/v1/orders', {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'dropi-integracion-key': token,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
@@ -843,7 +862,7 @@ async function createDropiOrder(params: DropiOrderParams) {
 
     const result = await response.json();
 
-    if (response.ok && (result.success || result.id || result.guia)) {
+    if (response.ok && (result.success || result.isSuccess || result.id || result.guia)) {
       return {
         success: true,
         guideNumber: result.guia || result.tracking_number || `DP-${result.id || Date.now()}`,
