@@ -1,11 +1,16 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { NextRequest } from 'next/server';
 
-const JWT_SECRET_RAW = process.env.JWT_SECRET;
-if (!JWT_SECRET_RAW) {
-  throw new Error('FATAL: JWT_SECRET environment variable is not set. Add it to .env.local');
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      return new TextEncoder().encode('dummy_build_secret_only_for_compilation_purposes');
+    }
+    throw new Error('FATAL: JWT_SECRET environment variable is not set. Add it to .env.local');
+  }
+  return new TextEncoder().encode(secret);
 }
-const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
 
 export interface TenantPayload {
   tenantId: string;
@@ -23,13 +28,13 @@ export async function signToken(payload: TenantPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('30d') // 30 days
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 // Verify and decode a JWT token
 export async function verifyToken(token: string): Promise<TenantPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as TenantPayload;
   } catch {
     return null;
