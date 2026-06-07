@@ -7742,12 +7742,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de Integración de Dropi'}
                             </label>
                             <input
-                              type="password"
-                              autoComplete="new-password"
+                              type="text"
+                              autoComplete="off"
                               value={configData.dropi_token || ''}
                               onChange={e => setConfigData({ ...configData, dropi_token: e.target.value })}
                               placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black font-mono text-xs"
                             />
                             <p className="text-[9px] text-slate-400">
                               {language === 'en' ? 'Get this token from your Dropi dashboard -> Integrations.' : 'Consigue este token en tu panel de Dropi -> Integraciones.'}
@@ -7999,12 +7999,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de Integración de Dropi'}
                             </label>
                             <input
-                              type="password"
-                              autoComplete="new-password"
+                              type="text"
+                              autoComplete="off"
                               value={configData.dropi_token || ''}
                               onChange={e => setConfigData({ ...configData, dropi_token: e.target.value })}
                               placeholder="Ej: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 transition-all text-black font-mono text-xs"
                             />
                           </div>
 
@@ -13550,8 +13550,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   ? 'border-emerald-200 bg-emerald-50 text-emerald-800 placeholder-emerald-300'
                                   : 'border-slate-100 bg-slate-50 text-slate-500 placeholder-slate-300'
                               }`}
-                              type="password"
-                              autoComplete="new-password"
+                              type="text"
+                              autoComplete="off"
                               placeholder="sk-proj-..."
                               value={configData.openai_key || ''}
                               onChange={e => setConfigData({ ...configData, openai_key: e.target.value })}
