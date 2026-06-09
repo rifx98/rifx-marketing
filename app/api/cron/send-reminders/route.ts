@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 
-// GET /api/cron/send-reminders - Enviar recordatorios de citas 2 horas antes
+// GET /api/cron/send-reminders - Enviar recordatorios (24h, 2h, 30m antes) y actualizar ciclos de vida
 export async function GET(req: NextRequest) {
   try {
     // 1. Validar autorización
@@ -9,7 +9,6 @@ export async function GET(req: NextRequest) {
     const isVercelCron = req.headers.get('x-vercel-cron') === '1';
     const cronSecret = process.env.CRON_SECRET;
 
-    // Permitir ejecución si es local (desarrollo), si viene de Vercel Cron o si tiene el token secreto
     const isAuthorized =
       process.env.NODE_ENV === 'development' ||
       isVercelCron ||
@@ -21,43 +20,88 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createSupabaseAdmin();
-
-    // 2. Buscar todas las citas pendientes de hoy que aún no tienen recordatorio
-    // El cron se ejecuta una vez al día (Hobby plan), así que enviamos recordatorios de todas las citas del día
     const now = new Date();
-    const rangeStart = now.toISOString();
-    // Cubrir las próximas 18 horas para abarcar todo el día de Ecuador (UTC-5)
-    const rangeEnd = new Date(now.getTime() + 18 * 60 * 60 * 1000).toISOString();
 
-    console.log(`⏱️ Cron diario: Buscando citas entre ${rangeStart} y ${rangeEnd}...`);
+    // Rango de búsqueda: desde hace 3 horas (para completar/no_show) hasta dentro de 26 horas (para recordatorios)
+    const rangeStart = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
+    const rangeEnd = new Date(now.getTime() + 26 * 60 * 60 * 1000).toISOString();
+
+    console.log(`⏰ Cron: Buscando citas activas entre ${rangeStart} y ${rangeEnd}...`);
 
     const { data: appts, error: apptsError } = await supabase
       .from('appointments')
       .select('*')
-      .eq('status', 'pending')
-      .eq('reminder_sent', false)
+      .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
       .gte('scheduled_time', rangeStart)
       .lte('scheduled_time', rangeEnd);
 
     if (apptsError) {
-      console.error('❌ Error al buscar citas pendientes para recordatorios:', apptsError);
+      console.error('❌ Error al buscar citas:', apptsError);
       return NextResponse.json({ error: apptsError.message }, { status: 500 });
     }
 
-    console.log(`⏱️ Cron: Se encontraron ${appts?.length || 0} citas pendientes de recordatorio`);
+    console.log(`⏰ Cron: Se encontraron ${appts?.length || 0} citas activas para procesar`);
 
     if (!appts || appts.length === 0) {
-      return NextResponse.json({ success: true, sentCount: 0 });
+      return NextResponse.json({ success: true, processedCount: 0 });
     }
 
-    let sentCount = 0;
+    let processedCount = 0;
 
-    // 3. Procesar cada cita
     for (const appt of appts) {
       try {
-        console.log(`💬 Enviando recordatorio para cita ${appt.id} (${appt.customer_name})`);
+        const apptTime = new Date(appt.scheduled_time).getTime();
+        const nowTime = now.getTime();
+        const diffMs = apptTime - nowTime;
+        const diffHrs = diffMs / (1000 * 60 * 60);
 
-        // Obtener configuración del tenant para WhatsApp (token y phone_number_id)
+        // A. CICLO DE VIDA POST-CITA (PASADO)
+        if (diffMs < 0) {
+          const pastMinutes = Math.abs(diffMs) / (1000 * 60);
+          
+          // 1. confirmed/rescheduled pasados por más de 30 minutos -> pending_completion (para que el admin valide)
+          if (pastMinutes > 30 && (appt.status === 'confirmed' || appt.status === 'rescheduled')) {
+            console.log(`🔄 Transicionando cita ${appt.id} (${appt.customer_name}) a pending_completion`);
+            const { error: err } = await supabase
+              .from('appointments')
+              .update({ status: 'pending_completion', updated_at: new Date().toISOString() })
+              .eq('id', appt.id);
+            if (!err) processedCount++;
+          }
+          
+          // 2. pending/awaiting_reschedule pasados por más de 60 minutos -> no_show automático
+          if (pastMinutes > 60 && (appt.status === 'pending' || appt.status === 'awaiting_reschedule')) {
+            console.log(`🔄 Transicionando cita ${appt.id} (${appt.customer_name}) a no_show`);
+            const { error: err } = await supabase
+              .from('appointments')
+              .update({ status: 'no_show', updated_at: new Date().toISOString() })
+              .eq('id', appt.id);
+            if (!err) processedCount++;
+          }
+          
+          continue;
+        }
+
+        // B. RECORDATORIOS FUTUROS
+        let type: '24h' | '2h' | '30m' | null = null;
+        let updateField = '';
+
+        if (diffHrs > 23.0 && diffHrs <= 25.0 && !appt.reminder_24h_sent) {
+          type = '24h';
+          updateField = 'reminder_24h_sent';
+        } else if (diffHrs > 1.5 && diffHrs <= 2.5 && !appt.reminder_2h_sent) {
+          type = '2h';
+          updateField = 'reminder_2h_sent';
+        } else if (diffHrs > 0.25 && diffHrs <= 0.75 && !appt.reminder_30m_sent) {
+          type = '30m';
+          updateField = 'reminder_30m_sent';
+        }
+
+        if (!type) continue; // No entra en ningún rango de recordatorio o ya se envió
+
+        console.log(`💬 Recordatorio ${type} requerido para cita ${appt.id} (${appt.customer_name})`);
+
+        // Obtener configuración del tenant
         const { data: tenantConfig, error: configErr } = await supabase
           .from('config')
           .select('whatsapp_token, whatsapp_phone_id')
@@ -73,7 +117,6 @@ export async function GET(req: NextRequest) {
         let token = tenantConfig.whatsapp_token || process.env.WHATSAPP_TOKEN;
         let phoneId = tenantConfig.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-        // Fallbacks
         if (token && token.length < 20) token = process.env.WHATSAPP_TOKEN;
         if (phoneId && phoneId.length < 5) phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -82,20 +125,35 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // Formatear hora de la cita para el mensaje (en horario Ecuador UTC-5)
+        // Formatear fecha y hora para el mensaje (Ecuador UTC-5)
         const apptDate = new Date(appt.scheduled_time);
-        const formatOptions: Intl.DateTimeFormatOptions = {
+        const optionsTime: Intl.DateTimeFormatOptions = {
           timeZone: 'America/Guayaquil',
           hour: '2-digit',
           minute: '2-digit',
           hour12: true
         };
-        const formattedTime = new Intl.DateTimeFormat('es-EC', formatOptions).format(apptDate);
+        const optionsDate: Intl.DateTimeFormatOptions = {
+          timeZone: 'America/Guayaquil',
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        };
+        const formattedTime = new Intl.DateTimeFormat('es-EC', optionsTime).format(apptDate);
+        const formattedDate = new Intl.DateTimeFormat('es-EC', optionsDate).format(apptDate);
 
-        // Mensaje del recordatorio interactivo
-        const reminderText = `Hola *${appt.customer_name || 'Cliente'}*, te escribimos de RIFX Marketing para recordarte tu cita de *${appt.service || 'Asesoría'}* programada para hoy a las *${formattedTime}*. ¿Confirmas tu asistencia? (Por favor responde con *Sí* o *No*) 😊`;
+        let reminderText = '';
 
-        // Enviar WhatsApp
+        if (type === '24h') {
+          reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nTe recordamos tu cita de *${appt.service || 'Asesoría'}*.\n\n📅 Fecha: ${formattedDate}\n🕒 Hora: ${formattedTime}\n\n¿Confirmas tu asistencia?\n\nResponde:\n✅ Sí\n❌ No`;
+        } else if (type === '2h') {
+          reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nTe recordamos tu cita de *${appt.service || 'Asesoría'}* programada para hoy.\n\n📅 Fecha: ${formattedDate}\n🕒 Hora: ${formattedTime}\n\n¿Confirmas tu asistencia?\n\nResponde:\n✅ Sí\n❌ No`;
+        } else { // 30m
+          reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nTu cita de *${appt.service || 'Asesoría'}* comienza en 30 minutos.\n\n📅 Fecha: ${formattedDate}\n🕒 Hora: ${formattedTime}\n\n¡Te esperamos! 😊`;
+        }
+
+        // Enviar mensaje
         const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
           method: 'POST',
           headers: {
@@ -113,36 +171,42 @@ export async function GET(req: NextRequest) {
         const result = await response.json();
 
         if (!response.ok) {
-          console.error(`❌ Error de Meta API al enviar recordatorio de cita ${appt.id}:`, JSON.stringify(result));
+          console.error(`❌ Error de Meta API al enviar recordatorio ${type} de cita ${appt.id}:`, JSON.stringify(result));
           continue;
         }
 
-        console.log(`✅ Recordatorio enviado exitosamente a ${appt.phone_number} para cita ${appt.id}`);
+        console.log(`✅ Recordatorio ${type} enviado exitosamente a ${appt.phone_number} para cita ${appt.id}`);
 
-        // 4. Actualizar estado del recordatorio en la DB
+        // Actualizar estado del recordatorio en la DB
+        const updateData: Record<string, any> = {
+          reminder_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        updateData[updateField] = true;
+
         const { error: updateErr } = await supabase
           .from('appointments')
-          .update({ reminder_sent: true, updated_at: new Date().toISOString() })
+          .update(updateData)
           .eq('id', appt.id);
 
         if (updateErr) {
           console.error(`❌ Error al marcar recordatorio como enviado para la cita ${appt.id}:`, updateErr);
         } else {
-          // Opcional: Insertar el mensaje enviado en el chat log de la conversación para que el asesor lo vea
+          // Guardar log de chat
           await supabase.from('messages').insert({
             conversation_id: appt.conversation_id,
             role: 'assistant',
-            content: `🤖 [Recordatorio Automático]: ${reminderText}`,
+            content: `🤖 [Recordatorio ${type}]: ${reminderText}`,
           });
           
-          sentCount++;
+          processedCount++;
         }
       } catch (err) {
-        console.error(`❌ Error inesperado al procesar recordatorio para cita ${appt.id}:`, err);
+        console.error(`❌ Error inesperado al procesar cita ${appt.id}:`, err);
       }
     }
 
-    return NextResponse.json({ success: true, sentCount });
+    return NextResponse.json({ success: true, processedCount });
   } catch (error: any) {
     console.error('❌ Error en cron send-reminders:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -589,7 +589,7 @@ export default function PanelClient() {
     const tabParam = params.get('tab');
 
     if (tabParam) {
-      const validTabs = ['dashboard', 'crm', 'settings', 'playground', 'segments', 'analytics', 'billing', 'admin', 'campaigns', 'banners', 'social'];
+      const validTabs = ['dashboard', 'crm', 'settings', 'playground', 'segments', 'analytics', 'billing', 'admin', 'campaigns', 'banners', 'social', 'appointments'];
       if (validTabs.includes(tabParam)) {
         setActiveTab(tabParam as any);
       }
@@ -761,8 +761,15 @@ export default function PanelClient() {
     } catch (e) { console.error('Error deleting KB file:', e); }
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments'>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
+
+  // Appointments states
+  const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [apptStatusFilter, setApptStatusFilter] = useState('all');
+  const [apptSearchQuery, setApptSearchQuery] = useState('');
+  const [isPerformingApptAction, setIsPerformingApptAction] = useState<string | null>(null);
 
   // OmniPublish V1 & V2 States
   const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
@@ -3382,6 +3389,63 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     fetchConfig();
   };
 
+  const fetchAppointments = React.useCallback(async () => {
+    if (!isLoggedIn) return;
+    setAppointmentsLoading(true);
+    try {
+      const res = await authFetch(`/api/panel/appointments?status=${apptStatusFilter}&search=${encodeURIComponent(apptSearchQuery)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAppointmentsList(data);
+      }
+    } catch (e) {
+      console.error('Error fetching appointments:', e);
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  }, [isLoggedIn, apptStatusFilter, apptSearchQuery]);
+
+  React.useEffect(() => {
+    if (isLoggedIn && activeTab === 'appointments') {
+      fetchAppointments();
+    }
+  }, [isLoggedIn, activeTab, apptStatusFilter, apptSearchQuery, fetchAppointments]);
+
+  const handleApptAction = async (apptId: string, action: 'complete' | 'no_show' | 'cancel' | 'reschedule') => {
+    setIsPerformingApptAction(`${apptId}-${action}`);
+    try {
+      const res = await authFetch('/api/panel/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: apptId, action })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({
+          type: 'success',
+          message: language === 'en' ? `✓ Action completed: ${action}` : `✓ Acción completada: ${action === 'complete' ? 'asistió' : action === 'no_show' ? 'no asistió' : action === 'cancel' ? 'cancelada' : 'reagendada'}`
+        });
+        fetchAppointments();
+        authFetch('/api/panel/stats')
+          .then(r => r.json())
+          .then(d => setStatsData(d))
+          .catch(console.error);
+      } else {
+        setToast({
+          type: 'error',
+          message: data.error || 'Error processing action'
+        });
+      }
+    } catch (e: any) {
+      setToast({
+        type: 'error',
+        message: e.message || 'Connection error'
+      });
+    } finally {
+      setIsPerformingApptAction(null);
+    }
+  };
+
   React.useEffect(() => {
     if (isLoggedIn) {
       // Trigger limpieza silenciosa en background
@@ -5369,6 +5433,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
             { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
             { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+            { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
             { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
@@ -11752,7 +11817,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="flex flex-col items-center gap-2">
                           <span className="text-[10px] font-black text-primary">84.2%</span>
                           <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-primary-container w-[84%] rounded-full shadow-lg shadow-primary-container/20"></div>
+<div className="h-full bg-primary-container w-[84%] rounded-full shadow-lg shadow-primary-container/20"></div>
                           </div>
                         </div>
                       </td>
@@ -11797,6 +11862,368 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 </table>
               </div>
             </section>
+          </motion.div>
+        )}
+
+        {/* ========== APPOINTMENTS & BOOKINGS TAB ========== */}
+        {activeTab === 'appointments' && (
+          <motion.div
+            key="appointments"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.4 }}
+            className="space-y-6 text-on-surface"
+          >
+            {/* Hero Header */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1020] via-[#1a2342] to-[#0d1224] p-8 shadow-2xl shadow-indigo-900/10">
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br from-blue-500/15 to-indigo-500/5 rounded-full blur-3xl" />
+                <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-gradient-to-tr from-indigo-600/10 to-cyan-400/5 rounded-full blur-3xl" />
+              </div>
+
+              <div className="relative z-10 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
+                    <span className="material-symbols-outlined text-sm">calendar_month</span>
+                    <span>{language === 'en' ? 'Appointments & Schedulers' : 'Citas y Reservas'}</span>
+                  </div>
+                  <h1 className="text-3xl font-black text-white tracking-tight leading-none">
+                    {language === 'en' ? 'Manage Bookings & Flow' : 'Gestión de Citas y Reservas'}
+                  </h1>
+                  <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
+                    {language === 'en' 
+                      ? 'Monitor your automated schedule, track attendance metrics, and take direct actions on customer appointments synced with Google Calendar.'
+                      : 'Monitorea tu agenda automatizada, realiza seguimiento de métricas de asistencia y toma acciones manuales sobre las citas vinculadas con Google Calendar.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento Statistics Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+              {[
+                { 
+                  title: language === 'en' ? 'Total Bookings' : 'Total de Citas',
+                  value: statsData?.appointmentStats?.total || 0,
+                  icon: 'event',
+                  color: 'text-blue-500',
+                  bg: 'bg-blue-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Confirmed' : 'Confirmadas',
+                  value: statsData?.appointmentStats?.confirmed || 0,
+                  icon: 'check_circle',
+                  color: 'text-indigo-500',
+                  bg: 'bg-indigo-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Rescheduled' : 'Reagendadas',
+                  value: statsData?.appointmentStats?.rescheduled || 0,
+                  icon: 'sync',
+                  color: 'text-amber-500',
+                  bg: 'bg-amber-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Cancelled' : 'Canceladas',
+                  value: statsData?.appointmentStats?.cancelled || 0,
+                  icon: 'cancel',
+                  color: 'text-red-500',
+                  bg: 'bg-red-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Completed' : 'Completadas',
+                  value: statsData?.appointmentStats?.completed || 0,
+                  icon: 'task_alt',
+                  color: 'text-emerald-500',
+                  bg: 'bg-emerald-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'No Show' : 'No Show',
+                  value: statsData?.appointmentStats?.noShow || 0,
+                  icon: 'person_off',
+                  color: 'text-rose-500',
+                  bg: 'bg-rose-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Pending Action' : 'Pendientes',
+                  value: statsData?.appointmentStats?.pending || 0,
+                  icon: 'pending',
+                  color: 'text-cyan-500',
+                  bg: 'bg-cyan-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Review Needed' : 'Por Validar',
+                  value: statsData?.appointmentStats?.pendingCompletion || 0,
+                  icon: 'rate_review',
+                  color: 'text-purple-500',
+                  bg: 'bg-purple-500/10'
+                }
+              ].map((card, idx) => (
+                <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col justify-between shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{card.title}</span>
+                    <div className={`w-8 h-8 rounded-lg ${card.bg} ${card.color} flex items-center justify-center`}>
+                      <span className="material-symbols-outlined text-base">{card.icon}</span>
+                    </div>
+                  </div>
+                  <span className="text-2xl font-black text-primary leading-none">{card.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Performance Rates Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                {
+                  label: language === 'en' ? 'Confirmation Rate' : 'Tasa de Confirmación',
+                  rate: statsData?.appointmentStats?.rates?.confirmationRate || 0,
+                  color: 'from-indigo-500 to-blue-600',
+                  shadow: 'shadow-indigo-500/20',
+                  desc: language === 'en' ? 'Confirmed bookings out of total' : 'Citas confirmadas del total agendado'
+                },
+                {
+                  label: language === 'en' ? 'Attendance Rate' : 'Tasa de Asistencia',
+                  rate: statsData?.appointmentStats?.rates?.attendanceRate || 0,
+                  color: 'from-emerald-500 to-teal-600',
+                  shadow: 'shadow-emerald-500/20',
+                  desc: language === 'en' ? 'Completed vs no-show bookings' : 'Citas asistidas frente a no-asistidas'
+                },
+                {
+                  label: language === 'en' ? 'Cancellation Rate' : 'Tasa de Cancelación',
+                  rate: statsData?.appointmentStats?.rates?.cancellationRate || 0,
+                  color: 'from-red-500 to-rose-600',
+                  shadow: 'shadow-red-500/20',
+                  desc: language === 'en' ? 'Cancelled bookings out of total' : 'Citas canceladas sobre el total'
+                },
+                {
+                  label: language === 'en' ? 'Rescheduling Rate' : 'Tasa de Reagendamiento',
+                  rate: statsData?.appointmentStats?.rates?.reschedulingRate || 0,
+                  color: 'from-amber-500 to-orange-600',
+                  shadow: 'shadow-amber-500/20',
+                  desc: language === 'en' ? 'Rescheduled bookings out of total' : 'Citas reagendadas sobre el total'
+                }
+              ].map((indicator, idx) => (
+                <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{indicator.label}</h3>
+                    <p className="text-[10px] text-slate-400 leading-normal">{indicator.desc}</p>
+                  </div>
+                  <div className="flex items-center gap-4 mt-6">
+                    <span className="text-3xl font-black text-primary leading-none">{indicator.rate.toFixed(1)}%</span>
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full bg-gradient-to-r ${indicator.color} rounded-full ${indicator.shadow}`}
+                        style={{ width: `${Math.min(100, Math.max(0, indicator.rate))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Interactive Schedule Table */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              {/* Header and Controls */}
+              <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-slate-400">schedule</span>
+                  <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Appointments Schedule' : 'Calendario de Citas'}</h2>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  {/* Status Filter */}
+                  <select
+                    value={apptStatusFilter}
+                    onChange={(e) => setApptStatusFilter(e.target.value)}
+                    className="w-full sm:w-auto bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-2xl border-none focus:ring-2 focus:ring-primary-container/20 cursor-pointer text-black"
+                  >
+                    <option value="all">{language === 'en' ? 'All Statuses' : 'Todos los Estados'}</option>
+                    <option value="pending">{language === 'en' ? 'Pending' : 'Pendientes'}</option>
+                    <option value="confirmed">{language === 'en' ? 'Confirmed' : 'Confirmadas'}</option>
+                    <option value="awaiting_reschedule">{language === 'en' ? 'Awaiting Reschedule' : 'Esperando Reagendar'}</option>
+                    <option value="rescheduled">{language === 'en' ? 'Rescheduled' : 'Reagendadas'}</option>
+                    <option value="cancelled">{language === 'en' ? 'Cancelled' : 'Canceladas'}</option>
+                    <option value="completed">{language === 'en' ? 'Completed' : 'Completadas'}</option>
+                    <option value="no_show">{language === 'en' ? 'No Show' : 'No Asistió'}</option>
+                    <option value="pending_completion">{language === 'en' ? 'Pending Completion' : 'Pendientes de Validar'}</option>
+                  </select>
+
+                  {/* Search Input */}
+                  <div className="relative w-full sm:w-64">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+                    <input
+                      type="text"
+                      placeholder={language === 'en' ? 'Search client or service...' : 'Buscar cliente o servicio...'}
+                      value={apptSearchQuery}
+                      onChange={(e) => setApptSearchQuery(e.target.value)}
+                      className="w-full bg-slate-50 border-none rounded-2xl py-2 pl-9 pr-4 text-xs text-black placeholder-slate-400 focus:ring-2 focus:ring-primary-container/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Table list */}
+              {appointmentsLoading ? (
+                <div className="py-20 flex flex-col justify-center items-center space-y-4">
+                  <div className="w-10 h-10 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                  <p className="text-slate-400 text-xs tracking-wider uppercase">{language === 'en' ? 'Loading Schedule...' : 'Cargando Agenda...'}</p>
+                </div>
+              ) : appointmentsList.length === 0 ? (
+                <div className="py-20 text-center text-slate-400 space-y-2">
+                  <span className="material-symbols-outlined text-4xl">event_busy</span>
+                  <p className="text-xs font-bold uppercase tracking-wider">{language === 'en' ? 'No appointments found' : 'No se encontraron citas'}</p>
+                  <p className="text-[11px] text-slate-400">{language === 'en' ? 'Modify your filters or schedule new appointments via WhatsApp.' : 'Modifica tus filtros o agenda nuevas citas vía WhatsApp.'}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50">
+                        <th className="px-8 py-4">{language === 'en' ? 'Client' : 'Cliente'}</th>
+                        <th className="px-6 py-4">{language === 'en' ? 'Phone' : 'Teléfono'}</th>
+                        <th className="px-6 py-4">{language === 'en' ? 'Service' : 'Servicio / Motivo'}</th>
+                        <th className="px-6 py-4">{language === 'en' ? 'Scheduled Time' : 'Fecha y Hora'}</th>
+                        <th className="px-6 py-4 text-center">{language === 'en' ? 'Status' : 'Estado'}</th>
+                        <th className="px-8 py-4 text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {appointmentsList.map((appt) => {
+                        // Badge formatting for status
+                        const statusStyles: Record<string, { label: string; class: string }> = {
+                          pending: { 
+                            label: language === 'en' ? 'Pending' : 'Pendiente', 
+                            class: 'bg-yellow-50 text-yellow-600 border-yellow-100' 
+                          },
+                          confirmed: { 
+                            label: language === 'en' ? 'Confirmed' : 'Confirmada', 
+                            class: 'bg-indigo-50 text-indigo-600 border-indigo-100' 
+                          },
+                          awaiting_reschedule: { 
+                            label: language === 'en' ? 'Awaiting Reschedule' : 'Espera de Reagenda', 
+                            class: 'bg-amber-50 text-amber-600 border-amber-100' 
+                          },
+                          rescheduled: { 
+                            label: language === 'en' ? 'Rescheduled' : 'Reagendada', 
+                            class: 'bg-orange-50 text-orange-600 border-orange-100' 
+                          },
+                          cancelled: { 
+                            label: language === 'en' ? 'Cancelled' : 'Cancelada', 
+                            class: 'bg-red-50 text-red-600 border-red-100' 
+                          },
+                          completed: { 
+                            label: language === 'en' ? 'Completed' : 'Completada', 
+                            class: 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                          },
+                          no_show: { 
+                            label: language === 'en' ? 'No Show' : 'No Asistió', 
+                            class: 'bg-rose-50 text-rose-600 border-rose-100' 
+                          },
+                          pending_completion: { 
+                            label: language === 'en' ? 'Review Needed' : 'Por Validar', 
+                            class: 'bg-purple-50 text-purple-600 border-purple-100' 
+                          }
+                        };
+                        const badge = statusStyles[appt.status] || { label: appt.status, class: 'bg-slate-50 text-slate-600 border-slate-100' };
+                        
+                        // Time formatting
+                        const date = new Date(appt.scheduled_time);
+                        const formatOptions: Intl.DateTimeFormatOptions = {
+                          timeZone: 'America/Guayaquil',
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        };
+                        const formattedTime = new Intl.DateTimeFormat('es-EC', formatOptions).format(date);
+
+                        return (
+                          <tr key={appt.id} className="hover:bg-slate-50/30 transition-all">
+                            <td className="px-8 py-5">
+                              <span className="text-sm font-bold text-slate-800 block">{appt.customer_name || 'Cliente'}</span>
+                              {appt.confirmation_message && (
+                                <span className="text-[10px] text-slate-400 block max-w-xs truncate italic" title={appt.confirmation_message}>
+                                  "{appt.confirmation_message}"
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5">
+                              <span className="text-xs text-slate-500 font-mono">{appt.phone_number}</span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <span className="text-xs text-slate-800 font-medium">{appt.service || 'Asesoría'}</span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <span className="text-xs text-slate-500">{formattedTime}</span>
+                            </td>
+                            <td className="px-6 py-5 text-center">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badge.class}`}>
+                                {badge.label}
+                              </span>
+                            </td>
+                            <td className="px-8 py-5 text-right">
+                              {/* Action buttons */}
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* Complete Action */}
+                                {['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'].includes(appt.status) && (
+                                  <button
+                                    onClick={() => handleApptAction(appt.id, 'complete')}
+                                    disabled={!!isPerformingApptAction}
+                                    className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-emerald-100 hover:border-emerald-200"
+                                  >
+                                    <span className="material-symbols-outlined text-sm font-bold">check</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Attended' : 'Asistió'}</span>
+                                  </button>
+                                )}
+
+                                {/* No-Show Action */}
+                                {['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'].includes(appt.status) && (
+                                  <button
+                                    onClick={() => handleApptAction(appt.id, 'no_show')}
+                                    disabled={!!isPerformingApptAction}
+                                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-rose-100 hover:border-rose-200"
+                                  >
+                                    <span className="material-symbols-outlined text-sm font-bold">close</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'No Show' : 'No Asistió'}</span>
+                                  </button>
+                                )}
+
+                                {/* Reschedule Action */}
+                                {['pending', 'confirmed', 'rescheduled', 'pending_completion'].includes(appt.status) && (
+                                  <button
+                                    onClick={() => handleApptAction(appt.id, 'reschedule')}
+                                    disabled={!!isPerformingApptAction}
+                                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-amber-100 hover:border-amber-200"
+                                  >
+                                    <span className="material-symbols-outlined text-sm font-bold">sync</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Reschedule' : 'Reagendar'}</span>
+                                  </button>
+                                )}
+
+                                {/* Cancel Action */}
+                                {['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'].includes(appt.status) && (
+                                  <button
+                                    onClick={() => handleApptAction(appt.id, 'cancel')}
+                                    disabled={!!isPerformingApptAction}
+                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-red-100 hover:border-red-200"
+                                  >
+                                    <span className="material-symbols-outlined text-sm font-bold">delete</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Cancel' : 'Cancelar'}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
 

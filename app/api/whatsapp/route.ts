@@ -523,8 +523,8 @@ IMPORTANTE:
           .from('appointments')
           .select('*')
           .eq('conversation_id', conversation.id)
-          .in('status', ['pending', 'confirmed'])
-          .gte('scheduled_time', new Date().toISOString())
+          .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
+          .gte('scheduled_time', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
           .order('scheduled_time', { ascending: true })
           .limit(1)
           .maybeSingle();
@@ -553,9 +553,9 @@ El cliente tiene una cita programada (Estado actual: ${upcomingAppt.status}):
 - Estado de Confirmación: ${upcomingAppt.status}
 
 INSTRUCCIONES CRÍTICAS PARA LA CITA:
-- Si el cliente confirma su asistencia (ej. dice "Sí, asistiré", "Confirmado", "Ahí estaré"), debes responder de manera amable confirmando que su asistencia ha sido registrada y agregar exactamente este tag en tu respuesta: [CONFIRMAR_ASISTENCIA:${upcomingAppt.id}].
-- Si el cliente cancela, declina o dice que no puede asistir (ej. dice "No puedo ir", "Cancélala", "Ya no voy a asistir"), debes ofrecer disculpas, proponerle reagendar para otro día/hora del mismo u otro día, y agregar exactamente este tag en tu respuesta: [REAGENDAR_CITA:${upcomingAppt.id}].
-- Si el cliente explícitamente pide cambiar la fecha/hora de esta cita ("Quiero cambiar de hora/día"), debes proponerle otros horarios utilizando [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD], y al confirmar la nueva fecha, el sistema reagendará automáticamente. Agrega también el tag [REAGENDAR_CITA:${upcomingAppt.id}] para cancelar la cita anterior.`;
+- Si el cliente confirma su asistencia (ej. dice palabras como "Sí", "Confirmado", "Ahí estaré", "Perfecto", "Claro", "Nos vemos", "De acuerdo"), debes responder de manera amable confirmando que su asistencia ha sido registrada y agregar exactamente este tag en tu respuesta: [CONFIRMAR_ASISTENCIA:${upcomingAppt.id}].
+- Si el cliente quiere cambiar el horario de la cita o reagendar (ej. dice "Quiero cambiar de hora/día", "Necesito otro horario", "Reagendar", "Cambiar cita"), debes ofrecerle otras opciones usando el tag [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD] y agregar exactamente este tag en tu respuesta para que el sistema lo ponga en espera de reagendar (manteniendo su cita actual temporalmente activa): [SOLICITAR_REAGENDAMIENTO:${upcomingAppt.id}].
+- Si el cliente cancela definitivamente o dice que no asistirá de ninguna manera (ej. dice "No puedo ir", "Cancela", "Me surgió algo", "Ya no voy a asistir"), debes ofrecer disculpas y agregar exactamente este tag en tu respuesta: [CANCELAR_CITA:${upcomingAppt.id}].`;
           console.log(`📅 Cita encontrada (${upcomingAppt.status}): ${upcomingAppt.id} para conversación ${conversation.id}`);
         }
       } catch (dbErr) {
@@ -853,21 +853,71 @@ Transportadora: *${orderResult.carrier}*`;
         try {
           // America/Guayaquil is UTC-5, so we parse it with -05:00 offset to construct correct timestamp
           const scheduledTimeISO = new Date(`${date}T${time}:00-05:00`).toISOString();
-          const { error: dbInsertErr } = await supabase.from('appointments').insert({
-            tenant_id: tenantId,
-            conversation_id: conversation.id,
-            event_id: result.eventId,
-            customer_name: clientName,
-            phone_number: clientPhone,
-            scheduled_time: scheduledTimeISO,
-            service: service,
-            status: 'pending',
-            reminder_sent: false
-          });
-          if (dbInsertErr) {
-            console.error('❌ Error al guardar la cita en la base de datos:', dbInsertErr);
+
+          // Buscar si el cliente ya tiene una cita activa para reagendar en esta conversación
+          const { data: existingAppt } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('conversation_id', conversation.id)
+            .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
+            .order('scheduled_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (existingAppt) {
+            // Eliminar evento viejo de Google Calendar
+            if (existingAppt.event_id) {
+              const delRes = await deleteCalendarEvent(tenantId, existingAppt.event_id);
+              if (delRes.success) {
+                console.log(`✅ [Reagendamiento] Evento viejo de Google Calendar ${existingAppt.event_id} eliminado exitosamente`);
+              } else {
+                console.error(`❌ [Reagendamiento] Error al eliminar evento viejo de Google Calendar:`, delRes.error);
+              }
+            }
+
+            // Actualizar la cita existente en la DB
+            const { error: dbUpdateErr } = await supabase
+              .from('appointments')
+              .update({
+                event_id: result.eventId,
+                scheduled_time: scheduledTimeISO,
+                service: service,
+                status: 'rescheduled',
+                reminder_24h_sent: false,
+                reminder_2h_sent: false,
+                reminder_30m_sent: false,
+                reminder_sent_at: null,
+                confirmed_at: null,
+                confirmation_message: null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingAppt.id);
+
+            if (dbUpdateErr) {
+              console.error('❌ Error al actualizar la cita reagendada en la DB:', dbUpdateErr);
+            } else {
+              console.log(`✅ Cita ${existingAppt.id} reagendada con éxito en la DB`);
+            }
           } else {
-            console.log(`✅ Cita guardada en base de datos para el cliente ${clientName}`);
+            // Insertar una nueva cita
+            const { error: dbInsertErr } = await supabase.from('appointments').insert({
+              tenant_id: tenantId,
+              conversation_id: conversation.id,
+              event_id: result.eventId,
+              customer_name: clientName,
+              phone_number: clientPhone,
+              scheduled_time: scheduledTimeISO,
+              service: service,
+              status: 'pending',
+              reminder_24h_sent: false,
+              reminder_2h_sent: false,
+              reminder_30m_sent: false
+            });
+            if (dbInsertErr) {
+              console.error('❌ Error al guardar la cita en la base de datos:', dbInsertErr);
+            } else {
+              console.log(`✅ Cita guardada en base de datos para el cliente ${clientName}`);
+            }
           }
         } catch (dbErr) {
           console.error('❌ Error inesperado al guardar la cita en la base de datos:', dbErr);
@@ -916,7 +966,12 @@ Transportadora: *${orderResult.carrier}*`;
       try {
         const { error: dbUpdateErr } = await supabase
           .from('appointments')
-          .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+          .update({
+            status: 'confirmed',
+            confirmed_at: new Date().toISOString(),
+            confirmation_message: customerMessage || 'Confirmado por chat',
+            updated_at: new Date().toISOString()
+          })
           .eq('id', apptId);
         if (dbUpdateErr) {
           console.error(`❌ Error al actualizar estado de cita a confirmado:`, dbUpdateErr);
@@ -928,12 +983,37 @@ Transportadora: *${orderResult.carrier}*`;
       }
     }
 
-    // 6.95 Detectar tag de REAGENDAR_CITA (cancela la cita actual en la DB y Calendar)
-    const rescheduleMatch = aiResponse.match(/\[REAGENDAR_CITA:(.+?)\]/);
-    if (rescheduleMatch) {
-      const apptId = rescheduleMatch[1];
-      aiResponse = aiResponse.replace(/\[REAGENDAR_CITA:.+?\]/, '').trim();
-      console.log(`📅 Cancelando/Reagendando cita ${apptId}...`);
+    // 6.92 Detectar tag de SOLICITAR_REAGENDAMIENTO (pone la cita en espera de reagendar pero mantiene el evento en Calendar)
+    const requestRescheduleMatch = aiResponse.match(/\[SOLICITAR_REAGENDAMIENTO:(.+?)\]/);
+    if (requestRescheduleMatch) {
+      const apptId = requestRescheduleMatch[1];
+      aiResponse = aiResponse.replace(/\[SOLICITAR_REAGENDAMIENTO:.+?\]/, '').trim();
+      console.log(`📅 Cambiando estado de cita ${apptId} a awaiting_reschedule...`);
+      
+      try {
+        const { error: dbUpdateErr } = await supabase
+          .from('appointments')
+          .update({
+            status: 'awaiting_reschedule',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', apptId);
+        if (dbUpdateErr) {
+          console.error(`❌ Error al actualizar estado de cita a awaiting_reschedule:`, dbUpdateErr);
+        } else {
+          console.log(`✅ Cita ${apptId} marcada como awaiting_reschedule en la base de datos`);
+        }
+      } catch (dbErr) {
+        console.error(`❌ Error al actualizar estado de cita a awaiting_reschedule:`, dbErr);
+      }
+    }
+
+    // 6.95 Detectar tag de CANCELAR_CITA (o el anterior REAGENDAR_CITA)
+    const cancelMatch = aiResponse.match(/\[(?:CANCELAR_CITA|REAGENDAR_CITA):(.+?)\]/);
+    if (cancelMatch) {
+      const apptId = cancelMatch[1];
+      aiResponse = aiResponse.replace(/\[(?:CANCELAR_CITA|REAGENDAR_CITA):.+?\]/, '').trim();
+      console.log(`📅 Cancelando cita ${apptId}...`);
 
       try {
         // Obtener el event_id de la cita para eliminar de Google Calendar
@@ -958,7 +1038,11 @@ Transportadora: *${orderResult.carrier}*`;
         // Marcar la cita como cancelada
         const { error: dbCancelErr } = await supabase
           .from('appointments')
-          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
           .eq('id', apptId);
         
         if (dbCancelErr) {
