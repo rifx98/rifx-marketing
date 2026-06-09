@@ -488,6 +488,9 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
         aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DE CITAS — GOOGLE CALENDAR CONECTADO]:
 Tienes acceso al calendario del negocio para agendar reuniones y citas con los clientes.
 Hoy es ${todayName} ${todayStr}.
+El cliente actual es:
+- Nombre: ${customerName || 'Cliente'}
+- Teléfono: ${customerPhone}
 
 Cuando un cliente quiera agendar una cita, reunión o consulta:
 1. Pregúntale qué día y hora le conviene. Los horarios de atención son de Lunes a Viernes, de 9:00 AM a 6:00 PM.
@@ -495,10 +498,10 @@ Cuando un cliente quiera agendar una cita, reunión o consulta:
    [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
    El sistema te devolverá los horarios disponibles para ese día.
 3. Muéstrale al cliente las opciones de horario disponibles.
-4. Cuando el cliente confirme un horario específico (ej. "el viernes a las 10:00 AM" o "mañana a las 4:00 PM"), debes usar este tag exacto para crear la cita:
-   [AGENDAR_CITA:nombre_cliente:telefono:YYYY-MM-DD:HH:MM:servicio_o_motivo]
-   Ejemplo: [AGENDAR_CITA:Juan Pérez:593984111222:2026-06-12:10:00:Consulta de Marketing Digital]
-   NUNCA confirmes la cita tú mismo en tu propia respuesta. El sistema procesará el agendamiento y te dará la confirmación automáticamente.
+4. Cuando el cliente confirme un horario específico (ej. "el viernes a las 10:00 AM" o "mañana a las 4:00 PM"), debes usar este tag exacto para crear la cita (reemplazando los datos de fecha y hora según lo acordado):
+   [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:YYYY-MM-DD:HH:MM:Asesoría de RIFX]
+   Ejemplo: [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:2026-06-12:10:00:Asesoría de RIFX]
+   NUNCA confirmes la cita tú mismo en tu propia respuesta sin poner este tag. El sistema procesará el agendamiento en Google Calendar al ver el tag y te dará la confirmación automáticamente.
 5. Si el cliente pregunta por disponibilidad sin dar una fecha concreta, sugiérele los próximos días hábiles.
 
 IMPORTANTE:

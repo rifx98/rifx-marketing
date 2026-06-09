@@ -175,17 +175,16 @@ export async function checkAvailability(
 
     // Generate all possible slots within business hours
     const allSlots: TimeSlot[] = [];
-    const dateObj = new Date(`${date}T${String(businessHoursStart).padStart(2, '0')}:00:00-05:00`);
+    const [year, month, day] = date.split('-').map(Number);
+    const timezoneOffsetHours = 5; // Ecuador is UTC-5, so we add 5 hours to get UTC
 
     for (let hour = businessHoursStart; hour < businessHoursEnd; hour++) {
       for (let min = 0; min < 60; min += slotDurationMinutes) {
         if (hour + (min + slotDurationMinutes) / 60 > businessHoursEnd) break;
 
-        const slotStart = new Date(dateObj);
-        slotStart.setHours(hour, min, 0, 0);
-
-        const slotEnd = new Date(slotStart);
-        slotEnd.setMinutes(slotEnd.getMinutes() + slotDurationMinutes);
+        // Construct dates in UTC to avoid local server timezone variations (Vercel uses UTC)
+        const slotStart = new Date(Date.UTC(year, month - 1, day, hour + timezoneOffsetHours, min, 0, 0));
+        const slotEnd = new Date(Date.UTC(year, month - 1, day, hour + timezoneOffsetHours, min + slotDurationMinutes, 0, 0));
 
         // Check if slot overlaps with any busy period
         const isOccupied = busyPeriods.some((busy: { start: string; end: string }) => {
@@ -209,14 +208,15 @@ export async function checkAvailability(
           // Format date label
           const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
           const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-          const d = new Date(`${date}T12:00:00`);
-          const dayName = dayNames[d.getDay()];
-          const monthName = monthNames[d.getMonth()];
+          const d = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+          const dayName = dayNames[d.getUTCDay()];
+          const monthName = monthNames[d.getUTCMonth()];
+          const dayOfMonth = d.getUTCDate();
 
           allSlots.push({
             start: `${date}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`,
             end: `${date}T${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`,
-            label: `${dayName} ${d.getDate()} ${monthName}, ${formatTime(startHour, startMin)} - ${formatTime(endHour, endMin)}`
+            label: `${dayName} ${dayOfMonth} ${monthName}, ${formatTime(startHour, startMin)} - ${formatTime(endHour, endMin)}`
           });
         }
       }
