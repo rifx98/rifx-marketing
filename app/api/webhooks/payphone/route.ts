@@ -17,10 +17,23 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseAdmin();
 
   try {
-    // Consultar estado de la transacción en PayPhone
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    // First, find the sale to determine the tenant
+    const { data: sale } = await supabase
+      .from('sales')
+      .select('*, conversations(*)')
+      .eq('payphone_transaction_id', String(transactionId))
+      .single();
+
+    // Resolve config using the sale's tenant_id (or conversation's tenant_id)
+    const saleTenantId = sale?.tenant_id || sale?.conversations?.tenant_id || null;
+    let configQuery = supabase.from('config').select('*');
+    if (saleTenantId) {
+      configQuery = configQuery.eq('tenant_id', saleTenantId);
+    }
+    const { data: config } = await configQuery.limit(1).single();
     const token = config?.payphone_token || process.env.PAYPHONE_TOKEN;
 
+    // Consultar estado de la transacción en PayPhone
     const ppResponse = await fetch(
       `https://pay.payphonetodoesposible.com/api/Sale/${transactionId}`,
       {
@@ -35,13 +48,6 @@ export async function GET(req: NextRequest) {
 
     // statusCode 3 = Aprobada, 2 = Cancelada
     if (ppData.statusCode === 3) {
-      // Buscar la venta por transactionId
-      const { data: sale } = await supabase
-        .from('sales')
-        .select('*, conversations(*)')
-        .eq('payphone_transaction_id', String(transactionId))
-        .single();
-
       if (sale) {
         // Marcar venta como completada
         await supabase

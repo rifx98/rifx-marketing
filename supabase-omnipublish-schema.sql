@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_tenant_members_tenant ON tenant_members(tenant_id
 CREATE TABLE IF NOT EXISTS social_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
-  platform TEXT NOT NULL CHECK (platform IN ('facebook', 'instagram', 'tiktok', 'youtube')),
+  platform TEXT NOT NULL CHECK (platform IN ('facebook', 'instagram', 'tiktok', 'youtube', 'google_calendar')),
   platform_user_id TEXT NOT NULL,
   platform_username TEXT,
   profile_picture_url TEXT,

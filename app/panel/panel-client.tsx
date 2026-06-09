@@ -495,6 +495,7 @@ const PLANS = ['trial', 'start', 'plus', 'master'];
 export default function PanelClient() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isExportingDropi, setIsExportingDropi] = useState(false);
   const [loginUser, setLoginUser] = useState(''); // now used as email
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -583,6 +584,7 @@ export default function PanelClient() {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const oauthSuccess = params.get('oauth_success');
+    const calendarSuccess = params.get('calendar_success');
     const oauthError = params.get('error');
     const tabParam = params.get('tab');
 
@@ -601,11 +603,22 @@ export default function PanelClient() {
       // Clean query parameters from URL without reloading
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
+    } else if (calendarSuccess === 'true') {
+      setToast({
+        type: 'success',
+        message: language === 'en' ? '✅ Google Calendar connected successfully!' : '✅ ¡Google Calendar vinculado exitosamente!'
+      });
+      setSettingsSection('whatsapp');
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
     } else if (oauthError) {
       setToast({
         type: 'error',
         message: language === 'en' ? `❌ OAuth Error: ${oauthError}` : `❌ Error de Vinculación: ${oauthError}`
       });
+      if (oauthError.toLowerCase().includes('calendar')) {
+        setSettingsSection('whatsapp');
+      }
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
     }
@@ -834,9 +847,9 @@ export default function PanelClient() {
     }
   }, [activeTab, isLoggedIn, fetchKBFiles]);
 
-  // Load social accounts when social tab opens
+  // Load social accounts when social or settings tab opens
   React.useEffect(() => {
-    if (activeTab === 'social' && isLoggedIn) {
+    if ((activeTab === 'social' || activeTab === 'settings') && isLoggedIn) {
       fetchSocialAccounts();
     }
   }, [activeTab, isLoggedIn]);
@@ -920,6 +933,28 @@ export default function PanelClient() {
         window.location.href = data.authUrl;
       } else {
         setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de YouTube' });
+      }
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+    }
+  };
+
+  const handleConnectGoogleCalendarOAuth = async () => {
+    try {
+      const token = authToken || localStorage.getItem('rifx_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/social/accounts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'get_auth_url', platform: 'google_calendar' })
+      });
+      const data = await res.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de Google Calendar' });
       }
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
@@ -3500,7 +3535,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
             }
             // Filtrar señales para no mostrarlas en el chat
-            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__');
+            const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__' && !(m.content && m.content.startsWith('__ORDER_DATA__:')));
             // Solo actualizar si los mensajes realmente cambiaron
             setChatMessages(prev => {
               const prevLastId = prev.length > 0 ? prev[prev.length - 1]?.id : null;
@@ -3528,7 +3563,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             setIsHumanMode(false);
           }
           // Filtrar señales
-          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__');
+          const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__' && !(m.content && m.content.startsWith('__ORDER_DATA__:')));
           setChatMessages(visibleMessages);
         }
         setLoadingMessages(false);
@@ -4963,8 +4998,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const result = await res.json();
       if (res.ok && result.success) {
         setShowSuccess(true);
-        // Recargar config para confirmar que se guardó
+        // Recargar config
         fetchConfig();
+        setToast({ message: language === 'en' ? '✓ Configuration saved successfully!' : '✓ ¡Configuración guardada con éxito!', type: 'success' });
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
         const errMsg = result.error || 'Error desconocido al guardar';
@@ -5914,6 +5950,44 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 >
                   <span className="material-symbols-outlined text-lg">file_download</span>
                   {language === 'en' ? 'Export CSV' : 'Exportar CSV'}
+                </button>
+                {/* === EXPORTAR DROPI (Carga Masiva) === */}
+                <button 
+                  disabled={isExportingDropi}
+                  onClick={async () => {
+                    setIsExportingDropi(true);
+                    try {
+                      const res = await authFetch('/api/panel/orders/export');
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        setToast({ message: err.error || 'Error al exportar órdenes', type: 'error' });
+                        return;
+                      }
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `dropi_ecuador_orders_${new Date().toISOString().slice(0,10)}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      setToast({ message: language === 'en' ? '✅ Orders exported successfully!' : '✅ ¡Pedidos exportados exitosamente!', type: 'success' });
+                    } catch (err: any) {
+                      setToast({ message: err.message || 'Error de conexión', type: 'error' });
+                    } finally {
+                      setIsExportingDropi(false);
+                    }
+                  }}
+                  className="px-6 py-3 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-2"
+                >
+                  {isExportingDropi ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-lg">local_shipping</span>
+                  )}
+                  {(() => {
+                    const count = conversationsData?.dropiOrdersCount || 0;
+                    return language === 'en' ? `Export to Dropi (${count})` : `Exportar para Dropi (${count})`;
+                  })()}
                 </button>
                 {/* === AGREGAR CONTACTO === */}
                 <button 
@@ -7319,6 +7393,54 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {configData.bulk_wa_token && configData.bulk_wa_phone_id ? (language === 'en' ? 'Bulk number configured' : 'Número masivo configurado') : (language === 'en' ? 'Not configured — will use main number' : 'No configurado — usará número principal')}
                         </div>
                       </div>
+
+                      {/* Google Calendar Integration */}
+                      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Google Calendar Integration' : 'Integración de Google Calendar'}</h4>
+                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Allow the bot to check availability and book meetings' : 'Permite al bot verificar disponibilidad y agendar citas'}</p>
+                          </div>
+                        </div>
+
+                        {socialAccounts.find(acc => acc.platform === 'google_calendar') ? (() => {
+                          const calendarAccount = socialAccounts.find(acc => acc.platform === 'google_calendar');
+                          return (
+                            <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100 font-sans">
+                              <div className="flex items-center space-x-3 overflow-hidden">
+                                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-emerald-200 shadow-sm">
+                                  <span className="text-sm">📅</span>
+                                </div>
+                                <div className="overflow-hidden">
+                                  <span className="text-xs font-bold text-slate-800 block truncate leading-tight">
+                                    {calendarAccount.platform_username || 'Google Calendar Conectado'}
+                                  </span>
+                                  <span className="text-[9px] font-extrabold block uppercase tracking-[0.15em] mt-0.5 text-emerald-600 font-sans">
+                                    Google Calendar
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteSocialAccount(calendarAccount.id)}
+                                className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all flex-shrink-0"
+                              >
+                                {language === 'en' ? 'Disconnect' : 'Desconectar'}
+                              </button>
+                            </div>
+                          );
+                        })() : (
+                          <button
+                            onClick={handleConnectGoogleCalendarOAuth}
+                            className="w-full flex items-center justify-center gap-3 py-3.5 px-6 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all font-sans"
+                          >
+                            <span className="material-symbols-outlined text-sm">link</span>
+                            {language === 'en' ? 'Connect Google Calendar' : 'Conectar Google Calendar'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -7794,6 +7916,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                         </div>
                       )}
+
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {showSuccess && <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{language === 'en' ? 'Saved successfully!' : '¡Guardado con éxito!'}</span>}
+                          {saveError && <span className="text-[11px] text-red-500 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">error</span>{saveError}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSaveSettings}
+                          disabled={isSaving}
+                          className="px-5 py-2.5 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-xs rounded-xl shadow-md shadow-[#0058bc]/10 transition-all flex items-center gap-2"
+                        >
+                          {isSaving ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <span className="material-symbols-outlined text-sm">save</span>
+                          )}
+                          {language === 'en' ? 'Save Changes' : 'Guardar Cambios'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -8036,6 +8178,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                         </div>
                       )}
+
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {showSuccess && <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{language === 'en' ? 'Saved successfully!' : '¡Guardado con éxito!'}</span>}
+                          {saveError && <span className="text-[11px] text-red-500 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">error</span>{saveError}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSaveSettings}
+                          disabled={isSaving}
+                          className="px-5 py-2.5 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-xs rounded-xl shadow-md shadow-[#0058bc]/10 transition-all flex items-center gap-2"
+                        >
+                          {isSaving ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <span className="material-symbols-outlined text-sm">save</span>
+                          )}
+                          {language === 'en' ? 'Save Changes' : 'Guardar Cambios'}
+                        </button>
+                      </div>
                     </section>
 
                     {/* Identity & Tone */}
@@ -12210,6 +12372,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               instagram: { bg: 'bg-gradient-to-r from-pink-50 to-purple-50', text: 'text-[#E4405F]', icon: '📸' },
                               tiktok: { bg: 'bg-slate-50', text: 'text-slate-800', icon: '🎵' },
                               youtube: { bg: 'bg-red-50', text: 'text-[#FF0000]', icon: '▶️' },
+                              google_calendar: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: '📅' }
                             };
                             const style = platformStyles[acc.platform] || { bg: 'bg-slate-50', text: 'text-slate-500', icon: '🔗' };
                             return (

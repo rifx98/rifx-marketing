@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
+import { checkAvailability, createCalendarEvent, getCalendarCredentials } from '@/lib/google-calendar';
 
 // ============================================
 // WHATSAPP WEBHOOK — El corazón del bot de IA
@@ -180,12 +181,15 @@ export async function POST(req: NextRequest) {
     console.log(`📩 Mensaje de ${customerName} (${customerPhone}): ${customerMessage}`);
     console.log(`📞 Webhook phone_number_id: ${webhookPhoneId}`);
 
-    // 1. Buscar o crear conversación
-    let { data: conversation } = await supabase
+    // 1. Buscar o crear conversación (filtrar por tenant_id para aislamiento multi-tenant)
+    let conversationQuery = supabase
       .from('conversations')
       .select('*')
-      .eq('phone_number', customerPhone)
-      .single();
+      .eq('phone_number', customerPhone);
+    if (tenantId) {
+      conversationQuery = conversationQuery.eq('tenant_id', tenantId);
+    }
+    let { data: conversation } = await conversationQuery.single();
 
     if (!conversation) {
       const insertData: any = { phone_number: customerPhone, customer_name: customerName, status: 'chatting' };
@@ -217,6 +221,27 @@ export async function POST(req: NextRequest) {
 
     // 2. Guardar mensaje del cliente
     const dbContent = isAudio ? `🎙️ [Audio]: ${customerMessage}` : customerMessage;
+
+    // Evitar procesamiento duplicado por reintentos de webhook de Meta (Meta reintenta si tardamos > 5s)
+    if (dbContent) {
+      const { data: recentMessages } = await supabase
+        .from('messages')
+        .select('created_at')
+        .eq('conversation_id', conversation.id)
+        .eq('role', 'user')
+        .eq('content', dbContent)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (recentMessages && recentMessages.length > 0) {
+        const timeDiff = Date.now() - new Date(recentMessages[0].created_at).getTime();
+        if (timeDiff < 20000) { // 20 segundos
+          console.log(`⚠️ [WEBHOOK DUPLICATE] Ignorando mensaje duplicado de ${customerPhone} (recibido hace ${timeDiff}ms)`);
+          return NextResponse.json({ status: 'duplicate_ignored' });
+        }
+      }
+    }
+
     await supabase.from('messages').insert({
       conversation_id: conversation.id,
       role: 'user',
@@ -421,6 +446,71 @@ Tu objetivo principal es actuar como un excelente asesor de ventas y conectar de
 NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generado con éxito" en tu propia respuesta. El sistema backend automáticamente procesará la orden e inyectará los detalles de confirmación (número de guía y transportadora) o informará de cualquier error de conexión. Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos de envío.`;
     }
 
+    // 4.3 Inyectar instrucciones de agendamiento de Google Calendar (solo en modo servicios)
+    let isCalendarConnected = false;
+    if (!extConfig.dropi_enabled && tenantId) {
+      const calendarCreds = await getCalendarCredentials(tenantId);
+      if (calendarCreds) {
+        isCalendarConnected = true;
+
+        // Reemplazar la regla del enlace estático por una regla de agendamiento dinámico interactivo en el prompt base
+        aiPrompt = aiPrompt.replace(
+          /REGLA DEL ENLACE \(CRÍTICO\): NO pongas el enlace de reunión en todos tus mensajes\. Es molesto\. Úsalo ÚNICAMENTE al final de tu mensaje cuando le propongas tener una llamada DESPUÉS de haberle aportado valor, o si el cliente lo pide expresamente\./gi,
+          `REGLA DE AGENDAMIENTO (CRÍTICO): NO intentes enviar enlaces de reunión estáticos ni confirmes citas directamente. Debes preguntar la fecha y hora preferida del cliente y usar el sistema de agendamiento dinámico.`
+        );
+
+        aiPrompt = aiPrompt.replace(
+          /Después de explicar un beneficio, da un Call To Action \(CTA\) directivo: "Para aterrizar esto a tu negocio, elige un horario aquí 👇: \[PON TU LINK DE REUNIÓN AQUÍ\]" o "Si estás listo para empezar, el pago se hace aquí 💳: \[PON TU LINK DE PAGO AQUÍ\]"\./gi,
+          `Después de explicar un beneficio, da un Call To Action (CTA) directivo para agendar una cita o llamada, preguntándole qué día y hora le conviene para verificar disponibilidad en el calendario.`
+        );
+
+        // Sanitizar cualquier otro enlace estático del prompt base que conflictuaría con el calendario dinámico
+        const staticLinkPatterns = [
+          /\[PON TU LINK DE REUNIÓN AQUÍ\]/gi,
+          /\[enlace de reunión\]/gi,
+          /\[link de reunión\]/gi,
+          /\[enlace de agenda\]/gi,
+          /\[link de agenda\]/gi,
+          /\[tu link de agenda\]/gi,
+          /\[pon tu enlace aquí\]/gi,
+          /\[insertar link de calendly\]/gi,
+          /\[insertar enlace\]/gi,
+        ];
+        for (const pattern of staticLinkPatterns) {
+          aiPrompt = aiPrompt.replace(pattern, '[pregunta disponibilidad por mensaje]');
+        }
+
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const todayName = dayNames[today.getDay()];
+
+        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DE CITAS — GOOGLE CALENDAR CONECTADO]:
+Tienes acceso al calendario del negocio para agendar reuniones y citas con los clientes.
+Hoy es ${todayName} ${todayStr}.
+
+Cuando un cliente quiera agendar una cita, reunión o consulta:
+1. Pregúntale qué día y hora le conviene. Los horarios de atención son de Lunes a Viernes, de 9:00 AM a 6:00 PM.
+2. Cuando el cliente proponga una fecha, usa el siguiente tag para verificar disponibilidad:
+   [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
+   El sistema te devolverá los horarios disponibles para ese día.
+3. Muéstrale al cliente las opciones de horario disponibles.
+4. Cuando el cliente confirme un horario específico (ej. "el viernes a las 10:00 AM" o "mañana a las 4:00 PM"), debes usar este tag exacto para crear la cita:
+   [AGENDAR_CITA:nombre_cliente:telefono:YYYY-MM-DD:HH:MM:servicio_o_motivo]
+   Ejemplo: [AGENDAR_CITA:Juan Pérez:593984111222:2026-06-12:10:00:Consulta de Marketing Digital]
+   NUNCA confirmes la cita tú mismo en tu propia respuesta. El sistema procesará el agendamiento y te dará la confirmación automáticamente.
+5. Si el cliente pregunta por disponibilidad sin dar una fecha concreta, sugiérele los próximos días hábiles.
+
+IMPORTANTE:
+- Solo usa estos tags cuando el cliente EXPLÍCITAMENTE quiera agendar una cita.
+- No inventes fechas ni horarios. Siempre consulta primero con [VERIFICAR_DISPONIBILIDAD].
+- Las citas duran 1 hora por defecto.
+- NUNCA envíes un enlace de reunión estático. Siempre usa los tags [VERIFICAR_DISPONIBILIDAD] y [AGENDAR_CITA] para gestionar citas de forma dinámica.
+- Para calcular fechas relativas (ej. "mañana", "el jueves", "este viernes"), básate en que hoy es ${todayName} ${todayStr}. Por ejemplo, si hoy es Lunes 2026-06-08, "este viernes" es 2026-06-12. Calcula siempre la fecha exacta en formato YYYY-MM-DD.`;
+        console.log(`📅 Calendar: Instrucciones de agendamiento inyectadas para tenant ${tenantId} (enlaces estáticos sanitizados)`);
+      }
+    }
+
     // Determine which provider & model to use
     const selectedModel = extConfig.model_selection || 'gpt-4o';
     const isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
@@ -455,10 +545,30 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
 
     const chatMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: aiPrompt },
-      ...history.map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
+      ...history.map((m: { role: string; content: string }) => {
+        let content = m.content;
+        if (isCalendarConnected && m.role === 'assistant') {
+          const staticLinkPatterns = [
+            /\[PON TU LINK DE REUNIÓN AQUÍ\]/gi,
+            /\[enlace de reunión\]/gi,
+            /\[link de reunión\]/gi,
+            /\[enlace de agenda\]/gi,
+            /\[link de agenda\]/gi,
+            /\[tu link de agenda\]/gi,
+            /\[pon tu enlace aquí\]/gi,
+            /\[insertar link de calendly\]/gi,
+            /\[insertar enlace\]/gi,
+            /\[usa el sistema de agendamiento integrado\]/gi
+          ];
+          for (const pattern of staticLinkPatterns) {
+            content = content.replace(pattern, '[pregunta disponibilidad por mensaje]');
+          }
+        }
+        return {
+          role: m.role as 'user' | 'assistant',
+          content,
+        };
+      }),
     ];
 
     let aiResponse: string;
@@ -558,6 +668,30 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
         price: extConfig.dropi_default_price || 50
       });
 
+      // Guardar metadatos del pedido en la base de datos para exportar a Dropi (Carga Masiva)
+      try {
+        const orderData = {
+          name: customerNameArg,
+          phone: phoneArg,
+          address: addressArg,
+          city: cityArg,
+          product_id: productIdArg,
+          quantity: parseInt(quantityArg),
+          price: extConfig.dropi_default_price || 50,
+          payment_type: paymentType,
+          status: orderResult.success ? 'synced' : 'pending',
+          created_at: new Date().toISOString()
+        };
+        await supabase.from('messages').insert({
+          conversation_id: conversation.id,
+          role: 'assistant',
+          content: `__ORDER_DATA__:${JSON.stringify(orderData)}`,
+          tenant_id: tenantId
+        });
+      } catch (err) {
+        console.error('Error logging order metadata:', err);
+      }
+
       if (orderResult.success) {
         aiResponse += `\n\n🚛 *¡Pedido Confirmado!*
 Se ha generado la orden de envío en Dropi.
@@ -572,6 +706,122 @@ Transportadora: *${orderResult.carrier}*`;
       } else {
         console.error(`❌ Error creando orden en Dropi: ${orderResult.error}`);
         aiResponse += `\n\n⚠️ Hemos tomado tus datos de envío, pero hubo un problema al conectar con el sistema logístico de Dropi. Un asesor humano confirmará tu pedido manualmente en breve.`;
+        
+        // Mover estado de conversación a interesado también cuando hay error de conexión a la API
+        await supabase
+          .from('conversations')
+          .update({ status: 'interested' })
+          .eq('id', conversation.id);
+      }
+    }
+
+    // 6.7 Detectar si la IA quiere verificar disponibilidad en Google Calendar
+    const availabilityMatch = aiResponse.match(/\[VERIFICAR_DISPONIBILIDAD:(\d{4}-\d{2}-\d{2})\]/);
+    if (availabilityMatch && tenantId) {
+      const requestedDate = availabilityMatch[1];
+      aiResponse = aiResponse.replace(/\[VERIFICAR_DISPONIBILIDAD:\d{4}-\d{2}-\d{2}\]/, '').trim();
+
+      console.log(`📅 Verificando disponibilidad para ${requestedDate}...`);
+      const { available, error: calError } = await checkAvailability(tenantId, requestedDate);
+
+      if (calError) {
+        aiResponse += `\n\n⚠️ No pude verificar la disponibilidad: ${calError}`;
+      } else if (available.length === 0) {
+        aiResponse += `\n\nLo siento, no hay horarios disponibles para el ${requestedDate}. ¿Te gustaría consultar otro día?`;
+      } else {
+        // Re-call AI with the availability data so it presents the options naturally
+        const slotsText = available.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
+        const followUpMessages = [
+          ...chatMessages,
+          { role: 'assistant' as const, content: aiResponse || 'Déjame revisar la disponibilidad...' },
+          { role: 'user' as const, content: `[SISTEMA: Horarios disponibles para ${requestedDate}]:\n${slotsText}\n\nPresenta estos horarios al cliente de forma amigable y pregunta cuál prefiere. No menciones que consultaste un sistema.` }
+        ];
+
+        try {
+          let slotsResponse = '';
+          if (isGemini) {
+            const gemMsgs = followUpMessages.map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: m.role === 'system' ? `[System]: ${m.content}` : m.content }],
+            }));
+            const gemRes2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: gemMsgs, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+            });
+            const gemData2 = await gemRes2.json();
+            slotsResponse = gemData2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          } else {
+            const client2 = new OpenAI({ apiKey, baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined });
+            const comp2 = await client2.chat.completions.create({ model: selectedModel, messages: followUpMessages, max_tokens: 500, temperature: 0.7 });
+            slotsResponse = comp2.choices[0]?.message?.content || '';
+          }
+          if (slotsResponse) {
+            aiResponse = slotsResponse;
+          } else {
+            aiResponse = `Estos son los horarios disponibles para el ${requestedDate}:\n\n${slotsText}\n\n¿Cuál te conviene más? 😊`;
+          }
+        } catch (e) {
+          aiResponse = `Estos son los horarios disponibles para el ${requestedDate}:\n\n${slotsText}\n\n¿Cuál te conviene más? 😊`;
+        }
+      }
+    }
+
+    // 6.8 Detectar si la IA quiere agendar una cita en Google Calendar
+    const appointmentMatch = aiResponse.match(/\[AGENDAR_CITA:(.+?):(.+?):(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):(.+?)\]/);
+    if (appointmentMatch && tenantId) {
+      const [, clientName, clientPhone, date, time, service] = appointmentMatch;
+      aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
+
+      console.log(`📅 Agendando cita para ${clientName} el ${date} a las ${time}...`);
+
+      const startDateTime = `${date}T${time}:00`;
+      const [h, m] = time.split(':').map(Number);
+      const endH = h + 1; // 1 hour duration
+      const endDateTime = `${date}T${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+
+      const result = await createCalendarEvent(tenantId, {
+        summary: `📅 Cita: ${clientName} — ${service}`,
+        description: `Cliente: ${clientName}\nTeléfono: ${clientPhone}\nServicio: ${service}\nAgendado vía WhatsApp Bot de RIFX Marketing`,
+        startDateTime,
+        endDateTime,
+        timeZone: 'America/Guayaquil'
+      });
+
+      if (result.success) {
+        aiResponse += `\n\n✅ *¡Cita Agendada con Éxito!*\n📅 Fecha: *${date}*\n🕐 Hora: *${time}*\n📋 Motivo: *${service}*\n\n¡Te esperamos! Si necesitas reagendar, avísame con anticipación. 😊`;
+        console.log(`✅ Cita creada exitosamente: ${result.eventId}`);
+      } else {
+        console.error(`❌ Error agendando cita: ${result.error}`);
+        aiResponse += `\n\n⚠️ Hubo un problema al agendar tu cita. Un asesor se pondrá en contacto contigo para confirmar manualmente. 🙏`;
+      }
+    }
+
+    // 6.85 Sanitizar cualquier placeholder estático de reunión remanente en la respuesta de la IA
+    if (isCalendarConnected) {
+      const staticLinkPatterns = [
+        /\[PON TU LINK DE REUNIÓN AQUÍ\]/gi,
+        /\[enlace de reunión\]/gi,
+        /\[link de reunión\]/gi,
+        /\[enlace de agenda\]/gi,
+        /\[link de agenda\]/gi,
+        /\[tu link de agenda\]/gi,
+        /\[pon tu enlace aquí\]/gi,
+        /\[insertar link de calendly\]/gi,
+        /\[insertar enlace\]/gi,
+        /\[usa el sistema de agendamiento integrado\]/gi,
+        /\[pregunta disponibilidad por mensaje\]/gi
+      ];
+      let hasPlaceholder = false;
+      for (const pattern of staticLinkPatterns) {
+        if (pattern.test(aiResponse)) {
+          hasPlaceholder = true;
+          aiResponse = aiResponse.replace(pattern, 'indicándome qué día y hora prefieres');
+        }
+      }
+      if (hasPlaceholder) {
+        console.log('⚠️ [Sanitizer] Reemplazado placeholder estático de reunión en la respuesta final de la IA');
+        aiResponse = aiResponse.trim();
       }
     }
 

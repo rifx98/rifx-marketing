@@ -49,7 +49,20 @@ export async function GET(req: NextRequest) {
     const interested = (conversations || []).filter((c) => c.status === 'interested');
     const bought = (conversations || []).filter((c) => c.status === 'bought');
 
-    return NextResponse.json({ chatting, interested, bought });
+    // Contar órdenes de Dropi válidas en la base de datos basándose en el prefijo __ORDER_DATA__
+    const convIds = (conversations || []).map((c) => c.id);
+    let dropiOrdersCount = 0;
+    if (convIds.length > 0) {
+      const { data: orderMessages } = await supabase
+        .from('messages')
+        .select('content')
+        .in('conversation_id', convIds)
+        .like('content', '__ORDER_DATA__:%');
+      
+      dropiOrdersCount = (orderMessages || []).filter(m => m.content !== '__ORDER_DATA__:null').length;
+    }
+
+    return NextResponse.json({ chatting, interested, bought, dropiOrdersCount });
   } catch (error) {
     console.error('❌ Error obteniendo conversaciones:', error);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });

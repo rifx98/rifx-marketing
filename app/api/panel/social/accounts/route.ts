@@ -264,6 +264,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ authUrl });
       }
 
+      if (platform === 'google_calendar') {
+        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+        const redirectUri = `${appUrl}/api/panel/social/accounts/google-calendar-callback`;
+
+        if (!clientId) {
+          return NextResponse.json({ error: 'Google Client ID no configurado en .env.local' }, { status: 500 });
+        }
+
+        const calendarScopes = [
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.readonly',
+          'https://www.googleapis.com/auth/userinfo.email'
+        ].join(' ');
+
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(calendarScopes)}&state=${state}&access_type=offline&prompt=consent`;
+
+        return NextResponse.json({ authUrl });
+      }
+
       if (platform === 'tiktok') {
         const clientKey = process.env.TIKTOK_CLIENT_KEY || 'dummy_client_key';
         const redirectUri = `${appUrl}/api/panel/social/accounts/tiktok-callback`;
@@ -307,7 +326,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Faltan parámetros requeridos (platform, platformUserId, accessToken)' }, { status: 400 });
       }
 
-      if (platform !== 'facebook' && platform !== 'instagram' && platform !== 'tiktok' && platform !== 'youtube') {
+      if (platform !== 'facebook' && platform !== 'instagram' && platform !== 'tiktok' && platform !== 'youtube' && platform !== 'google_calendar') {
         return NextResponse.json({ error: 'Plataforma no soportada' }, { status: 400 });
       }
 

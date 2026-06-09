@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
       const { data: config } = await supabase
         .from('config')
         .select('openai_key')
+        .eq('tenant_id', tenant.tenantId)
         .limit(1)
         .single();
       try {

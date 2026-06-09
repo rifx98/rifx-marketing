@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
           conversationId = conv.id;
         } else {
           // Send directly via WhatsApp API without a conversation record
-          const { data: config } = await supabase.from('config').select('*').limit(1).single();
+          const { data: config } = await supabase.from('config').select('*').eq('tenant_id', tenant.tenantId).limit(1).single();
           
           // Decode bulk WA credentials from JSON-encoded openai_key column
           let bulkToken = '';
@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Obtener config para credenciales de WhatsApp
-    const { data: config } = await supabase.from('config').select('*').limit(1).single();
+    const { data: config } = await supabase.from('config').select('*').eq('tenant_id', tenant.tenantId).limit(1).single();
     
     // For bulk sends, prefer bulk WA credentials
     let bulkToken = '';
