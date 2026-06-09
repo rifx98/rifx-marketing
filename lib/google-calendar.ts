@@ -293,3 +293,38 @@ export async function createCalendarEvent(
     return { success: false, error: `Error inesperado: ${err.message}` };
   }
 }
+
+/**
+ * Deletes a calendar event from the tenant's Google Calendar.
+ */
+export async function deleteCalendarEvent(
+  tenantId: string,
+  eventId: string
+): Promise<{ success: boolean; error?: string }> {
+  const credentials = await getCalendarCredentials(tenantId);
+  if (!credentials) {
+    return { success: false, error: 'Google Calendar no conectado.' };
+  }
+
+  try {
+    const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${credentials.access_token}`
+      }
+    });
+
+    if (!res.ok && res.status !== 204) {
+      const data = await res.json().catch(() => ({}));
+      console.error('❌ [Google Calendar] Delete event error:', data.error?.message || res.statusText);
+      return { success: false, error: data.error?.message || `Error status: ${res.status}` };
+    }
+
+    console.log(`✅ [Google Calendar] Event ${eventId} deleted for tenant ${tenantId}`);
+    return { success: true };
+  } catch (err: any) {
+    console.error('❌ [Google Calendar] Delete event error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+

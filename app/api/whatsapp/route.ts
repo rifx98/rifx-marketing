@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
-import { checkAvailability, createCalendarEvent, getCalendarCredentials } from '@/lib/google-calendar';
+import { checkAvailability, createCalendarEvent, getCalendarCredentials, deleteCalendarEvent } from '@/lib/google-calendar';
 
 // ============================================
 // WHATSAPP WEBHOOK — El corazón del bot de IA
@@ -514,6 +514,60 @@ IMPORTANTE:
       }
     }
 
+    // 4.25 Buscar cita pendiente próxima para este cliente y agregar contexto
+    let upcomingApptText = '';
+    let upcomingApptId = '';
+    if (!extConfig.dropi_enabled && conversation) {
+      try {
+        const { data: upcomingAppt } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('conversation_id', conversation.id)
+          .in('status', ['pending', 'confirmed'])
+          .gte('scheduled_time', new Date().toISOString())
+          .order('scheduled_time', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (upcomingAppt) {
+          upcomingApptId = upcomingAppt.id;
+          const apptDate = new Date(upcomingAppt.scheduled_time);
+          // Format date for Ecuador (UTC-5)
+          const options: Intl.DateTimeFormatOptions = {
+            timeZone: 'America/Guayaquil',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          };
+          const formattedDate = new Intl.DateTimeFormat('es-EC', options).format(apptDate);
+          
+          upcomingApptText = `\n\n[CITA ENCONTRADA]:
+El cliente tiene una cita programada (Estado actual: ${upcomingAppt.status}):
+- Servicio/Motivo: ${upcomingAppt.service || 'Asesoría'}
+- Fecha y Hora: ${formattedDate}
+- ID de Cita: ${upcomingAppt.id}
+- Estado de Confirmación: ${upcomingAppt.status}
+
+INSTRUCCIONES CRÍTICAS PARA LA CITA:
+- Si el cliente confirma su asistencia (ej. dice "Sí, asistiré", "Confirmado", "Ahí estaré"), debes responder de manera amable confirmando que su asistencia ha sido registrada y agregar exactamente este tag en tu respuesta: [CONFIRMAR_ASISTENCIA:${upcomingAppt.id}].
+- Si el cliente cancela, declina o dice que no puede asistir (ej. dice "No puedo ir", "Cancélala", "Ya no voy a asistir"), debes ofrecer disculpas, proponerle reagendar para otro día/hora del mismo u otro día, y agregar exactamente este tag en tu respuesta: [REAGENDAR_CITA:${upcomingAppt.id}].
+- Si el cliente explícitamente pide cambiar la fecha/hora de esta cita ("Quiero cambiar de hora/día"), debes proponerle otros horarios utilizando [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD], y al confirmar la nueva fecha, el sistema reagendará automáticamente. Agrega también el tag [REAGENDAR_CITA:${upcomingAppt.id}] para cancelar la cita anterior.`;
+          console.log(`📅 Cita encontrada (${upcomingAppt.status}): ${upcomingAppt.id} para conversación ${conversation.id}`);
+        }
+      } catch (dbErr) {
+        console.error('⚠️ Error al buscar cita pendiente:', dbErr);
+      }
+    }
+
+    if (upcomingApptText) {
+      aiPrompt += upcomingApptText;
+    }
+
+
     // Determine which provider & model to use
     const selectedModel = extConfig.model_selection || 'gpt-4o';
     const isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
@@ -794,6 +848,30 @@ Transportadora: *${orderResult.carrier}*`;
       if (result.success) {
         aiResponse += `\n\n✅ *¡Cita Agendada con Éxito!*\n📅 Fecha: *${date}*\n🕐 Hora: *${time}*\n📋 Motivo: *${service}*\n\n¡Te esperamos! Si necesitas reagendar, avísame con anticipación. 😊`;
         console.log(`✅ Cita creada exitosamente: ${result.eventId}`);
+
+        // Guardar cita en la base de datos
+        try {
+          // America/Guayaquil is UTC-5, so we parse it with -05:00 offset to construct correct timestamp
+          const scheduledTimeISO = new Date(`${date}T${time}:00-05:00`).toISOString();
+          const { error: dbInsertErr } = await supabase.from('appointments').insert({
+            tenant_id: tenantId,
+            conversation_id: conversation.id,
+            event_id: result.eventId,
+            customer_name: clientName,
+            phone_number: clientPhone,
+            scheduled_time: scheduledTimeISO,
+            service: service,
+            status: 'pending',
+            reminder_sent: false
+          });
+          if (dbInsertErr) {
+            console.error('❌ Error al guardar la cita en la base de datos:', dbInsertErr);
+          } else {
+            console.log(`✅ Cita guardada en base de datos para el cliente ${clientName}`);
+          }
+        } catch (dbErr) {
+          console.error('❌ Error inesperado al guardar la cita en la base de datos:', dbErr);
+        }
       } else {
         console.error(`❌ Error agendando cita: ${result.error}`);
         aiResponse += `\n\n⚠️ Hubo un problema al agendar tu cita. Un asesor se pondrá en contacto contigo para confirmar manualmente. 🙏`;
@@ -825,6 +903,71 @@ Transportadora: *${orderResult.carrier}*`;
       if (hasPlaceholder) {
         console.log('⚠️ [Sanitizer] Reemplazado placeholder estático de reunión en la respuesta final de la IA');
         aiResponse = aiResponse.trim();
+      }
+    }
+
+    // 6.9 Detectar tag de CONFIRMAR_ASISTENCIA
+    const confirmMatch = aiResponse.match(/\[CONFIRMAR_ASISTENCIA:(.+?)\]/);
+    if (confirmMatch) {
+      const apptId = confirmMatch[1];
+      aiResponse = aiResponse.replace(/\[CONFIRMAR_ASISTENCIA:.+?\]/, '').trim();
+      console.log(`📅 Confirmando asistencia para la cita ${apptId}...`);
+      
+      try {
+        const { error: dbUpdateErr } = await supabase
+          .from('appointments')
+          .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+          .eq('id', apptId);
+        if (dbUpdateErr) {
+          console.error(`❌ Error al actualizar estado de cita a confirmado:`, dbUpdateErr);
+        } else {
+          console.log(`✅ Cita ${apptId} marcada como confirmada en la base de datos`);
+        }
+      } catch (dbErr) {
+        console.error(`❌ Error al actualizar estado de cita a confirmado:`, dbErr);
+      }
+    }
+
+    // 6.95 Detectar tag de REAGENDAR_CITA (cancela la cita actual en la DB y Calendar)
+    const rescheduleMatch = aiResponse.match(/\[REAGENDAR_CITA:(.+?)\]/);
+    if (rescheduleMatch) {
+      const apptId = rescheduleMatch[1];
+      aiResponse = aiResponse.replace(/\[REAGENDAR_CITA:.+?\]/, '').trim();
+      console.log(`📅 Cancelando/Reagendando cita ${apptId}...`);
+
+      try {
+        // Obtener el event_id de la cita para eliminar de Google Calendar
+        const { data: appt, error: apptQueryErr } = await supabase
+          .from('appointments')
+          .select('event_id, tenant_id')
+          .eq('id', apptId)
+          .limit(1)
+          .maybeSingle();
+
+        if (apptQueryErr) {
+          console.error(`❌ Error al consultar cita ${apptId} para cancelación:`, apptQueryErr);
+        } else if (appt && appt.event_id && appt.tenant_id) {
+          const delResult = await deleteCalendarEvent(appt.tenant_id, appt.event_id);
+          if (delResult.success) {
+            console.log(`✅ Evento de Google Calendar ${appt.event_id} eliminado exitosamente`);
+          } else {
+            console.error(`❌ Error al eliminar evento de Google Calendar:`, delResult.error);
+          }
+        }
+
+        // Marcar la cita como cancelada
+        const { error: dbCancelErr } = await supabase
+          .from('appointments')
+          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .eq('id', apptId);
+        
+        if (dbCancelErr) {
+          console.error(`❌ Error al marcar cita ${apptId} como cancelada:`, dbCancelErr);
+        } else {
+          console.log(`✅ Cita ${apptId} marcada como cancelada en la base de datos`);
+        }
+      } catch (dbErr) {
+        console.error(`❌ Error al procesar cancelación de cita:`, dbErr);
       }
     }
 
