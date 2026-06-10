@@ -2549,7 +2549,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Helper to check if a tab is locked for the current tenant
   // Uses server-provided allowedTabs (which reflect admin's plan permission matrix)
   const isTabLocked = React.useCallback((tab: string) => {
-    if (tab === 'billing') return false;
+    if (tab === 'billing' || tab === 'conversations' || tab === 'orders') return false;
     if (tab === 'admin' && tenantData?.isAdmin) return false;
 
     // Checks custom overrides first
