@@ -5587,45 +5587,55 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <span className="material-symbols-outlined text-slate-400">close</span>
               </button>
             </div>
-            {/* Drawer Navigation Items */}
+            {/* Drawer Navigation Items — synced with desktop sidebar */}
             <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
               {[
                 { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
-                { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'Users / CRM' },
-                { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
-                { key: 'calendar', icon: 'calendar_month', labelEs: 'Calendario', labelEn: 'Calendar' },
-                { key: 'chatbot', icon: 'psychology', labelEs: 'Chatbot IA', labelEn: 'AI Chatbot' },
-                { key: 'automations', icon: 'auto_awesome', labelEs: 'Automatizaciones', labelEn: 'Automations' },
-                { key: 'ads', icon: 'campaign', labelEs: 'Anuncios', labelEn: 'Ads' },
-                { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-                { key: 'billing', icon: 'payments', labelEs: 'Facturación', labelEn: 'Billing' },
-                { key: 'analytics', icon: 'monitoring', labelEs: 'Analíticas', labelEn: 'Analytics' },
-                { key: 'templates', icon: 'dashboard_customize', labelEs: 'Plantillas', labelEn: 'Templates' },
-              ].map(item => (
-                <button
-                  key={item.key}
-                  onClick={() => { setActiveTab(item.key as any); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${
-                    activeTab === item.key
-                      ? 'bg-primary-container/10 text-primary-container font-bold'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className={`material-symbols-outlined text-xl ${activeTab === item.key ? 'text-primary-container' : 'text-slate-400'}`} style={{ fontVariationSettings: activeTab === item.key ? "'FILL' 1" : "'FILL' 0" }}>
-                    {item.icon}
-                  </span>
-                  {language === 'en' ? item.labelEn : item.labelEs}
-                </button>
-              ))}
+                { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
+                { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
+                { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+                { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
+                { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
+                { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
+                { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
+                { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+                { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
+                ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
+              ].map(item => {
+                const isActive = activeTab === item.key;
+                const locked = isTabLocked(item.key);
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => { safeSetActiveTab(item.key as any); setIsMobileMenuOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${
+                      isActive
+                        ? (locked ? 'bg-red-50 text-red-600 font-bold' : 'bg-primary-container/10 text-primary-container font-bold')
+                        : (locked ? 'text-red-400 hover:bg-red-50/30' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50')
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-xl ${isActive ? (locked ? 'text-red-600' : 'text-primary-container') : (locked ? 'text-red-400' : 'text-slate-400')}`} style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
+                      {item.icon}
+                    </span>
+                    {language === 'en' ? item.labelEn : item.labelEs}
+                    {locked && (
+                      <span className="ml-auto text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                        {language === 'en' ? 'Locked' : 'Bloqueado'}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            {/* Drawer Footer */}
-            <div className="border-t border-slate-100 px-4 py-3 space-y-1">
+            {/* Drawer Footer — Logout */}
+            <div className="border-t border-slate-100 px-4 py-3">
               <button
-                onClick={() => { setActiveTab('settings' as any); setIsMobileMenuOpen(false); }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-all text-left"
+                onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-all text-left"
               >
-                <span className="material-symbols-outlined text-xl text-slate-400">settings</span>
-                {language === 'en' ? 'Settings' : 'Configuración'}
+                <span className="material-symbols-outlined text-xl">logout</span>
+                {language === 'en' ? 'Logout' : 'Cerrar Sesión'}
               </button>
             </div>
           </nav>
