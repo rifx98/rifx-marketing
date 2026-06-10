@@ -575,10 +575,10 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
 
 
     // Determine which provider & model to use
-    const selectedModel = extConfig.model_selection || 'gpt-4o';
-    const isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
-    const isGemini = selectedModel.startsWith('gemini');
-    const isOpenAI = !isGroq && !isGemini;
+    let selectedModel = extConfig.model_selection || 'gpt-4o';
+    let isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
+    let isGemini = selectedModel.startsWith('gemini');
+    let isOpenAI = !isGroq && !isGemini;
 
     // Resolve API key based on provider
     let apiKey = '';
@@ -594,10 +594,32 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
       aiPrompt += `\n\n[INSTRUCCIÓN ESPECIAL]: El cliente ha insistido múltiples veces en hablar con un humano. Responde de forma profesional diciendo que respetas su preferencia y que un asesor especializado de RIFX se pondrá en contacto con él en breve. Pide disculpas por las molestias y agradece su paciencia. Sé breve y cálido.`;
     }
 
+    // SMART FALLBACK: If the selected model has no API key, try other providers
     if (!apiKey || apiKey.length < 10) {
-      console.error(`❌ No hay API Key configurada para el proveedor (modelo: ${selectedModel})`);
-      await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config);
-      return NextResponse.json({ error: 'No AI key configured' }, { status: 500 });
+      console.warn(`⚠️ No hay API Key para el modelo seleccionado (${selectedModel}). Buscando fallback...`);
+      const fallbackOptions = [
+        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'llama-3.3-70b-versatile', name: 'Groq' },
+        { key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini', name: 'OpenAI' },
+        { key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash', name: 'Gemini' },
+      ];
+      let foundFallback = false;
+      for (const fb of fallbackOptions) {
+        if (fb.key && fb.key.length >= 10) {
+          console.log(`🔄 Fallback de API Key → usando ${fb.name} (${fb.model})`);
+          apiKey = fb.key;
+          selectedModel = fb.model;
+          isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
+          isGemini = selectedModel.startsWith('gemini');
+          isOpenAI = !isGroq && !isGemini;
+          foundFallback = true;
+          break;
+        }
+      }
+      if (!foundFallback) {
+        console.error(`❌ No hay API Key configurada para NINGÚN proveedor de IA`);
+        await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config);
+        return NextResponse.json({ error: 'No AI key configured' }, { status: 500 });
+      }
     }
 
     // 5. Enviar al proveedor de IA seleccionado
