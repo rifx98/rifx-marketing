@@ -728,17 +728,51 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
     if (!skipAiCall) {
       try {
         if (isGemini) {
-          // Google Gemini via REST API
-          const geminiMessages = chatMessages.map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.role === 'system' ? `[System Instructions]: ${m.content}` : m.content }],
-          }));
+          // Google Gemini via REST API — use systemInstruction for system prompt
+          const systemMsg = chatMessages.find(m => m.role === 'system');
+          const nonSystemMsgs = chatMessages.filter(m => m.role !== 'system');
+          
+          // Gemini requires alternating user/model turns. Merge consecutive same-role messages.
+          const geminiContents: { role: string; parts: { text: string }[] }[] = [];
+          for (const m of nonSystemMsgs) {
+            const gemRole = m.role === 'assistant' ? 'model' : 'user';
+            const last = geminiContents[geminiContents.length - 1];
+            if (last && last.role === gemRole) {
+              // Merge consecutive same-role messages
+              last.parts[0].text += '\n' + m.content;
+            } else {
+              geminiContents.push({ role: gemRole, parts: [{ text: m.content }] });
+            }
+          }
+          // Gemini requires the first message to be from 'user'
+          if (geminiContents.length > 0 && geminiContents[0].role !== 'user') {
+            geminiContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
+          }
+          
+          const geminiPayload: any = {
+            contents: geminiContents,
+            generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+          };
+          // Use systemInstruction for system prompt (supported by Gemini 1.5+ and 2.0)
+          if (systemMsg) {
+            geminiPayload.systemInstruction = { parts: [{ text: systemMsg.content }] };
+          }
+          
           const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: geminiMessages, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+            body: JSON.stringify(geminiPayload),
           });
           const gemData = await gemRes.json();
+          
+          // Log full error if present
+          if (gemData?.error) {
+            console.error(`❌ Gemini API Error:`, JSON.stringify(gemData.error));
+          }
+          if (gemData?.promptFeedback?.blockReason) {
+            console.error(`❌ Gemini blocked prompt:`, gemData.promptFeedback.blockReason);
+          }
+          
           aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
         } else {
           // OpenAI / Groq (both use OpenAI SDK)
@@ -791,16 +825,27 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
             try {
               console.log(`🔄 Fallback → ${fb.name} (${fb.model})...`);
               if (fb.name === 'Gemini') {
-                const gemMsgs = chatMessages.map(m => ({
-                  role: m.role === 'assistant' ? 'model' : 'user',
-                  parts: [{ text: m.role === 'system' ? `[System]: ${m.content}` : m.content }],
-                }));
+                const fbSystemMsg = chatMessages.find(m => m.role === 'system');
+                const fbNonSystem = chatMessages.filter(m => m.role !== 'system');
+                const fbGemContents: { role: string; parts: { text: string }[] }[] = [];
+                for (const m of fbNonSystem) {
+                  const r = m.role === 'assistant' ? 'model' : 'user';
+                  const last = fbGemContents[fbGemContents.length - 1];
+                  if (last && last.role === r) { last.parts[0].text += '\n' + m.content; }
+                  else { fbGemContents.push({ role: r, parts: [{ text: m.content }] }); }
+                }
+                if (fbGemContents.length > 0 && fbGemContents[0].role !== 'user') {
+                  fbGemContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
+                }
+                const fbPayload: any = { contents: fbGemContents, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } };
+                if (fbSystemMsg) { fbPayload.systemInstruction = { parts: [{ text: fbSystemMsg.content }] }; }
                 const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fb.model}:generateContent?key=${fb.key}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ contents: gemMsgs, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+                  body: JSON.stringify(fbPayload),
                 });
                 const gemData = await gemRes.json();
+                if (gemData?.error) console.error(`❌ Fallback Gemini Error:`, JSON.stringify(gemData.error));
                 aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
               } else {
                 const fbClient = new OpenAI({ apiKey: fb.key, baseURL: fb.baseURL });
@@ -968,14 +1013,24 @@ Transportadora: *${orderResult.carrier}*`;
         try {
           let slotsResponse = '';
           if (isGemini) {
-            const gemMsgs = followUpMessages.map(m => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: m.role === 'system' ? `[System]: ${m.content}` : m.content }],
-            }));
+            const fuSysMsg = followUpMessages.find(m => m.role === 'system');
+            const fuNonSys = followUpMessages.filter(m => m.role !== 'system');
+            const fuContents: { role: string; parts: { text: string }[] }[] = [];
+            for (const m of fuNonSys) {
+              const r = m.role === 'assistant' ? 'model' : 'user';
+              const last = fuContents[fuContents.length - 1];
+              if (last && last.role === r) { last.parts[0].text += '\n' + m.content; }
+              else { fuContents.push({ role: r, parts: [{ text: m.content }] }); }
+            }
+            if (fuContents.length > 0 && fuContents[0].role !== 'user') {
+              fuContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
+            }
+            const fuPayload: any = { contents: fuContents, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } };
+            if (fuSysMsg) { fuPayload.systemInstruction = { parts: [{ text: fuSysMsg.content }] }; }
             const gemRes2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contents: gemMsgs, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+              body: JSON.stringify(fuPayload),
             });
             const gemData2 = await gemRes2.json();
             slotsResponse = gemData2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
