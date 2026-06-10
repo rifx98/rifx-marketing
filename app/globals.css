@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   THEME DESIGN TOKENS (Panel Only)
+   These CSS custom properties power the theme system.
+   Values are overridden at runtime by ThemeProvider.
+   ============================================ */
+:root {
+  --theme-primary: #1E40AF;
+  --theme-secondary: #3B82F6;
+  --theme-accent: #2563EB;
+  --theme-link: #1D4ED8;
+  --theme-card-bg: #FFFFFF;
+  --theme-sidebar-bg: #0F172A;
+  --theme-bg: #F8FAFC;
+  --theme-text: #1E293B;
+  --theme-text-secondary: #64748B;
+  --theme-border: #E2E8F0;
+  --theme-hover: #EFF6FF;
+  --theme-success: #16A34A;
+  --theme-warning: #D97706;
+  --theme-danger: #DC2626;
+  --theme-font: 'Inter', sans-serif;
+  --theme-radius: 8px;
+  --theme-radius-lg: 12px;
+  --theme-radius-sm: 4px;
+}
+
 @layer base {
   body {
     font-family: 'Montserrat', sans-serif;
@@ -209,4 +235,674 @@
   .safe-area-bottom {
     padding-bottom: max(0px, env(safe-area-inset-bottom));
   }
+
+  /* Hide scrollbar but keep scrollability */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Hide sidebar scrollbar globally (panel) */
+.panel-root aside.fixed {
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.panel-root aside.fixed::-webkit-scrollbar {
+  display: none;
+}
+
+/* ================================================================
+   THEME OVERRIDE LAYER — Panel Only
+   
+   Scoped to .panel-root[data-theme-active="true"] so it NEVER
+   affects public pages, login, landing, or any non-panel route.
+   
+   Strategy: Override Tailwind utility classes to consume
+   --theme-* CSS custom properties set by ThemeProvider.
+   
+   DOES NOT OVERRIDE:
+   - Status badges (success, warning, error, info)
+   - Analytics/chart colors
+   - Campaign semantic colors
+   - Online/offline indicators
+   - System alerts
+   ================================================================ */
+
+/* ── Global Panel Overrides ── */
+.panel-root[data-theme-active="true"] {
+  font-family: var(--theme-font, 'Inter', sans-serif);
+}
+
+/* ── BACKGROUNDS ── */
+
+/* Main surface / page background */
+.panel-root[data-theme-active="true"].bg-crm-surface {
+  background-color: var(--theme-bg) !important;
+}
+
+/* Cards and containers — override bg-white but NOT status badges, small pills, or color-coded elements */
+.panel-root[data-theme-active="true"] .bg-white:not([class*="bg-green"]):not([class*="bg-red"]):not([class*="bg-yellow"]):not([class*="bg-emerald"]):not([class*="bg-amber"]):not([class*="bg-rose"]):not([class*="rounded-full"]) {
+  background-color: var(--theme-card-bg) !important;
+}
+
+/* Surface / subtle backgrounds */
+.panel-root[data-theme-active="true"] .bg-slate-50:not([class*="rounded-full"]) {
+  background-color: var(--theme-bg) !important;
+}
+
+.panel-root[data-theme-active="true"] .bg-slate-100 {
+  background-color: var(--theme-hover) !important;
+}
+
+.panel-root[data-theme-active="true"] .bg-crm-surface-container-low,
+.panel-root[data-theme-active="true"] .bg-\[\#f3f4f5\],
+.panel-root[data-theme-active="true"] .bg-\[\#f8fafc\] {
+  background-color: var(--theme-bg) !important;
+}
+
+.panel-root[data-theme-active="true"] .bg-slate-200 {
+  background-color: var(--theme-border) !important;
+}
+
+/* Hover highlight backgrounds */
+.panel-root[data-theme-active="true"] .bg-\[\#eff4ff\] {
+  background-color: var(--theme-hover) !important;
+}
+
+/* Sidebar */
+.panel-root[data-theme-active="true"] aside.fixed {
+  background-color: var(--theme-sidebar-bg) !important;
+  border-color: var(--theme-border) !important;
+}
+
+/* Header / Top bar */
+.panel-root[data-theme-active="true"] header.fixed {
+  background-color: var(--theme-bg) !important;
+  border-color: var(--theme-border) !important;
+}
+
+
+/* ── PRIMARY / ACCENT COLORS ── */
+
+.panel-root[data-theme-active="true"] .bg-primary-container {
+  background-color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .bg-\[\#000080\] {
+  background-color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .text-\[\#000080\],
+.panel-root[data-theme-active="true"] .text-primary-container {
+  color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .text-primary {
+  color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .ring-primary-container {
+  --tw-ring-color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .accent-primary-container {
+  accent-color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .border-primary-container {
+  border-color: var(--theme-primary) !important;
+}
+
+
+/* ── TEXT COLORS ── */
+
+/* Primary text */
+.panel-root[data-theme-active="true"].text-on-surface {
+  color: var(--theme-text) !important;
+}
+.panel-root[data-theme-active="true"] .text-on-surface {
+  color: var(--theme-text) !important;
+}
+
+.panel-root[data-theme-active="true"] .text-on-surface-variant {
+  color: var(--theme-text-secondary) !important;
+}
+
+.panel-root[data-theme-active="true"] .text-slate-800,
+.panel-root[data-theme-active="true"] .text-slate-700 {
+  color: var(--theme-text) !important;
+}
+
+.panel-root[data-theme-active="true"] .text-black:not([class*="rounded-full"]) {
+  color: var(--theme-text) !important;
+}
+
+/* Secondary text */
+.panel-root[data-theme-active="true"] .text-slate-600,
+.panel-root[data-theme-active="true"] .text-slate-500 {
+  color: var(--theme-text-secondary) !important;
+}
+
+/* Tertiary / muted text */
+.panel-root[data-theme-active="true"] .text-slate-400 {
+  color: color-mix(in srgb, var(--theme-text-secondary) 70%, transparent) !important;
+}
+
+.panel-root[data-theme-active="true"] .text-slate-300 {
+  color: color-mix(in srgb, var(--theme-text-secondary) 50%, transparent) !important;
+}
+
+
+/* ── BORDERS ── */
+
+.panel-root[data-theme-active="true"] .border-slate-200,
+.panel-root[data-theme-active="true"] .border-slate-100 {
+  border-color: var(--theme-border) !important;
+}
+
+.panel-root[data-theme-active="true"] .border-slate-300 {
+  border-color: var(--theme-border) !important;
+}
+
+.panel-root[data-theme-active="true"] .divide-slate-100 > * + *,
+.panel-root[data-theme-active="true"] .divide-slate-200 > * + * {
+  border-color: var(--theme-border) !important;
+}
+
+
+/* ── HOVER STATES ── */
+
+.panel-root[data-theme-active="true"] .hover\:bg-slate-50:hover,
+.panel-root[data-theme-active="true"] .hover\:bg-slate-100:hover {
+  background-color: var(--theme-hover) !important;
+}
+
+.panel-root[data-theme-active="true"] .hover\:bg-\[\#eff4ff\]:hover {
+  background-color: var(--theme-hover) !important;
+}
+
+.panel-root[data-theme-active="true"] .hover\:text-\[\#000080\]:hover,
+.panel-root[data-theme-active="true"] .hover\:text-primary-container:hover {
+  color: var(--theme-primary) !important;
+}
+
+.panel-root[data-theme-active="true"] .hover\:bg-primary-container:hover {
+  background-color: var(--theme-primary) !important;
+}
+
+
+/* ── INPUTS, SELECTS, TEXTAREAS ── */
+
+.panel-root[data-theme-active="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.panel-root[data-theme-active="true"] select,
+.panel-root[data-theme-active="true"] textarea {
+  background-color: var(--theme-card-bg) !important;
+  color: var(--theme-text) !important;
+  border-color: var(--theme-border) !important;
+}
+
+.panel-root[data-theme-active="true"] input::placeholder,
+.panel-root[data-theme-active="true"] textarea::placeholder {
+  color: var(--theme-text-secondary) !important;
+  opacity: 0.6;
+}
+
+.panel-root[data-theme-active="true"] input:focus,
+.panel-root[data-theme-active="true"] select:focus,
+.panel-root[data-theme-active="true"] textarea:focus {
+  border-color: var(--theme-primary) !important;
+  --tw-ring-color: var(--theme-primary) !important;
+}
+
+
+/* ── BORDER RADIUS ── */
+
+.panel-root[data-theme-active="true"] .rounded-xl {
+  border-radius: var(--theme-radius-lg) !important;
+}
+
+.panel-root[data-theme-active="true"] .rounded-lg {
+  border-radius: var(--theme-radius) !important;
+}
+
+.panel-root[data-theme-active="true"] .rounded-md {
+  border-radius: var(--theme-radius-sm) !important;
+}
+
+
+/* ── FOCUS RINGS ── */
+
+.panel-root[data-theme-active="true"] .focus\:ring-primary-container\/20:focus,
+.panel-root[data-theme-active="true"] .focus\:ring-primary-container\/30:focus {
+  --tw-ring-color: var(--theme-primary) !important;
+  --tw-ring-opacity: 0.25;
+}
+
+
+/* ── SCROLLBAR STYLING ── */
+
+.panel-root[data-theme-active="true"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.panel-root[data-theme-active="true"] ::-webkit-scrollbar-track {
+  background: var(--theme-bg);
+}
+
+.panel-root[data-theme-active="true"] ::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+  border-radius: 3px;
+}
+
+.panel-root[data-theme-active="true"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-text-secondary);
+}
+
+
+/* ── DARK MODE SPECIFIC OVERRIDES ── */
+
+/* In dark mode, ensure text-white stays white (don't override) */
+.panel-root[data-theme-active="true"][data-theme-mode="dark"] .text-white {
+  color: #ffffff !important;
+}
+
+/* Shadows become more subtle in dark mode */
+.panel-root[data-theme-active="true"][data-theme-mode="dark"] .shadow-md,
+.panel-root[data-theme-active="true"][data-theme-mode="dark"] .shadow-lg,
+.panel-root[data-theme-active="true"][data-theme-mode="dark"] .shadow-xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Sidebar active button in dark mode */
+.panel-root[data-theme-active="true"][data-theme-mode="dark"] aside.fixed button.bg-white {
+  background-color: color-mix(in srgb, var(--theme-primary) 20%, var(--theme-card-bg)) !important;
+  color: var(--theme-primary) !important;
+}
+
+/* Notification bell and similar elements — keep red tint */
+.panel-root[data-theme-active="true"][data-theme-mode="dark"] .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+
+/* ── LIGHT MODE — keep text-white on primary buttons ── */
+
+.panel-root[data-theme-active="true"][data-theme-mode="light"] .bg-primary-container .text-white,
+.panel-root[data-theme-active="true"][data-theme-mode="light"] .bg-\[\#000080\] .text-white,
+.panel-root[data-theme-active="true"][data-theme-mode="light"] button.bg-primary-container {
+  color: #ffffff !important;
+}
+
+
+/* ================================================================
+   PROFESSIONAL SAAS DESIGN SYSTEM
+   
+   Scoped to .panel-root — applies ALWAYS (theme or no theme).
+   Eliminates AI-generated visual patterns and enforces a clean,
+   premium SaaS aesthetic inspired by Stripe, Linear, and Vercel.
+   ================================================================ */
+
+/* ────────────────────────────────────────────
+   1. SHADOWS — Subtle, Stripe-style
+   ──────────────────────────────────────────── */
+
+.panel-root .shadow-sm {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.panel-root .shadow-md {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.panel-root .shadow-lg {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+.panel-root .shadow-xl {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+}
+
+.panel-root .shadow-2xl {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Kill colored glow shadows (shadow-[color]/opacity) */
+.panel-root [class*="shadow-\[#"],
+.panel-root [class*="shadow-primary"],
+.panel-root [class*="shadow-red-"],
+.panel-root [class*="shadow-amber-"],
+.panel-root [class*="shadow-blue-"],
+.panel-root [class*="shadow-green-"] {
+  --tw-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+  --tw-shadow-colored: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+
+/* ────────────────────────────────────────────
+   2. BORDER RADIUS — Uniform & Professional
+   ──────────────────────────────────────────── */
+
+.panel-root .rounded-3xl {
+  border-radius: 12px !important;
+}
+
+.panel-root .rounded-2xl {
+  border-radius: 10px !important;
+}
+
+.panel-root .rounded-xl {
+  border-radius: 8px !important;
+}
+
+.panel-root .rounded-lg {
+  border-radius: 6px !important;
+}
+
+/* Keep rounded-full for avatars, badges, pills */
+/* Keep rounded-md and rounded as-is */
+
+
+/* ────────────────────────────────────────────
+   3. TYPOGRAPHY — Controlled Hierarchy
+   ──────────────────────────────────────────── */
+
+/* Scale down oversized headings */
+.panel-root .text-5xl {
+  font-size: 2.25rem !important;  /* 36px (was 48px) */
+  line-height: 2.5rem !important;
+}
+
+.panel-root .text-4xl {
+  font-size: 1.875rem !important;  /* 30px (was 36px) */
+  line-height: 2.25rem !important;
+}
+
+/* Normalize font weights — bold not black */
+.panel-root .font-black {
+  font-weight: 700 !important; /* was 900 */
+}
+
+.panel-root .font-extrabold {
+  font-weight: 700 !important; /* was 800 */
+}
+
+
+/* ────────────────────────────────────────────
+   4. ANIMATIONS — Remove AI-ish Patterns
+   ──────────────────────────────────────────── */
+
+/* Kill pulsing animations (loading states get a simple opacity) */
+.panel-root .animate-pulse {
+  animation: panel-subtle-pulse 2s ease-in-out infinite !important;
+}
+
+@keyframes panel-subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Remove bouncing */
+.panel-root .animate-bounce {
+  animation: none !important;
+}
+
+/* Tone down scale transforms on hover — keep subtle */
+.panel-root .hover\:scale-\[1\.02\]:hover {
+  transform: scale(1.01) !important;
+}
+
+.panel-root .hover\:scale-105:hover {
+  transform: scale(1.01) !important;
+}
+
+.panel-root .active\:scale-\[0\.98\]:active {
+  transform: scale(0.99) !important;
+}
+
+.panel-root .active\:scale-95:active {
+  transform: scale(0.99) !important;
+}
+
+
+/* ────────────────────────────────────────────
+   5. HERO — Elegant 2-Tone Gradient
+   ──────────────────────────────────────────── */
+
+/* Override 3-color hero gradient to a premium 2-tone */
+.panel-root .bg-gradient-to-br.from-indigo-600 {
+  background: linear-gradient(
+    135deg,
+    var(--theme-primary, #1E40AF),
+    color-mix(in srgb, var(--theme-primary, #1E40AF) 75%, black)
+  ) !important;
+}
+
+/* Plan bar gradient — single tone, subtle */
+.panel-root .bg-gradient-to-r.from-primary-container {
+  background: linear-gradient(
+    90deg,
+    var(--theme-primary, #1E40AF),
+    color-mix(in srgb, var(--theme-primary, #1E40AF) 85%, black)
+  ) !important;
+}
+
+
+/* ────────────────────────────────────────────
+   6. BUTTONS — Clean, Uniform Height
+   ──────────────────────────────────────────── */
+
+/* Standard button height */
+.panel-root button:not(.h-6):not(.h-7):not(.h-8):not(.w-8):not(.w-6):not(.w-7):not([class*="rounded-full"]):not([class*="p-0"]):not([class*="p-1"]):not([class*="py-0"]):not([class*="py-1"]) {
+  min-height: 36px;
+}
+
+/* Remove colored button shadows */
+.panel-root button[class*="shadow-\["],
+.panel-root button[class*="shadow-primary"],
+.panel-root button[class*="shadow-amber"] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Buttons with gradients — simplify to single tone */
+.panel-root button.bg-gradient-to-r {
+  background: var(--theme-primary, #1E40AF) !important;
+}
+
+.panel-root button.bg-gradient-to-r:hover {
+  filter: brightness(0.92);
+}
+
+/* Ghost/secondary buttons — no background, just border */
+.panel-root button.bg-white.border {
+  box-shadow: none !important;
+}
+
+
+/* ────────────────────────────────────────────
+   7. CARDS — Clean & Minimal
+   ──────────────────────────────────────────── */
+
+/* All cards: consistent subtle border + micro shadow */
+.panel-root .bg-white.rounded-2xl,
+.panel-root .bg-white.rounded-xl,
+.panel-root .bg-white.rounded-lg {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Remove backdrop-blur from non-essential elements (hero plan card) */
+.panel-root .backdrop-blur-sm {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Keep backdrop-blur for dropdowns and modals only */
+.panel-root .backdrop-blur {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+
+/* ────────────────────────────────────────────
+   8. INPUTS — Modern SaaS Style
+   ──────────────────────────────────────────── */
+
+.panel-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+.panel-root select,
+.panel-root textarea {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  border-width: 1px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.panel-root input:focus:not([type="checkbox"]):not([type="radio"]),
+.panel-root select:focus,
+.panel-root textarea:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-primary, #1E40AF) 15%, transparent) !important;
+  outline: none !important;
+}
+
+
+/* ────────────────────────────────────────────
+   9. TABLES — Professional Row Styling
+   ──────────────────────────────────────────── */
+
+.panel-root table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.panel-root table thead th {
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  color: var(--theme-text-secondary, #64748B) !important;
+  border-bottom: 1px solid var(--theme-border, #E2E8F0) !important;
+  padding: 12px 16px !important;
+}
+
+.panel-root table tbody tr {
+  transition: background-color 0.1s ease !important;
+}
+
+.panel-root table tbody tr:hover {
+  background-color: var(--theme-hover, #F8FAFC) !important;
+}
+
+.panel-root table tbody td {
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-border, #E2E8F0) 60%, transparent) !important;
+  padding: 12px 16px !important;
+  font-size: 0.875rem !important;
+}
+
+
+/* ────────────────────────────────────────────
+   10. SPACING — Consistent SaaS Grid
+   ──────────────────────────────────────────── */
+
+/* Normalize card internal padding */
+.panel-root .bg-white.rounded-2xl > .p-8,
+.panel-root .bg-white.rounded-xl > .p-8 {
+  padding: 24px !important;
+}
+
+.panel-root .bg-white.rounded-2xl > .p-6,
+.panel-root .bg-white.rounded-xl > .p-6,
+.panel-root .bg-white.rounded-lg > .p-6 {
+  padding: 20px !important;
+}
+
+/* Section gaps */
+.panel-root .space-y-8 > * + * {
+  margin-top: 32px !important;
+}
+
+.panel-root .space-y-6 > * + * {
+  margin-top: 24px !important;
+}
+
+
+/* ────────────────────────────────────────────
+   11. MODALS — Clean Presentation
+   ──────────────────────────────────────────── */
+
+/* Modal containers */
+.panel-root .fixed.inset-0[class*="bg-black"] {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* Modal content cards */
+.panel-root .fixed .bg-white.rounded-3xl,
+.panel-root .fixed .bg-white.rounded-2xl {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Modal header gradients — flatten to solid */
+.panel-root .fixed .bg-gradient-to-r.from-primary {
+  background: var(--theme-primary, #1E40AF) !important;
+}
+
+
+/* ────────────────────────────────────────────
+   12. SIDEBAR — Refined
+   ──────────────────────────────────────────── */
+
+/* Remove sidebar heavy shadow */
+.panel-root aside.fixed {
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Sidebar icon buttons — consistent sizing */
+.panel-root aside.fixed button {
+  border-radius: 8px !important;
+  transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+
+
+/* ────────────────────────────────────────────
+   13. TOOLTIPS — Refined
+   ──────────────────────────────────────────── */
+
+.panel-root [class*="tooltip"],
+.panel-root .fixed.left-24[class*="rounded-lg"] {
+  border-radius: 6px !important;
+  font-size: 0.75rem !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+
+/* ────────────────────────────────────────────
+   14. BADGES — Preserve But Refine
+   ──────────────────────────────────────────── */
+
+/* Status badges: keep colors but normalize radius */
+.panel-root span[class*="rounded-full"][class*="px-"] {
+  font-size: 0.6875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+}
+
+
+/* ────────────────────────────────────────────
+   15. TRANSITIONS — Professional Feel
+   ──────────────────────────────────────────── */
+
+/* Consistent transition curve for interactive elements */
+.panel-root button,
+.panel-root a,
+.panel-root input,
+.panel-root select,
+.panel-root textarea {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
 }

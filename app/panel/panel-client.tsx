@@ -30,6 +30,8 @@ import {
 import Link from 'next/link';
 import Script from 'next/script';
 import { CREATIVE_TEMPLATES, CreativeTemplate } from './templates';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import ThemeSettings from './theme-settings';
 
 // OmniPublish V1 Imports
 import VideoUploader from '@/components/social/VideoUploader';
@@ -487,7 +489,9 @@ const TABS_TO_MANAGE = [
   { key: 'campaigns', label: 'Pautas Publicitarias' },
   { key: 'banners', label: 'Crear Pancartas' },
   { key: 'segments', label: 'Segmentos' },
-  { key: 'analytics', label: 'Análisis' }
+  { key: 'analytics', label: 'Análisis' },
+  { key: 'social', label: 'OmniPublish' },
+  { key: 'appointments', label: 'Citas y Reservas' }
 ];
 
 const PLANS = ['trial', 'start', 'plus', 'master'];
@@ -688,6 +692,49 @@ export default function PanelClient() {
         if (cfg.botHumanHandoff !== undefined) setBotHumanHandoff(cfg.botHumanHandoff);
         if (cfg.botProfanityFilter !== undefined) setBotProfanityFilter(cfg.botProfanityFilter);
         if (cfg.botTopicLocks !== undefined) setBotTopicLocks(cfg.botTopicLocks);
+      }
+    } catch {}
+  }, []);
+
+  // Load and apply theme from localStorage on panel startup
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('rifx_theme_config');
+      if (stored) {
+        const themeConfig = JSON.parse(stored);
+        const root = document.documentElement;
+        const c = themeConfig.colors;
+        if (c) {
+          root.style.setProperty('--theme-primary', c.primary || '');
+          root.style.setProperty('--theme-secondary', c.secondary || '');
+          root.style.setProperty('--theme-accent', c.accent || '');
+          root.style.setProperty('--theme-link', c.link || '');
+          root.style.setProperty('--theme-card-bg', c.cardBg || '');
+          root.style.setProperty('--theme-sidebar-bg', themeConfig.dynamicSidebar !== false ? (c.sidebarBg || '') : '#0F172A');
+          root.style.setProperty('--theme-bg', c.bg || '');
+          root.style.setProperty('--theme-text', c.text || '');
+          root.style.setProperty('--theme-text-secondary', c.textSecondary || '');
+          root.style.setProperty('--theme-border', c.border || '');
+          root.style.setProperty('--theme-hover', c.hover || '');
+          root.style.setProperty('--theme-success', c.success || '');
+          root.style.setProperty('--theme-warning', c.warning || '');
+          root.style.setProperty('--theme-danger', c.danger || '');
+        }
+        const fontMap: Record<string, string> = { 'Inter': "'Inter', sans-serif", 'Poppins': "'Poppins', sans-serif", 'Montserrat': "'Montserrat', sans-serif" };
+        if (themeConfig.font && fontMap[themeConfig.font]) root.style.setProperty('--theme-font', fontMap[themeConfig.font]);
+        const radiusMap: Record<string, string> = { 'square': '0px', 'semi': '8px', 'rounded': '16px' };
+        if (themeConfig.borderRadius && radiusMap[themeConfig.borderRadius]) root.style.setProperty('--theme-radius', radiusMap[themeConfig.borderRadius]);
+        // Activate CSS override layer on .panel-root (deferred until DOM is ready)
+        requestAnimationFrame(() => {
+          const panelRoot = document.querySelector('.panel-root');
+          if (panelRoot) {
+            panelRoot.setAttribute('data-theme-active', 'true');
+            const mode = themeConfig.mode === 'auto'
+              ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+              : (themeConfig.mode || 'light');
+            panelRoot.setAttribute('data-theme-mode', mode);
+          }
+        });
       }
     } catch {}
   }, []);
@@ -1293,7 +1340,7 @@ export default function PanelClient() {
   const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);
   const [isCancellingPlan, setIsCancellingPlan] = useState(false);
   const [isReactivatingPlan, setIsReactivatingPlan] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper'>('profile');
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
 
   // API Setup Assistant State
   const [apiHelperFlow, setApiHelperFlow] = useState<'idle' | 'whatsapp' | 'meta'>('idle');
@@ -2523,8 +2570,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const planPermissions: Record<string, string[]> = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments"]
     };
 
     const currentPlanKey = tenantData?.plan || 'trial';
@@ -2549,6 +2596,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       case 'segments':
       case 'analytics':
       case 'social':
+      case 'appointments':
         return { key: 'plus', name: 'Chatea Pro Plus' };
       case 'campaigns':
         return { key: 'master', name: 'Chatea Pro Master' };
@@ -5418,8 +5466,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   }
 
   return (
+    <ThemeProvider authFetch={authFetch}>
     <>
-    <div className={`min-h-screen ${language === 'es' ? 'lang-es' : 'lang-en'} bg-crm-surface text-on-surface overflow-x-hidden font-inter`}>
+    <div className={`panel-root min-h-screen ${language === 'es' ? 'lang-es' : 'lang-en'} bg-crm-surface text-on-surface overflow-x-hidden font-inter`}>
       {/* SideNavBar */}
       <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-slate-200/50 bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>
         <div className="flex justify-center px-2 mb-2 select-none">
@@ -6860,6 +6909,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },
                   { key: 'security',      icon: 'lock',             label: language === 'en' ? 'Security' : 'Seguridad' },
                   { key: 'dropi',         icon: 'local_shipping',   label: 'Dropi Dropshipping' },
+                  { key: 'appearance',    icon: 'palette',          label: language === 'en' ? 'Appearance' : 'Apariencia' },
                 ].map(item => (
                   <button
                     key={item.key}
@@ -8004,6 +8054,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </div>
                   </div>
                 )}
+
+                {/* ════ APPEARANCE / THEME ════ */}
+                {settingsSection === 'appearance' && (
+                    <ThemeSettings
+                      language={language}
+                      onToast={(msg, type) => setToast({ message: msg, type })}
+                    />
+                )}
+
 
               </div>{/* end right content */}
             </div>{/* end two-column */}
@@ -15443,6 +15502,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     )}
 
     </>
+    </ThemeProvider>
   );
 }
 
