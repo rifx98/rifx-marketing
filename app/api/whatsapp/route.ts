@@ -768,9 +768,16 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
           // Log full error if present
           if (gemData?.error) {
             console.error(`❌ Gemini API Error:`, JSON.stringify(gemData.error));
+            // Throw as exception to trigger fallback chain
+            const gemError: any = new Error(`Gemini API Error: ${gemData.error.message || gemData.error.code}`);
+            gemError.status = gemData.error.code;
+            throw gemError;
           }
           if (gemData?.promptFeedback?.blockReason) {
             console.error(`❌ Gemini blocked prompt:`, gemData.promptFeedback.blockReason);
+            const blockError: any = new Error(`Gemini blocked: ${gemData.promptFeedback.blockReason}`);
+            blockError.status = 400;
+            throw blockError;
           }
           
           aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -799,11 +806,12 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
         console.error(`❌ Error de IA (${selectedModel}):`, aiError?.message || aiError);
         console.error('❌ Detalles:', JSON.stringify(aiError?.error || aiError?.response?.data || 'sin detalles'));
 
-        // FALLBACK: If primary AI fails (rate limit, etc.), try alternative providers
-        const isRateLimit = aiError?.status === 429 || aiError?.message?.includes('429') || aiError?.message?.includes('rate limit') || aiError?.message?.includes('Rate limit');
+        // FALLBACK: If primary AI fails (rate limit, quota, blocked, etc.), try alternative providers
+        const isRateLimit = aiError?.status === 429 || aiError?.message?.includes('429') || aiError?.message?.includes('rate limit') || aiError?.message?.includes('Rate limit') || aiError?.message?.includes('RESOURCE_EXHAUSTED') || aiError?.message?.includes('quota');
         const isServerError = aiError?.status >= 500 || aiError?.message?.includes('500') || aiError?.message?.includes('503');
+        const isGeminiError = aiError?.message?.includes('Gemini') || aiError?.message?.includes('blocked');
 
-        if (isRateLimit || isServerError) {
+        if (isRateLimit || isServerError || isGeminiError) {
           console.log(`🔄 Intentando fallback de IA (error ${isRateLimit ? 'rate limit' : 'servidor'})...`);
 
           // Build fallback chain: try each provider that has a key
