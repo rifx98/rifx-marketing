@@ -461,7 +461,7 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
 
         aiPrompt = aiPrompt.replace(
           /Después de explicar un beneficio, da un Call To Action \(CTA\) directivo: "Para aterrizar esto a tu negocio, elige un horario aquí 👇: \[PON TU LINK DE REUNIÓN AQUÍ\]" o "Si estás listo para empezar, el pago se hace aquí 💳: \[PON TU LINK DE PAGO AQUÍ\]"\./gi,
-          `Después de explicar un beneficio, da un Call To Action (CTA) directivo para agendar una cita o llamada, preguntándole qué día y hora le conviene para verificar disponibilidad en el calendario.`
+          `Después de explicar un beneficio y responder todas las dudas del cliente, si el cliente muestra interés puedes sugerirle amablemente agendar una llamada para profundizar — pero NUNCA saltes a ofrecer horarios si el cliente está haciendo preguntas sobre el servicio. Primero responde sus preguntas.`
         );
 
         // Sanitizar cualquier otro enlace estático del prompt base que conflictuaría con el calendario dinámico
@@ -492,21 +492,27 @@ El cliente actual es:
 - Nombre: ${customerName || 'Cliente'}
 - Teléfono: ${customerPhone}
 
-Cuando un cliente quiera agendar una cita, reunión o consulta:
+REGLA DE ORO DEL AGENDAMIENTO (CRÍTICO — LEE ESTO PRIMERO):
+NO ofrezcas horarios ni inicies el flujo de agendamiento a menos que el cliente EXPLÍCITAMENTE lo pida usando palabras de intención de agendar como: "agendar", "reunión", "cita", "llamada", "videollamada", "agenda", "quiero una cita", "podemos hablar", "cuándo nos reunimos", "agéndame", "quiero agendar", "me gustaría una reunión", "podemos tener una llamada", o cuando el cliente proponga un día/hora ESPECÍFICO para reunirse (ej. "el jueves a las 4").
+Si el cliente está haciendo PREGUNTAS sobre el servicio (ej. "¿cómo funciona?", "¿qué incluye?", "¿cómo me ayudan?", "¿qué resultados puedo esperar?"), RESPONDE SUS PREGUNTAS con información útil y detallada. NO saltes a ofrecer horarios. Sé un asesor de ventas experto primero — aporta valor, resuelve dudas, genera confianza. Solo cuando el cliente ya esté convencido o pida explícitamente agendar, ahí sí inicia el flujo de agendamiento.
+
+Flujo de agendamiento (SOLO cuando el cliente lo solicite):
 1. Pregúntale qué día y hora le conviene. Los horarios de atención son de Lunes a Viernes, de 9:00 AM a 6:00 PM.
-2. Cuando el cliente proponga una fecha, usa el siguiente tag para verificar disponibilidad:
+2. Cuando el cliente proponga una fecha (sin hora específica), usa el siguiente tag para verificar disponibilidad:
    [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
    El sistema te devolverá los horarios disponibles para ese día.
 3. Muéstrale al cliente las opciones de horario disponibles.
-4. Cuando el cliente confirme un horario específico (ej. "el viernes a las 10:00 AM" o "mañana a las 4:00 PM"), debes usar este tag exacto para crear la cita (reemplazando los datos de fecha y hora según lo acordado):
+4. Cuando el cliente confirme un horario específico (ej. "a las 4", "10 AM", "las 3 de la tarde", "4:00 PM"), debes usar INMEDIATAMENTE este tag exacto para crear la cita — NO vuelvas a usar [VERIFICAR_DISPONIBILIDAD]:
    [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:YYYY-MM-DD:HH:MM:Asesoría de RIFX]
    Ejemplo: [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:2026-06-12:10:00:Asesoría de RIFX]
-   NUNCA confirmes la cita tú mismo en tu propia respuesta sin poner este tag. El sistema procesará el agendamiento en Google Calendar al ver el tag y te dará la confirmación automáticamente.
+   Usa la fecha de la que ya estaban hablando. NUNCA confirmes la cita tú mismo en tu propia respuesta sin poner este tag. El sistema procesará el agendamiento en Google Calendar al ver el tag y te dará la confirmación automáticamente.
 5. Si el cliente pregunta por disponibilidad sin dar una fecha concreta, sugiérele los próximos días hábiles.
+
+REGLA ANTI-CICLO (CRÍTICO): Si ya le mostraste horarios disponibles al cliente y él responde eligiendo uno (ej. "a las 4", "la de las 10", "2 PM", "4:00 PM"), DEBES usar [AGENDAR_CITA] directamente con la fecha y hora correspondiente. JAMÁS vuelvas a usar [VERIFICAR_DISPONIBILIDAD] para la misma fecha después de haber mostrado los slots — hacerlo crea un ciclo infinito. Si el usuario ya indicó día Y hora en un mismo mensaje (ej. "el jueves a las 4"), después de verificar disponibilidad agenda directamente si ese horario está disponible.
 
 IMPORTANTE:
 - Solo usa estos tags cuando el cliente EXPLÍCITAMENTE quiera agendar una cita.
-- No inventes fechas ni horarios. Siempre consulta primero con [VERIFICAR_DISPONIBILIDAD].
+- No inventes fechas ni horarios. Consulta primero con [VERIFICAR_DISPONIBILIDAD] solo UNA VEZ por fecha.
 - Las citas duran 1 hora por defecto.
 - NUNCA envíes un enlace de reunión estático. Siempre usa los tags [VERIFICAR_DISPONIBILIDAD] y [AGENDAR_CITA] para gestionar citas de forma dinámica.
 - Para calcular fechas relativas (ej. "mañana", "el jueves", "este viernes"), básate en que hoy es ${todayName} ${todayStr}. Por ejemplo, si hoy es Lunes 2026-06-08, "este viernes" es 2026-06-12. Calcula siempre la fecha exacta en formato YYYY-MM-DD.`;
@@ -628,46 +634,116 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
       }),
     ];
 
-    let aiResponse: string;
-    try {
-      if (isGemini) {
-        // Google Gemini via REST API
-        const geminiMessages = chatMessages.map(m => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.role === 'system' ? `[System Instructions]: ${m.content}` : m.content }],
-        }));
-        const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: geminiMessages, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
-        });
-        const gemData = await gemRes.json();
-        aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      } else {
-        // OpenAI / Groq (both use OpenAI SDK)
-        const client = new OpenAI({
-          apiKey,
-          baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
-        });
-        const completion = await client.chat.completions.create({
-          model: selectedModel,
-          messages: chatMessages,
-          max_tokens: 500,
-          temperature: 0.7,
-        });
-        aiResponse = completion.choices[0]?.message?.content || '';
-      }
+    let aiResponse: string = '';
+    let skipAiCall = false;
 
-      console.log(`✅ IA respondió (${selectedModel}): ${(aiResponse || '').substring(0, 80)}...`);
+    // 4.95 CODE-LEVEL INTERCEPTION: If the last assistant message presented time slots
+    // and the user is now selecting a time, skip the AI and directly book the appointment.
+    // This is a deterministic fix to prevent the AI from re-checking availability in a loop.
+    if (isCalendarConnected && tenantId) {
+      const lastAssistantMsg = [...history].reverse().find((m: { role: string; content: string }) => m.role === 'assistant');
+      if (lastAssistantMsg) {
+        // Check if the last assistant message was presenting time slots
+        const timeSlotCount = (lastAssistantMsg.content.match(/\d{1,2}:\d{2}\s*(AM|PM|am|pm|a\.m\.|p\.m\.)/g) || []).length;
+        const mentionsSlots = /horarios?\s*(disponibles?|para)/i.test(lastAssistantMsg.content) ||
+                              /te\s+gustar[ií]a\s+reunir/i.test(lastAssistantMsg.content) ||
+                              /cu[aá]l\s+de\s+estos/i.test(lastAssistantMsg.content) ||
+                              /cu[aá]l\s+(?:te\s+)?(?:conviene|prefier)/i.test(lastAssistantMsg.content);
 
-      if (!aiResponse) {
-        console.error(`⚠️ ${selectedModel} devolvió respuesta vacía`);
-        aiResponse = 'Disculpa, estoy procesando mucha información. ¿Podrías repetir tu pregunta? 🙏';
+        if (timeSlotCount >= 3 && mentionsSlots) {
+          // The last message was showing slots. Try to extract time from user's current message.
+          const userMsg = customerMessage.toLowerCase().trim();
+          const timeMatch = userMsg.match(/(?:a\s+)?(?:las?\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:de\s+la\s+)?\s*(am|pm|a\.?m\.?|p\.?m\.?|mañana|tarde|noche)?/i);
+
+          if (timeMatch) {
+            let selHour = parseInt(timeMatch[1]);
+            const selMin = timeMatch[2] || '00';
+            const selPeriod = (timeMatch[3] || '').toLowerCase().replace(/\./g, '');
+
+            // Convert to 24h format
+            if ((selPeriod === 'pm' || selPeriod === 'tarde' || selPeriod === 'noche') && selHour < 12) selHour += 12;
+            else if (selPeriod === 'am' && selHour === 12) selHour = 0;
+            else if (!selPeriod && selHour >= 1 && selHour <= 6) selHour += 12; // Assume PM for business hours
+
+            const selTime24 = `${String(selHour).padStart(2, '0')}:${selMin}`;
+
+            // Extract the date from the last assistant message
+            let bookingDate = '';
+            // Try ISO format first (2026-06-12)
+            const isoMatch = lastAssistantMsg.content.match(/(\d{4}-\d{2}-\d{2})/);
+            if (isoMatch) {
+              bookingDate = isoMatch[1];
+            } else {
+              // Try Spanish date format ("jueves 12 de junio" or "12 de junio")
+              const spanishDateMatch = lastAssistantMsg.content.match(/(?:\w+\s+)?(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i);
+              if (spanishDateMatch) {
+                const monthMap: Record<string, string> = {
+                  'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+                  'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+                  'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+                };
+                const day = spanishDateMatch[1].padStart(2, '0');
+                const month = monthMap[spanishDateMatch[2].toLowerCase()] || '01';
+                const year = new Date().getFullYear();
+                bookingDate = `${year}-${month}-${day}`;
+              }
+            }
+
+            if (bookingDate) {
+              // Format for display
+              const dispHour = selHour > 12 ? selHour - 12 : (selHour === 0 ? 12 : selHour);
+              const dispPeriod = selHour >= 12 ? 'PM' : 'AM';
+
+              aiResponse = `¡Perfecto! Voy a agendar tu reunión para el *${bookingDate}* a las *${dispHour}:${selMin} ${dispPeriod}*. 😊\n\n[AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:${bookingDate}:${selTime24}:Asesoría de RIFX]`;
+              skipAiCall = true;
+              console.log(`📅 [INTERCEPCIÓN DIRECTA] Usuario seleccionó ${selTime24} de slots presentados → agendando directamente para ${bookingDate}`);
+            }
+          }
+        }
       }
-    } catch (aiError: any) {
-      console.error(`❌ Error de IA (${selectedModel}):`, aiError?.message || aiError);
-      console.error('❌ Detalles:', JSON.stringify(aiError?.error || aiError?.response?.data || 'sin detalles'));
-      aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
+    }
+
+    if (!skipAiCall) {
+      try {
+        if (isGemini) {
+          // Google Gemini via REST API
+          const geminiMessages = chatMessages.map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.role === 'system' ? `[System Instructions]: ${m.content}` : m.content }],
+          }));
+          const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: geminiMessages, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+          });
+          const gemData = await gemRes.json();
+          aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        } else {
+          // OpenAI / Groq (both use OpenAI SDK)
+          const client = new OpenAI({
+            apiKey,
+            baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
+          });
+          const completion = await client.chat.completions.create({
+            model: selectedModel,
+            messages: chatMessages,
+            max_tokens: 500,
+            temperature: 0.7,
+          });
+          aiResponse = completion.choices[0]?.message?.content || '';
+        }
+
+        console.log(`✅ IA respondió (${selectedModel}): ${(aiResponse || '').substring(0, 80)}...`);
+
+        if (!aiResponse) {
+          console.error(`⚠️ ${selectedModel} devolvió respuesta vacía`);
+          aiResponse = 'Disculpa, estoy procesando mucha información. ¿Podrías repetir tu pregunta? 🙏';
+        }
+      } catch (aiError: any) {
+        console.error(`❌ Error de IA (${selectedModel}):`, aiError?.message || aiError);
+        console.error('❌ Detalles:', JSON.stringify(aiError?.error || aiError?.response?.data || 'sin detalles'));
+        aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
+      }
     }
 
     // 6. Detectar si la IA quiere generar un pago
@@ -788,10 +864,28 @@ Transportadora: *${orderResult.carrier}*`;
       } else {
         // Re-call AI with the availability data so it presents the options naturally
         const slotsText = available.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
+        // Extract the user's originally requested time (if any) from their message
+        const timePatterns = /(?:a las?|las?)\s*(\d{1,2})(?::(\d{2}))?\s*(?:de la)?\s*(am|pm|a\.?m\.?|p\.?m\.?|mañana|tarde|noche)?/i;
+        const userTimeMatch = customerMessage.match(timePatterns);
+        let userRequestedTimeHint = '';
+        if (userTimeMatch) {
+          const hour = parseInt(userTimeMatch[1]);
+          const period = (userTimeMatch[3] || '').toLowerCase().replace(/\./g, '');
+          let hour24 = hour;
+          if ((period === 'pm' || period === 'tarde' || period === 'noche') && hour < 12) hour24 = hour + 12;
+          if (period === 'am' && hour === 12) hour24 = 0;
+          const timeStr24 = `${String(hour24).padStart(2, '0')}:${userTimeMatch[2] || '00'}`;
+          // Check if this time is in the available slots
+          const matchingSlot = available.find(s => s.label.includes(String(hour)) || s.start?.includes(timeStr24));
+          if (matchingSlot) {
+            userRequestedTimeHint = `\n\nMUY IMPORTANTE: El cliente YA pidió las ${hour}:${userTimeMatch[2] || '00'} ${period || ''} en su mensaje. Ese horario ESTÁ disponible. NO le preguntes cuál prefiere. Usa directamente el tag [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:${requestedDate}:${timeStr24}:Asesoría de RIFX] para agendar la cita de inmediato y confirma al cliente.`;
+          }
+        }
+
         const followUpMessages = [
           ...chatMessages,
           { role: 'assistant' as const, content: aiResponse || 'Déjame revisar la disponibilidad...' },
-          { role: 'user' as const, content: `[SISTEMA: Horarios disponibles para ${requestedDate}]:\n${slotsText}\n\nPresenta estos horarios al cliente de forma amigable y pregunta cuál prefiere. No menciones que consultaste un sistema.` }
+          { role: 'user' as const, content: `[SISTEMA: Horarios disponibles para ${requestedDate}]:\n${slotsText}\n\n${userRequestedTimeHint ? userRequestedTimeHint : `Presenta estos horarios al cliente de forma amigable y pregunta cuál prefiere.`} No menciones que consultaste un sistema.` }
         ];
 
         try {
