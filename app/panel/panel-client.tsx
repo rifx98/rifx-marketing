@@ -808,7 +808,7 @@ export default function PanelClient() {
     } catch (e) { console.error('Error deleting KB file:', e); }
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments' | 'conversations' | 'orders'>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
 
   // Appointments states
@@ -2569,9 +2569,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     // Fallback to hardcoded defaults only if allowedTabs not yet loaded from server
     const planPermissions: Record<string, string[]> = {
       trial: ["dashboard", "settings", "billing"],
-      start: ["dashboard", "crm", "settings", "billing", "playground"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments"]
+      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"]
     };
 
     const currentPlanKey = tenantData?.plan || 'trial';
@@ -2591,6 +2591,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     switch (tab) {
       case 'crm':
       case 'playground':
+      case 'conversations':
+      case 'orders':
         return { key: 'start', name: 'Chatea Pro Start' };
       case 'banners':
       case 'segments':
@@ -5484,6 +5486,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           {[
             { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
             { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
+            { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+            { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
             { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -5592,6 +5596,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               {[
                 { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
                 { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
+                { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+                { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
                 { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                 { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -14610,6 +14616,165 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </div>
         </div>
       )}
+
+        {/* ═══════════════════ CONVERSATIONS TAB ═══════════════════ */}
+        {activeTab === 'conversations' && (
+          <>
+            <section className="mb-8">
+              <span className="text-primary-container font-extrabold tracking-[0.2em] text-[10px] uppercase mb-2 block">WhatsApp</span>
+              <h1 className="text-4xl font-extrabold text-primary tracking-tight mb-3">{language === 'en' ? 'Conversations' : 'Conversaciones'}</h1>
+              <p className="text-base text-slate-500 font-light">{language === 'en' ? 'View and manage all your WhatsApp conversations in one place.' : 'Visualiza y gestiona todas tus conversaciones de WhatsApp en un solo lugar.'}</p>
+            </section>
+
+            {/* Conversations List */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                  <input
+                    type="text"
+                    placeholder={language === 'en' ? 'Search conversations...' : 'Buscar conversaciones...'}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-primary-container/20 focus:border-primary-container/30 transition-all text-black"
+                    value={chatSearch}
+                    onChange={(e) => setChatSearch(e.target.value)}
+                  />
+                </div>
+                <span className="text-xs text-slate-400 font-bold">{allContacts.length} {language === 'en' ? 'total' : 'total'}</span>
+              </div>
+              <div className="divide-y divide-slate-50 max-h-[70vh] overflow-y-auto">
+                {allContacts
+                  .filter((c: any) => {
+                    if (!chatSearch) return true;
+                    const q = chatSearch.toLowerCase();
+                    return (c.customer_name || '').toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
+                  })
+                  .map((conv: any) => (
+                  <div
+                    key={conv.id}
+                    onClick={() => {
+                      setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at});
+                      setShowChartModal(true);
+                    }}
+                    className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 cursor-pointer transition-colors"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-base shrink-0">
+                      {(conv.customer_name || 'U').substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-sm text-slate-800 truncate">{conv.customer_name || 'Usuario'}</p>
+                        <span className="text-[10px] text-slate-400 shrink-0 ml-2">
+                          {conv.updated_at ? new Date(conv.updated_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="text-xs text-slate-400 truncate">{conv.phone_number}</p>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                          conv.status === 'chatting' ? 'bg-blue-50 text-blue-600' :
+                          conv.status === 'interested' ? 'bg-amber-50 text-amber-600' :
+                          'bg-emerald-50 text-emerald-600'
+                        }`}>
+                          {conv.status === 'chatting' ? (language === 'en' ? 'Active' : 'Activo') :
+                           conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') :
+                           (language === 'en' ? 'Bought' : 'Compró')}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-slate-300 text-lg shrink-0">chevron_right</span>
+                  </div>
+                ))}
+                {allContacts.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <span className="material-symbols-outlined text-5xl mb-3">forum</span>
+                    <p className="font-semibold text-sm">{language === 'en' ? 'No conversations yet' : 'Sin conversaciones aún'}</p>
+                    <p className="text-xs mt-1">{language === 'en' ? 'Conversations will appear here when your contacts start chatting.' : 'Las conversaciones aparecerán aquí cuando tus contactos comiencen a chatear.'}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ═══════════════════ ORDERS TAB ═══════════════════ */}
+        {activeTab === 'orders' && (
+          <>
+            <section className="mb-8 flex justify-between items-end flex-wrap gap-4">
+              <div>
+                <span className="text-primary-container font-extrabold tracking-[0.2em] text-[10px] uppercase mb-2 block">Dropi</span>
+                <h1 className="text-4xl font-extrabold text-primary tracking-tight mb-3">{language === 'en' ? 'Orders' : 'Pedidos'}</h1>
+                <p className="text-base text-slate-500 font-light">{language === 'en' ? 'Manage and export your Dropi orders.' : 'Gestiona y exporta tus pedidos de Dropi.'}</p>
+              </div>
+              <button
+                disabled={isExportingDropi}
+                onClick={async () => {
+                  setIsExportingDropi(true);
+                  try {
+                    const res = await authFetch('/api/panel/orders/export');
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}));
+                      setToast({ message: err.error || 'Error al exportar órdenes', type: 'error' });
+                      return;
+                    }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `dropi_orders_${new Date().toISOString().slice(0,10)}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setToast({ message: language === 'en' ? 'Orders exported successfully' : 'Pedidos exportados exitosamente', type: 'success' });
+                  } catch (e) {
+                    setToast({ message: 'Error al exportar', type: 'error' });
+                  } finally {
+                    setIsExportingDropi(false);
+                  }
+                }}
+                className="px-5 py-2.5 rounded-xl bg-primary-container text-white font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {isExportingDropi ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-lg">file_download</span>
+                )}
+                {language === 'en' ? 'Export CSV' : 'Exportar CSV'}
+              </button>
+            </section>
+
+            {/* Orders Info */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              {!configData.dropi_enabled ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <span className="material-symbols-outlined text-5xl mb-3">shopping_cart</span>
+                  <p className="font-semibold text-sm mb-2">{language === 'en' ? 'Dropi is not enabled' : 'Dropi no está habilitado'}</p>
+                  <p className="text-xs text-center max-w-sm">{language === 'en' ? 'Enable Dropi integration in Settings → AI Bot → Dropi to start receiving orders.' : 'Habilita la integración con Dropi en Configuraciones → Bot IA → Dropi para comenzar a recibir pedidos.'}</p>
+                  <button
+                    onClick={() => setActiveTab('settings')}
+                    className="mt-4 px-5 py-2.5 rounded-xl bg-primary-container text-white font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-lg">settings</span>
+                    {language === 'en' ? 'Go to Settings' : 'Ir a Configuraciones'}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <span className="material-symbols-outlined text-5xl mb-3 text-emerald-400">check_circle</span>
+                  <p className="font-semibold text-sm text-emerald-600 mb-2">{language === 'en' ? 'Dropi is enabled' : 'Dropi está habilitado'}</p>
+                  <p className="text-xs text-center max-w-sm text-slate-500">{language === 'en' ? 'Orders generated by the AI chatbot through Dropi will be automatically processed. Use the Export button above to download your orders as CSV.' : 'Los pedidos generados por el chatbot IA a través de Dropi se procesan automáticamente. Usa el botón Exportar arriba para descargar tus pedidos en CSV.'}</p>
+                  <div className="mt-6 grid grid-cols-2 gap-4 w-full max-w-sm">
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                      <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_price || 0}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{language === 'en' ? 'Default Price' : 'Precio Base'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                      <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_product_id ? '✓' : '—'}</p>
+                      <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{language === 'en' ? 'Product ID' : 'ID Producto'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
           </>
         )}
