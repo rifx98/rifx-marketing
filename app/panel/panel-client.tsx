@@ -3057,6 +3057,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [contactScores, setContactScores] = useState<Record<string, {score: number, reason: string}>>({});
   const [isLoadingScores, setIsLoadingScores] = useState(false);
   
+  // Mobile navigation
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Chat modal states
   const [chatSearch, setChatSearch] = useState('');
   const [chatSearchIdx, setChatSearchIdx] = useState(-1);
@@ -5565,9 +5568,81 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         </div>
       )}
 
+      {/* ═══ MOBILE DRAWER ═══ */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[60] md:hidden mobile-drawer-overlay">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />
+          {/* Drawer Panel */}
+          <nav className="fixed left-0 top-0 h-screen w-72 bg-white shadow-2xl z-[61] flex flex-col mobile-drawer-panel" style={{paddingTop: 'env(safe-area-inset-top, 0px)'}}>
+            {/* Drawer Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary-container flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white text-lg">rocket_launch</span>
+                </div>
+                <span className="text-sm font-bold text-slate-800">RIFX Panel</span>
+              </div>
+              <button onClick={() => setIsMobileMenuOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">
+                <span className="material-symbols-outlined text-slate-400">close</span>
+              </button>
+            </div>
+            {/* Drawer Navigation Items */}
+            <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
+              {[
+                { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
+                { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'Users / CRM' },
+                { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+                { key: 'calendar', icon: 'calendar_month', labelEs: 'Calendario', labelEn: 'Calendar' },
+                { key: 'chatbot', icon: 'psychology', labelEs: 'Chatbot IA', labelEn: 'AI Chatbot' },
+                { key: 'automations', icon: 'auto_awesome', labelEs: 'Automatizaciones', labelEn: 'Automations' },
+                { key: 'ads', icon: 'campaign', labelEs: 'Anuncios', labelEn: 'Ads' },
+                { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+                { key: 'billing', icon: 'payments', labelEs: 'Facturación', labelEn: 'Billing' },
+                { key: 'analytics', icon: 'monitoring', labelEs: 'Analíticas', labelEn: 'Analytics' },
+                { key: 'templates', icon: 'dashboard_customize', labelEs: 'Plantillas', labelEn: 'Templates' },
+              ].map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => { setActiveTab(item.key as any); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${
+                    activeTab === item.key
+                      ? 'bg-primary-container/10 text-primary-container font-bold'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`material-symbols-outlined text-xl ${activeTab === item.key ? 'text-primary-container' : 'text-slate-400'}`} style={{ fontVariationSettings: activeTab === item.key ? "'FILL' 1" : "'FILL' 0" }}>
+                    {item.icon}
+                  </span>
+                  {language === 'en' ? item.labelEn : item.labelEs}
+                </button>
+              ))}
+            </div>
+            {/* Drawer Footer */}
+            <div className="border-t border-slate-100 px-4 py-3 space-y-1">
+              <button
+                onClick={() => { setActiveTab('settings' as any); setIsMobileMenuOpen(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-all text-left"
+              >
+                <span className="material-symbols-outlined text-xl text-slate-400">settings</span>
+                {language === 'en' ? 'Settings' : 'Configuración'}
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
+
       {/* TopAppBar */}
       <header className={`fixed top-0 right-0 ${activeTab === 'settings' ? 'left-0' : 'left-20'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>
         <div className="flex items-center gap-4 flex-1">
+          {/* Mobile hamburger menu */}
+          <button
+            className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-slate-100 transition-colors -ml-2"
+            onClick={() => setIsMobileMenuOpen(true)}
+            aria-label="Open menu"
+          >
+            <span className="material-symbols-outlined text-slate-600">menu</span>
+          </button>
 
           <div className="relative w-full max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
@@ -6624,7 +6699,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         const lastDate = conv.updated_at || conv.created_at;
                         return (
                           <tr key={conv.id} onClick={() => setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at})} className={`hover:bg-surface-bright transition-colors group cursor-pointer ${idx % 2 !== 0 ? 'bg-crm-surface-container-low/10' : ''}`}>
-                            <td className="px-6 py-5">
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Contact' : 'Contacto'}>
                               <div className="flex items-center gap-3">
                                 <div className="relative">
                                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
@@ -6638,12 +6713,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-5">
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Status' : 'Estado'}>
                               <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-[#eef2ff] text-[#000080]' : conv.status === 'interested' ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#ecfdf5] text-[#047857]'}`}>
                                 {conv.status === 'chatting' ? (language === 'en' ? 'Chatting' : 'Chateando') : conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') : (language === 'en' ? 'Bought' : 'Compró')}
                               </span>
                             </td>
-                            <td className="px-6 py-5">
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Last Engagement' : 'Última Interacción'}>
                               <p className="text-xs text-on-surface font-medium mb-1 truncate max-w-[180px]">
                                 {isActive 
                                   ? (language === 'es' ? ' Conversando ahora' : ' Chatting now')
@@ -6653,7 +6728,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 {lastDate ? new Date(lastDate).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '\u2014'}
                               </p>
                             </td>
-                            <td className="px-6 py-5">
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'AI Score' : 'Puntaje IA'}>
                               {aiScore !== null ? (
                                 <div className="flex items-center gap-2" title={scoreReason}>
                                   <div className={`text-xs font-extrabold ${aiScore >= 75 ? 'text-emerald-600' : aiScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{aiScore}%</div>
@@ -6669,7 +6744,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               )}
                               {scoreReason && <p className="text-[9px] text-slate-400 mt-0.5 truncate max-w-[120px]">{scoreReason}</p>}
                             </td>
-                            <td className="px-6 py-5 text-right">
+                            <td className="px-6 py-5 text-right" data-label={language === 'en' ? 'Actions' : 'Acciones'}>
                               <button className="p-2 text-slate-300 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at}); setShowChartModal(true); }}>
                                 <span className="material-symbols-outlined">chat_bubble</span>
                               </button>
@@ -6713,10 +6788,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               </div>
 
               {/* Detail Sidebar (Selected User) */}
-              <aside className="w-96 sticky top-24">
+              <aside className={`w-96 sticky top-24 ${selectedChat ? 'mobile-detail-active' : ''}`}>
                 <div className="bg-crm-surface-container-low rounded-2xl shadow-sm flex flex-col relative overflow-hidden">
                   {selectedChat ? (
                     <>
+                      {/* Mobile back button */}
+                      <button
+                        onClick={() => setSelectedChat(null)}
+                        className="lg:hidden flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors border-b border-slate-100"
+                      >
+                        <span className="material-symbols-outlined text-lg">arrow_back</span>
+                        {language === 'en' ? 'Back to contacts' : 'Volver a contactos'}
+                      </button>
                       {/* Header Banner with Gradient */}
                       <div className="relative h-20 bg-gradient-to-br from-primary-container via-primary to-primary-container/80 overflow-hidden">
                         <div className="absolute inset-0 opacity-10">

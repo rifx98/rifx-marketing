@@ -906,3 +906,628 @@
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 0.15s;
 }
+
+
+/* ================================================================
+   MOBILE-FIRST RESPONSIVE SYSTEM
+   
+   Scoped to .panel-root — transforms the desktop SaaS panel into
+   a professional mobile experience without modifying JSX structure.
+   Breakpoint: 767px (below md:)
+   ================================================================ */
+
+
+/* ────────────────────────────────────────────
+   M1. CORE LAYOUT — Sidebar, Header, Main
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Hide the desktop sidebar on mobile */
+  .panel-root > aside.fixed {
+    transform: translateX(-100%) !important;
+    width: 80px !important;
+  }
+
+  /* Main content: remove left margin + reduce padding */
+  .panel-root > main {
+    margin-left: 0 !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: 72px !important;
+    padding-bottom: 24px !important;
+  }
+
+  /* Header: stretch full width */
+  .panel-root > header.fixed {
+    left: 0 !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    height: 56px !important;
+  }
+
+  /* Header search bar — smaller on mobile */
+  .panel-root > header.fixed .max-w-md {
+    max-width: 140px !important;
+  }
+  .panel-root > header.fixed input {
+    font-size: 14px !important;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .panel-root > main {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M2. MOBILE DRAWER — Slide-in animation
+   ──────────────────────────────────────────── */
+
+@keyframes mobile-drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes mobile-drawer-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-drawer-overlay {
+  animation: mobile-drawer-fade-in 0.2s ease-out;
+}
+
+.mobile-drawer-panel {
+  animation: mobile-drawer-slide-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+/* ────────────────────────────────────────────
+   M3. TOUCH TARGETS — Buttons, Inputs
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* All buttons: minimum touch target */
+  .panel-root button {
+    min-height: 44px !important;
+  }
+
+  /* Small icon-only buttons: exempt from tall height but keep touch area */
+  .panel-root button.rounded-full[class*="w-8"],
+  .panel-root button.rounded-full[class*="w-6"],
+  .panel-root button.rounded-full[class*="w-7"],
+  .panel-root button[class*="p-1"],
+  .panel-root button[class*="p-0.5"] {
+    min-height: 36px !important;
+    min-width: 36px !important;
+  }
+
+  /* Inputs: prevent iPhone zoom + comfortable height */
+  .panel-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .panel-root select,
+  .panel-root textarea {
+    font-size: 16px !important;
+    min-height: 48px !important;
+  }
+
+  .panel-root textarea {
+    min-height: 80px !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M4. TYPOGRAPHY — Responsive Scale
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .panel-root .text-5xl {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+
+  .panel-root .text-4xl {
+    font-size: 1.25rem !important;
+    line-height: 1.75rem !important;
+  }
+
+  .panel-root .text-3xl {
+    font-size: 1.125rem !important;
+    line-height: 1.5rem !important;
+  }
+
+  .panel-root .text-2xl {
+    font-size: 1rem !important;
+    line-height: 1.375rem !important;
+  }
+}
+
+/* Tablet typography */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .panel-root .text-5xl {
+    font-size: 2rem !important;
+    line-height: 2.25rem !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M5. TABLES → STACKED CARDS (Mobile)
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Hide table header */
+  .panel-root table thead {
+    display: none !important;
+  }
+
+  /* Each row becomes a card */
+  .panel-root table tbody tr {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 16px !important;
+    border-bottom: 1px solid var(--theme-border, #E2E8F0) !important;
+    gap: 8px !important;
+    background: transparent !important;
+  }
+
+  .panel-root table tbody tr:hover {
+    background-color: var(--theme-hover, rgba(0,0,0,0.02)) !important;
+  }
+
+  /* Each cell shows its label */
+  .panel-root table tbody td {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 4px 0 !important;
+    border-bottom: none !important;
+    font-size: 0.875rem !important;
+  }
+
+  .panel-root table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600 !important;
+    font-size: 0.6875rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.04em !important;
+    color: var(--theme-text-secondary, #64748B) !important;
+    flex-shrink: 0 !important;
+    margin-right: 12px !important;
+  }
+
+  /* Full-width table */
+  .panel-root table {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .panel-root table tbody {
+    display: block !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M6. MODALS → BOTTOM SHEETS
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Modal backdrop */
+  .panel-root .fixed.inset-0[class*="bg-black"],
+  .panel-root .fixed.inset-0[class*="bg-\["] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  /* Modal content → bottom sheet */
+  .panel-root .fixed.inset-0 > .bg-white,
+  .panel-root .fixed.inset-0 > div > .bg-white {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 90vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Bottom sheet drag indicator */
+  .panel-root .fixed.inset-0 > .bg-white::before,
+  .panel-root .fixed.inset-0 > div > .bg-white::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--theme-border, #CBD5E1);
+    margin: 8px auto 4px;
+    flex-shrink: 0;
+  }
+
+  /* Modal internal padding */
+  .panel-root .fixed.inset-0 .p-12 {
+    padding: 16px !important;
+  }
+
+  .panel-root .fixed.inset-0 .p-8 {
+    padding: 16px !important;
+  }
+
+  .panel-root .fixed.inset-0 .p-6 {
+    padding: 12px !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M7. SPACING — Responsive Overrides
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .panel-root .px-10 {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .panel-root .px-8 {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .panel-root .p-12 {
+    padding: 16px !important;
+  }
+
+  .panel-root .p-8 {
+    padding: 16px !important;
+  }
+
+  .panel-root .gap-8 {
+    gap: 16px !important;
+  }
+
+  .panel-root .gap-6 {
+    gap: 12px !important;
+  }
+
+  .panel-root .space-y-8 > * + * {
+    margin-top: 16px !important;
+  }
+
+  .panel-root .space-y-6 > * + * {
+    margin-top: 12px !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M8. DASHBOARD GRID — Responsive
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Hero + right section: full width stacked */
+  .panel-root .col-span-12.lg\:col-span-3 {
+    grid-column: span 12 !important;
+  }
+
+  .panel-root .col-span-12.lg\:col-span-9 {
+    grid-column: span 12 !important;
+  }
+
+  /* Expert team grid: 2 columns on mobile */
+  .panel-root .grid.grid-cols-1.md\:grid-cols-2.xl\:grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* CRM stats: 2 columns */
+  .panel-root .grid.grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* CRM main + insights: stack */
+  .panel-root .col-span-12.lg\:col-span-8 {
+    grid-column: span 12 !important;
+  }
+
+  .panel-root .col-span-12.lg\:col-span-4 {
+    grid-column: span 12 !important;
+  }
+
+  /* CRM grid-cols-3 stats → stack */
+  .panel-root .col-span-12.lg\:col-span-8.grid.grid-cols-3 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Chat/Bot sections: full width */
+  .panel-root .col-span-12.lg\:col-span-7,
+  .panel-root .col-span-12.lg\:col-span-5 {
+    grid-column: span 12 !important;
+  }
+
+  .panel-root .col-span-12.lg\:col-span-6 {
+    grid-column: span 12 !important;
+  }
+
+  /* Actualizaciones + Capacitaciones: stack */
+  .panel-root .grid.grid-cols-1.md\:grid-cols-2.gap-6 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Tablet: 2 columns where possible */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .panel-root .col-span-12.lg\:col-span-3 {
+    grid-column: span 12 !important;
+  }
+
+  .panel-root .col-span-12.lg\:col-span-9 {
+    grid-column: span 12 !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M9. CRM DETAIL SIDEBAR → FULLSCREEN
+   ──────────────────────────────────────────── */
+
+@media (max-width: 1023px) {
+  /* Hide CRM detail sidebar by default on tablet/mobile */
+  .panel-root aside.w-96 {
+    display: none !important;
+  }
+
+  /* When a contact is selected, show as fullscreen overlay */
+  .panel-root aside.w-96.mobile-detail-active {
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: var(--theme-bg, #ffffff) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex-direction: column !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M10. SETTINGS — Two Column → Stacked
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Settings container: stack vertically */
+  .panel-root .flex.gap-8.items-start {
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  /* Settings left nav → horizontal scrollable tabs */
+  .panel-root aside.w-56 {
+    width: 100% !important;
+    position: static !important;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 4px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid var(--theme-border, #E2E8F0) !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Settings nav buttons → horizontal pill tabs */
+  .panel-root aside.w-56 button {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    padding: 8px 14px !important;
+    font-size: 0.75rem !important;
+    border-radius: 20px !important;
+  }
+
+  /* Settings save button section → fixed bottom bar */
+  .panel-root aside.w-56 .pt-4.border-t {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    padding: 12px 16px !important;
+    background: var(--theme-bg, #ffffff) !important;
+    border-top: 1px solid var(--theme-border, #E2E8F0) !important;
+    z-index: 50 !important;
+    display: flex !important;
+    gap: 8px !important;
+    margin-top: 0 !important;
+  }
+
+  .panel-root aside.w-56 .pt-4.border-t button {
+    flex: 1 !important;
+  }
+
+  /* Settings content area: full width */
+  .panel-root .flex.gap-8.items-start > div:last-child,
+  .panel-root .flex.gap-8.items-start > section:last-child {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Settings content padding for fixed save bar */
+  .panel-root .flex.gap-8.items-start {
+    padding-bottom: 80px !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M11. TOOLTIPS — Hidden on Mobile
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Desktop sidebar tooltips */
+  .panel-root .fixed.left-24 {
+    display: none !important;
+  }
+
+  /* Hover tooltips/dropdowns */
+  .panel-root .group-hover\:opacity-100 {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M12. STICKY → STATIC on Mobile
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .panel-root .sticky.top-8,
+  .panel-root .sticky.top-24 {
+    position: static !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M13. NOTIFICATION DROPDOWN — Responsive
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .panel-root .absolute.top-full.right-0.w-64 {
+    position: fixed !important;
+    top: 56px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M14. SAFE AREAS — iPhone Notch/Home Bar
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .panel-root {
+    padding-bottom: env(safe-area-inset-bottom) !important;
+  }
+
+  .panel-root > header.fixed {
+    padding-top: env(safe-area-inset-top) !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M15. MISC MOBILE FIXES
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Prevent horizontal overflow */
+  .panel-root {
+    overflow-x: hidden !important;
+  }
+
+  /* Cards: full width */
+  .panel-root .max-w-xl,
+  .panel-root .max-w-lg {
+    max-width: 100% !important;
+  }
+
+  /* CRM action buttons: wrap */
+  .panel-root .flex.items-center.gap-3 {
+    flex-wrap: wrap !important;
+  }
+
+  /* Image containers: constrain */
+  .panel-root img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Hero section height on mobile */
+  .panel-root .col-span-12.lg\:col-span-3 > div:first-child {
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  /* Fix fixed-height containers */
+  .panel-root .h-\[600px\] {
+    height: auto !important;
+    min-height: 300px !important;
+    max-height: 70vh !important;
+  }
+
+  /* CRM header: wrap buttons below title */
+  .panel-root section.mb-12.flex.justify-between {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+
+  /* CRM action buttons row: wrap into grid */
+  .panel-root section.mb-12 > .flex.gap-3 {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .panel-root section.mb-12 > .flex.gap-3 > button {
+    font-size: 0.75rem !important;
+    padding: 10px 12px !important;
+    white-space: nowrap !important;
+  }
+
+  /* Fixed-height cards on mobile */
+  .panel-root .h-\[400px\] {
+    height: auto !important;
+    max-height: 50vh !important;
+  }
+
+  /* Header right side items: smaller gaps */
+  .panel-root > header.fixed > .flex.items-center.gap-6 {
+    gap: 8px !important;
+  }
+
+  /* Notifications: hide text, show icon only on mobile */
+  .panel-root > header.fixed .text-sm.font-bold.text-on-surface {
+    display: none !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────
+   M16. MODAL SCROLL FIX — Ensure bottom buttons visible
+   ──────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Ensure modals are scrollable within their container */
+  .panel-root .fixed.inset-0 {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Modal content: allow scrolling */
+  .panel-root .fixed.inset-0 .rounded-2xl.overflow-hidden,
+  .panel-root .fixed.inset-0 .rounded-2xl {
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Ensure "Add Contact" modal content is scrollable */
+  .panel-root .fixed.inset-0 > .bg-white.rounded-2xl,
+  .panel-root .fixed.inset-0 > div > .bg-white.rounded-2xl {
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+}
