@@ -742,7 +742,62 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
       } catch (aiError: any) {
         console.error(`❌ Error de IA (${selectedModel}):`, aiError?.message || aiError);
         console.error('❌ Detalles:', JSON.stringify(aiError?.error || aiError?.response?.data || 'sin detalles'));
-        aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
+
+        // FALLBACK: If primary AI fails (rate limit, etc.), try alternative providers
+        const isRateLimit = aiError?.status === 429 || aiError?.message?.includes('429') || aiError?.message?.includes('rate limit') || aiError?.message?.includes('Rate limit');
+        const isServerError = aiError?.status >= 500 || aiError?.message?.includes('500') || aiError?.message?.includes('503');
+
+        if (isRateLimit || isServerError) {
+          console.log(`🔄 Intentando fallback de IA (error ${isRateLimit ? 'rate limit' : 'servidor'})...`);
+
+          // Build fallback chain: try each provider that has a key
+          const fallbackProviders: { name: string; key: string; model: string; baseURL?: string }[] = [];
+
+          // Add providers we haven't tried yet
+          if (!isOpenAI && (extConfig.openai_key || process.env.OPENAI_API_KEY)) {
+            fallbackProviders.push({ name: 'OpenAI', key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini' });
+          }
+          if (!isGemini && (extConfig.gemini_key || process.env.GEMINI_API_KEY)) {
+            fallbackProviders.push({ name: 'Gemini', key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash' });
+          }
+          if (!isGroq && (extConfig.groq_key || process.env.GROQ_API_KEY)) {
+            fallbackProviders.push({ name: 'Groq', key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'llama-3.3-70b-versatile', baseURL: 'https://api.groq.com/openai/v1' });
+          }
+
+          for (const fb of fallbackProviders) {
+            if (!fb.key || fb.key.length < 10) continue;
+            try {
+              console.log(`🔄 Fallback → ${fb.name} (${fb.model})...`);
+              if (fb.name === 'Gemini') {
+                const gemMsgs = chatMessages.map(m => ({
+                  role: m.role === 'assistant' ? 'model' : 'user',
+                  parts: [{ text: m.role === 'system' ? `[System]: ${m.content}` : m.content }],
+                }));
+                const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fb.model}:generateContent?key=${fb.key}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contents: gemMsgs, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } }),
+                });
+                const gemData = await gemRes.json();
+                aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              } else {
+                const fbClient = new OpenAI({ apiKey: fb.key, baseURL: fb.baseURL });
+                const fbCompletion = await fbClient.chat.completions.create({ model: fb.model, messages: chatMessages, max_tokens: 500, temperature: 0.7 });
+                aiResponse = fbCompletion.choices[0]?.message?.content || '';
+              }
+              if (aiResponse) {
+                console.log(`✅ Fallback exitoso con ${fb.name}: ${aiResponse.substring(0, 60)}...`);
+                break;
+              }
+            } catch (fbErr: any) {
+              console.error(`❌ Fallback ${fb.name} también falló:`, fbErr?.message || fbErr);
+            }
+          }
+        }
+
+        if (!aiResponse) {
+          aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
+        }
       }
     }
 
