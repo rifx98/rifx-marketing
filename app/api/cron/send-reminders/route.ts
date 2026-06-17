@@ -22,29 +22,24 @@ export async function GET(req: NextRequest) {
     const supabase = createSupabaseAdmin();
     const now = new Date();
 
-    // Rango de búsqueda: desde hace 3 horas (para completar/no_show) hasta dentro de 26 horas (para recordatorios)
-    const rangeStart = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
-    const rangeEnd = new Date(now.getTime() + 26 * 60 * 60 * 1000).toISOString();
+    // Buscar citas desde hace 6 horas (para incluir las de hace 5h que faltaron) hasta dentro de 25 horas
+    const rangeStart = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
+    const rangeEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
 
-    console.log(`⏰ Cron: Buscando citas activas entre ${rangeStart} y ${rangeEnd}...`);
-
-    const { data: appts, error: apptsError } = await supabase
+    const { data: appts, error } = await supabase
       .from('appointments')
       .select('*')
-      .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
       .gte('scheduled_time', rangeStart)
-      .lte('scheduled_time', rangeEnd);
+      .lte('scheduled_time', rangeEnd)
+      .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion', 'no_show'])
+      .order('scheduled_time', { ascending: true });
 
-    if (apptsError) {
-      console.error('❌ Error al buscar citas:', apptsError);
-      return NextResponse.json({ error: apptsError.message }, { status: 500 });
+    if (error) {
+      console.error('❌ Error buscando citas para recordatorios:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log(`⏰ Cron: Se encontraron ${appts?.length || 0} citas activas para procesar`);
-
-    if (!appts || appts.length === 0) {
-      return NextResponse.json({ success: true, processedCount: 0 });
-    }
+    console.log(`Buscando recordatorios entre ${rangeStart} y ${rangeEnd}. Encontradas: ${appts?.length || 0}`);
 
     let processedCount = 0;
 
@@ -67,6 +62,7 @@ export async function GET(req: NextRequest) {
               .update({ status: 'pending_completion', updated_at: new Date().toISOString() })
               .eq('id', appt.id);
             if (!err) processedCount++;
+            appt.status = 'pending_completion'; // update local para no disparar recordatorios incorrectos
           }
           
           // 2. pending/awaiting_reschedule pasados por más de 60 minutos -> no_show automático
@@ -77,13 +73,12 @@ export async function GET(req: NextRequest) {
               .update({ status: 'no_show', updated_at: new Date().toISOString() })
               .eq('id', appt.id);
             if (!err) processedCount++;
+            appt.status = 'no_show';
           }
-          
-          continue;
         }
 
-        // B. RECORDATORIOS FUTUROS
-        let type: '24h' | '2h' | '30m' | null = null;
+        // B. EVALUACIÓN DE RECORDATORIOS (FUTUROS Y PASADOS)
+        let type: '24h' | '2h' | '30m' | 'missed' | null = null;
         let updateField = '';
 
         if (diffHrs > 23.0 && diffHrs <= 25.0 && !appt.reminder_24h_sent) {
@@ -95,9 +90,14 @@ export async function GET(req: NextRequest) {
         } else if (diffHrs > 0.25 && diffHrs <= 0.75 && !appt.reminder_30m_sent) {
           type = '30m';
           updateField = 'reminder_30m_sent';
+        } else if (diffHrs < -4.8 && diffHrs >= -6.0 && appt.status === 'no_show' && appt.reminder_missed_sent === false) {
+          // Recordatorio de cita perdida (+5h pasadas) SOLO si ya fue marcada como no_show
+          // Nota: usamos === false para asegurar que la columna existe en la BD
+          type = 'missed';
+          updateField = 'reminder_missed_sent';
         }
 
-        if (!type) continue; // No entra en ningún rango de recordatorio o ya se envió
+        if (!type) continue; // No entra en ningún rango o ya se envió
 
         console.log(`💬 Recordatorio ${type} requerido para cita ${appt.id} (${appt.customer_name})`);
 
@@ -149,8 +149,10 @@ export async function GET(req: NextRequest) {
           reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nTe recordamos tu cita de *${appt.service || 'Asesoría'}*.\n\n📅 Fecha: ${formattedDate}\n🕒 Hora: ${formattedTime}\n\n¿Confirmas tu asistencia?\n\nResponde:\n✅ Sí\n❌ No`;
         } else if (type === '2h') {
           reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nTe recordamos tu cita de *${appt.service || 'Asesoría'}* programada para hoy.\n\n📅 Fecha: ${formattedDate}\n🕒 Hora: ${formattedTime}\n\n¿Confirmas tu asistencia?\n\nResponde:\n✅ Sí\n❌ No`;
-        } else { // 30m
+        } else if (type === '30m') {
           reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nTu cita de *${appt.service || 'Asesoría'}* comienza en 30 minutos.\n\n📅 Fecha: ${formattedDate}\n🕒 Hora: ${formattedTime}\n\n¡Te esperamos! 😊`;
+        } else if (type === 'missed') {
+          reminderText = `Hola *${appt.customer_name || 'Cliente'}* 👋\n\nNotamos que te perdiste tu cita de *${appt.service || 'Asesoría'}* hoy a las ${formattedTime}.\n\n¿Deseas reagendarla para el día de mañana o para qué día te vendría mejor?`;
         }
 
         // Enviar mensaje
