@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
 import { checkAvailability, createCalendarEvent, getCalendarCredentials, deleteCalendarEvent } from '@/lib/google-calendar';
+import { classifyIntent } from '@/lib/intent-router';
+import { detectSignalsFromMessage, calculateLeadScore, inferSalesStage, extractSalesMetadata } from '@/lib/lead-scoring';
+import { getSalesStageInstructions, DEFAULT_SALES_PROMPT, DEFAULT_SUPPORT_PROMPT } from '@/lib/sales-prompts';
+import { loadTenantPricing, buildPricingPrompt, validatePricingInResponse } from '@/lib/pricing-guard';
 
 // ============================================
 // WHATSAPP WEBHOOK — El corazón del bot de IA
@@ -340,6 +344,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 2.8 🆕 Intent Router — Clasificar intención del mensaje
+    const quickAiKey = (() => {
+      try {
+        const p = JSON.parse(config?.openai_key || '{}');
+        return p.groq_key || process.env.GROQ_API_KEY || '';
+      } catch { return process.env.GROQ_API_KEY || ''; }
+    })();
+    const isDropiEnabledForIntent = (() => {
+      try {
+        const p = JSON.parse(config?.openai_key || '{}');
+        return !!p.dropi_enabled;
+      } catch { return false; }
+    })();
+    const intentResult = await classifyIntent(customerMessage, isDropiEnabledForIntent, quickAiKey);
+    console.log(`🎯 Intent: ${intentResult.intent} (${intentResult.confidence.toFixed(2)}, ${intentResult.method})`);
+
+    // 2.9 🆕 Lead Scoring — Detectar señales y calcular score
+    const currentSignals = {
+      hasBusinessIdentified: !!conversation.business_type,
+      hasClearProblem: (conversation.lead_score || 0) >= 15,
+      hasUrgency: conversation.urgency_level === 'high' || conversation.urgency_level === 'alta',
+      hasBudget: !!conversation.budget_range,
+      askedForPrice: false,
+      requestedCall: intentResult.intent === 'appointment',
+      acceptedProposal: false,
+      gaveContactData: false,
+      messageCount: 0,
+    };
+    const updatedSignals = detectSignalsFromMessage(customerMessage, currentSignals);
+    const newLeadScore = calculateLeadScore(updatedSignals);
+    const newSalesStage = inferSalesStage(
+      conversation.sales_stage || 'new_lead',
+      newLeadScore,
+      intentResult.intent,
+      updatedSignals.acceptedProposal
+    );
+
     // 3. Cargar historial de mensajes (últimos 10, sin mensajes de error)
     const { data: rawHistory } = await supabase
       .from('messages')
@@ -390,6 +431,27 @@ export async function POST(req: NextRequest) {
       aiPrompt = config?.ai_prompt || 'Eres un asesor de ventas amigable y profesional.';
     }
 
+    // 4.15 🆕 Sales Agent — Seleccionar prompt según intent y etapa de venta
+    const extSalesPrompt = (extConfig as any).sales_prompt || '';
+    const extSupportPrompt = (extConfig as any).support_prompt || '';
+    if (intentResult.intent === 'sales_services' || intentResult.intent === 'sales_dropshipping') {
+      if (extSalesPrompt) aiPrompt = extSalesPrompt;
+      else if (!extConfig.dropi_enabled) aiPrompt = aiPrompt || DEFAULT_SALES_PROMPT;
+      const stageInstructions = getSalesStageInstructions({
+        salesStage: newSalesStage,
+        leadScore: newLeadScore,
+        lastObjection: conversation.last_objection,
+        nextAction: conversation.next_action,
+        businessType: conversation.business_type,
+        serviceInterest: conversation.service_interest,
+        urgencyLevel: conversation.urgency_level,
+        budgetRange: conversation.budget_range,
+      });
+      aiPrompt += '\n\n' + stageInstructions;
+    } else if (intentResult.intent === 'support') {
+      aiPrompt = extSupportPrompt || DEFAULT_SUPPORT_PROMPT;
+    }
+
     // 4.2 Cargar Base de Conocimiento del tenant
     if (tenantId) {
       try {
@@ -428,6 +490,15 @@ export async function POST(req: NextRequest) {
       } catch (kbErr) {
         console.log(`📚 KB: Sin base de conocimiento para tenant ${tenantId} (${kbErr})`);
       }
+    }
+
+    // 4.25 🆕 Pricing Guard — Cargar lista oficial de precios del tenant (solo modo servicios)
+    let tenantPricing: any[] = [];
+    if (tenantId && !(extConfig.dropi_enabled && intentResult.intent === 'sales_dropshipping')) {
+      tenantPricing = await loadTenantPricing(supabase, tenantId);
+      const pricingPrompt = buildPricingPrompt(tenantPricing);
+      aiPrompt += pricingPrompt;
+      console.log(`💰 Pricing: ${tenantPricing.length} servicios cargados para tenant ${tenantId}`);
     }
 
     if (extConfig.dropi_enabled) {
@@ -569,9 +640,10 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
       }
     }
 
-    if (upcomingApptText) {
-      aiPrompt += upcomingApptText;
-    }
+    // Enforce greeting/signature rule: only introduce/present once.
+    aiPrompt += `\n\n[REGLA CRÍTICA DE COMUNICACIÓN]:
+- Únicamente debes presentarte como "especialista de RIFX" o decir "Soy especialista de RIFX" en tu primer saludo o inicio de la conversación.
+- En todos los mensajes siguientes de la conversación, está estrictamente PROHIBIDO que repitas "Soy especialista de RIFX", "asistente de RIFX", o que te presentes de nuevo. Responde directamente a las dudas del cliente con naturalidad, empatía y profesionalismo sin repetir tu presentación.`;
 
 
     // Determine which provider & model to use
@@ -583,7 +655,7 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
     // Resolve API key based on provider
     let apiKey = '';
     if (isGroq) apiKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
-    else if (isGemini) apiKey = extConfig.gemini_key || process.env.GEMINI_API_KEY || '';
+    else if (isGemini) apiKey = extConfig.gemini_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
     else apiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
 
     // 4.1 Si el cliente pidió humano, inyectar instrucción especial al prompt
@@ -821,8 +893,8 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
           if (!isOpenAI && (extConfig.openai_key || process.env.OPENAI_API_KEY)) {
             fallbackProviders.push({ name: 'OpenAI', key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini' });
           }
-          if (!isGemini && (extConfig.gemini_key || process.env.GEMINI_API_KEY)) {
-            fallbackProviders.push({ name: 'Gemini', key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash' });
+          if (!isGemini && (extConfig.gemini_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
+            fallbackProviders.push({ name: 'Gemini', key: extConfig.gemini_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '', model: 'gemini-2.0-flash' });
           }
           if (!isGroq && (extConfig.groq_key || process.env.GROQ_API_KEY)) {
             fallbackProviders.push({ name: 'Groq', key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'llama-3.3-70b-versatile', baseURL: 'https://api.groq.com/openai/v1' });
@@ -1288,6 +1360,36 @@ Transportadora: *${orderResult.carrier}*`;
         console.error(`❌ Error al procesar cancelación de cita:`, dbErr);
       }
     }
+
+    // 6.98 🆕 Extraer metadata de ventas del tag [SALES_META] y actualizar conversación
+    const { cleanResponse: cleanedAiResponse, metadata: salesMeta } = extractSalesMetadata(aiResponse);
+    aiResponse = cleanedAiResponse;
+
+    // 6.99 🆕 Pricing Guard — Validar precios en la respuesta
+    if (tenantId && !(extConfig.dropi_enabled && intentResult.intent === 'sales_dropshipping')) {
+      const { isValid, cleanResponse: pricingCleanResponse } = validatePricingInResponse(aiResponse, tenantPricing);
+      if (!isValid) {
+        console.log('🚫 Pricing Guard: precio no autorizado detectado — respuesta reemplazada');
+        aiResponse = pricingCleanResponse;
+      }
+    }
+
+    // Actualizar campos de ventas en la conversación
+    const salesUpdate: Record<string, any> = {
+      intent: intentResult.intent,
+      sales_stage: newSalesStage,
+      lead_score: newLeadScore,
+      updated_at: new Date().toISOString(),
+    };
+    if (salesMeta.objection) salesUpdate.last_objection = salesMeta.objection;
+    if (salesMeta.nextAction) salesUpdate.next_action = salesMeta.nextAction;
+    if (salesMeta.businessType) salesUpdate.business_type = salesMeta.businessType;
+    if (salesMeta.urgency) salesUpdate.urgency_level = salesMeta.urgency;
+    if (salesMeta.serviceInterest) salesUpdate.service_interest = salesMeta.serviceInterest;
+    if (salesMeta.budgetRange) salesUpdate.budget_range = salesMeta.budgetRange;
+
+    await supabase.from('conversations').update(salesUpdate).eq('id', conversation.id);
+    console.log(`📊 Sales: stage=${newSalesStage}, score=${newLeadScore}, intent=${intentResult.intent}`);
 
     // 7. Guardar respuesta de la IA
     await supabase.from('messages').insert({

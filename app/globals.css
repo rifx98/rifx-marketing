@@ -244,6 +244,58 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  /* GTA / Cyberpunk Scanlines & Loading Effects */
+  .scanlines {
+    position: relative;
+    overflow: hidden;
+  }
+  .scanlines::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 99;
+    background-size: 100% 4px, 6px 100%;
+    pointer-events: none;
+  }
+
+  .neon-glow-orange {
+    text-shadow: 0 0 10px rgba(242, 113, 33, 0.4), 0 0 20px rgba(242, 113, 33, 0.2);
+  }
+
+  .neon-glow-blue {
+    text-shadow: 0 0 10px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.2);
+  }
+
+  .neon-glow-rose {
+    text-shadow: 0 0 10px rgba(244, 63, 94, 0.4), 0 0 20px rgba(244, 63, 94, 0.2);
+  }
+
+  .card-tilt-3d {
+    transform-style: preserve-3d;
+    perspective: 1000px;
+    transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s ease;
+  }
+
+  .glow-border {
+    position: relative;
+  }
+  .glow-border::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(135deg, rgba(242, 113, 33, 0.4) 0%, transparent 50%, rgba(59, 130, 246, 0.4) 100%);
+    border-radius: inherit;
+    z-index: -1;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    opacity: 0.6;
+  }
+  .glow-border:hover::after {
+    opacity: 1;
+  }
 }
 
 /* Hide sidebar scrollbar globally (panel) */

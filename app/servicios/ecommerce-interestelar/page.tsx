@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import ContactChannels from '../../components/ContactChannels';
 import TrainCTA from '../../components/TrainCTA';
+import AnimatedText from '../../components/AnimatedText';
 
 export default function EcommerceInterestelarPage() {
   return (
@@ -36,9 +37,9 @@ export default function EcommerceInterestelarPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-[#f27121] mr-2 animate-pulse"></span>
                   E-commerce Engineering 2024
                 </div>
-                <h1 className="text-6xl md:text-8xl leading-[1] mb-8 text-white font-title">
-                  Tu Tienda <br /><span className="text-gradient">Interestelar</span>
-                </h1>
+                <AnimatedText as="h1" className="text-6xl md:text-8xl leading-[1] mb-8 text-white font-title" stagger={30} delay={150}>
+                  Tu Tienda Interestelar
+                </AnimatedText>
                 <p className="text-lg text-slate-400 leading-relaxed mb-12 max-w-xl uppercase tracking-tighter font-medium">
                   Arquitectura de comercio electrónico de alto rendimiento para marcas que orbitan en el futuro. Tiendas ultra-rápidas construidas con <strong className="text-white underline decoration-[#f27121]">tecnología de vanguardia</strong>.
                 </p>
@@ -51,8 +52,8 @@ export default function EcommerceInterestelarPage() {
                   </Link>
                 </div>
               </div>
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-tr from-[#f27121]/30 via-transparent to-blue-500/20 blur-[120px]"></div>
+              {/* Right content: Animated Space Elements */}
+              <div className="lg:w-1/2 mt-16 lg:mt-0 relative w-full h-[300px] sm:h-[400px] lg:h-[500px]">
                 <div className="relative glass rounded-[2.5rem] p-4 border-white/10 overflow-hidden group rotate-2">
                   <img 
                     alt="High-tech e-commerce visualization" 
@@ -91,7 +92,9 @@ export default function EcommerceInterestelarPage() {
           <section className="py-32 px-6 max-w-7xl mx-auto">
             <div className="mb-24">
               <span className="text-[#f27121] font-black uppercase tracking-[0.3em] text-xs">Arsenal Tecnológico</span>
-              <h2 className="text-4xl md:text-7xl font-bold text-white mt-4 uppercase tracking-tighter font-space">Arquitectura de <span className="text-gradient">Conversión</span></h2>
+              <AnimatedText as="h2" className="text-4xl md:text-7xl font-bold text-white mt-4 uppercase tracking-tighter font-space" stagger={32} delay={100}>
+                Arquitectura de Conversión
+              </AnimatedText>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2 glass glass-hover p-12 rounded-[2.5rem] flex flex-col justify-between group transition-all duration-500">
@@ -138,7 +141,9 @@ export default function EcommerceInterestelarPage() {
           <section className="py-32 bg-[#080f24]/30">
             <div className="max-w-3xl mx-auto px-6">
               <div className="text-center mb-24">
-                <h2 className="text-3xl md:text-6xl font-bold text-white mb-6 font-space tracking-tight uppercase">Protocolos de <span className="text-gradient">Información</span></h2>
+                <AnimatedText as="h2" className="text-3xl md:text-6xl font-bold text-white mb-6 font-space tracking-tight uppercase" stagger={35} delay={100}>
+                  Protocolos de Información
+                </AnimatedText>
                 <p className="text-slate-400 uppercase tracking-widest font-bold text-xs">Resolución de dudas sobre nuestra arquitectura e-commerce.</p>
               </div>
               <div className="space-y-4">

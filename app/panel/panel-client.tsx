@@ -32,11 +32,87 @@ import Script from 'next/script';
 import { CREATIVE_TEMPLATES, CreativeTemplate } from './templates';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import ThemeSettings from './theme-settings';
+import PricingTab from './PricingTab';
 
 // OmniPublish V1 Imports
 import VideoUploader from '@/components/social/VideoUploader';
 import PublishForm from '@/components/social/PublishForm';
 import PublicationTracker from '@/components/social/PublicationTracker';
+
+// Kanban Card Component
+const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { conv: any, onClick: () => void, getLeadClassification: (score: number) => any, formatIntent: (intent: string) => string }) => {
+  const score = conv.lead_score ?? 0;
+  const classification = getLeadClassification(score);
+  const isHot = score >= 70;
+  const isWarm = score >= 40 && score < 70;
+  const oneH = Date.now() - 3600000;
+  const isActive = conv.updated_at && new Date(conv.updated_at).getTime() > oneH;
+  const lastDate = conv.updated_at || conv.created_at;
+
+  return (
+    <div 
+      onClick={onClick}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', conv.id);
+        e.dataTransfer.effectAllowed = 'move';
+        (e.currentTarget as HTMLElement).style.opacity = '0.5';
+      }}
+      onDragEnd={(e) => {
+        (e.currentTarget as HTMLElement).style.opacity = '1';
+      }}
+      className={`bg-white dark:bg-slate-800 p-4 rounded-xl border cursor-grab active:cursor-grabbing hover:shadow-md transition-all group relative overflow-hidden ${
+        isHot ? 'border-red-200 hover:border-red-300 dark:border-red-900/30' : 
+        isWarm ? 'border-amber-200 hover:border-amber-300 dark:border-amber-900/30' : 
+        'border-slate-200 hover:border-slate-300 dark:border-slate-700'
+      }`}
+    >
+      <div className="flex items-start gap-3 mb-3">
+        <div className="relative shrink-0">
+          <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-lg border border-slate-200 dark:border-slate-600">
+            {conv.customer_name?.substring(0, 2).toUpperCase() || 'U'}
+          </div>
+          <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white dark:border-slate-800 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}></span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-sm">{classification.emoji}</span>
+            <p className="font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-primary transition-colors">{conv.customer_name || 'Usuario'}</p>
+          </div>
+          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{conv.phone_number || 'Sin número'}</p>
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
+            <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
+            <span className="truncate">{formatIntent(conv.intent)}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="space-y-2 mb-3">
+        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
+          <span className="text-[10px] font-bold text-slate-500 uppercase">Lead Score:</span>
+          <span className={`text-[11px] font-black ${isHot ? 'text-red-500' : isWarm ? 'text-amber-500' : 'text-slate-500'}`}>{score}</span>
+        </div>
+        
+        <div>
+          <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Próxima acción:</p>
+          <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 line-clamp-2">
+            {conv.next_action || 'Continuar conversación'}
+          </p>
+        </div>
+      </div>
+      
+      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
+        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : conv.status === 'interested' ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+          {conv.status || 'Activo'}
+        </span>
+        <span className="text-[9px] text-slate-400 flex items-center gap-1">
+          <span className="material-symbols-outlined text-[10px]">schedule</span>
+          {lastDate ? new Date(lastDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'N/A'}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 // Simulación de datos de ventas por IA
 const mockSales = [
@@ -491,7 +567,8 @@ const TABS_TO_MANAGE = [
   { key: 'segments', label: 'Segmentos' },
   { key: 'analytics', label: 'Análisis' },
   { key: 'social', label: 'OmniPublish' },
-  { key: 'appointments', label: 'Citas y Reservas' }
+  { key: 'appointments', label: 'Citas y Reservas' },
+  { key: 'pricing', label: 'Catálogo de Precios' }
 ];
 
 const PLANS = ['trial', 'start', 'plus', 'master'];
@@ -808,7 +885,7 @@ export default function PanelClient() {
     } catch (e) { console.error('Error deleting KB file:', e); }
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments' | 'conversations' | 'orders'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments' | 'conversations' | 'orders' | 'pricing'>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
 
   // Appointments states
@@ -2644,7 +2721,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     if (fileInputRef.current) fileInputRef.current.value = '';
     
     if (selectedChat?.id) {
-      const res = await fetch(`/api/panel/conversations?id=${selectedChat.id}`);
+      const res = await authFetch(`/api/panel/conversations?id=${selectedChat.id}`);
       const data = await res.json();
       if (data.messages) setChatMessages(data.messages);
     }
@@ -2931,6 +3008,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [selectedTenantOverrides, setSelectedTenantOverrides] = useState<any>({});
   const [savingOverrides, setSavingOverrides] = useState(false);
+  
+  // User account self-deletion states
+  const [showSelfDeleteModal, setShowSelfDeleteModal] = useState(false);
+  const [selfDeleteConfirmEmail, setSelfDeleteConfirmEmail] = useState('');
+  
+  // Admin deleting user states
+  const [tenantToDelete, setTenantToDelete] = useState<any>(null);
+  const [adminDeleteConfirmText, setAdminDeleteConfirmText] = useState('');
 
   React.useEffect(() => {
     if (selectedTenant) {
@@ -3054,10 +3139,46 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [addContactSuccess, setAddContactSuccess] = useState(false);
   const [tableFilter, setTableFilter] = useState<'all' | 'interested' | 'chatting'>('all');
+  const [temperatureFilter, setTemperatureFilter] = useState<'all' | 'hot' | 'warm' | 'cold'>('all');
   const [tableSortBy, setTableSortBy] = useState<'recent' | 'alpha' | 'active'>('recent');
   const [tablePage, setTablePage] = useState(1);
   const [contactScores, setContactScores] = useState<Record<string, {score: number, reason: string}>>({});
   const [isLoadingScores, setIsLoadingScores] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'pipeline'>('table');
+
+  const getLeadClassification = (score: number) => {
+    if (score >= 70) return { emoji: '🔥', text: language === 'es' ? 'Caliente' : 'Hot', color: 'text-red-700 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/30' };
+    if (score >= 40) return { emoji: '🟡', text: language === 'es' ? 'Tibio' : 'Warm', color: 'text-amber-700 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30' };
+    return { emoji: '⚪', text: language === 'es' ? 'Frío' : 'Cold', color: 'text-slate-600 bg-slate-50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/30' };
+  };
+
+  const formatSalesStage = (stage: string) => {
+    if (!stage) return language === 'es' ? 'Nuevo Lead' : 'New Lead';
+    const mapping: Record<string, string> = {
+      'new_lead': language === 'es' ? 'Nuevo Lead' : 'New Lead',
+      'discovery': language === 'es' ? 'Descubrimiento' : 'Discovery',
+      'qualified': language === 'es' ? 'Calificado' : 'Qualified',
+      'proposal': language === 'es' ? 'Propuesta' : 'Proposal',
+      'objection': language === 'es' ? 'Objeción' : 'Objection',
+      'closing': language === 'es' ? 'Cierre' : 'Closing',
+      'won': language === 'es' ? 'Ganado' : 'Won',
+      'lost': language === 'es' ? 'Perdido' : 'Lost',
+    };
+    return mapping[stage] || stage.replace(/_/g, ' ');
+  };
+
+  const formatIntent = (intent: string) => {
+    if (!intent) return language === 'es' ? 'Ninguno' : 'None';
+    const mapping: Record<string, string> = {
+      'sales_services': language === 'es' ? 'Venta Servicios' : 'Services Sale',
+      'sales_dropshipping': language === 'es' ? 'Venta Dropshipping' : 'Dropshipping Sale',
+      'faq_pricing': language === 'es' ? 'Pregunta Precios' : 'Pricing FAQ',
+      'human_request': language === 'es' ? 'Solicita Humano' : 'Human Request',
+      'support': language === 'es' ? 'Soporte Técnico' : 'Technical Support',
+      'ambiguous': language === 'es' ? 'Consulta General' : 'General Query',
+    };
+    return mapping[intent] || intent.replace(/_/g, ' ');
+  };
   
   // Mobile navigation
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -3367,11 +3488,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const res = await authFetch('/api/panel/generate-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productDetails: botProductDetails }),
+        body: JSON.stringify({ 
+          productDetails: botProductDetails,
+          mode: configData.dropi_enabled ? 'dropshipping' : 'services'
+        }),
       });
       const data = await res.json();
       if (data.prompt) {
-        setConfigData((prev: any) => ({ ...prev, dropi_prompt: data.prompt }));
+        setConfigData((prev: any) => ({ 
+          ...prev, 
+          [configData.dropi_enabled ? 'dropi_prompt' : 'ai_prompt']: data.prompt 
+        }));
         setToast({ type: 'success', message: language === 'en' ? '✓ Prompt generated successfully!' : '✓ ¡Prompt generado con éxito!' });
       } else {
         setToast({ type: 'error', message: data.error || 'Error' });
@@ -3607,7 +3734,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     
     for (const conv of allConvs) {
       try {
-        const res = await fetch(`/api/panel/conversations?id=${conv.id}`);
+        const res = await authFetch(`/api/panel/conversations?id=${conv.id}`);
         const convData = await res.json();
         if (convData.messages) {
           const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
@@ -3642,7 +3769,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
 
     const loadMessages = () => {
-      fetch(`/api/panel/conversations?id=${selectedChat.id}`)
+      authFetch(`/api/panel/conversations?id=${selectedChat.id}`)
         .then(res => res.json())
         .then(data => {
           if (data.messages) {
@@ -3668,7 +3795,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     };
 
     setLoadingMessages(true);
-    fetch(`/api/panel/conversations?id=${selectedChat.id}`)
+    authFetch(`/api/panel/conversations?id=${selectedChat.id}`)
       .then(res => res.json())
       .then(data => {
         if (data.messages) {
@@ -4619,6 +4746,60 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } catch (e) { console.error(e); } finally { setAdminActionLoading(false); }
   };
 
+  const handleAdminDeleteTenant = async (targetTenantId: string) => {
+    if (!targetTenantId) return;
+    try {
+      setAdminActionLoading(true);
+      const res = await authFetch('/api/admin/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete_tenant', targetTenantId }),
+      });
+      if (res.ok) {
+        setToast({
+          message: language === 'en' ? '✅ User deleted successfully!' : '✅ ¡Usuario eliminado correctamente!',
+          type: 'success'
+        });
+        setTenantToDelete(null);
+        setAdminDeleteConfirmText('');
+        setShowTenantModal(false);
+        loadAdminData();
+      } else {
+        const err = await res.json();
+        setToast({ message: err.error || 'Error', type: 'error' });
+      }
+    } catch (e: any) {
+      setToast({ message: e.message, type: 'error' });
+    } finally {
+      setAdminActionLoading(false);
+    }
+  };
+
+  const handleSelfDeleteAccount = async () => {
+    try {
+      setAdminActionLoading(true);
+      const res = await authFetch('/api/panel/profile/delete', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setShowSelfDeleteModal(false);
+        setSelfDeleteConfirmEmail('');
+        setToast({
+          message: language === 'en' ? '✅ Account deleted successfully.' : '✅ Tu cuenta ha sido eliminada.',
+          type: 'success'
+        });
+        handleLogout();
+      } else {
+        const err = await res.json();
+        setToast({ message: err.error || 'Error', type: 'error' });
+      }
+    } catch (e: any) {
+      setToast({ message: e.message, type: 'error' });
+    } finally {
+      setAdminActionLoading(false);
+    }
+  };
+
   // Fetch announcements for user dashboard
   const fetchAnnouncements = async () => {
     try {
@@ -4722,9 +4903,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const ROWS_PER_PAGE = 8;
   const tableContacts = React.useMemo(() => {
     let list = [...allContacts];
-    // Filter
+    // Filter by status
     if (tableFilter === 'interested') list = list.filter((c: any) => c.status === 'interested');
     else if (tableFilter === 'chatting') list = list.filter((c: any) => c.status === 'chatting');
+    
+    // Filter by temperature
+    if (temperatureFilter === 'hot') {
+      list = list.filter((c: any) => (c.lead_score ?? 0) >= 70);
+    } else if (temperatureFilter === 'warm') {
+      list = list.filter((c: any) => (c.lead_score ?? 0) >= 40 && (c.lead_score ?? 0) <= 69);
+    } else if (temperatureFilter === 'cold') {
+      list = list.filter((c: any) => (c.lead_score ?? 0) >= 0 && (c.lead_score ?? 0) <= 39);
+    }
+
     // Sort
     if (tableSortBy === 'alpha') {
       list.sort((a: any, b: any) => (a.customer_name || '').localeCompare(b.customer_name || ''));
@@ -4739,10 +4930,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       list.sort((a: any, b: any) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
     }
     return list;
-  }, [allContacts, tableFilter, tableSortBy]);
+  }, [allContacts, tableFilter, temperatureFilter, tableSortBy]);
 
   const totalTablePages = Math.max(1, Math.ceil(tableContacts.length / ROWS_PER_PAGE));
   const pagedContacts = tableContacts.slice((tablePage - 1) * ROWS_PER_PAGE, tablePage * ROWS_PER_PAGE);
+
+  const selectedConv = React.useMemo(() => {
+    if (!selectedChat?.id) return null;
+    const allConvs = (conversationsData?.chatting || []).concat(conversationsData?.interested || []).concat(conversationsData?.bought || []);
+    return allConvs.find((c: any) => c.id === selectedChat.id) || null;
+  }, [selectedChat?.id, conversationsData]);
 
   // Fetch AI scores for visible contacts
   const fetchContactScores = React.useCallback(async (contacts: any[]) => {
@@ -6543,35 +6740,154 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 </div>
               </div>
               <div className="col-span-12 lg:col-span-4 bg-gradient-to-br from-primary to-primary-container p-6 rounded-xl shadow-xl text-white flex flex-col justify-between">
+                {selectedConv ? (
+                  <div className="flex flex-col h-full justify-between">
+                    <div>
+                      <h4 className="text-lg font-bold mb-3 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-violet-300">psychology</span>
+                        {language === 'en' ? 'Predictive Insights' : 'Insights Predictivos'}
+                      </h4>
+                      <p className="text-xs text-white/70 mb-4 truncate">
+                        Lead: <span className="font-extrabold text-white">{selectedConv.customer_name}</span>
+                      </p>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center bg-white/10 px-3 py-2 rounded-lg border border-white/5">
+                          <span className="text-xs text-white/90">{language === 'en' ? 'Closing Probability:' : 'Probabilidad de cierre:'}</span>
+                          <span className="text-sm font-black text-emerald-300">{selectedConv.lead_score ?? 0}%</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-white/10 px-3 py-2 rounded-lg border border-white/5">
+                          <span className="text-xs text-white/90">{language === 'en' ? 'Response Probability:' : 'Probabilidad de respuesta:'}</span>
+                          <span className="text-sm font-black text-indigo-300">{Math.min(99, Math.round((selectedConv.lead_score ?? 0) * 1.05 + 5))}%</span>
+                        </div>
+                        <div className="bg-white/10 p-3 rounded-lg border border-white/5">
+                          <p className="text-[10px] uppercase font-bold text-white/70 mb-1 tracking-wider">{language === 'en' ? 'Recommended Action:' : 'Acción recomendada:'}</p>
+                          <p className="text-xs font-semibold text-amber-200 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">auto_awesome</span>
+                            {selectedConv.next_action || (language === 'es' ? 'Llamar hoy' : 'Call today')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Clear selection button */}
+                    <button 
+                      onClick={() => setSelectedChat(null)}
+                      className="mt-4 w-full py-2 bg-white/5 hover:bg-white/15 backdrop-blur-md rounded font-bold text-xs transition-colors border border-white/15 flex items-center justify-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-xs">close</span>
+                      {language === 'es' ? 'Volver a General' : 'Back to General'}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <h4 className="text-lg font-bold mb-1">{language === 'en' ? 'Predictive Insights' : 'Insights Predictivos'}</h4>
+                      <p className="text-sm text-white/70 font-light">{language === 'en' ? 'AI detects contacts most likely to resume conversations in the next 24-48 hours.' : 'La IA detecta contactos con mayor probabilidad de retomar conversaciones en las próximas 24-48 horas.'}</p>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        if (showPredictions) { setShowPredictions(false); return; }
+                        setIsLoadingPredictions(true);
+                        setShowPredictions(true);
+                        try {
+                          const res = await authFetch('/api/panel/predictions', { method: 'POST' });
+                          const data = await res.json();
+                          setPredictions(data.predictions || []);
+                        } catch (err) { console.error(err); }
+                        finally { setIsLoadingPredictions(false); }
+                      }}
+                      className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded font-bold text-xs transition-colors border border-white/20 flex items-center justify-center gap-2"
+                    >
+                      {isLoadingPredictions ? (
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined text-sm">{showPredictions ? 'expand_less' : 'psychology'}</span>
+                      )}
+                      {isLoadingPredictions 
+                        ? (language === 'es' ? 'Analizando...' : 'Analyzing...') 
+                        : showPredictions 
+                          ? (language === 'es' ? 'Ocultar' : 'Hide') 
+                          : (language === 'es' ? 'Ver Predicciones' : 'View Predictions')}
+                    </button>
+                  </>
+                )}
+              </div>
+            </section>
+
+            {/* Lead Temperature KPIs Section */}
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Hot leads card */}
+              <div 
+                onClick={() => { setTemperatureFilter(temperatureFilter === 'hot' ? 'all' : 'hot'); setTablePage(1); }}
+                className={`cursor-pointer p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden group shadow-sm flex items-center justify-between ${
+                  temperatureFilter === 'hot' 
+                    ? 'bg-gradient-to-br from-red-50 to-orange-50 border-red-200 dark:from-red-950/30 dark:to-orange-950/20 dark:border-red-800' 
+                    : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-red-200/50 dark:bg-slate-900 dark:border-slate-800'
+                }`}
+              >
+                <div className="absolute -right-4 -top-4 w-16 h-16 bg-red-500/5 rounded-full blur-xl group-hover:bg-red-500/10 transition-colors"></div>
                 <div>
-                  <h4 className="text-lg font-bold mb-1">{language === 'en' ? 'Predictive Insights' : 'Insights Predictivos'}</h4>
-                  <p className="text-sm text-white/70 font-light">{language === 'en' ? 'AI detects contacts most likely to resume conversations in the next 24-48 hours.' : 'La IA detecta contactos con mayor probabilidad de retomar conversaciones en las próximas 24-48 horas.'}</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <span>🔥</span>
+                    {language === 'es' ? 'Leads Calientes' : 'Hot Leads'}
+                  </p>
+                  <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
+                    {allContacts.filter((c: any) => (c.lead_score ?? 0) >= 70).length}
+                  </p>
+                  <span className="text-[10px] text-red-500 dark:text-red-400 font-semibold">{language === 'es' ? 'Probabilidad de cierre >= 70%' : 'Closing probability >= 70%'}</span>
                 </div>
-                <button 
-                  onClick={async () => {
-                    if (showPredictions) { setShowPredictions(false); return; }
-                    setIsLoadingPredictions(true);
-                    setShowPredictions(true);
-                    try {
-                      const res = await authFetch('/api/panel/predictions', { method: 'POST' });
-                      const data = await res.json();
-                      setPredictions(data.predictions || []);
-                    } catch (err) { console.error(err); }
-                    finally { setIsLoadingPredictions(false); }
-                  }}
-                  className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded font-bold text-xs transition-colors border border-white/20 flex items-center justify-center gap-2"
-                >
-                  {isLoadingPredictions ? (
-                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span className="material-symbols-outlined text-sm">{showPredictions ? 'expand_less' : 'psychology'}</span>
-                  )}
-                  {isLoadingPredictions 
-                    ? (language === 'es' ? 'Analizando...' : 'Analyzing...') 
-                    : showPredictions 
-                      ? (language === 'es' ? 'Ocultar' : 'Hide') 
-                      : (language === 'es' ? 'Ver Predicciones' : 'View Predictions')}
-                </button>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${temperatureFilter === 'hot' ? 'bg-red-500 text-white' : 'bg-red-50 dark:bg-red-950/40 text-red-500'}`}>
+                  <span className="material-symbols-outlined text-lg" style={{fontVariationSettings: "'FILL' 1"}}>local_fire_department</span>
+                </div>
+              </div>
+
+              {/* Warm leads card */}
+              <div 
+                onClick={() => { setTemperatureFilter(temperatureFilter === 'warm' ? 'all' : 'warm'); setTablePage(1); }}
+                className={`cursor-pointer p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden group shadow-sm flex items-center justify-between ${
+                  temperatureFilter === 'warm' 
+                    ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200 dark:from-amber-950/30 dark:to-yellow-950/20 dark:border-amber-800' 
+                    : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-amber-200/50 dark:bg-slate-900 dark:border-slate-800'
+                }`}
+              >
+                <div className="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/5 rounded-full blur-xl group-hover:bg-amber-500/10 transition-colors"></div>
+                <div>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <span>🟡</span>
+                    {language === 'es' ? 'Leads Tibios' : 'Warm Leads'}
+                  </p>
+                  <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
+                    {allContacts.filter((c: any) => (c.lead_score ?? 0) >= 40 && (c.lead_score ?? 0) <= 69).length}
+                  </p>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">{language === 'es' ? 'Probabilidad de cierre 40-69%' : 'Closing probability 40-69%'}</span>
+                </div>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${temperatureFilter === 'warm' ? 'bg-amber-500 text-white' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-500'}`}>
+                  <span className="material-symbols-outlined text-lg" style={{fontVariationSettings: "'FILL' 1"}}>wb_sunny</span>
+                </div>
+              </div>
+
+              {/* Cold leads card */}
+              <div 
+                onClick={() => { setTemperatureFilter(temperatureFilter === 'cold' ? 'all' : 'cold'); setTablePage(1); }}
+                className={`cursor-pointer p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden group shadow-sm flex items-center justify-between ${
+                  temperatureFilter === 'cold' 
+                    ? 'bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 dark:from-slate-900 dark:to-slate-800 dark:border-slate-700' 
+                    : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-300/50 dark:bg-slate-900 dark:border-slate-800'
+                }`}
+              >
+                <div className="absolute -right-4 -top-4 w-16 h-16 bg-slate-500/5 rounded-full blur-xl group-hover:bg-slate-500/10 transition-colors"></div>
+                <div>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
+                    <span>⚪</span>
+                    {language === 'es' ? 'Leads Fríos' : 'Cold Leads'}
+                  </p>
+                  <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
+                    {allContacts.filter((c: any) => (c.lead_score ?? 0) >= 0 && (c.lead_score ?? 0) <= 39).length}
+                  </p>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{language === 'es' ? 'Probabilidad de cierre < 40%' : 'Closing probability < 40%'}</span>
+                </div>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${temperatureFilter === 'cold' ? 'bg-slate-500 text-white' : 'bg-slate-50 dark:bg-slate-900/40 text-slate-500'}`}>
+                  <span className="material-symbols-outlined text-lg" style={{fontVariationSettings: "'FILL' 1"}}>ac_unit</span>
+                </div>
               </div>
             </section>
 
@@ -6668,6 +6984,22 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </span>
                         ))}
                       </div>
+                      <div className="h-4 w-[1px] bg-slate-200"></div>
+                      <div className="flex gap-1.5 bg-slate-50 dark:bg-slate-900 p-0.5 rounded-full border border-slate-100 dark:border-slate-800">
+                        {(['all', 'hot', 'warm', 'cold'] as const).map(temp => (
+                          <span
+                            key={temp}
+                            onClick={() => { setTemperatureFilter(temp); setTablePage(1); }}
+                            className={`px-2.5 py-1 text-[10px] font-bold rounded-full cursor-pointer transition-all ${
+                              temperatureFilter === temp 
+                                ? 'bg-white dark:bg-slate-800 text-primary dark:text-white shadow-sm border border-slate-200/50 dark:border-slate-700/50' 
+                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                            }`}
+                          >
+                            {temp === 'all' ? (language === 'es' ? 'Todos Temp' : 'All Temp') : temp === 'hot' ? (language === 'es' ? '🔥 Calientes' : '🔥 Hot') : temp === 'warm' ? (language === 'es' ? '🟡 Tibios' : '🟡 Warm') : (language === 'es' ? '⚪ Fríos' : '⚪ Cold')}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       {/* Sort dropdown */}
@@ -6693,23 +7025,24 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <thead>
                       <tr className="bg-crm-surface-container-low/30 border-b border-slate-50">
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'User Identity' : 'Identidad del Usuario'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Status & Intent' : 'Estado e Intención'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Lead Score' : 'Puntaje Lead'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Classification' : 'Clasificación'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Sales Stage' : 'Etapa de Venta'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'Próxima Acción'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Última Interacción'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Score' : 'Puntaje IA'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {pagedContacts.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm">
+                          <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">
                             {language === 'es' ? 'No hay contactos en esta categoría' : 'No contacts in this category'}
                           </td>
                         </tr>
                       ) : pagedContacts.map((conv: any, idx: number) => {
-                        const scoreData = contactScores[conv.id];
-                        const aiScore = scoreData?.score ?? null;
-                        const scoreReason = scoreData?.reason || '';
+                        const score = conv.lead_score ?? 0;
+                        const classification = getLeadClassification(score);
                         const oneH = Date.now() - 3600000;
                         const isActive = conv.updated_at && new Date(conv.updated_at).getTime() > oneH;
                         const lastDate = conv.updated_at || conv.created_at;
@@ -6724,15 +7057,39 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
                                 </div>
                                 <div>
-                                  <p className="font-bold text-primary group-hover:text-primary-container transition-colors">{conv.customer_name || 'Usuario'}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-bold text-primary group-hover:text-primary-container transition-colors">{conv.customer_name || 'Usuario'}</p>
+                                    <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-indigo-50 text-indigo-700 border border-indigo-150' : conv.status === 'interested' ? 'bg-amber-50 text-amber-700 border border-amber-150' : 'bg-emerald-50 text-emerald-700 border border-emerald-150'}`}>
+                                      {conv.status === 'chatting' ? (language === 'en' ? 'Chat' : 'Chat') : conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') : (language === 'en' ? 'Bought' : 'Compró')}
+                                    </span>
+                                  </div>
                                   <p className="text-xs text-slate-400">{conv.phone_number}</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-5" data-label={language === 'en' ? 'Status' : 'Estado'}>
-                              <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-[#eef2ff] text-[#000080]' : conv.status === 'interested' ? 'bg-[#fffbeb] text-[#b45309]' : 'bg-[#ecfdf5] text-[#047857]'}`}>
-                                {conv.status === 'chatting' ? (language === 'en' ? 'Chatting' : 'Chateando') : conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') : (language === 'en' ? 'Bought' : 'Compró')}
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Lead Score' : 'Puntaje Lead'}>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-black text-slate-700 font-mono">{score}</span>
+                                <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0">
+                                  <div className={`h-full rounded-full ${score >= 70 ? 'bg-red-500' : score >= 40 ? 'bg-amber-400' : 'bg-slate-400'}`} style={{width: `${score}%`}}></div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Classification' : 'Clasificación'}>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${classification.color}`}>
+                                <span>{classification.emoji}</span>
+                                <span>{classification.text}</span>
                               </span>
+                            </td>
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Sales Stage' : 'Etapa de Venta'}>
+                              <span className="px-2 py-0.5 rounded border border-slate-200 text-slate-600 bg-slate-50 text-[10px] font-semibold tracking-wide capitalize">
+                                {formatSalesStage(conv.sales_stage)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Next Action' : 'Próxima Acción'}>
+                              <p className="text-xs font-medium text-slate-500 max-w-[150px] truncate" title={conv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}>
+                                {conv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}
+                              </p>
                             </td>
                             <td className="px-6 py-5" data-label={language === 'en' ? 'Last Engagement' : 'Última Interacción'}>
                               <p className="text-xs text-on-surface font-medium mb-1 truncate max-w-[180px]">
@@ -6743,22 +7100,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <p className="text-[10px] text-slate-400">
                                 {lastDate ? new Date(lastDate).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '\u2014'}
                               </p>
-                            </td>
-                            <td className="px-6 py-5" data-label={language === 'en' ? 'AI Score' : 'Puntaje IA'}>
-                              {aiScore !== null ? (
-                                <div className="flex items-center gap-2" title={scoreReason}>
-                                  <div className={`text-xs font-extrabold ${aiScore >= 75 ? 'text-emerald-600' : aiScore >= 50 ? 'text-amber-500' : 'text-red-500'}`}>{aiScore}%</div>
-                                  <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className={`h-full rounded-full transition-all duration-500 ${aiScore >= 75 ? 'bg-emerald-500' : aiScore >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{width: `${aiScore}%`}}></div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1">
-                                  <div className="w-3 h-3 border-2 border-slate-200 border-t-primary/50 rounded-full animate-spin"></div>
-                                  <span className="text-[10px] text-slate-400">...</span>
-                                </div>
-                              )}
-                              {scoreReason && <p className="text-[9px] text-slate-400 mt-0.5 truncate max-w-[120px]">{scoreReason}</p>}
                             </td>
                             <td className="px-6 py-5 text-right" data-label={language === 'en' ? 'Actions' : 'Acciones'}>
                               <button className="p-2 text-slate-300 hover:text-primary transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at}); setShowChartModal(true); }}>
@@ -6858,7 +7199,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Messages' : 'Mensajes'}</p>
                           </div>
                           <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
-                            <p className="text-lg font-black text-emerald-500">{selectedChat.status === 'interested' ? '87%' : selectedChat.status === 'chatting' ? '54%' : '32%'}</p>
+                            <p className="text-lg font-black text-emerald-500">{selectedConv?.lead_score !== undefined && selectedConv?.lead_score !== null ? `${selectedConv.lead_score}%` : '0%'}</p>
                             <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Score' : 'Puntaje'}</p>
                           </div>
                           <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
@@ -6898,6 +7239,90 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                         </div>
                       </div>
+
+                      {/* AI CRM Intelligence Card */}
+                      {selectedConv && (
+                        <div className="px-6 pt-4">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">{language === 'en' ? 'AI CRM Intelligence' : 'Inteligencia CRM Comercial'}</p>
+                          <div className="bg-white rounded-xl border border-slate-100 p-4 space-y-4">
+                            {/* Score & Classification */}
+                            <div className="flex justify-between items-center pb-3 border-b border-slate-50">
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Lead Score' : 'Score de Lead'}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-lg font-black text-slate-700">{selectedConv.lead_score ?? 0}</span>
+                                  <span className="text-xs text-slate-400">/ 100</span>
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Classification' : 'Clasificación'}</p>
+                                {(() => {
+                                  const classification = getLeadClassification(selectedConv.lead_score ?? 0);
+                                  return (
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 mt-1 ${classification.color}`}>
+                                      <span>{classification.emoji}</span>
+                                      <span>{classification.text}</span>
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+
+                            {/* Two Column Grid for Status & Intent */}
+                            <div className="grid grid-cols-2 gap-4 pb-3 border-b border-slate-50">
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Sales Stage' : 'Etapa de Venta'}</p>
+                                <span className="inline-block mt-1 px-2 py-0.5 rounded border border-slate-200 text-slate-600 bg-slate-50 text-[10px] font-semibold capitalize">
+                                  {formatSalesStage(selectedConv.sales_stage)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Detected Intent' : 'Intención IA'}</p>
+                                <span className="inline-block mt-1 px-2 py-0.5 rounded border border-indigo-100 text-indigo-600 bg-indigo-50/50 text-[10px] font-semibold capitalize font-sans">
+                                  {formatIntent(selectedConv.intent)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Additional CRM Metadata Fields */}
+                            <div className="space-y-2.5 text-xs">
+                              {/* Urgencia & Presupuesto */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Urgency' : 'Urgencia'}</p>
+                                  <p className="font-semibold text-slate-700 mt-0.5">{selectedConv.urgency_level || (language === 'es' ? 'No especificada' : 'Not specified')}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Budget' : 'Presupuesto'}</p>
+                                  <p className="font-semibold text-slate-700 mt-0.5">{selectedConv.budget_range || (language === 'es' ? 'No especificado' : 'Not specified')}</p>
+                                </div>
+                              </div>
+
+                              {/* Servicio de Interés */}
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Service of Interest' : 'Servicio de Interés'}</p>
+                                <p className="font-semibold text-slate-700 mt-0.5">{selectedConv.service_interest || (language === 'es' ? 'Ninguno' : 'None')}</p>
+                              </div>
+
+                              {/* Última Objeción */}
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Objection' : 'Última Objeción'}</p>
+                                <p className="font-semibold text-red-650 mt-0.5 bg-red-50/50 px-2 py-1 rounded border border-red-100/30 italic">
+                                  {selectedConv.last_objection ? `"${selectedConv.last_objection}"` : (language === 'es' ? 'Ninguna objeción' : 'No objection')}
+                                </p>
+                              </div>
+
+                              {/* Próxima Acción */}
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'Próxima Acción'}</p>
+                                <p className="font-semibold text-amber-700 mt-0.5 bg-amber-50 px-2 py-1 rounded border border-amber-100/30">
+                                  {selectedConv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
 
 
@@ -7241,6 +7666,29 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             onChange={e => setConfigData({...configData, admin_email: e.target.value})}
                           />
                         </div>
+                      </div>
+
+                      {/* Clear Logout button inside Profile Settings */}
+                      <div className="border-t border-slate-100 pt-6 flex justify-between items-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelfDeleteConfirmEmail('');
+                            setShowSelfDeleteModal(true);
+                          }}
+                          className="px-6 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl transition-all active:scale-[0.98] flex items-center gap-2 border border-rose-100"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete_forever</span>
+                          {language === 'en' ? 'Delete Account' : 'Eliminar Cuenta'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="px-6 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl transition-all active:scale-[0.98] flex items-center gap-2 border border-red-100"
+                        >
+                          <span className="material-symbols-outlined text-sm">logout</span>
+                          {language === 'en' ? 'Logout' : 'Cerrar Sesión'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -8554,50 +9002,61 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </span>
                   </div>
 
-                  {configData.dropi_enabled && (
-                    <div className="mb-5 p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 border border-blue-100/50 rounded-2xl">
-                      <div className="flex items-center gap-2.5 mb-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/10">
-                          <span className="material-symbols-outlined text-base">psychology_alt</span>
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black uppercase tracking-wide text-slate-700">{language === 'en' ? 'AI Sales Prompt Generator' : 'Especialista en Prompts de Venta IA'}</h4>
-                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{language === 'en' ? 'Describe your product to generate a high-converting system prompt.' : 'Ingresa los detalles del producto y la IA generará un prompt optimizado.'}</p>
-                        </div>
+                  <div className="mb-5 p-5 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 border border-blue-100/50 rounded-2xl">
+                    <div className="flex items-center gap-2.5 mb-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/10">
+                        <span className="material-symbols-outlined text-base">psychology_alt</span>
                       </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={botProductDetails}
-                          onChange={e => setBotProductDetails(e.target.value)}
-                          placeholder={language === 'en' ? 'e.g. Smartwatch Ultra 9, waterproof, wireless charging, $49' : 'Ej: Smartwatch Ultra 9, resistente al agua, carga rápida, $49'}
-                          className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15 transition-all text-black"
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && !botPromptGenerating) {
-                              handleGenerateSalesPrompt();
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={handleGenerateSalesPrompt}
-                          disabled={botPromptGenerating || !botProductDetails.trim()}
-                          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/15 transition-all flex items-center gap-1.5 flex-shrink-0"
-                        >
-                          {botPromptGenerating ? (
-                            <>
-                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              <span>{language === 'en' ? 'Generating...' : 'Creando...'}</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                              <span>{language === 'en' ? 'Generate' : 'Generar Prompt'}</span>
-                            </>
-                          )}
-                        </button>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wide text-slate-700">
+                          {configData.dropi_enabled 
+                            ? (language === 'en' ? 'AI Sales Prompt Generator (Dropshipping)' : 'Especialista en Prompts de Venta IA (Dropshipping)')
+                            : (language === 'en' ? 'AI Sales Prompt Generator (Services)' : 'Especialista en Prompts de Venta IA (Servicios)')
+                          }
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                          {configData.dropi_enabled
+                            ? (language === 'en' ? 'Describe your product to generate a high-converting system prompt.' : 'Ingresa los detalles del producto y la IA generará un prompt optimizado.')
+                            : (language === 'en' ? 'Describe your service or business to generate a high-converting system prompt.' : 'Ingresa los detalles de tus servicios o negocio y la IA generará un prompt optimizado.')
+                          }
+                        </p>
                       </div>
                     </div>
-                  )}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={botProductDetails}
+                        onChange={e => setBotProductDetails(e.target.value)}
+                        placeholder={configData.dropi_enabled
+                          ? (language === 'en' ? 'e.g. Smartwatch Ultra 9, waterproof, wireless charging, $49' : 'Ej: Smartwatch Ultra 9, resistente al agua, carga rápida, $49')
+                          : (language === 'en' ? 'e.g. Dental clinic, consultations, whitening, orthodontic services' : 'Ej: Consultorio dental, limpiezas, blanqueamientos, ortodoncia')
+                        }
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15 transition-all text-black"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !botPromptGenerating) {
+                            handleGenerateSalesPrompt();
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={handleGenerateSalesPrompt}
+                        disabled={botPromptGenerating || !botProductDetails.trim()}
+                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/15 transition-all flex items-center gap-1.5 flex-shrink-0"
+                      >
+                        {botPromptGenerating ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <span>{language === 'en' ? 'Generating...' : 'Creando...'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-xs">auto_awesome</span>
+                            <span>{language === 'en' ? 'Generate' : 'Generar Prompt'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
 
                   <div className="relative">
                     <textarea 
@@ -12377,6 +12836,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </tr>
                         );
                       })}
+
+
                     </tbody>
                   </table>
                 </div>
@@ -13302,15 +13763,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <>
                                         <button onClick={() => { setEditingTenantId(t.id); setEditingTenantPlan(t.plan); }} className="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-colors">Plan</button>
                                         {t.id !== tenantData?.id && (
-                                          t.isAdmin ? (
-                                            <button onClick={() => handleToggleAdmin(t.id, false)} className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-orange-50 text-orange-600 hover:bg-orange-100">
-                                              Quitar Admin
+                                          <>
+                                            {t.isAdmin ? (
+                                              <button onClick={() => handleToggleAdmin(t.id, false)} className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-orange-50 text-orange-600 hover:bg-orange-100">
+                                                Quitar Admin
+                                              </button>
+                                            ) : (
+                                              <button onClick={() => { setShowAdminSectionsFor(t.id); setAdminSectionsSelection(['overview', 'tenants', 'templates', 'announcements']); }} className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-slate-50 text-slate-400 hover:bg-slate-100">
+                                                Hacer Admin
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => {
+                                                setTenantToDelete(t);
+                                                setAdminDeleteConfirmText('');
+                                              }}
+                                              className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                            >
+                                              Eliminar
                                             </button>
-                                          ) : (
-                                            <button onClick={() => { setShowAdminSectionsFor(t.id); setAdminSectionsSelection(['overview', 'tenants', 'templates', 'announcements']); }} className="px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors bg-slate-50 text-slate-400 hover:bg-slate-100">
-                                              Hacer Admin
-                                            </button>
-                                          )
+                                          </>
                                         )}
                                       </>
                                     )}
@@ -13604,6 +14076,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </div>
                               )}
                             </div>
+
+                            {/* Zona de Peligro para Super-Administrador */}
+                            {selectedTenant.id !== tenantData?.id && (
+                              <div className="mt-8 pt-6 border-t border-rose-100 bg-rose-50/10 p-5 rounded-xl space-y-3">
+                                <h4 className="text-xs font-black uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-sm">warning</span> Zona de Peligro
+                                </h4>
+                                <p className="text-[10px] text-slate-500 font-medium">
+                                  Al eliminar este usuario, se borrarán todos sus datos, reportes de ventas, configuraciones de WhatsApp/IA de forma permanente e irreversible.
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    setTenantToDelete(selectedTenant);
+                                    setAdminDeleteConfirmText('');
+                                  }}
+                                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all active:scale-[0.98] flex items-center gap-1.5 shadow-sm hover:shadow"
+                                >
+                                  <span className="material-symbols-outlined text-xs">delete_forever</span>
+                                  Eliminar Usuario del Sistema
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </motion.div>
                       </div>
@@ -14620,13 +15114,32 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         {/* ═══════════════════ CONVERSATIONS TAB ═══════════════════ */}
         {activeTab === 'conversations' && (
           <>
-            <section className="mb-8">
-              <span className="text-primary-container font-extrabold tracking-[0.2em] text-[10px] uppercase mb-2 block">WhatsApp</span>
-              <h1 className="text-4xl font-extrabold text-primary tracking-tight mb-3">{language === 'en' ? 'Conversations' : 'Conversaciones'}</h1>
-              <p className="text-base text-slate-500 font-light">{language === 'en' ? 'View and manage all your WhatsApp conversations in one place.' : 'Visualiza y gestiona todas tus conversaciones de WhatsApp en un solo lugar.'}</p>
+            <section className="mb-8 flex justify-between items-end flex-wrap gap-4">
+              <div>
+                <span className="text-primary-container font-extrabold tracking-[0.2em] text-[10px] uppercase mb-2 block">WhatsApp</span>
+                <h1 className="text-4xl font-extrabold text-primary tracking-tight mb-3">{language === 'en' ? 'Conversations' : 'Conversaciones'}</h1>
+                <p className="text-base text-slate-500 font-light">{language === 'en' ? 'View and manage all your WhatsApp conversations in one place.' : 'Visualiza y gestiona todas tus conversaciones de WhatsApp en un solo lugar.'}</p>
+              </div>
+              <div className="flex gap-1 bg-white p-1 rounded-lg border border-slate-200">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-md transition-all flex items-center gap-1.5 ${viewMode === 'table' ? 'bg-primary-container text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <span className="material-symbols-outlined text-xs">list</span>
+                  {language === 'es' ? 'Lista' : 'List'}
+                </button>
+                <button
+                  onClick={() => setViewMode('pipeline')}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-md transition-all flex items-center gap-1.5 ${viewMode === 'pipeline' ? 'bg-primary-container text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <span className="material-symbols-outlined text-xs">view_kanban</span>
+                  Pipeline
+                </button>
+              </div>
             </section>
 
             {/* Conversations List */}
+            {viewMode === 'table' ? (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                 <div className="relative flex-1 min-w-[200px]">
@@ -14692,6 +15205,101 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 )}
               </div>
             </div>
+            ) : (() => {
+              const pipelineColumns = [
+                { id: 'leads_entrantes', label: 'LEADS ENTRANTES', color: 'amber', defaultStage: 'new_lead', stages: ['new_lead', 'discovery'], includeNull: true },
+                { id: 'toma_decisiones', label: 'TOMA DE DECISIONES', color: 'violet', defaultStage: 'qualified', stages: ['qualified', 'proposal'], includeNull: false },
+                { id: 'negociacion', label: 'NEGOCIACIÓN CONTRATO', color: 'emerald', defaultStage: 'objection', stages: ['objection', 'closing'], includeNull: false },
+                { id: 'decision_final', label: 'DECISIÓN FINAL', color: 'blue', defaultStage: 'appointment_booked', stages: ['appointment_booked', 'won', 'lost'], includeNull: false },
+              ];
+
+              const colorMap: Record<string, { border: string; bg: string; dot: string; shadow: string }> = {
+                amber: { border: 'border-t-amber-400', bg: 'bg-amber-50/30', dot: 'bg-amber-400', shadow: 'shadow-[0_0_8px_rgba(251,191,36,0.8)]' },
+                violet: { border: 'border-t-violet-500', bg: 'bg-violet-50/30', dot: 'bg-violet-500', shadow: 'shadow-[0_0_8px_rgba(139,92,246,0.8)]' },
+                emerald: { border: 'border-t-emerald-500', bg: 'bg-emerald-50/30', dot: 'bg-emerald-500', shadow: 'shadow-[0_0_8px_rgba(16,185,129,0.8)]' },
+                blue: { border: 'border-t-blue-500', bg: 'bg-blue-50/30', dot: 'bg-blue-500', shadow: 'shadow-[0_0_8px_rgba(59,130,246,0.8)]' },
+              };
+
+              const handleDrop = async (e: React.DragEvent, targetStage: string) => {
+                e.preventDefault();
+                const droppedId = e.dataTransfer.getData('text/plain');
+                if (!droppedId) return;
+
+                // Optimistic local update
+                setConversationsData((prev: any) => {
+                  if (!prev) return prev;
+                  const updateList = (list: any[]) => list.map((c: any) => c.id === droppedId ? { ...c, sales_stage: targetStage } : c);
+                  return { ...prev, chatting: updateList(prev.chatting || []), interested: updateList(prev.interested || []), bought: updateList(prev.bought || []) };
+                });
+
+                // Persist to DB
+                try {
+                  await authFetch('/api/panel/conversations', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: droppedId, sales_stage: targetStage }),
+                  });
+                  setToast({ message: language === 'es' ? '✅ Etapa actualizada' : '✅ Stage updated', type: 'success' });
+                } catch (err) {
+                  setToast({ message: language === 'es' ? '❌ Error al mover' : '❌ Error moving card', type: 'error' });
+                }
+              };
+
+              const handleDragOver = (e: React.DragEvent) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              };
+
+              const filterContacts = (stages: string[], includeNull: boolean) =>
+                allContacts.filter((c: any) => {
+                  if (chatSearch) {
+                    const q = chatSearch.toLowerCase();
+                    if (!(c.customer_name || '').toLowerCase().includes(q) && !(c.phone_number || '').toLowerCase().includes(q)) return false;
+                  }
+                  if (includeNull && !c.sales_stage) return true;
+                  return stages.includes(c.sales_stage);
+                });
+
+              return (
+                <div className="bg-slate-50 p-6 min-h-[600px] overflow-x-auto rounded-2xl border border-slate-100">
+                  <div className="flex gap-4 min-w-[1100px] h-full items-start">
+                    {pipelineColumns.map((col) => {
+                      const colors = colorMap[col.color];
+                      const contacts = filterContacts(col.stages, col.includeNull);
+                      return (
+                        <div
+                          key={col.id}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, col.defaultStage)}
+                          className={`flex-1 w-[260px] bg-white rounded-2xl border-t-4 ${colors.border} border border-slate-200 shadow-sm flex flex-col overflow-hidden transition-all`}
+                        >
+                          <div className={`p-4 border-b border-slate-100 ${colors.bg}`}>
+                            <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center justify-between">
+                              <span className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${colors.dot} ${colors.shadow}`}></span>
+                                {col.label}
+                              </span>
+                              <span className="bg-white/80 text-slate-500 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-100">{contacts.length}</span>
+                            </h4>
+                          </div>
+                          <div className="p-3 flex flex-col gap-3 overflow-y-auto max-h-[600px] bg-slate-50/50 flex-1 min-h-[100px]">
+                            {contacts.map((conv: any) => (
+                              <KanbanCard key={conv.id} conv={conv} onClick={() => { setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at}); setShowChartModal(true); }} getLeadClassification={getLeadClassification} formatIntent={formatIntent} />
+                            ))}
+                            {contacts.length === 0 && (
+                              <div className="flex flex-col items-center justify-center py-8 text-slate-300">
+                                <span className="material-symbols-outlined text-3xl mb-2">drag_indicator</span>
+                                <p className="text-[10px] font-bold uppercase tracking-wider">{language === 'es' ? 'Arrastra aquí' : 'Drop here'}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 
@@ -14778,6 +15386,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
           </>
         )}
+        {activeTab === 'pricing' && (<PricingTab language={language} tenantData={tenantData} />)}
 </main>
     </div>
 
@@ -15756,6 +16365,132 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <span className="material-symbols-outlined text-[16px]">close</span>
           </button>
         </div>
+      </div>
+    )}
+
+    {/* MODAL DE AUTO-ELIMINACIÓN DE CUENTA (USER SELF-DELETE) */}
+    {showSelfDeleteModal && (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowSelfDeleteModal(false)}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 m-4"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 text-rose-600 mb-4">
+            <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">delete_forever</span>
+            </div>
+            <h3 className="text-lg font-extrabold text-slate-900">
+              {language === 'en' ? 'Delete your account' : 'Eliminar tu cuenta'}
+            </h3>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed mb-4">
+            {language === 'en'
+              ? 'Warning: This action is permanent and cannot be undone. All your configurations, conversations, chat messages, and sales records will be immediately and irreversibly deleted.'
+              : 'Atención: Esta acción es permanente y no se puede deshacer. Se borrarán de inmediato y de forma irreversible todas tus configuraciones, conversaciones, mensajes de chat y registros de ventas.'}
+          </p>
+
+          <div className="space-y-3 mb-6">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+              {language === 'en'
+                ? `Type your email to confirm (${configData.admin_email || ''})`
+                : `Escribe tu correo para confirmar (${configData.admin_email || ''})`}
+            </label>
+            <input
+              type="text"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20"
+              placeholder={configData.admin_email || 'correo@ejemplo.com'}
+              value={selfDeleteConfirmEmail}
+              onChange={e => setSelfDeleteConfirmEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleSelfDeleteAccount}
+              disabled={selfDeleteConfirmEmail !== configData.admin_email || adminActionLoading}
+              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {adminActionLoading ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-xs">delete_forever</span>
+              )}
+              {language === 'en' ? 'Delete Permanently' : 'Eliminar Permanentemente'}
+            </button>
+            <button
+              onClick={() => setShowSelfDeleteModal(false)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-xs rounded-xl transition-all"
+            >
+              {language === 'en' ? 'Cancel' : 'Cancelar'}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )}
+
+    {/* MODAL DE ELIMINACIÓN DE USUARIOS POR ADMINISTRADOR (ADMIN DELETE USER) */}
+    {tenantToDelete && (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setTenantToDelete(null)}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 m-4"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 text-rose-600 mb-4">
+            <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">warning</span>
+            </div>
+            <h3 className="text-lg font-extrabold text-slate-900">
+              Eliminar Usuario del Sistema
+            </h3>
+          </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed mb-4">
+            Estás a punto de eliminar la cuenta de la empresa <strong>{tenantToDelete.companyName || 'Sin nombre'}</strong> ({tenantToDelete.email}).
+            <br />
+            Esta acción borrará de manera inmediata e irreversible todos sus datos en el sistema (chats, configuraciones, pagos, etc.).
+          </p>
+
+          <div className="space-y-3 mb-6">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Escribe "ELIMINAR" para confirmar la acción
+            </label>
+            <input
+              type="text"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20"
+              placeholder="ELIMINAR"
+              value={adminDeleteConfirmText}
+              onChange={e => setAdminDeleteConfirmText(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleAdminDeleteTenant(tenantToDelete.id)}
+              disabled={adminDeleteConfirmText !== 'ELIMINAR' || adminActionLoading}
+              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {adminActionLoading ? (
+                <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-xs">delete_forever</span>
+              )}
+              Eliminar de Forma Permanente
+            </button>
+            <button
+              onClick={() => setTenantToDelete(null)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-xs rounded-xl transition-all"
+            >
+              Cancelar
+            </button>
+          </div>
+        </motion.div>
       </div>
     )}
 

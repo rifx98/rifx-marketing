@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import ContactChannels from '../components/ContactChannels';
 import TrainCTA from '../components/TrainCTA';
+import AnimatedText from '../components/AnimatedText';
 
 export default function ServiciosClient() {
   return (
@@ -14,9 +15,9 @@ export default function ServiciosClient() {
           <div className="max-w-7xl mx-auto w-full grid grid-cols-12 gap-8">
             <div className="col-span-12 md:col-span-7 z-10 flex flex-col justify-center">
               <span className="text-[#F27121] font-bold tracking-[0.2em] uppercase text-sm mb-4">Misión Intergaláctica</span>
-              <h1 className="text-6xl md:text-8xl text-white mb-6 font-title">
-                Gama de <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-[#F27121]">Servicios Estelares</span>
-              </h1>
+              <AnimatedText as="h1" className="text-6xl md:text-8xl text-white mb-6 font-title" stagger={30} delay={100}>
+                Gama de Servicios Estelares
+              </AnimatedText>
               <p className="text-xl text-white/70 max-w-lg mb-10 leading-relaxed">
                 Desbloquea el potencial infinito de tu marca con soluciones digitales de alto impacto diseñadas para dominar el vacío competitivo.
               </p>
@@ -27,7 +28,6 @@ export default function ServiciosClient() {
               </div>
             </div>
             <div className="col-span-12 md:col-span-5 relative mt-12 md:mt-0">
-              <div className="absolute -top-20 -right-20 w-96 h-96 bg-[#F27121]/10 rounded-full blur-[120px]"></div>
               <div className="relative z-0">
                 <img 
                   alt="Meteoritos en Llamas" 
@@ -47,7 +47,9 @@ export default function ServiciosClient() {
         <section id="protocolos" className="py-28 bg-[#0b1229]/50 px-8">
           <div className="max-w-7xl mx-auto">
             <div className="mb-20">
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">Nuestros Protocolos</h2>
+              <AnimatedText as="h2" className="text-4xl md:text-5xl font-bold text-white mb-4" stagger={40} delay={100}>
+                Nuestros Protocolos
+              </AnimatedText>
               <div className="h-1 w-24 bg-[#F27121]"></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -129,7 +131,9 @@ export default function ServiciosClient() {
               />
             </div>
             <div className="w-full md:w-1/2">
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-12">Por qué elegir <span className="text-[#F27121]">Rifx Marketing</span></h2>
+              <AnimatedText as="h2" className="text-4xl md:text-5xl font-bold text-white mb-12" stagger={35} delay={100}>
+                Por qué elegir Rifx Marketing
+              </AnimatedText>
               <div className="space-y-12">
                 <div className="flex gap-6">
                   <span className="material-symbols-outlined text-[#F27121] text-3xl">memory</span>

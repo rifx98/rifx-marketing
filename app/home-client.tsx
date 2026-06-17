@@ -1,27 +1,68 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import ContactChannels from './components/ContactChannels';
 import EntryAnimation from './components/EntryAnimation';
+import FunnelSection from './components/FunnelSection';
+import { motion, useScroll, useTransform } from 'framer-motion';
 
 import TrainCTA from './components/TrainCTA';
+import { ScrollyContainer } from "./components/ScrollyContainer";
+import AnimatedText from './components/AnimatedText';
+import ParticleCanvas from './components/ParticleCanvas';
 
 export default function HomeClient() {
   const [showIntro, setShowIntro] = useState(true);
+  const mousePosRef = useRef({ x: 0, y: 0 });
+  const tiltCardRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Hook para desvanecer y reducir escala del logo 2D en scroll para revelar la dispersión 3D
+  const { scrollY } = useScroll();
+  const logoOpacity = useTransform(scrollY, [0, 200], [1, 0]);
+  const logoScale = useTransform(scrollY, [0, 200], [1, 0.8]);
 
   useEffect(() => {
+    // Bloquear scroll mientras se muestra la animación
+    document.body.style.overflow = 'hidden';
+    
     // Sincronizado con la animación más sutil y detallada (3.5s)
     const timer = setTimeout(() => {
       setShowIntro(false);
+      document.body.style.overflow = 'auto'; // Restaurar scroll
     }, 3500);
 
-    return () => clearTimeout(timer);
+    // Mouse movement tracker for 3D parallax
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2);
+      const y = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2);
+      mousePosRef.current = { x, y };
+
+      if (tiltCardRef.current) {
+        tiltCardRef.current.style.transform = `perspective(1000px) rotateY(${x * 30}deg) rotateX(${y * -30}deg) translateZ(30px)`;
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'auto';
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, []);
 
+
+
+
+
+  // Scroll calculations removed (now using whileInView)
   return (
     <>
       {showIntro && <EntryAnimation />}
+      {/* Fondo 3D de partículas — solo en home */}
+      <ParticleCanvas />
       {/* Main Content */}
 
 
@@ -37,52 +78,51 @@ export default function HomeClient() {
             transform: scale(1.2);
           }
         `}</style>
-        {/* Hero Section */}
-        <section className="hero-gradient star-bg pt-28 pb-16 lg:pt-32 lg:pb-20 relative overflow-hidden curved-divider">
-          <div className="container mx-auto px-6 flex flex-col lg:flex-row items-center">
+
+{/* Hero Section */}
+        <section className="bg-transparent pt-28 pb-16 lg:pt-32 lg:pb-20 relative overflow-hidden curved-divider">
+
+          <div className="container mx-auto px-6 flex flex-col lg:flex-row items-center relative z-10 min-h-[85vh]">
             {/* Left Content: Headline & Form */}
-            <div className="w-full lg:w-1/2 z-10 text-center lg:text-left">
-              <h1 className="text-white text-3xl md:text-5xl lg:text-6xl font-title mb-4 lg:mb-6">
-                ¡TU MARCA NECESITA<br /> UN LANZAMIENTO<br /> ESPACIAL!
-              </h1>
-              <p className="text-gray-300 text-base md:text-lg mb-8 max-w-md mx-auto lg:mx-0">
-                Marketing digital de vanguardia que te hace brillar. Es hora de despegar.
+            <div className="w-full lg:w-7/12 z-10 text-center lg:text-left pt-10 lg:pt-0">
+              <AnimatedText as="h1" className="text-white text-6xl md:text-8xl lg:text-[9rem] font-space-grotesk font-black tracking-tighter mb-2 leading-[0.85] uppercase drop-shadow-2xl" stagger={25} delay={3600}>
+                TU MARCA EN ÓRBITA
+              </AnimatedText>
+              <p className="text-gray-300 text-lg md:text-2xl mt-8 mb-10 max-w-2xl mx-auto lg:mx-0 font-inter font-light tracking-wide">
+                Marketing digital inmersivo que domina el mercado. Diseñamos experiencias que no se ignoran.
               </p>
 
-              {/* Lead Capture Form Card */}
               {/* CTA Button */}
-              <div className="max-w-md mx-auto lg:mx-0 mt-8">
+              <div className="max-w-md mx-auto lg:mx-0 mt-8 flex gap-4 justify-center lg:justify-start">
                 <button
                   onClick={() => document.getElementById('train-cta')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="w-full bg-rocket-orange text-white font-bold py-5 rounded-2xl hover-rocket-orange transition-all shadow-[0_0_20px_rgba(242,113,33,0.4)] hover:shadow-[0_0_30px_rgba(242,113,33,0.6)] flex items-center justify-center gap-3 text-lg hover:-translate-y-1"
+                  className="bg-rocket-orange text-white font-black px-10 py-5 rounded-full hover-rocket-orange transition-all shadow-[0_0_40px_rgba(242,113,33,0.5)] hover:shadow-[0_0_60px_rgba(242,113,33,0.8)] flex items-center justify-center gap-3 text-xl hover:scale-105 active:scale-95 border border-white/20"
                 >
-                  ¡Lanza Mi Campaña! 🚀
+                  INICIAR SECUENCIA <span className="material-symbols-outlined font-bold">rocket_launch</span>
                 </button>
               </div>
             </div>
 
-            {/* Right Content: Illustration */}
-            <div className="w-full lg:w-1/2 mt-12 lg:mt-0 relative flex justify-center items-center">
-              <div className="relative w-full max-w-[280px] md:max-w-lg animate-bounce" style={{ animationDuration: '4s' }}>
-                <img
-                  alt="Logo RIFX Marketing"
-                  className="object-contain w-full h-auto"
-                  src="/images/rifx-logo-user.png"
-                />
-              </div>
+            {/* Right Content: 3D Particle Canvas takes care of the illustration */}
+            <div className="w-full lg:w-5/12 mt-16 lg:mt-0 relative flex justify-center items-center z-10 pointer-events-none">
+              {/* Espacio reservado para que el layout se mantenga, el logo 3D est de fondo */}
+              <div className="w-full max-w-[320px] md:max-w-xl aspect-square"></div>
             </div>
           </div>
         </section>
 
+        <div className="relative z-10 border-t border-white/5">
         {/* Mission Section */}
-        <section className="py-16 lg:py-24 bg-white" data-purpose="mission-section">
+        <section className="py-16 lg:py-24 bg-transparent" data-purpose="mission-section">
           <div className="container mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-10 lg:gap-12 text-center lg:text-left">
             {/* Left side text */}
             <div className="w-full lg:w-1/2">
               <span className="text-rocket-orange font-bold uppercase tracking-widest text-xs lg:text-sm">QUIÉNES SOMOS</span>
-              <h2 className="text-3xl lg:text-4xl font-black text-space-navy mt-2 mb-4">Impulsamos Marcas que Dominan su Mercado</h2>
-              <p className="text-lg lg:text-xl text-rocket-orange font-semibold mb-6">Estrategia + Creatividad + Tecnología = <span className="text-space-navy">Resultados Imparables.</span></p>
-              <p className="text-gray-600 leading-relaxed mb-8 text-sm md:text-base">
+              <AnimatedText as="h2" className="text-3xl lg:text-4xl font-black text-white mt-2 mb-4 drop-shadow-lg" stagger={40} delay={100}>
+                Impulsamos Marcas que Dominan su Mercado
+              </AnimatedText>
+              <p className="text-lg lg:text-xl text-rocket-orange font-semibold mb-6">Estrategia + Creatividad + Tecnología = <span className="text-white">Resultados Imparables.</span></p>
+              <p className="text-gray-300 leading-relaxed mb-8 text-sm md:text-base">
                 Somos una agencia de marketing digital especializada en escalar negocios a través de campañas de alto rendimiento, automatización con inteligencia artificial y experiencias digitales que convierten visitantes en clientes. No hacemos marketing genérico — diseñamos sistemas de crecimiento a medida para cada marca.
               </p>
               <Link className="inline-block bg-rocket-orange text-white px-8 py-3 rounded-full font-bold shadow-lg hover-rocket-orange transition text-base" href="/sobre-nosotros">
@@ -94,7 +134,7 @@ export default function HomeClient() {
               <div className="">
                 <img
                   alt="Alien and astronaut sitting together showing peace signs"
-                  className="w-full max-w-md mx-auto h-auto object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-500"
+                  className="w-full max-w-md mx-auto h-auto object-contain opacity-0"
                   src="/images/alien-astronaut.png"
                 />
               </div>
@@ -102,81 +142,22 @@ export default function HomeClient() {
           </div>
         </section>
 
-        {/* Services Section */}
-        <section className="bg-space-navy py-16 lg:py-24" data-purpose="services-section">
-          <div className="container mx-auto px-6 text-center mb-12 lg:mb-16">
-            <h2 className="text-white text-3xl lg:text-4xl font-black mb-4">Gama de Servicios Estelares que Convierte.</h2>
-            <p className="text-gray-300 text-base max-w-2xl mx-auto mb-12">
-              Desde publicidad de alto impacto hasta automatización con inteligencia artificial, ofrecemos soluciones integrales para posicionar tu marca en la vanguardia digital.
-            </p>
-          </div>
-          <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-            {/* Card 1: Ads */}
-            <Link href="/servicios/anuncios-de-alta-velocidad" className="block group outline-none">
-              <div className="bg-card-dark p-6 lg:p-8 rounded-3xl border-b-4 border-rocket-orange hover:transform hover:-translate-y-2 transition duration-300 text-center md:text-left h-full">
-                <div className="mb-4 lg:mb-6">
-                  <span className="text-4xl lg:text-5xl">🚀</span>
-                </div>
-                <h3 className="text-white text-xl lg:text-2xl font-bold mb-3 lg:mb-4 group-hover:text-rocket-orange transition-colors">Anuncios de Alta Velocidad</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  Campañas de pago optimizadas para escalar rápido y alcanzar objetivos comerciales en tiempo récord.
-                </p>
-              </div>
-            </Link>
-
-            {/* Card 2: WhatsApp IA */}
-            <Link href="/servicios/whatsapp-ai" className="block group outline-none">
-              <div className="bg-card-dark p-6 lg:p-8 rounded-3xl border-b-4 border-rocket-orange hover:transform hover:-translate-y-2 transition duration-300 text-center md:text-left h-full">
-                <div className="mb-4 lg:mb-6">
-                  <span className="text-4xl lg:text-5xl">💬</span>
-                </div>
-                <h3 className="text-white text-xl lg:text-2xl font-bold mb-3 lg:mb-4 group-hover:text-rocket-orange transition-colors">WhatsApp con IA</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  Automatización inteligente para atención al cliente. Chatbots avanzados que cierran ventas en piloto automático.
-                </p>
-              </div>
-            </Link>
-
-            {/* Card 3: UX/UI Design */}
-            <Link href="/servicios/diseno-web-inmersivo" className="block group outline-none">
-              <div className="bg-card-dark p-6 lg:p-8 rounded-3xl border-b-4 border-rocket-orange hover:transform hover:-translate-y-2 transition duration-300 text-center md:text-left h-full">
-                <div className="mb-4 lg:mb-6">
-                  <span className="text-4xl lg:text-5xl">🎨</span>
-                </div>
-                <h3 className="text-white text-xl lg:text-2xl font-bold mb-3 lg:mb-4 group-hover:text-rocket-orange transition-colors">Diseño UX/UI</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  Experiencias centradas en el humano que optimizan la conversión y el engagement emocional. Convertimos visitantes en tripulantes leales.
-                </p>
-              </div>
-            </Link>
-
-            {/* Card 4: E-commerce */}
-            <Link href="/servicios/ecommerce-interestelar" className="block group outline-none">
-              <div className="bg-card-dark p-6 lg:p-8 rounded-3xl border-b-4 border-rocket-orange hover:transform hover:-translate-y-2 transition duration-300 text-center md:text-left h-full">
-                <div className="mb-4 lg:mb-6">
-                  <span className="text-4xl lg:text-5xl">🛒</span>
-                </div>
-                <h3 className="text-white text-xl lg:text-2xl font-bold mb-3 lg:mb-4 group-hover:text-rocket-orange transition-colors">E-commerce Interestelar</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">
-                  Plataformas de venta robustas y escalables para dominar el comercio electrónico global.
-                </p>
-              </div>
-            </Link>
-          </div>
-        </section>
+        <FunnelSection />
 
         {/* Testimonials Section */}
-        <section className="py-16 lg:py-24 bg-gray-50 overflow-hidden" data-purpose="testimonials">
+        <section className="py-16 lg:py-24 bg-transparent overflow-hidden" data-purpose="testimonials">
           <div className="container mx-auto px-6 text-center mb-16">
             <span className="text-rocket-orange font-bold uppercase tracking-widest text-xs lg:text-sm">TESTIMONIOS</span>
-            <h2 className="text-space-navy text-3xl lg:text-4xl font-black px-4 mt-2">Lo que Dicen Nuestros Clientes</h2>
-            <p className="text-gray-500 text-sm mt-3 max-w-xl mx-auto">Empresas reales que han escalado sus resultados con nuestras estrategias de marketing digital.</p>
+            <AnimatedText as="h2" className="text-white text-3xl lg:text-4xl font-black px-4 mt-2 drop-shadow-lg" stagger={40} delay={100}>
+              Lo que Dicen Nuestros Clientes
+            </AnimatedText>
+            <p className="text-gray-400 text-sm mt-3 max-w-xl mx-auto">Empresas reales que han escalado sus resultados con nuestras estrategias de marketing digital.</p>
           </div>
           
           <div className="relative group">
             {/* Gradient Masks for edges */}
-            <div className="absolute inset-y-0 left-0 w-24 md:w-48 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none"></div>
-            <div className="absolute inset-y-0 right-0 w-24 md:w-48 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute inset-y-0 left-0 w-24 md:w-48 bg-gradient-to-r from-[#020510] to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute inset-y-0 right-0 w-24 md:w-48 bg-gradient-to-l from-[#020510] to-transparent z-10 pointer-events-none"></div>
 
             <div className="flex animate-infinite-scroll hover-pause whitespace-nowrap w-max gap-8 px-4">
               {/* Bloque 1 */}
@@ -264,15 +245,16 @@ export default function HomeClient() {
         </section>
 
         {/* Partners / Brands Section (Carousel) */}
-        <section className="bg-gray-50 py-16 overflow-hidden border-y border-gray-100" data-purpose="partners-section">
+        <section className="bg-transparent py-16 overflow-hidden border-y border-white/10 relative" data-purpose="partners-section">
+          <div className="absolute inset-0 bg-white/5 backdrop-blur-sm -z-10"></div>
           <div className="container mx-auto px-6 mb-12">
-            <p className="text-center text-[10px] md:text-xs text-gray-400 uppercase tracking-[0.5em] font-black">Marcas que ya están en órbita con nosotros</p>
+            <p className="text-center text-[10px] md:text-xs text-gray-500 uppercase tracking-[0.5em] font-black drop-shadow-md">Marcas que ya están en órbita con nosotros</p>
           </div>
           
           <div className="relative overflow-hidden group">
             {/* Gradient Masks for edges */}
-            <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none"></div>
-            <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#020510] to-transparent z-10 pointer-events-none"></div>
+            <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#020510] to-transparent z-10 pointer-events-none"></div>
             
             <div className="flex animate-infinite-scroll-reverse whitespace-nowrap items-center w-max">
               {/* Bloque 1 */}
@@ -296,41 +278,53 @@ export default function HomeClient() {
         </section>
 
         {/* Process Section */}
-        <section className="py-16 lg:py-24 bg-white" data-purpose="process-section">
+        <section className="py-16 lg:py-24 bg-transparent" data-purpose="process-section">
           <div className="container mx-auto px-6">
-            <h2 className="text-center text-space-navy text-2xl lg:text-3xl font-black mb-12 lg:mb-16 uppercase tracking-tight">TU RUTA AL LANZAMIENTO EXITOSO</h2>
-            <div className="flex flex-col md:flex-row justify-between items-center md:items-start gap-10 md:gap-8 relative">
-              {/* Connecting Line Background (Hidden on small screens) */}
-              <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gray-200 -z-10"></div>
-              {/* Step 1 */}
-              <div className="w-full md:flex-1 text-center group">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-gray-50 border-2 border-gray-100 rounded-2xl mx-auto flex items-center justify-center mb-4 lg:mb-6 group-hover:border-rocket-orange transition">
-                  <span className="text-3xl md:text-4xl">🔭</span>
+            <AnimatedText as="h2" className="text-center text-white text-2xl lg:text-3xl font-black mb-16 lg:mb-24 uppercase tracking-tight drop-shadow-lg" stagger={38} delay={100}>
+              TU RUTA AL LANZAMIENTO EXITOSO
+            </AnimatedText>
+            
+            <div className="flex flex-col gap-16 md:gap-24 relative w-full max-w-5xl mx-auto">
+              {/* Connecting Line Background (Vertical line in the middle) */}
+              <div className="hidden md:block absolute top-0 bottom-0 left-1/2 w-0.5 bg-white/10 -z-10 transform -translate-x-1/2"></div>
+              
+              {/* Step 1 - Left */}
+              <div className="w-full flex justify-start">
+                <div className="w-full md:w-[45%] text-center md:text-right group">
+                  <div className="w-20 h-20 md:w-24 md:h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl mx-auto md:ml-auto md:mr-0 flex items-center justify-center mb-4 lg:mb-6 group-hover:border-rocket-orange group-hover:shadow-[0_0_30px_rgba(242,113,33,0.3)] transition-all">
+                    <span className="text-3xl md:text-4xl">🔭</span>
+                  </div>
+                  <h4 className="font-bold text-white text-xl mb-2">1. Análisis Cósmico</h4>
+                  <p className="text-gray-400 text-base md:pl-8">Estudiamos tu situación actual y el mercado objetivo.</p>
                 </div>
-                <h4 className="font-bold text-space-navy text-lg mb-2">1. Análisis Cósmico</h4>
-                <p className="text-gray-500 text-sm px-4">Estudiamos tu situación actual y el mercado objetivo.</p>
               </div>
-              {/* Step 2 */}
-              <div className="w-full md:flex-1 text-center group">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-gray-50 border-2 border-gray-100 rounded-2xl mx-auto flex items-center justify-center mb-4 lg:mb-6 group-hover:border-rocket-orange transition">
-                  <span className="text-3xl md:text-4xl">🚀</span>
+
+              {/* Step 2 - Right */}
+              <div className="w-full flex justify-end">
+                <div className="w-full md:w-[45%] text-center md:text-left group">
+                  <div className="w-20 h-20 md:w-24 md:h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl mx-auto md:mr-auto md:ml-0 flex items-center justify-center mb-4 lg:mb-6 group-hover:border-rocket-orange group-hover:shadow-[0_0_30px_rgba(242,113,33,0.3)] transition-all">
+                    <span className="text-3xl md:text-4xl">🚀</span>
+                  </div>
+                  <h4 className="font-bold text-white text-xl mb-2">2. Estrategia Orbital</h4>
+                  <p className="text-gray-400 text-base md:pr-8">Diseñamos el plan de ataque para el despegue.</p>
                 </div>
-                <h4 className="font-bold text-space-navy text-lg mb-2">2. Estrategia Orbital</h4>
-                <p className="text-gray-500 text-sm px-4">Diseñamos el plan de ataque para el despegue.</p>
               </div>
-              {/* Step 3 */}
-              <div className="w-full md:flex-1 text-center group">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-gray-50 border-2 border-gray-100 rounded-2xl mx-auto flex items-center justify-center mb-4 lg:mb-6 group-hover:border-rocket-orange transition">
-                  <span className="text-3xl md:text-4xl">🔥</span>
+
+              {/* Step 3 - Left */}
+              <div className="w-full flex justify-start">
+                <div className="w-full md:w-[45%] text-center md:text-right group">
+                  <div className="w-20 h-20 md:w-24 md:h-24 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl mx-auto md:ml-auto md:mr-0 flex items-center justify-center mb-4 lg:mb-6 group-hover:border-rocket-orange group-hover:shadow-[0_0_30px_rgba(242,113,33,0.3)] transition-all">
+                    <span className="text-3xl md:text-4xl">🔥</span>
+                  </div>
+                  <h4 className="font-bold text-white text-xl mb-2">3. Lanzamiento y Optimización</h4>
+                  <p className="text-gray-400 text-base md:pl-8">Ejecutamos y ajustamos para resultados máximos.</p>
                 </div>
-                <h4 className="font-bold text-space-navy text-lg mb-2">3. Lanzamiento y Optimización</h4>
-                <p className="text-gray-500 text-sm px-4">Ejecutamos y ajustamos para resultados máximos.</p>
               </div>
             </div>
           </div>
         </section>
-
         <TrainCTA />
+        </div>
       </main>
       <ContactChannels onlyModal={true} />
     </>

@@ -1,11 +1,17 @@
 'use client';
 
 import React from 'react';
+import ReactDOM from 'react-dom';
 
 export default function EntryAnimation() {
   const [particles, setParticles] = React.useState<{ x: string, y: string, delay: number, duration: number }[]>([]);
+  const [progress, setProgress] = React.useState(0);
+
+  const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
+    setMounted(true);
+    // Generate particles
     const newParticles = [...Array(20)].map(() => ({
       x: `${(Math.random() - 0.5) * 1000}px`,
       y: `${(Math.random() - 0.5) * 1000}px`,
@@ -13,10 +19,25 @@ export default function EntryAnimation() {
       duration: 2 + Math.random() * 2
     }));
     setParticles(newParticles);
+
+    // Simulate loader progress
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 98) {
+          clearInterval(interval);
+          return 99;
+        }
+        return prev + Math.floor(Math.random() * 12) + 3;
+      });
+    }, 150);
+
+    return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-[#0b1229] flex items-center justify-center overflow-hidden intro-overlay-fade pointer-events-none perspective-container">
+  if (!mounted) return null;
+
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 w-screen h-[100dvh] z-[99999] bg-[#0b1229] flex items-center justify-center overflow-hidden intro-overlay-fade perspective-container scanlines">
       {/* Cinematic Particles */}
       {particles.map((p, i) => (
         <div
@@ -67,6 +88,21 @@ export default function EntryAnimation() {
           <div className="w-[500px] h-[500px] bg-rocket-orange rounded-full"></div>
         </div>
       </div>
-    </div>
+
+      {/* GTA-Style System Reads */}
+      <div className="absolute bottom-6 left-6 font-mono text-[9px] text-[#F27121]/80 space-y-0.5 tracking-wider hidden sm:block">
+        <p>RIFX CORE ANALOG LOADER v2.026</p>
+        <p>STATUS: SYSTEM MODULES INITIALIZING... OK</p>
+        <p>SECTOR: RIFX COGNITIVE ORBIT... CONNECTED</p>
+        <p>AUDIO_SAMPLE: ANALOG_CYBERPUNK... LOADED</p>
+      </div>
+
+      {/* GTA-Style Loading Progress */}
+      <div className="absolute bottom-6 right-6 flex items-center gap-3 font-mono text-[11px] text-[#F27121] neon-glow-orange tracking-widest">
+        <span className="animate-spin w-3 h-3 border border-[#F27121]/30 border-t-[#F27121] rounded-full inline-block"></span>
+        <span>CARGANDO... {Math.min(99, progress)}%</span>
+      </div>
+    </div>,
+    document.body
   );
 }

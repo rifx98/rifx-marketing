@@ -94,13 +94,13 @@ export async function POST(req: NextRequest) {
     // Resolve API key based on provider
     let apiKey = '';
     if (isGroq) apiKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
-    else if (isGemini) apiKey = extConfig.gemini_key || process.env.GEMINI_API_KEY || '';
+    else if (isGemini) apiKey = extConfig.gemini_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
     else if (isAnthropic) apiKey = extConfig.anthropic_key || process.env.ANTHROPIC_API_KEY || '';
     else apiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
 
     if (!apiKey) {
       if (isGroq) apiKey = process.env.GROQ_API_KEY || '';
-      else if (isGemini) apiKey = process.env.GEMINI_API_KEY || '';
+      else if (isGemini) apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
       else if (isAnthropic) apiKey = process.env.ANTHROPIC_API_KEY || '';
       else apiKey = process.env.OPENAI_API_KEY || '';
     }
@@ -208,8 +208,10 @@ Tu objetivo principal es actuar como un excelente asesor de ventas y conectar de
 NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generado con éxito" en tu propia respuesta. El sistema backend automáticamente procesará la orden e inyectará los detalles de confirmación (número de guía y transportadora) o informará de cualquier error de conexión. Reemplaza los campos nombre_cliente, telefono, direccion y ciudad con la información correspondiente. No dejes corchetes vacíos ni inventes datos de envío.`);
     }
 
-    // Classification instruction
-    parts.push('\n\n[INSTRUCCIÓN DE PRUEBA]: Al final de tu respuesta, añade SIEMPRE un bloque JSON exacto con este formato: {"classification": "Interesado" | "Indeciso" | "Curioso", "confidence": number, "next_action": string}. Clasifica según el mensaje del usuario.');
+    // Enforce greeting/signature rule: only introduce/present once.
+    parts.push(`\n\n[REGLA CRÍTICA DE COMUNICACIÓN]:
+- Únicamente debes presentarte como "especialista de RIFX" o decir "Soy especialista de RIFX" en tu primer saludo o inicio de la conversación.
+- En todos los mensajes siguientes de la conversación, está estrictamente PROHIBIDO que repitas "Soy especialista de RIFX", "asistente de RIFX", o que te presentes de nuevo. Responde directamente a las dudas del cliente con naturalidad, empatía y profesionalismo sin repetir tu presentación.`);
 
     const systemPrompt = parts.join('\n');
 

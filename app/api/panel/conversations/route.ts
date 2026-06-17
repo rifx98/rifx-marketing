@@ -79,7 +79,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const supabase = createSupabaseAdmin();
-    const { id, status, name, phone_number } = await req.json();
+    const { id, status, name, phone_number, sales_stage } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Falta id' }, { status: 400 });
@@ -93,6 +93,14 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
       }
       updates.status = status;
+    }
+
+    if (sales_stage) {
+      const validStages = ['new_lead', 'discovery', 'qualified', 'proposal', 'objection', 'closing', 'appointment_booked', 'won', 'lost'];
+      if (!validStages.includes(sales_stage)) {
+        return NextResponse.json({ error: 'Sales stage inválido' }, { status: 400 });
+      }
+      updates.sales_stage = sales_stage;
     }
 
     if (name !== undefined) updates.name = name;

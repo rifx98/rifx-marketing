@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 
 export default function AnimatedCursor() {
   const pathname = usePathname();
-  const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
+  const cursorRef = useRef<HTMLDivElement>(null);
   const [isClient, setIsClient] = useState(false);
   const [isPropulsing, setIsPropulsing] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -24,13 +24,15 @@ export default function AnimatedCursor() {
 
     if (!checkDesktop() || pathname?.startsWith('/panel')) return; // Si es móvil o panel, no hacer nada
 
-    // Hide default cursors only on desktop
+    // Ocultar los cursores predeterminados
     const style = document.createElement('style');
     style.innerHTML = `@media (pointer: fine) and (min-width: 768px) { * { cursor: none !important; } }`;
     document.head.appendChild(style);
 
     const updateCursor = (e: MouseEvent) => {
-      setCursorPos({ x: e.clientX, y: e.clientY });
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0) translate(-50%, -50%)`;
+      }
     };
     
     let scrollTimeout: NodeJS.Timeout;
@@ -44,7 +46,7 @@ export default function AnimatedCursor() {
 
     const handleResize = () => checkDesktop();
 
-    window.addEventListener('mousemove', updateCursor);
+    window.addEventListener('mousemove', updateCursor, { passive: true });
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('wheel', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize);
@@ -66,12 +68,10 @@ export default function AnimatedCursor() {
 
   return (
     <div 
-      className="fixed pointer-events-none z-[10000]"
+      ref={cursorRef}
+      className="fixed top-0 left-0 pointer-events-none z-[10000] will-change-transform"
       style={{ 
-        left: cursorPos.x, 
-        top: cursorPos.y, 
-        transform: 'translate(-50%, -50%)',
-        transition: 'left 0.05s linear, top 0.05s linear' 
+        transform: 'translate3d(-100px, -100px, 0) translate(-50%, -50%)',
       }}
     >
       <div 

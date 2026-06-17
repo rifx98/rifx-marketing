@@ -15,6 +15,8 @@ function encodeExtendedConfig(fields: {
   facebook_access_token?: string; facebook_ad_account_id?: string; facebook_page_id?: string;
   dropi_enabled?: boolean; dropi_token?: string; dropi_default_product_id?: string; dropi_default_price?: number;
   dropi_prompt?: string;
+  sales_prompt?: string;
+  support_prompt?: string;
 }): string {
   return JSON.stringify(fields);
 }
@@ -30,6 +32,8 @@ interface ExtendedConfig {
   dropi_default_product_id: string;
   dropi_default_price: number;
   dropi_prompt: string;
+  sales_prompt: string;
+  support_prompt: string;
 }
 
 // Helper: decode AI keys + extra fields from the stored value (handles both legacy plain string and new JSON format)
@@ -45,6 +49,8 @@ function decodeExtendedConfig(stored: string): ExtendedConfig {
     dropi_default_product_id: '',
     dropi_default_price: 50,
     dropi_prompt: '',
+    sales_prompt: '',
+    support_prompt: '',
   };
   if (!stored) return defaults;
   try {
@@ -69,6 +75,8 @@ function decodeExtendedConfig(stored: string): ExtendedConfig {
       dropi_default_product_id: parsed.dropi_default_product_id || '',
       dropi_default_price: parsed.dropi_default_price ?? 50,
       dropi_prompt: parsed.dropi_prompt || '',
+      sales_prompt: parsed.sales_prompt || '',
+      support_prompt: parsed.support_prompt || '',
     };
   } catch {
     // Legacy: stored value is a plain OpenAI key string
@@ -148,6 +156,8 @@ export async function GET(req: NextRequest) {
       dropi_default_product_id: extended.dropi_default_product_id,
       dropi_default_price: extended.dropi_default_price,
       dropi_prompt: extended.dropi_prompt,
+      sales_prompt: extended.sales_prompt,
+      support_prompt: extended.support_prompt,
     });
   } catch (error: any) {
     console.error('❌ Error obteniendo config:', error);
@@ -174,7 +184,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Encode AI keys + alert_email into a single column
-    const hasExtendedFields = body.openai_key !== undefined || body.gemini_key !== undefined || body.groq_key !== undefined || body.alert_email !== undefined || body.bulk_wa_token !== undefined || body.bulk_wa_phone_id !== undefined || body.model_selection !== undefined || body.confidence_threshold !== undefined || body.auto_classification !== undefined || body.fal_key !== undefined || body.visual_render_provider !== undefined || body.facebook_access_token !== undefined || body.facebook_ad_account_id !== undefined || body.facebook_page_id !== undefined || body.dropi_enabled !== undefined || body.dropi_token !== undefined || body.dropi_default_product_id !== undefined || body.dropi_default_price !== undefined || body.dropi_prompt !== undefined;
+    const hasExtendedFields = body.openai_key !== undefined || body.gemini_key !== undefined || body.groq_key !== undefined || body.alert_email !== undefined || body.bulk_wa_token !== undefined || body.bulk_wa_phone_id !== undefined || body.model_selection !== undefined || body.confidence_threshold !== undefined || body.auto_classification !== undefined || body.fal_key !== undefined || body.visual_render_provider !== undefined || body.facebook_access_token !== undefined || body.facebook_ad_account_id !== undefined || body.facebook_page_id !== undefined || body.dropi_enabled !== undefined || body.dropi_token !== undefined || body.dropi_default_product_id !== undefined || body.dropi_default_price !== undefined || body.dropi_prompt !== undefined || body.sales_prompt !== undefined || body.support_prompt !== undefined;
     if (hasExtendedFields) {
       // First, get existing values so we don't lose them when only one is updated
       const { data: existing } = await supabase
@@ -206,6 +216,8 @@ export async function POST(req: NextRequest) {
         dropi_default_product_id: body.dropi_default_product_id !== undefined ? body.dropi_default_product_id : current.dropi_default_product_id,
         dropi_default_price: body.dropi_default_price !== undefined ? body.dropi_default_price : current.dropi_default_price,
         dropi_prompt: body.dropi_prompt !== undefined ? body.dropi_prompt : current.dropi_prompt,
+        sales_prompt: body.sales_prompt !== undefined ? body.sales_prompt : current.sales_prompt,
+        support_prompt: body.support_prompt !== undefined ? body.support_prompt : current.support_prompt,
       });
     }
 

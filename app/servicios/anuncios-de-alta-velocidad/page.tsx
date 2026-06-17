@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import ContactChannels from '../../components/ContactChannels';
 import TrainCTA from '../../components/TrainCTA';
+import AnimatedText from '../../components/AnimatedText';
 
 export default function AnunciosAltaVelocidad() {
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
@@ -30,9 +31,8 @@ export default function AnunciosAltaVelocidad() {
 
           {/* ── HERO ── */}
           <section className="relative min-h-[90vh] flex items-center px-6 py-20 overflow-hidden">
-            {/* Background glow */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-1/4 right-1/4 w-[500px] h-[500px] bg-[#f27121]/10 rounded-full blur-[120px]" />
+            {/* Background elements */}
+            <div className="absolute inset-0 pointer-events-none z-0">
               <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px]" />
             </div>
 
@@ -43,11 +43,9 @@ export default function AnunciosAltaVelocidad() {
                   <span className="w-2 h-2 rounded-full bg-[#f27121] mr-2 animate-pulse" />
                   Publicidad Digital de Alto Rendimiento
                 </div>
-                <h1 className="text-5xl md:text-6xl lg:text-7xl leading-[1.05] mb-6 text-white font-title">
-                  Anuncios que <br />
-                  <span className="text-gradient-ads">Generan Ventas</span>,<br />
-                  no solo clics.
-                </h1>
+                <AnimatedText as="h1" className="text-5xl md:text-6xl lg:text-7xl leading-[1.05] mb-6 text-white font-title" stagger={28} delay={200}>
+                  Anuncios que Generan Ventas, no solo clics.
+                </AnimatedText>
                 <p className="text-lg text-slate-400 leading-relaxed mb-10 max-w-lg">
                   Creamos y gestionamos campañas pagadas en <strong className="text-white">Meta, Google, TikTok y más</strong> con una estrategia basada en datos reales. Cada peso invertido trabaja para traerte clientes listos para comprar.
                 </p>
@@ -152,9 +150,9 @@ export default function AnunciosAltaVelocidad() {
           <section id="como-funciona" className="py-24 px-6 max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <span className="text-[#f27121] font-bold uppercase tracking-widest text-xs">NUESTRO PROCESO</span>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 mb-4 font-space tracking-tight">
-                Así Llevamos tu Negocio <span className="text-gradient-ads">al Siguiente Nivel</span>
-              </h2>
+              <AnimatedText as="h2" className="text-3xl md:text-5xl font-bold text-white mt-2 mb-4 font-space tracking-tight" stagger={35} delay={100}>
+                Así Llevamos tu Negocio al Siguiente Nivel
+              </AnimatedText>
               <p className="text-slate-400 max-w-2xl mx-auto">Un proceso claro, transparente y orientado 100% a resultados medibles.</p>
             </div>
             <div className="grid md:grid-cols-4 gap-6">
@@ -178,9 +176,9 @@ export default function AnunciosAltaVelocidad() {
           <section className="py-24 px-6 max-w-5xl mx-auto">
             <div className="text-center mb-16">
               <span className="text-[#f27121] font-bold uppercase tracking-widest text-xs">DIFERENCIADORES</span>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight">
-                RIFX vs. <span className="text-slate-500">Agencias Comunes</span>
-              </h2>
+              <AnimatedText as="h2" className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight" stagger={35} delay={100}>
+                RIFX vs. Agencias Comunes
+              </AnimatedText>
             </div>
             <div className="grid md:grid-cols-2 gap-8 items-stretch">
               {/* Competencia */}
@@ -234,9 +232,9 @@ export default function AnunciosAltaVelocidad() {
             <div className="max-w-6xl mx-auto px-6">
               <div className="text-center mb-16">
                 <span className="text-[#f27121] font-bold uppercase tracking-widest text-xs">RESULTADOS REALES</span>
-                <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight">
-                  Números que <span className="text-gradient-ads">Hablan por Sí Solos</span>
-                </h2>
+                <AnimatedText as="h2" className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight" stagger={35} delay={100}>
+                  Números que Hablan por Sí Solos
+                </AnimatedText>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {[
@@ -259,9 +257,9 @@ export default function AnunciosAltaVelocidad() {
           <section className="py-24 px-6 max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <span className="text-[#f27121] font-bold uppercase tracking-widest text-xs">BENEFICIOS</span>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight">
-                Todo lo que Incluye <span className="text-gradient-ads">tu Campaña</span>
-              </h2>
+              <AnimatedText as="h2" className="text-3xl md:text-5xl font-bold text-white mt-2 font-space tracking-tight" stagger={35} delay={100}>
+                Todo lo que Incluye tu Campaña
+              </AnimatedText>
             </div>
             <div className="grid md:grid-cols-3 gap-6">
               {[

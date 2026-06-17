@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { productDetails } = await req.json();
+    const { productDetails, mode = 'services' } = await req.json();
     if (!productDetails || !productDetails.trim()) {
       return NextResponse.json({ error: 'productDetails required' }, { status: 400 });
     }
@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
         apiKey = process.env.GROQ_API_KEY;
         modelName = 'llama-3.3-70b-versatile';
         isGroq = true;
-      } else if (process.env.GEMINI_API_KEY) {
-        apiKey = process.env.GEMINI_API_KEY;
+      } else if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+        apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
         modelName = 'gemini-2.5-flash';
         isGemini = true;
       }
@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No se configuró ninguna API Key de IA.' }, { status: 500 });
     }
 
-    const systemPrompt = `Eres un Ingeniero de Prompts de IA experto y especialista en redactar instrucciones del sistema para Chatbots de Ventas de WhatsApp (Dropshipping).
+    const systemPrompt = mode === 'dropshipping'
+      ? `Eres un Ingeniero de Prompts de IA experto y especialista en redactar instrucciones del sistema para Chatbots de WhatsApp (Dropshipping).
 Tu objetivo es redactar un PROMPT DEL SISTEMA altamente optimizado para que el chatbot de WhatsApp venda el producto especificado por el usuario.
 
 El prompt del sistema que generes debe:
@@ -79,7 +80,21 @@ El prompt del sistema que generes debe:
    - Conectar y asesorar al cliente primero, resolviendo sus dudas y destacando los beneficios.
    - Confirmar explícitamente el deseo de compra antes de pedir los datos de envío.
    - Solicitar los datos de envío ordenadamente (Nombre completo, Teléfono, Dirección de entrega exacta con referencias, Ciudad y Departamento).
-4. No incluir referencias técnicas sobre códigos o la etiqueta [CREAR_ORDEN_DROPI] en las instrucciones base (ya que el backend las maneja automáticamente al final del prompt).
+4. No incluir referencias técnicas sobre códigos o la etiqueta [CREAR_ORDEN_DROPI] en las instrucciones base.
+5. Estar en idioma español.
+
+Responde únicamente con el prompt generado, listo para copiar y pegar en el sistema. No agregues introducciones, explicaciones, saludos ni bloques de código de markdown.`
+      : `Eres un Ingeniero de Prompts de IA experto y especialista en redactar instrucciones del sistema para Chatbots de WhatsApp de Servicios (Agendamiento de Citas/Reuniones).
+Tu objetivo es redactar un PROMPT DEL SISTEMA altamente optimizado para que el chatbot de WhatsApp promueva y venda los servicios especificados por el usuario.
+
+El prompt del sistema que generes debe:
+1. Definir la personalidad del bot: un closer de ventas profesional, empático, consultivo y con gran liderazgo comercial.
+2. Describir detalladamente el servicio provisto (beneficios principales, valor aportado, dolores que resuelve).
+3. Establecer un flujo conversacional persuasivo:
+   - Conectar y asesorar al cliente primero, resolviendo sus dudas de forma clara e interactiva.
+   - No saltar a ofrecer horarios de inmediato ni dar enlaces estáticos de agendamiento.
+   - Solo cuando el cliente muestre claro interés en avanzar, coordinar o agendar una cita/reunión, guiarlo amablemente a proponer su día y hora de preferencia.
+4. No incluir referencias técnicas sobre códigos de Google Calendar o etiquetas como [VERIFICAR_DISPONIBILIDAD] o [AGENDAR_CITA] en las instrucciones base.
 5. Estar en idioma español.
 
 Responde únicamente con el prompt generado, listo para copiar y pegar en el sistema. No agregues introducciones, explicaciones, saludos ni bloques de código de markdown.`;

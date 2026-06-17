@@ -64,6 +64,8 @@ export const viewport = {
 import Header from './components/Header';
 import Footer from './components/Footer';
 import AnimatedCursor from './components/AnimatedCursor';
+import LenisProvider from './components/LenisProvider';
+import GlobalTextReveal from './components/GlobalTextReveal';
 
 export default function RootLayout({
   children,
@@ -71,18 +73,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className="scroll-smooth">
+    <html lang="es">
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Manrope:wght@200;400;600;700;800&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-[#0b1229] text-white overflow-x-hidden min-h-screen flex flex-col">
-        <AnimatedCursor />
-        <Header />
-        <div className="flex-grow">
-          {children}
-        </div>
-        <Footer />
+      <body className="bg-[#020510] text-white overflow-x-hidden min-h-screen flex flex-col">
+        <LenisProvider>
+          <GlobalTextReveal />
+          <AnimatedCursor />
+          <Header />
+          <div className="flex-grow">
+            {children}
+          </div>
+          <Footer />
+        </LenisProvider>
       </body>
     </html>
   );

@@ -75,6 +75,23 @@ export async function GET(req: NextRequest) {
     const cancellationRate = totalAppts > 0 ? (cancelled / totalAppts) * 100 : 0;
     const reschedulingRate = totalAppts > 0 ? (rescheduled / totalAppts) * 100 : 0;
 
+    // 6. 🆕 Estadísticas del Funnel de Ventas (Sales Agent)
+    const { data: allConvs } = await supabase
+      .from('conversations')
+      .select('sales_stage, lead_score')
+      .eq('tenant_id', tenant.tenantId);
+
+    const salesStages = ['new_lead', 'discovery', 'qualified', 'proposal', 'objection', 'closing', 'won', 'lost'];
+    const funnelCounts: Record<string, number> = {};
+    for (const s of salesStages) {
+      funnelCounts[s] = (allConvs || []).filter(c => c.sales_stage === s).length;
+    }
+    const allScores = (allConvs || []).map(c => c.lead_score || 0);
+    const avgLeadScore = allScores.length > 0 ? Math.round(allScores.reduce((a: number, b: number) => a + b, 0) / allScores.length) : 0;
+    const hotLeads = allScores.filter(s => s >= 70).length;
+    const warmLeads = allScores.filter(s => s >= 40 && s <= 69).length;
+    const coldLeads = allScores.filter(s => s >= 0 && s <= 39).length;
+
     return NextResponse.json({
       totalRevenue,
       totalSales,
@@ -88,6 +105,13 @@ export async function GET(req: NextRequest) {
         time: getTimeAgo(s.created_at),
         status: s.status,
       })),
+      salesFunnel: {
+        ...funnelCounts,
+        avgLeadScore,
+        hotLeads,
+        warmLeads,
+        coldLeads,
+      },
       appointmentStats: {
         total: totalAppts,
         pending,

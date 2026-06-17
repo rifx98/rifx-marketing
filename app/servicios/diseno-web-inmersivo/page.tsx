@@ -3,6 +3,7 @@
 import React from 'react';
 import ContactChannels from '../../components/ContactChannels';
 import TrainCTA from '../../components/TrainCTA';
+import AnimatedText from '../../components/AnimatedText';
 
 export default function DisenoUXUI() {
 
@@ -36,9 +37,9 @@ export default function DisenoUXUI() {
                   <span className="w-1.5 h-1.5 rounded-full bg-[#f27121] mr-2 animate-pulse"></span>
                   Architectural Experience 2024
                 </div>
-                <h1 className="text-6xl md:text-8xl leading-[0.9] mb-8 text-white font-title">
-                  Diseño UX/UI de <br /><span className="text-gradient">Alta Gravedad</span>
-                </h1>
+                <AnimatedText as="h1" className="text-6xl md:text-8xl leading-[0.9] mb-8 text-white font-title" stagger={28} delay={150}>
+                  Diseño UX/UI de Alta Gravedad
+                </AnimatedText>
                 <p className="text-lg text-slate-400 leading-relaxed mb-12 max-w-xl uppercase tracking-tighter font-medium">
                   Creamos experiencias memorables que orbitan alrededor del usuario. No solo diseñamos interfaces; construimos <strong className="text-white underline decoration-[#f27121]">puentes cognitivos</strong> entre su marca y la mente de sus clientes.
                 </p>
@@ -54,8 +55,8 @@ export default function DisenoUXUI() {
                   </div>
                 </div>
               </div>
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-tr from-[#f27121]/30 via-transparent to-blue-500/20 blur-[120px]"></div>
+                {/* Right content: Animated Graphic */}
+              <div className="lg:w-1/2 mt-16 lg:mt-0 relative w-full h-[300px] sm:h-[400px] lg:h-[500px]">
                 <div className="relative glass rounded-[2.5rem] p-4 border-white/10 overflow-hidden group rotate-2">
                   <div className="absolute top-0 left-0 w-full h-10 bg-white/5 border-b border-white/10 flex items-center px-6 gap-2 z-20">
                      <div className="w-2.5 h-2.5 rounded-full bg-red-500/40"></div>
@@ -81,7 +82,9 @@ export default function DisenoUXUI() {
           {/* Núcleos de Innovación */}
           <section className="py-32 px-6 max-w-7xl mx-auto">
             <div className="mb-24 max-w-2xl">
-              <h2 className="text-4xl md:text-6xl font-bold text-white mb-6 font-space tracking-tighter uppercase leading-none">Núcleos de <br/><span className="text-gradient">Innovación</span></h2>
+              <AnimatedText as="h2" className="text-4xl md:text-6xl font-bold text-white mb-6 font-space tracking-tighter uppercase leading-none" stagger={38} delay={100}>
+                Núcleos de Innovación
+              </AnimatedText>
               <p className="text-slate-400 text-lg uppercase tracking-widest font-bold leading-relaxed">Nuestra aproximación combina rigor técnico con empatía radical para forjar conexiones humanas duraderas.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -106,7 +109,9 @@ export default function DisenoUXUI() {
           <section className="py-32 bg-[#080f24]/50 overflow-hidden">
             <div className="max-w-7xl mx-auto px-6">
               <div className="text-center mb-24">
-                <h2 className="text-3xl md:text-7xl font-bold text-white mb-6 font-space tracking-tight uppercase">Metodología <span className="text-gradient">Galáctica</span></h2>
+                <AnimatedText as="h2" className="text-3xl md:text-7xl font-bold text-white mb-6 font-space tracking-tight uppercase" stagger={32} delay={100}>
+                  Metodología Galáctica
+                </AnimatedText>
                 <p className="text-slate-400 text-lg uppercase tracking-[0.3em] font-black">De la idea al impacto orbital.</p>
               </div>
               <div className="relative grid grid-cols-1 md:grid-cols-4 gap-12">
@@ -135,7 +140,9 @@ export default function DisenoUXUI() {
               <div className="inline-flex items-center px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/20 text-[#ffb692] text-[10px] font-bold tracking-[0.3em] uppercase mb-4">
                 Portafolio Estelar
               </div>
-              <h2 className="text-4xl md:text-7xl font-bold text-white mb-6 font-space tracking-tighter uppercase leading-none">Nuestras <br/><span className="text-gradient">Creaciones</span></h2>
+              <AnimatedText as="h2" className="text-4xl md:text-7xl font-bold text-white mb-6 font-space tracking-tighter uppercase leading-none" stagger={36} delay={100}>
+                Nuestras Creaciones
+              </AnimatedText>
               <p className="text-slate-400 text-lg uppercase tracking-widest font-bold leading-relaxed max-w-2xl mx-auto">Explora el arsenal de interfaces de alto rendimiento que hemos desplegado en el multiverso digital.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -174,7 +181,9 @@ export default function DisenoUXUI() {
               <div className="inline-flex items-center px-4 py-2 rounded-full bg-orange-500/10 border border-orange-500/20 text-[#ffb692] text-[10px] font-bold tracking-[0.3em] uppercase mb-4">
                 Planes de Inversión
               </div>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 font-space tracking-tighter uppercase leading-none">Tenemos el <span className="text-gradient">Sitio Web</span><br/>para tu negocio</h2>
+              <AnimatedText as="h2" className="text-3xl md:text-5xl font-bold text-white mb-6 font-space tracking-tighter uppercase leading-none" stagger={36} delay={100}>
+                Tenemos el Sitio Web para tu negocio
+              </AnimatedText>
               <p className="text-slate-400 text-sm md:text-base uppercase tracking-widest font-bold leading-relaxed max-w-2xl mx-auto">Selecciona la nave adecuada para la misión de tu empresa.</p>
             </div>
             

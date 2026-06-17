@@ -2,12 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function TrainCTA({ 
-  title = <>Tu próximo<br />proyecto empieza aquí</>, 
-  subtitle = "Hablemos de tu estrategia digital" 
-}: { 
-  title?: React.ReactNode, 
-  subtitle?: string 
+export default function TrainCTA({
+  title = <>Tu próximo<br />proyecto empieza aquí</>,
+  subtitle = "Hablemos de tu estrategia digital"
+}: {
+  title?: React.ReactNode,
+  subtitle?: string
 } = {}) {
   const [isMoving, setIsMoving] = useState(false);
   const [doorsOpen, setDoorsOpen] = useState(false);
@@ -51,7 +51,7 @@ export default function TrainCTA({
   }, []);
 
   const trainBg = '#0c101e';
-  const trimColor = '#7c3aed';
+  const trimColor = '#F27121';
   const doorW = 'clamp(380px, 42vw, 560px)';
 
   return (
@@ -69,8 +69,8 @@ export default function TrainCTA({
       }} />
       <div style={{
         position: 'absolute', bottom: '60px', left: 0, width: '100%', height: '2px',
-        background: 'linear-gradient(90deg, transparent 5%, rgba(124,58,237,0.5) 30%, rgba(124,58,237,0.5) 70%, transparent 95%)',
-        zIndex: 6, boxShadow: '0 0 15px rgba(124,58,237,0.3)',
+        background: 'linear-gradient(90deg, transparent 5%, #f2712123 30%, #F27121 70%, transparent 95%)',
+        zIndex: 6, boxShadow: '0 0 15px #27180eff',
       }} />
 
       {/* Viewport */}
@@ -86,7 +86,7 @@ export default function TrainCTA({
           background: '#030610', // Fondo base oscuro
           transition: 'opacity 0.1s', // Rápido para que esté listo cuando se abran las puertas
         }}>
-          
+
           {/* Fondo Circular Giratorio (Efecto Galáctico) */}
           <div style={{
             position: 'absolute',
@@ -146,7 +146,7 @@ export default function TrainCTA({
         }}>
 
           {/* Vagones 1-5 */}
-          {[1,2,3,4,5].map(i => (
+          {[1, 2, 3, 4, 5].map(i => (
             <div key={`L${i}`} style={{
               width: '14vw', minWidth: '130px', height: '100%', background: trainBg,
               borderTop: '3px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -213,7 +213,7 @@ export default function TrainCTA({
           </div>
 
           {/* Vagones 6-10 */}
-          {[6,7,8,9,10].map(i => (
+          {[6, 7, 8, 9, 10].map(i => (
             <div key={`R${i}`} style={{
               width: '14vw', minWidth: '130px', height: '100%', background: trainBg,
               borderTop: '3px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -100,9 +100,9 @@ export async function GET(req: NextRequest) {
     // Load global plan permissions from platform_settings
     let planPermissions = {
       trial: ["dashboard", "settings", "billing"],
-      start: ["dashboard", "crm", "settings", "billing", "playground"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
+      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"]
     };
     try {
       const { data: settingsData } = await supabase
@@ -325,6 +325,32 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase
         .from('tenants')
         .update({ permission_overrides: permissionOverrides })
+        .eq('id', targetTenantId);
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true });
+    }
+
+    // Action: delete_tenant
+    if (body.action === 'delete_tenant') {
+      // Solo un admin con rol completo (o indefinido por defecto) puede eliminar
+      if (tenant.adminRole !== 'full' && tenant.adminRole !== undefined) {
+        return NextResponse.json({ error: 'Solo un Administrador Total puede eliminar usuarios.' }, { status: 403 });
+      }
+
+      const { targetTenantId } = body;
+      if (!targetTenantId) {
+        return NextResponse.json({ error: 'ID de usuario requerido' }, { status: 400 });
+      }
+
+      // No permitir auto-eliminación desde aquí
+      if (targetTenantId === tenant.tenantId) {
+        return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta desde aquí.' }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from('tenants')
+        .delete()
         .eq('id', targetTenantId);
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });

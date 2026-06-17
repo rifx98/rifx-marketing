@@ -98,9 +98,9 @@ export async function POST(req: NextRequest) {
     // Fetch global plan permissions from platform_settings
     let planPermissions: any = {
       trial: ["dashboard", "settings", "billing"],
-      start: ["dashboard", "crm", "settings", "billing", "playground"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social"]
+      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"]
     };
 
     try {
