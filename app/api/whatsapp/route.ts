@@ -1403,6 +1403,20 @@ Transportadora: *${orderResult.carrier}*`;
 
     console.log(`🤖 Respuesta enviada a ${customerName}: ${aiResponse.substring(0, 80)}...`);
 
+    // 🔔 Piggyback: disparar verificación de recordatorios (fire-and-forget, sin bloquear)
+    // El cron de Vercel Hobby solo corre 1x/día, así que aprovechamos el tráfico del webhook
+    // para verificar y enviar recordatorios de 2h y 30min que el cron diario no alcanza.
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : 'http://localhost:3000';
+      const cronSecret = process.env.CRON_SECRET || '';
+      fetch(`${baseUrl}/api/cron/send-reminders`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${cronSecret}` },
+      }).catch(() => {}); // fire-and-forget
+    } catch {}
+
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
     console.error('❌ Error en webhook WhatsApp:', error);
