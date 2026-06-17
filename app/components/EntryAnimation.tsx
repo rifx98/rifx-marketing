@@ -37,7 +37,7 @@ export default function EntryAnimation() {
   if (!mounted) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 w-screen h-[100dvh] z-[99999] bg-[#0b1229] flex items-center justify-center overflow-hidden intro-overlay-fade perspective-container scanlines">
+    <div className="!fixed inset-0 w-screen h-[100dvh] z-[99999] bg-[#0b1229] flex items-center justify-center overflow-hidden intro-overlay-fade perspective-container scanlines">
       {/* Cinematic Particles */}
       {particles.map((p, i) => (
         <div
