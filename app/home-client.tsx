@@ -85,7 +85,7 @@ export default function HomeClient() {
           <div className="container mx-auto px-6 flex flex-col lg:flex-row items-center relative z-10 min-h-[85vh]">
             {/* Left Content: Headline & Form */}
             <div className="w-full lg:w-7/12 z-10 text-center lg:text-left pt-10 lg:pt-0">
-              <AnimatedText as="h1" className="text-white text-6xl md:text-8xl lg:text-[9rem] font-space-grotesk font-black tracking-tighter mb-2 leading-[0.85] uppercase drop-shadow-2xl" stagger={25} delay={3600}>
+              <AnimatedText as="h1" className="text-white text-6xl md:text-8xl lg:text-[9rem] font-space-grotesk font-black tracking-tighter mb-2 leading-[0.85] uppercase drop-shadow-2xl" stagger={30} delay={3600} mode="letter">
                 TU MARCA EN ÓRBITA
               </AnimatedText>
               <p className="text-gray-300 text-lg md:text-2xl mt-8 mb-10 max-w-2xl mx-auto lg:mx-0 font-inter font-light tracking-wide">
@@ -118,7 +118,7 @@ export default function HomeClient() {
             {/* Left side text */}
             <div className="w-full lg:w-1/2">
               <span className="text-rocket-orange font-bold uppercase tracking-widest text-xs lg:text-sm">QUIÉNES SOMOS</span>
-              <AnimatedText as="h2" className="text-3xl lg:text-4xl font-black text-white mt-2 mb-4 drop-shadow-lg" stagger={40} delay={100}>
+              <AnimatedText as="h2" className="text-3xl lg:text-4xl font-black text-white mt-2 mb-4 drop-shadow-lg" stagger={40} delay={100} mode="word">
                 Impulsamos Marcas que Dominan su Mercado
               </AnimatedText>
               <p className="text-lg lg:text-xl text-rocket-orange font-semibold mb-6">Estrategia + Creatividad + Tecnología = <span className="text-white">Resultados Imparables.</span></p>
@@ -148,7 +148,7 @@ export default function HomeClient() {
         <section className="py-16 lg:py-24 bg-transparent overflow-hidden" data-purpose="testimonials">
           <div className="container mx-auto px-6 text-center mb-16">
             <span className="text-rocket-orange font-bold uppercase tracking-widest text-xs lg:text-sm">TESTIMONIOS</span>
-            <AnimatedText as="h2" className="text-white text-3xl lg:text-4xl font-black px-4 mt-2 drop-shadow-lg" stagger={40} delay={100}>
+            <AnimatedText as="h2" className="text-white text-3xl lg:text-4xl font-black px-4 mt-2 drop-shadow-lg" stagger={40} delay={100} mode="word">
               Lo que Dicen Nuestros Clientes
             </AnimatedText>
             <p className="text-gray-400 text-sm mt-3 max-w-xl mx-auto">Empresas reales que han escalado sus resultados con nuestras estrategias de marketing digital.</p>

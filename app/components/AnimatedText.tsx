@@ -1,133 +1,122 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef } from 'react';
+import { motion, useInView, Variants } from 'framer-motion';
 
 interface AnimatedTextProps {
   children: React.ReactNode;
-  as?: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div';
+  as?: any;
   className?: string;
-  delay?: number;    // base delay in ms before any word animates
-  stagger?: number;  // ms between each word
-  duration?: number; // ms per word transition
+  delay?: number;
+  stagger?: number;
+  mode?: 'word' | 'letter';
   once?: boolean;
 }
 
-/**
- * AnimatedText — Word Mask Reveal
- *
- * Each word is wrapped in an overflow:hidden clip so it slides up
- * from behind an invisible curtain. No typing, no letter-by-letter.
- * This is the classic premium agency reveal effect.
- *
- * Usage:
- *   <AnimatedText as="h1" className="text-6xl font-bold">
- *     Hola Mundo
- *   </AnimatedText>
- */
 export default function AnimatedText({
   children,
   as: Tag = 'div',
   className = '',
-  delay = 0,
-  stagger = 80,
-  duration = 700,
+  delay = 0, // delay in ms
+  stagger = 30, // stagger in ms
+  mode = 'word',
   once = true,
 }: AnimatedTextProps) {
-  const containerRef = useRef<HTMLElement | null>(null);
-  const [inView, setInView] = useState(false);
+  const containerRef = useRef<HTMLElement>(null);
+  const isInView = useInView(containerRef, { once, margin: "-10% 0px" });
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const textToAnimate = typeof children === 'string' ? children : '';
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setInView(true);
-          if (once) observer.disconnect();
-        } else if (!once) {
-          setInView(false);
-        }
+  // Contenedor principal con stagger
+  const containerVariants: Variants = {
+    hidden: {},
+    visible: {
+      transition: {
+        staggerChildren: stagger / 1000,
+        delayChildren: delay / 1000,
       },
-      { threshold: 0.12 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [once]);
-
-  // Global word counter for stagger across all text nodes
-  let wordIndex = 0;
-
-  const renderNode = (node: React.ReactNode): React.ReactNode => {
-    if (typeof node === 'string') {
-      return splitToWords(node);
-    }
-    if (React.isValidElement(node)) {
-      const el = node as React.ReactElement<{ children?: React.ReactNode }>;
-      const kids = (el.props as { children?: React.ReactNode }).children;
-      if (!kids) return node;
-      return React.cloneElement(el, {
-        children: Array.isArray(kids)
-          ? kids.map((kid, i) => <React.Fragment key={i}>{renderNode(kid)}</React.Fragment>)
-          : renderNode(kids),
-      });
-    }
-    return node;
+    },
   };
 
-  const splitToWords = (text: string): React.ReactNode => {
-    // Split on spaces but keep them as separators
-    const parts = text.split(/(\s+)/);
-    return parts.map((part, i) => {
-      if (/^\s+$/.test(part)) {
-        // Pure whitespace — render as-is
-        return <span key={i} aria-hidden="true" style={{ display: 'inline' }}>{part}</span>;
-      }
-      const wi = wordIndex++;
-      const wordDelay = delay + wi * stagger;
-      return (
-        // The outer span clips — overflow hidden acts as the "curtain"
+  // Variantes profesionales: Desplazamiento desde abajo con ligero ángulo y rotación, luego asienta
+  const childVariants: Variants = {
+    hidden: { 
+      y: '120%', 
+      opacity: 0, 
+      rotate: 4, 
+      filter: 'blur(4px)' 
+    },
+    visible: {
+      y: '0%',
+      opacity: 1,
+      rotate: 0,
+      filter: 'blur(0px)',
+      transition: {
+        type: 'spring',
+        damping: 18,
+        stiffness: 120,
+        mass: 0.8
+      },
+    },
+  };
+
+  const renderContent = () => {
+    if (!textToAnimate) {
+      return children; // Fallback for complex children
+    }
+
+    if (mode === 'word') {
+      const words = textToAnimate.split(' ');
+      return words.map((word, index) => (
         <span
-          key={i}
-          aria-hidden="true"
-          style={{
-            display: 'inline-block',
-            overflow: 'hidden',
-            verticalAlign: 'bottom',
-            // Small padding so descenders aren't cut off
-            paddingBottom: '0.05em',
-            marginBottom: '-0.05em',
-          }}
+          key={index}
+          style={{ display: 'inline-block', overflow: 'hidden', paddingBottom: '0.1em', marginRight: '0.25em' }}
         >
-          {/* Inner span is the word that slides up */}
-          <span
-            style={{
-              display: 'inline-block',
-              transform: inView ? 'translateY(0)' : 'translateY(110%)',
-              opacity: inView ? 1 : 0,
-              transition: `transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${duration * 0.6}ms ease`,
-              transitionDelay: `${wordDelay}ms`,
-              willChange: 'transform',
-            }}
+          <motion.span
+            variants={childVariants}
+            style={{ display: 'inline-block', willChange: 'transform, opacity, filter' }}
           >
-            {part}
-          </span>
+            {word}
+          </motion.span>
         </span>
-      );
-    });
+      ));
+    }
+
+    if (mode === 'letter') {
+      const words = textToAnimate.split(' ');
+      return words.map((word, wordIndex) => (
+        <span
+          key={wordIndex}
+          style={{ display: 'inline-block', overflow: 'hidden', marginRight: '0.25em', paddingBottom: '0.1em' }}
+        >
+          {Array.from(word).map((letter, letterIndex) => (
+            <motion.span
+              key={letterIndex}
+              variants={childVariants}
+              style={{ display: 'inline-block', willChange: 'transform, opacity, filter' }}
+            >
+              {letter}
+            </motion.span>
+          ))}
+        </span>
+      ));
+    }
   };
+
+  const MotionTag = motion(Tag);
 
   return (
-    // @ts-expect-error — dynamic tag
-    <Tag
+    <MotionTag
       ref={containerRef}
       className={className}
-      // aria-label reconstructs the plain text for screen readers
-      aria-label={typeof children === 'string' ? children : undefined}
+      variants={containerVariants}
+      initial="hidden"
+      animate={isInView ? "visible" : "hidden"}
+      aria-label={textToAnimate || undefined}
     >
-      {React.Children.map(children, (child, i) => (
-        <React.Fragment key={i}>{renderNode(child)}</React.Fragment>
-      ))}
-    </Tag>
+      <span aria-hidden="true" style={{ display: 'inline-block' }}>
+        {renderContent()}
+      </span>
+    </MotionTag>
   );
 }
