@@ -90,11 +90,24 @@ export async function GET(req: NextRequest) {
         } else if (diffHrs > 0.25 && diffHrs <= 0.75 && !appt.reminder_30m_sent) {
           type = '30m';
           updateField = 'reminder_30m_sent';
-        } else if (diffHrs < -4.8 && diffHrs >= -6.0 && appt.status === 'no_show' && appt.reminder_missed_sent === false) {
+        } else if (diffHrs < -4.8 && diffHrs >= -6.0 && appt.status === 'no_show') {
           // Recordatorio de cita perdida (+5h pasadas) SOLO si ya fue marcada como no_show
-          // Nota: usamos === false para asegurar que la columna existe en la BD
-          type = 'missed';
-          updateField = 'reminder_missed_sent';
+          // Como no pudimos agregar la columna reminder_missed_sent, revisamos la tabla messages
+          // para ver si ya le enviamos un mensaje similar hoy.
+          const { data: previousMessages } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('conversation_id', appt.conversation_id)
+            .eq('role', 'assistant')
+            .ilike('content', '%Notamos que te perdiste tu cita%')
+            .gte('created_at', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+            .limit(1);
+
+          if (!previousMessages || previousMessages.length === 0) {
+            type = 'missed';
+            // No hay updateField porque no tenemos columna, lo controlamos por historial de mensajes
+            updateField = '';
+          }
         }
 
         if (!type) continue; // No entra en ningún rango o ya se envió
