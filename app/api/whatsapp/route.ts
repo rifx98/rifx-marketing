@@ -1169,12 +1169,11 @@ Transportadora: *${orderResult.carrier}*`;
           // America/Guayaquil is UTC-5, so we parse it with -05:00 offset to construct correct timestamp
           const scheduledTimeISO = new Date(`${date}T${time}:00-05:00`).toISOString();
 
-          // Buscar si el cliente ya tiene una cita activa para reagendar en esta conversación
+          // Buscar si el cliente ya tiene una cita para reciclarla en esta conversación
           const { data: existingAppt } = await supabase
             .from('appointments')
             .select('*')
             .eq('conversation_id', conversation.id)
-            .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
             .order('scheduled_time', { ascending: false })
             .limit(1)
             .maybeSingle();
