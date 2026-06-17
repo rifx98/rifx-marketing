@@ -25,7 +25,7 @@ export default function AnimatedText({
   const containerRef = useRef<HTMLElement>(null);
   const isInView = useInView(containerRef, { once, margin: "-10% 0px" });
 
-  const textToAnimate = typeof children === 'string' ? children : '';
+  const textToAnimate = React.Children.toArray(children).join('');
 
   // Contenedor principal con stagger
   const containerVariants: Variants = {
