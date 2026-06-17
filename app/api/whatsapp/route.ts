@@ -634,9 +634,18 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
 - Si el cliente quiere cambiar el horario de la cita o reagendar (ej. dice "Quiero cambiar de hora/día", "Necesito otro horario", "Reagendar", "Cambiar cita"), debes ofrecerle otras opciones usando el tag [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD] y agregar exactamente este tag en tu respuesta para que el sistema lo ponga en espera de reagendar (manteniendo su cita actual temporalmente activa): [SOLICITAR_REAGENDAMIENTO:${upcomingAppt.id}].
 - Si el cliente cancela definitivamente o dice que no asistirá de ninguna manera (ej. dice "No puedo ir", "Cancela", "Me surgió algo", "Ya no voy a asistir"), debes ofrecer disculpas y agregar exactamente este tag en tu respuesta: [CANCELAR_CITA:${upcomingAppt.id}].`;
           console.log(`📅 Cita encontrada (${upcomingAppt.status}): ${upcomingAppt.id} para conversación ${conversation.id}`);
+        } else {
+          upcomingApptText = `\n\n[ESTADO DE CITAS]:
+El cliente ACTUALMENTE NO TIENE ninguna cita agendada o programada.
+INSTRUCCIONES CRÍTICAS: Si el cliente pregunta cuándo es su cita o pide información sobre su cita, debes decirle amablemente que revisaste el sistema y no tiene ninguna cita agendada actualmente, y ofrécele agendar una nueva cita en ese momento.`;
         }
       } catch (dbErr) {
         console.error('⚠️ Error al buscar cita pendiente:', dbErr);
+      }
+      
+      // Asegurarnos de agregar este texto al prompt
+      if (upcomingApptText) {
+        aiPrompt += upcomingApptText;
       }
     }
 
