@@ -103,7 +103,17 @@ export default function AnimatedText({
     }
   };
 
-  const MotionTag = motion(Tag);
+  // Get the correct motion component statically to avoid remounts
+  const MotionComponents: Record<string, any> = {
+    h1: motion.h1,
+    h2: motion.h2,
+    h3: motion.h3,
+    h4: motion.h4,
+    p: motion.p,
+    span: motion.span,
+    div: motion.div,
+  };
+  const MotionTag = MotionComponents[Tag] || motion.div;
 
   return (
     <MotionTag
