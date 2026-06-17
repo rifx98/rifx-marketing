@@ -252,6 +252,13 @@ export async function POST(req: NextRequest) {
       content: dbContent,
     });
 
+    // 2.1 Buscar perfil de cliente (Memoria a Largo Plazo)
+    const { data: customerProfile } = await supabase
+      .from('customer_profiles')
+      .select('*')
+      .eq('phone_number', customerPhone)
+      .maybeSingle();
+
     // 2.5 Verificar si la conversación está en MODO HUMANO (señal en mensajes)
     const { data: signalMessages } = await supabase
       .from('messages')
@@ -333,12 +340,24 @@ export async function POST(req: NextRequest) {
         });
         console.log(`💬 ${customerName} pidió humano (intento ${humanAskCount + 1}/3) — IA insistirá`);
       } else {
-        // 3ra+ vez: escalar a humano real, insertar alerta para el panel
-        await supabase.from('messages').insert({
-          conversation_id: conversation.id,
-          role: 'assistant',
-          content: '__HUMAN_REQUEST__',
-        });
+        // 3ra+ vez: escalar a humano real, insertar alerta, pausar IA y marcar conversacion
+        await supabase.from('messages').insert([
+          {
+            conversation_id: conversation.id,
+            role: 'assistant',
+            content: '__HUMAN_REQUEST__',
+          },
+          {
+            conversation_id: conversation.id,
+            role: 'assistant',
+            content: '__SYSTEM_PAUSE__',
+          }
+        ]);
+        
+        await supabase.from('conversations')
+          .update({ status: 'requires_attention', updated_at: new Date().toISOString() })
+          .eq('id', conversation.id);
+        
         forceHumanEscalation = true;
         console.log(`🚨 ${customerName} (${customerPhone}) pidió humano 3+ veces — ALERTA ACTIVADA`);
       }
@@ -654,6 +673,16 @@ INSTRUCCIONES CRÍTICAS: Si el cliente pregunta cuándo es su cita o pide inform
 - Únicamente debes presentarte como "especialista de RIFX" o decir "Soy especialista de RIFX" en tu primer saludo o inicio de la conversación.
 - En todos los mensajes siguientes de la conversación, está estrictamente PROHIBIDO que repitas "Soy especialista de RIFX", "asistente de RIFX", o que te presentes de nuevo. Responde directamente a las dudas del cliente con naturalidad, empatía y profesionalismo sin repetir tu presentación.`;
 
+    // 4.3 Inyectar Memoria a Largo Plazo
+    if (customerProfile && (customerProfile.business_type || customerProfile.location || customerProfile.service_interest || customerProfile.budget_range)) {
+      aiPrompt += `\n\n[MEMORIA A LARGO PLAZO - PERFIL DEL CLIENTE]:
+Sabemos esto sobre el cliente de interacciones pasadas:
+${customerProfile.business_type ? `- Tipo de Negocio: ${customerProfile.business_type}` : ''}
+${customerProfile.location ? `- Ubicación: ${customerProfile.location}` : ''}
+${customerProfile.service_interest ? `- Servicio de Interés: ${customerProfile.service_interest}` : ''}
+${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budget_range}` : ''}
+Úsalo para personalizar tus respuestas de forma empática y demostrar que lo recuerdas. No le pidas estos datos de nuevo si ya los tenemos.`;
+    }
 
     // Determine which provider & model to use
     let selectedModel = extConfig.model_selection || 'gpt-4o';
@@ -1398,6 +1427,19 @@ Transportadora: *${orderResult.carrier}*`;
 
     await supabase.from('conversations').update(salesUpdate).eq('id', conversation.id);
     console.log(`📊 Sales: stage=${newSalesStage}, score=${newLeadScore}, intent=${intentResult.intent}`);
+
+    // Actualizar también la Memoria a Largo Plazo
+    await supabase.from('customer_profiles').upsert({
+      phone_number: customerPhone,
+      tenant_id: tenantId,
+      customer_name: customerName || customerProfile?.customer_name,
+      business_type: salesUpdate.business_type || customerProfile?.business_type,
+      location: salesUpdate.location || customerProfile?.location,
+      budget_range: salesUpdate.budget_range || customerProfile?.budget_range,
+      service_interest: salesUpdate.service_interest || customerProfile?.service_interest,
+      last_interaction: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'phone_number' });
 
     // 7. Guardar respuesta de la IA
     await supabase.from('messages').insert({

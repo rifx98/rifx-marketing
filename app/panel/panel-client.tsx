@@ -12521,7 +12521,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
               {[
                 { 
-                  title: language === 'en' ? 'Total Bookings' : 'Total de Citas',
+                  title: language === 'en' ? 'Total Bookings' : 'Total',
                   value: statsData?.appointmentStats?.total || 0,
                   icon: 'event',
                   color: 'text-blue-500',
@@ -12533,6 +12533,34 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   icon: 'check_circle',
                   color: 'text-indigo-500',
                   bg: 'bg-indigo-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Pending' : 'Pendientes',
+                  value: statsData?.appointmentStats?.pending || 0,
+                  icon: 'schedule',
+                  color: 'text-slate-400',
+                  bg: 'bg-slate-400/10'
+                },
+                { 
+                  title: language === 'en' ? 'Completed' : 'Asistidas',
+                  value: statsData?.appointmentStats?.completed || 0,
+                  icon: 'how_to_reg',
+                  color: 'text-emerald-500',
+                  bg: 'bg-emerald-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'No Shows' : 'No Asistió',
+                  value: statsData?.appointmentStats?.noShow || 0,
+                  icon: 'person_off',
+                  color: 'text-rose-500',
+                  bg: 'bg-rose-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Attendance %' : 'Asistencia',
+                  value: `${(statsData?.appointmentStats?.rates?.attendanceRate || 0).toFixed(1)}%`,
+                  icon: 'percent',
+                  color: 'text-teal-400',
+                  bg: 'bg-teal-400/10'
                 },
                 { 
                   title: language === 'en' ? 'Rescheduled' : 'Reagendadas',
