@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS customer_profiles (
   phone_number TEXT PRIMARY KEY,
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_id TEXT,
   customer_name TEXT,
   business_type TEXT,
   location TEXT,
