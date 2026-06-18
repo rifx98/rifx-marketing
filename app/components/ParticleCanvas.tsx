@@ -282,17 +282,14 @@ function Particles() {
     // ====================================================
     const MOBILE_CONFIG = {
       // Timing Fase 1: Logo -> Alien
-      // El alien se arma entre scroll INICIO y scroll (INICIO + DURACION)
-      t1_inicio: 0.0,   // scroll donde empieza la transformacion
-      t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
+      t1_inicio: 0.0,
+      t1_duracion: 0.8,   // alien 100% armado en scroll 0.8
       // Timing Fase 2: Alien -> Estrellas
-      // IMPORTANTE: t2_inicio debe ser >= t1_inicio + t1_duracion para que el alien
-      // se vea armado antes de dispersarse
-      t2_inicio: 1.8,   // scroll donde empieza la dispersion (alien visible de 1.0 a 1.8)
-      t2_duracion: 1.0,   // cuantas pantallas dura la dispersion
+      t2_inicio: 1.1,     // empieza a dispersarse en scroll 1.1 (alien visible de 0.8 a 1.1)
+      t2_duracion: 0.8,   // dispersion termina en scroll 1.9
       // Posicion y tamano
-      offsetY: -10,    // desplazamiento vertical (mas negativo = mas abajo)
-      escala: 0.52,   // tamano del logo/alien (1.0 = tamano normal)
+      offsetY: -10,
+      escala: 0.52,
     };
 
     // ====================================================
