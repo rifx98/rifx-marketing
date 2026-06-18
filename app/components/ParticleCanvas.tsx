@@ -154,7 +154,8 @@ function getImagePoints(src: string, count: number, ignoreBg: boolean = false, r
 }
 
 function Particles() {
-  const logoCount = 35000; // Reducido para evitar que la página se congele al recargar
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+  const logoCount = isMobile ? 10000 : 35000; // Reducido drásticamente en móviles para rendimiento fluido
   const count = logoCount;
 
   const mesh = useRef<THREE.InstancedMesh>(null);
@@ -189,7 +190,7 @@ function Particles() {
 
       // Generate the Starfield (explosion target) and persistent background
       const pointsC: LogoPoint[] = [];
-      const numStars = 10000; // Reducido para mejor rendimiento
+      const numStars = isMobile ? 3000 : 10000; // Reducido para mejor rendimiento en móviles
       for (let i = 0; i < count; i++) {
         if (i >= count - numStars || (pointsA[i].hidden && pointsB[i].hidden)) {
           // This particle is not used by the Logo or the Alien!
@@ -450,7 +451,7 @@ function Particles() {
 
   return (
     <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-      <ringGeometry args={[0.07, 0.12, 3]} />
+      <circleGeometry args={[0.09, 4]} />
       <meshBasicMaterial transparent opacity={1.0} fog={true} depthWrite={false} blending={THREE.NormalBlending} />
     </instancedMesh>
   );
