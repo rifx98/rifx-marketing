@@ -277,8 +277,8 @@ function Particles() {
 
     // Phase 1: Logo -> Alien (from scroll 0 to 1)
     const t1 = Math.min(1, Math.max(0, s));
-    // Phase 2: Alien -> Starfield Explosion (Disintegrates slowly from bottom to top over the ENTIRE Mission section, 1.0 to 1.8)
-    const t2 = Math.min(1, Math.max(0, (s - 0.7) / 1.1));
+    // Phase 2: Alien -> Starfield Explosion — empieza en scroll=2.0 para que el alien permanezca visible mucho más tiempo
+    const t2 = Math.min(1, Math.max(0, (s - 2.0) / 1.5));
 
     // Only update colors if scroll changed to save CPU
     const hasScrollChanged = Math.abs(s - lastScrollY.current) > 0.0001;
