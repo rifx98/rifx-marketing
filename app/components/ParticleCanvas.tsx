@@ -275,10 +275,10 @@ function Particles() {
 
     const s = scrollY.current;
 
-    // Phase 1: Logo -> Alien (from scroll 0 to 1)
-    const t1 = Math.min(1, Math.max(0, s));
-    // Phase 2: Alien -> Starfield Explosion — empieza en scroll=2.0 para que el alien permanezca visible mucho más tiempo
-    const t2 = Math.min(1, Math.max(0, (s - 2.0) / 1.5));
+    // Phase 1: Logo -> Alien — el alien se ARMA justo en la sección de "Quiénes Somos" (scroll 0.5 a 1.2)
+    const t1 = Math.min(1, Math.max(0, (s - 0.5) / 0.7));
+    // Phase 2: Alien -> Starfield — empieza a DESINTEGRARSE justo después de la misma sección (scroll 1.4 a 2.8)
+    const t2 = Math.min(1, Math.max(0, (s - 1.4) / 1.4));
 
     // Only update colors if scroll changed to save CPU
     const hasScrollChanged = Math.abs(s - lastScrollY.current) > 0.0001;
