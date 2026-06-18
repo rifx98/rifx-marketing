@@ -283,14 +283,14 @@ function Particles() {
     const MOBILE_CONFIG = {
       // Timing Fase 1: Logo -> Alien
       // El alien se arma entre scroll INICIO y scroll (INICIO + DURACION)
-      t1_inicio:   0.0,   // scroll donde empieza la transformacion
+      t1_inicio: 0.0,   // scroll donde empieza la transformacion
       t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
       // Timing Fase 2: Alien -> Estrellas
-      t2_inicio:   1.2,   // scroll donde empieza la dispersion
+      t2_inicio: 1.2,   // scroll donde empieza la dispersion
       t2_duracion: 1.5,   // cuantas pantallas dura la dispersion
       // Posicion y tamano
-      offsetY:    -10,    // desplazamiento vertical (mas negativo = mas abajo)
-      escala:     0.52,   // tamano del logo/alien (1.0 = tamano normal)
+      offsetY: -10,    // desplazamiento vertical (mas negativo = mas abajo)
+      escala: 0.52,   // tamano del logo/alien (1.0 = tamano normal)
     };
 
     // ====================================================
@@ -299,14 +299,14 @@ function Particles() {
     // ====================================================
     const PC_CONFIG = {
       // Timing Fase 1: Logo -> Alien
-      t1_inicio:   0.0,   // scroll donde empieza la transformacion
+      t1_inicio: 0.0,   // scroll donde empieza la transformacion
       t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
       // Timing Fase 2: Alien -> Estrellas
-      t2_inicio:   1.2,   // scroll donde empieza la dispersion
-      t2_duracion: 1.5,   // cuantas pantallas dura la dispersion
+      t2_inicio: 1.0,   // scroll donde empieza la dispersion
+      t2_duracion: 0.9,   // cuantas pantallas dura la dispersion
       // Posicion y tamano
-      offsetY:     0,     // desplazamiento vertical (0 = centrado)
-      escala:      1.05,  // tamano del logo/alien (1.0 = tamano normal)
+      offsetY: 0,     // desplazamiento vertical (0 = centrado)
+      escala: 1.05,  // tamano del logo/alien (1.0 = tamano normal)
     };
     // ====================================================
 
