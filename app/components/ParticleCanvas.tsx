@@ -327,8 +327,10 @@ function Particles() {
       const logoOffsetX = isMobile ? 0 : 18;
       const alienOffsetX = isMobile ? 0 : -18;
       
-      // En móviles empujamos todo el bloque 3D hacia abajo para que no estorbe al texto
-      const mobileOffsetY = isMobile ? -14 : 0;
+      // En móviles empujamos el bloque 3D hacia abajo.
+      // Cuando easeP es 1 (fase de Alien), lo empujamos aún más abajo y lo hacemos más pequeño.
+      const mobileOffsetY = isMobile ? -14 - (easeP * 10) : 0; 
+      const shapeScale = isMobile ? (1.05 - (easeP * 0.25)) : 1.05; // El logo será 1.05, el alien 0.8
 
       // Phase 1 Interpolation (Logo -> Alien)
       const yNorm = Math.min(1, Math.max(0, (16 - pA.y) / 32));
@@ -366,8 +368,8 @@ function Particles() {
       const currentOffsetX = logoOffsetX + (alienOffsetX - logoOffsetX) * easeP;
       const finalOffsetX = currentOffsetX * (1 - easeP2);
 
-      let baseFinalX = rx * 1.05 + finalOffsetX;
-      let baseFinalY = ry * 1.05 + mobileOffsetY;
+      let baseFinalX = rx * shapeScale + finalOffsetX;
+      let baseFinalY = ry * shapeScale + mobileOffsetY;
 
       let finalX = baseFinalX;
       let finalY = baseFinalY;
