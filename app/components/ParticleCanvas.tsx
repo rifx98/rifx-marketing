@@ -464,8 +464,15 @@ function Particles() {
 
 export default function ParticleCanvas() {
   return (
-    <div className="fixed inset-0 z-0 pointer-events-none" style={{ background: 'transparent' }}>
-      <Canvas camera={{ fov: 60, position: [0, 0, 45] }}>
+    <div
+      className="fixed inset-0 z-0"
+      style={{ background: 'transparent', pointerEvents: 'none', touchAction: 'pan-y' }}
+    >
+      <Canvas
+        camera={{ fov: 60, position: [0, 0, 45] }}
+        style={{ touchAction: 'pan-y', pointerEvents: 'none' }}
+        gl={{ preserveDrawingBuffer: false }}
+      >
         <fog attach="fog" args={['#020510', 50, 450]} />
         <Suspense fallback={null}>
           <Particles />
