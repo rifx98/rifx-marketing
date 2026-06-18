@@ -111,7 +111,7 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <div className="relative z-10 border-t border-white/5">
+        <div className="relative z-10">
         {/* Mission Section */}
         <section className="py-16 lg:py-24 bg-transparent" data-purpose="mission-section">
           <div className="container mx-auto px-6 flex flex-col lg:flex-row-reverse items-center gap-10 lg:gap-12 text-center lg:text-left">
