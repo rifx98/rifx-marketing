@@ -195,11 +195,11 @@ function Particles() {
         if (i >= count - numStars || (pointsA[i].hidden && pointsB[i].hidden)) {
           // This particle is not used by the Logo or the Alien!
           // Convert it into a persistent background space particle for the whole page
-          const z = -10 - Math.random() * 250; 
-          const maxSpread = 150 + Math.abs(45 - z) * 4; 
+          const z = -10 - Math.random() * 250;
+          const maxSpread = 150 + Math.abs(45 - z) * 4;
           const x = (Math.random() - 0.5) * maxSpread;
           const y = (Math.random() - 0.5) * maxSpread;
-          
+
           const rType = Math.random();
           let r, g, b;
           if (rType < 0.6) { r = 1; g = 1; b = 1; }
@@ -212,8 +212,8 @@ function Particles() {
           pointsC.push({ x, y, z, r, g, b, xNorm: 0, hidden: false, isBg: true, noise: starNoise });
         } else {
           // Normal active particle (will explode out of the screen later)
-          const z = -350 + Math.random() * 394; 
-          const maxSpread = 200 + Math.abs(45 - z) * 3.5; 
+          const z = -350 + Math.random() * 394;
+          const maxSpread = 200 + Math.abs(45 - z) * 3.5;
           const x = (Math.random() - 0.5) * maxSpread;
           const y = (Math.random() - 0.5) * maxSpread;
 
@@ -275,10 +275,18 @@ function Particles() {
 
     const s = scrollY.current;
 
-    // Phase 1: Logo -> Alien — el alien se ARMA justo en la sección de "Quiénes Somos" (scroll 0.5 a 1.2)
-    const t1 = Math.min(1, Math.max(0, (s - 0.5) / 0.7));
-    // Phase 2: Alien -> Starfield — empieza a DESINTEGRARSE justo después de la misma sección (scroll 1.4 a 2.8)
-    const t2 = Math.min(1, Math.max(0, (s - 1.4) / 1.4));
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // AJUSTE DE TIMING — Modifica estos 4 números para controlar las transiciones
+    // s = scroll en "pantallas" (1.0 = una altura de pantalla hacia abajo)
+    //
+    // Fase 1: Logo RIFX → Alien
+    //   Empieza en scroll 0.0 | Termina (alien 100% armado) en scroll 1.0
+    const t1 = Math.min(1, Math.max(0, (s - 0.0) / 1.0));
+    //
+    // Fase 2: Alien → Dispersión en estrellas
+    //   Empieza en scroll 1.2 | Termina en scroll 2.7
+    const t2 = Math.min(1, Math.max(0, (s - 1.2) / 1.5));
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     // Only update colors if scroll changed to save CPU
     const hasScrollChanged = Math.abs(s - lastScrollY.current) > 0.0001;
@@ -303,18 +311,18 @@ function Particles() {
         const bgX = pA.x + Math.sin(time * 0.1 + pA.y * 0.05) * 8;
         const bgY = pA.y + Math.cos(time * 0.1 + pA.x * 0.05) * 8;
         const bgZ = pA.z + Math.sin(time * 0.1 + pA.z * 0.05) * 8;
-        
+
         dummy.position.set(bgX, bgY, bgZ);
         dummy.rotation.set(0, 0, (pA.noise || 0) * Math.PI * 2 + time * 0.05);
         // Make them slightly smaller to look like distant stars
-        dummy.scale.setScalar(0.5 + (pA.noise || 0) * 0.7); 
+        dummy.scale.setScalar(0.5 + (pA.noise || 0) * 0.7);
         dummy.updateMatrix();
         mesh.current.setMatrixAt(i, dummy.matrix);
-        
+
         if (shouldUpdateColors && colors) {
-          colors[i*3] = pA.r;
-          colors[i*3+1] = pA.g;
-          colors[i*3+2] = pA.b;
+          colors[i * 3] = pA.r;
+          colors[i * 3 + 1] = pA.g;
+          colors[i * 3 + 2] = pA.b;
         }
         continue;
       }
@@ -326,7 +334,7 @@ function Particles() {
       const isMobile = windowWidth.current < 1024;
       const logoOffsetX = isMobile ? 0 : 18;
       const alienOffsetX = isMobile ? 0 : -18;
-      
+
       // Phase 1 Interpolation (Logo -> Alien)
       const yNorm = Math.min(1, Math.max(0, (16 - pA.y) / 32));
       const delay = yNorm * 0.4;
