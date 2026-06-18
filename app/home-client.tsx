@@ -84,11 +84,11 @@ export default function HomeClient() {
 
           <div className="container mx-auto px-6 flex flex-col lg:flex-row items-center relative z-10 min-h-[85vh]">
             {/* Left Content: Headline & Form */}
-            <div className="w-full lg:w-7/12 z-10 text-center lg:text-left pt-10 lg:pt-0">
-              <AnimatedText as="h1" className="text-white text-6xl md:text-8xl lg:text-[9rem] font-space-grotesk font-black tracking-tighter mb-2 leading-[0.85] uppercase drop-shadow-2xl" stagger={30} delay={3600} mode="letter">
+            <div className="w-full lg:w-7/12 z-10 text-center lg:text-left pt-6 lg:pt-0">
+              <AnimatedText as="h1" className="text-white text-5xl md:text-7xl lg:text-[9rem] font-space-grotesk font-black tracking-tighter mb-4 lg:mb-2 leading-[0.95] lg:leading-[0.85] uppercase drop-shadow-2xl" stagger={30} delay={3600} mode="letter">
                 TU MARCA EN ÓRBITA
               </AnimatedText>
-              <p className="text-gray-300 text-lg md:text-2xl mt-8 mb-10 max-w-2xl mx-auto lg:mx-0 font-inter font-light tracking-wide">
+              <p className="text-gray-300 text-base md:text-2xl mt-6 mb-8 lg:mt-8 lg:mb-10 max-w-2xl mx-auto lg:mx-0 font-inter font-light tracking-wide px-4 lg:px-0">
                 Marketing digital inmersivo que domina el mercado. Diseñamos experiencias que no se ignoran.
               </p>
 
@@ -96,9 +96,9 @@ export default function HomeClient() {
               <div className="max-w-md mx-auto lg:mx-0 mt-8 flex gap-4 justify-center lg:justify-start">
                 <button
                   onClick={() => document.getElementById('train-cta')?.scrollIntoView({ behavior: 'smooth' })}
-                  className="bg-rocket-orange text-white font-black px-10 py-5 rounded-full hover-rocket-orange transition-all shadow-[0_0_40px_rgba(242,113,33,0.5)] hover:shadow-[0_0_60px_rgba(242,113,33,0.8)] flex items-center justify-center gap-3 text-xl hover:scale-105 active:scale-95 border border-white/20"
+                  className="bg-rocket-orange text-white font-black px-8 py-4 md:px-10 md:py-5 rounded-full hover-rocket-orange transition-all shadow-[0_0_30px_rgba(242,113,33,0.4)] hover:shadow-[0_0_60px_rgba(242,113,33,0.8)] flex items-center justify-center gap-2 md:gap-3 text-lg md:text-xl hover:scale-105 active:scale-95 border border-white/20 w-[90%] md:w-auto mx-auto lg:mx-0"
                 >
-                  INICIAR SECUENCIA <span className="material-symbols-outlined font-bold">rocket_launch</span>
+                  INICIAR SECUENCIA <span className="material-symbols-outlined font-bold text-xl md:text-2xl">rocket_launch</span>
                 </button>
               </div>
             </div>
