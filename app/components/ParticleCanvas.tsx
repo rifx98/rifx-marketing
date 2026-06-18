@@ -333,10 +333,10 @@ function Particles() {
       const localP = Math.min(1, Math.max(0, (t1 - delay) / 0.6));
       const easeP = localP < 0.5 ? 4 * localP * localP * localP : 1 - Math.pow(-2 * localP + 2, 3) / 2;
 
-      // En móviles empujamos el bloque 3D hacia abajo después de calcular easeP.
-      // Cuando easeP es 1 (fase de Alien), lo empujamos aún más abajo y lo hacemos más pequeño.
-      const mobileOffsetY = isMobile ? -14 - (easeP * 10) : 0;
-      const shapeScale = isMobile ? (1.05 - (easeP * 0.25)) : 1.05;
+      // En móviles reducimos drásticamente el tamaño del logo para que se vea nítido y bien encuadrado.
+      // También lo desplazamos hacia abajo para que no tape el texto de arriba.
+      const mobileOffsetY = isMobile ? -4 : 0;
+      const shapeScale = isMobile ? 0.52 : 1.05;
 
       // Phase 2 Interpolation (Alien -> Starfield Explosion)
       // We want it to disintegrate from BOTTOM to TOP.
