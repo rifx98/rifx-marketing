@@ -286,8 +286,10 @@ function Particles() {
       t1_inicio: 0.0,   // scroll donde empieza la transformacion
       t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
       // Timing Fase 2: Alien -> Estrellas
-      t2_inicio: 1.2,   // scroll donde empieza la dispersion
-      t2_duracion: 1.5,   // cuantas pantallas dura la dispersion
+      // IMPORTANTE: t2_inicio debe ser >= t1_inicio + t1_duracion para que el alien
+      // se vea armado antes de dispersarse
+      t2_inicio: 1.8,   // scroll donde empieza la dispersion (alien visible de 1.0 a 1.8)
+      t2_duracion: 1.0,   // cuantas pantallas dura la dispersion
       // Posicion y tamano
       offsetY: -10,    // desplazamiento vertical (mas negativo = mas abajo)
       escala: 0.52,   // tamano del logo/alien (1.0 = tamano normal)
@@ -303,7 +305,7 @@ function Particles() {
       t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
       // Timing Fase 2: Alien -> Estrellas
       t2_inicio: 1.0,   // scroll donde empieza la dispersion
-      t2_duracion: 0.9,   // cuantas pantallas dura la dispersion
+      t2_duracion: 0.5,   // cuantas pantallas dura la dispersion
       // Posicion y tamano
       offsetY: 0,     // desplazamiento vertical (0 = centrado)
       escala: 1.05,  // tamano del logo/alien (1.0 = tamano normal)
