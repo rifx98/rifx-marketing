@@ -274,19 +274,47 @@ function Particles() {
     const mouse3D = state.camera.position.clone().add(dir.multiplyScalar(distance));
 
     const s = scrollY.current;
+    const isMobile = windowWidth.current < 1024;
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // AJUSTE DE TIMING — Modifica estos 4 números para controlar las transiciones
-    // s = scroll en "pantallas" (1.0 = una altura de pantalla hacia abajo)
-    //
-    // Fase 1: Logo RIFX → Alien
-    //   Empieza en scroll 0.0 | Termina (alien 100% armado) en scroll 1.0
-    const t1 = Math.min(1, Math.max(0, (s - 0.0) / 1.0));
-    //
-    // Fase 2: Alien → Dispersión en estrellas
-    //   Empieza en scroll 1.2 | Termina en scroll 2.7
-    const t2 = Math.min(1, Math.max(0, (s - 1.2) / 1.5));
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // ====================================================
+    // CONFIGURACION MOVIL  (isMobile = pantalla < 1024px)
+    // Edita SOLO esta seccion para ajustar el movil.
+    // ====================================================
+    const MOBILE_CONFIG = {
+      // Timing Fase 1: Logo -> Alien
+      // El alien se arma entre scroll INICIO y scroll (INICIO + DURACION)
+      t1_inicio:   0.0,   // scroll donde empieza la transformacion
+      t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
+      // Timing Fase 2: Alien -> Estrellas
+      t2_inicio:   1.2,   // scroll donde empieza la dispersion
+      t2_duracion: 1.5,   // cuantas pantallas dura la dispersion
+      // Posicion y tamano
+      offsetY:    -10,    // desplazamiento vertical (mas negativo = mas abajo)
+      escala:     0.52,   // tamano del logo/alien (1.0 = tamano normal)
+    };
+
+    // ====================================================
+    // CONFIGURACION PC  (pantalla >= 1024px)
+    // Edita SOLO esta seccion para ajustar la PC.
+    // ====================================================
+    const PC_CONFIG = {
+      // Timing Fase 1: Logo -> Alien
+      t1_inicio:   0.0,   // scroll donde empieza la transformacion
+      t1_duracion: 1.0,   // cuantas pantallas dura hasta que el alien este 100% armado
+      // Timing Fase 2: Alien -> Estrellas
+      t2_inicio:   1.2,   // scroll donde empieza la dispersion
+      t2_duracion: 1.5,   // cuantas pantallas dura la dispersion
+      // Posicion y tamano
+      offsetY:     0,     // desplazamiento vertical (0 = centrado)
+      escala:      1.05,  // tamano del logo/alien (1.0 = tamano normal)
+    };
+    // ====================================================
+
+    // Seleccion automatica segun dispositivo
+    const CFG = isMobile ? MOBILE_CONFIG : PC_CONFIG;
+
+    const t1 = Math.min(1, Math.max(0, (s - CFG.t1_inicio) / CFG.t1_duracion));
+    const t2 = Math.min(1, Math.max(0, (s - CFG.t2_inicio) / CFG.t2_duracion));
 
     // Only update colors if scroll changed to save CPU
     const hasScrollChanged = Math.abs(s - lastScrollY.current) > 0.0001;
@@ -331,7 +359,6 @@ function Particles() {
       let rotX = 0, rotY = 0, rotZ = (pA.noise || 0) * Math.PI * 2;
       let scale = 1.07;
 
-      const isMobile = windowWidth.current < 1024;
       const logoOffsetX = isMobile ? 0 : 18;
       const alienOffsetX = isMobile ? 0 : -18;
 
@@ -341,10 +368,8 @@ function Particles() {
       const localP = Math.min(1, Math.max(0, (t1 - delay) / 0.6));
       const easeP = localP < 0.5 ? 4 * localP * localP * localP : 1 - Math.pow(-2 * localP + 2, 3) / 2;
 
-      // En móviles reducimos drásticamente el tamaño del logo para que se vea nítido y bien encuadrado.
-      // También lo desplazamos hacia abajo para que no tape el texto de arriba.
-      const mobileOffsetY = isMobile ? -10 : 0;
-      const shapeScale = isMobile ? 0.52 : 1.05;
+      const mobileOffsetY = CFG.offsetY;
+      const shapeScale = CFG.escala;
 
       // Phase 2 Interpolation (Alien -> Starfield Explosion)
       // We want it to disintegrate from BOTTOM to TOP.
