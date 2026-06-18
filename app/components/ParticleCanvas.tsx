@@ -335,7 +335,7 @@ function Particles() {
 
       // En móviles reducimos drásticamente el tamaño del logo para que se vea nítido y bien encuadrado.
       // También lo desplazamos hacia abajo para que no tape el texto de arriba.
-      const mobileOffsetY = isMobile ? -22 : 0;
+      const mobileOffsetY = isMobile ? -10 : 0;
       const shapeScale = isMobile ? 0.52 : 1.05;
 
       // Phase 2 Interpolation (Alien -> Starfield Explosion)
