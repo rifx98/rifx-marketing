@@ -145,6 +145,15 @@ export async function POST(req: NextRequest) {
 
     console.log(`🏢 Tenant resuelto: ${tenantId || '(ninguno)'} | Config ID: ${config?.id || '(ninguna)'}`);
 
+    // Decodificar campos extendidos del config (admin_notification_phone está dentro del JSON de openai_key)
+    let adminNotificationPhone = '';
+    try {
+      const extCfg = JSON.parse(config?.openai_key || '{}');
+      adminNotificationPhone = extCfg.admin_notification_phone || process.env.ADMIN_NOTIFICATION_PHONE || '';
+    } catch {
+      adminNotificationPhone = process.env.ADMIN_NOTIFICATION_PHONE || '';
+    }
+
     // Extraer o transcribir el mensaje del cliente
     let customerMessage = '';
     const isAudio = messageData.type === 'audio';
@@ -184,6 +193,72 @@ export async function POST(req: NextRequest) {
 
     console.log(`📩 Mensaje de ${customerName} (${customerPhone}): ${customerMessage}`);
     console.log(`📞 Webhook phone_number_id: ${webhookPhoneId}`);
+
+    // ============================================
+    // 0.5 PROXY DE ADMINISTRADOR (WHATSAPP-TO-WHATSAPP)
+    // ============================================
+    if (adminNotificationPhone && customerPhone === adminNotificationPhone && customerMessage.startsWith('!')) {
+      const args = customerMessage.trim().split(' ');
+      const command = args[0].toLowerCase();
+      
+      if (command === '!r' && args.length >= 3) {
+        const targetPhone = args[1];
+        const adminReply = args.slice(2).join(' ');
+        
+        const { data: targetConv } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('phone_number', targetPhone)
+          .maybeSingle();
+          
+        if (targetConv) {
+          await supabase.from('messages').insert({
+            conversation_id: targetConv.id,
+            role: 'assistant',
+            content: adminReply
+          });
+          
+          await sendWhatsAppMessage(targetPhone, adminReply, config);
+          await sendWhatsAppMessage(adminNotificationPhone, `✅ Mensaje enviado a ${targetPhone}`, config);
+          return NextResponse.json({ status: 'admin_proxy_reply_sent' });
+        } else {
+          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config);
+          return NextResponse.json({ status: 'admin_proxy_not_found' });
+        }
+      }
+      
+      if (command === '!bot' && args.length >= 2) {
+        const targetPhone = args[1];
+        
+        const { data: targetConv } = await supabase
+          .from('conversations')
+          .select('*')
+          .eq('phone_number', targetPhone)
+          .maybeSingle();
+          
+        if (targetConv) {
+          await supabase.from('messages').insert({
+            conversation_id: targetConv.id,
+            role: 'assistant',
+            content: '__SYSTEM_RESUME__'
+          });
+          
+          await supabase
+            .from('conversations')
+            .update({ status: 'chatting', updated_at: new Date().toISOString() })
+            .eq('id', targetConv.id);
+            
+          await sendWhatsAppMessage(adminNotificationPhone, `🤖 ✅ Bot reactivado para ${targetPhone}`, config);
+          return NextResponse.json({ status: 'admin_proxy_bot_resumed' });
+        } else {
+          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config);
+          return NextResponse.json({ status: 'admin_proxy_not_found' });
+        }
+      }
+      
+      await sendWhatsAppMessage(adminNotificationPhone, `⚠️ Comando no reconocido.\nUsos:\n!r [numero] [mensaje]\n!bot [numero]`, config);
+      return NextResponse.json({ status: 'admin_proxy_invalid_command' });
+    }
 
     // 1. Buscar o crear conversación (filtrar por tenant_id para aislamiento multi-tenant)
     let conversationQuery = supabase
@@ -273,6 +348,23 @@ export async function POST(req: NextRequest) {
 
     if (isHumanMode) {
       console.log(`⏸️ [MODO HUMANO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
+
+      // Notificar al admin que hay un mensaje esperando respuesta humana
+      const adminPhone = adminNotificationPhone;
+      if (adminPhone) {
+        const notifMsg =
+          `💬 *Nuevo mensaje del cliente*\n\n` +
+          `👤 *${customerName}*\n` +
+          `📞 +${customerPhone}\n\n` +
+          `_"${customerMessage.substring(0, 200)}"_\n\n` +
+          `✍️ *Para responder desde aquí:*\n` +
+          `!r ${customerPhone} tu mensaje\n\n` +
+          `🤖 *Para reactivar el bot:*\n` +
+          `!bot ${customerPhone}`;
+        await sendWhatsAppMessage(adminPhone, notifMsg, config);
+        console.log(`🔔 Notificación enviada al admin (${adminPhone}) — cliente en modo humano`);
+      }
+
       await supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
@@ -353,13 +445,33 @@ export async function POST(req: NextRequest) {
             content: '__SYSTEM_PAUSE__',
           }
         ]);
-        
+
         await supabase.from('conversations')
           .update({ status: 'requires_attention', updated_at: new Date().toISOString() })
           .eq('id', conversation.id);
-        
+
         forceHumanEscalation = true;
         console.log(`🚨 ${customerName} (${customerPhone}) pidió humano 3+ veces — ALERTA ACTIVADA`);
+
+        // Notificar al admin con alerta urgente
+        const adminPhone = adminNotificationPhone;
+        if (adminPhone) {
+          const alertMsg =
+            `🚨 *ALERTA: Cliente solicita agente humano*\n\n` +
+            `👤 *${customerName}*\n` +
+            `📞 +${customerPhone}\n\n` +
+            `_"${customerMessage.substring(0, 200)}"_\n\n` +
+            `⏸️ El bot ha sido PAUSADO.\n\n` +
+            `✍️ *Para responderle desde aquí:*\n` +
+            `!r ${customerPhone} tu mensaje\n\n` +
+            `🤖 *Para reactivar el bot:*\n` +
+            `!bot ${customerPhone}`;
+          await sendWhatsAppMessage(adminPhone, alertMsg, config);
+          console.log(`🚨 Alerta urgente enviada al admin (${adminPhone})`);
+        }
+        
+        // Retornar temprano para que la IA no responda
+        return NextResponse.json({ status: 'escalated_to_human' });
       }
     }
 
@@ -1461,7 +1573,7 @@ Transportadora: *${orderResult.carrier}*`;
         ? `https://${process.env.VERCEL_URL}`
         : 'http://localhost:3000';
       const cronSecret = process.env.CRON_SECRET || '';
-      fetch(`${baseUrl}/api/cron/send-reminders`, {
+      fetch(`${baseUrl}/api/cron/appointments`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${cronSecret}` },
       }).catch(() => {}); // fire-and-forget
@@ -1508,7 +1620,21 @@ async function sendWhatsAppMessage(to: string, text: string, config: Record<stri
     
     const result = await response.json();
     if (!response.ok) {
-      console.error('❌ Error de Meta API:', JSON.stringify(result, null, 2));
+      const errStr = JSON.stringify(result, null, 2);
+      console.error('❌ Error de Meta API:', errStr);
+      try {
+        const supabase = createSupabaseAdmin();
+        const { data: conv } = await supabase.from('conversations').select('id').eq('phone_number', to).limit(1).single();
+        if (conv) {
+          await supabase.from('messages').insert({
+            conversation_id: conv.id,
+            role: 'assistant',
+            content: `__SYSTEM_ERROR__ WhatsApp API Falló al enviar: ${errStr.substring(0, 500)}`
+          });
+        }
+      } catch (e) {
+        console.error('Error insertando log en BD', e);
+      }
     } else {
       console.log('✅ WhatsApp enviado:', result);
     }
