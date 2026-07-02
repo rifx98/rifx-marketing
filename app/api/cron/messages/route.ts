@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server';
 import { validateCronAuth, cronUnauthorizedResponse, cronSuccessResponse, cronErrorResponse } from '../auth';
 import { acquireLock, releaseLock, startRunLog, updateRunLog } from '@/services/cron/lock';
-import { runCleanupMedia } from '@/services/cron/cleanup-media';
+import { runSocialPublications } from '@/services/cron/social-publication';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * POST /api/cron/cleanup-media - Ejecuta la limpieza de archivos de storage y base de datos expirados.
+ * POST /api/cron/messages - Ejecuta las publicaciones de redes sociales programadas pendientes.
  */
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -16,14 +16,14 @@ export async function POST(req: NextRequest) {
     return cronUnauthorizedResponse();
   }
 
-  const cronName = 'cleanup-media';
+  const cronName = 'messages';
   let runId = '';
 
   try {
     // 2. Adquirir lock distribuido (5 minutos de expiración)
     const hasLock = await acquireLock(cronName, 5);
     if (!hasLock) {
-      console.log('[Cleanup Media Cron] Omitiendo ejecución por bloqueo activo.');
+      console.log('[Messages Cron] Omitiendo ejecución por bloqueo activo.');
       return cronSuccessResponse({
         processed: 0,
         skipped: 0,
@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
     runId = await startRunLog(cronName);
 
     // 4. Ejecutar el servicio
-    const result = await runCleanupMedia({
-      startTime
+    const result = await runSocialPublications({
+      startTime,
+      originUrl: req.nextUrl.origin
     });
 
     const endTime = Date.now();
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
     const duration = (endTime - startTime) / 1000;
     const executionTimeStr = `${duration.toFixed(1)}s`;
 
-    console.error(`❌ [Cleanup Media Cron] Error crítico:`, err);
+    console.error(`❌ [Messages Cron] Error crítico:`, err);
 
     if (runId) {
       await updateRunLog(runId, {
@@ -88,12 +89,12 @@ export async function POST(req: NextRequest) {
 
     await releaseLock(cronName);
 
-    return cronErrorResponse(err.message || 'Error en el controlador de limpieza de medios', executionTimeStr);
+    return cronErrorResponse(err.message || 'Error en el controlador de publicaciones', executionTimeStr);
   }
 }
 
 /**
- * GET /api/cron/cleanup-media - Soporte para peticiones GET.
+ * GET /api/cron/messages - Soporte para peticiones GET.
  */
 export async function GET(req: NextRequest) {
   return POST(req);
