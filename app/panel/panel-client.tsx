@@ -2292,6 +2292,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // === Facebook Marketing API ===
   const [fbCampaigns, setFbCampaigns] = useState<any[]>([]);
+  const [selectedCreative, setSelectedCreative] = useState<any>(null);
   const [fbInsights, setFbInsights] = useState<any>(null);
   const [fbLoading, setFbLoading] = useState(false);
   const [fbError, setFbError] = useState<string | null>(null);
@@ -11722,16 +11723,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase">{language === 'en' ? 'Creative' : 'Creatividad'}</th>
                             <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-center">Engagement</th>
                             <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-center">Conv.</th>
-                            <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-right">ROAS</th>
+                            <th className="py-3 text-[12px] font-semibold text-[#414754] uppercase text-right">{language === 'en' ? 'Spend' : 'Gasto'}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#c1c6d6]">
                           {(fbInsights?.topCreatives?.length > 0 ? fbInsights.topCreatives.map((c: any) => ({
-                            name: c.name, campaign: 'CTR: ' + c.ctr + '%', engagement: c.ctr + '%', conv: c.conversions || c.clicks, roas: c.spend !== '0.00' ? ((parseInt(c.clicks||'0') * 2) / parseFloat(c.spend || '1')).toFixed(1) + 'x' : '--', icon: 'campaign'
+                            raw: c, name: c.name, campaign: 'CTR: ' + c.ctr + '%', engagement: c.ctr + '%', conv: c.conversions || '0', spend: '$' + c.spend, icon: 'campaign'
                           })) : [
-                            { name: language === 'en' ? 'No creatives yet' : 'Sin creatividades', campaign: '--', engagement: '--', conv: '--', roas: '--', icon: 'info' },
+                            { raw: null, name: language === 'en' ? 'No creatives yet' : 'Sin creatividades', campaign: '--', engagement: '--', conv: '--', spend: '--', icon: 'info' },
                           ]).map((c: any, i: number) => (
-                            <tr key={i}>
+                            <tr
+                              key={i}
+                              onClick={() => c.raw && setSelectedCreative(c.raw)}
+                              className={c.raw ? 'cursor-pointer hover:bg-[#f4f6fb] transition-colors' : ''}
+                            >
                               <td className="py-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-12 h-12 rounded bg-[#e5eeff] overflow-hidden flex items-center justify-center">
@@ -11745,12 +11750,54 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </td>
                               <td className="py-4 text-center text-sm font-medium">{c.engagement}</td>
                               <td className="py-4 text-center text-sm font-medium">{c.conv}</td>
-                              <td className="py-4 text-right text-sm font-bold text-[#006947]">{c.roas}</td>
+                              <td className="py-4 text-right text-sm font-bold text-[#0058bc]">{c.spend}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Creative Detail Modal */}
+            {selectedCreative && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedCreative(null)}>
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded bg-[#e5eeff] flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[#0058bc]">campaign</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-[#0b1c30]">{selectedCreative.name}</h3>
+                        <p className="text-[11px] text-[#414754]">{language === 'en' ? 'Real performance data for this creative' : 'Datos reales de rendimiento de esta creatividad'}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setSelectedCreative(null)} className="text-[#414754] hover:text-[#0b1c30]">
+                      <span className="material-symbols-outlined">close</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: language === 'en' ? 'Impressions' : 'Impresiones', value: parseInt(selectedCreative.impressions || '0').toLocaleString() },
+                      { label: language === 'en' ? 'Clicks' : 'Clics', value: parseInt(selectedCreative.clicks || '0').toLocaleString() },
+                      { label: 'CTR', value: selectedCreative.ctr + '%' },
+                      { label: language === 'en' ? 'Spend' : 'Gasto', value: '$' + selectedCreative.spend },
+                      { label: language === 'en' ? 'Conversions' : 'Conversiones', value: selectedCreative.conversions || '0' },
+                      {
+                        label: language === 'en' ? 'Cost per conversion' : 'Costo por conversión',
+                        value: parseInt(selectedCreative.conversions || '0') > 0
+                          ? '$' + (parseFloat(selectedCreative.spend || '0') / parseInt(selectedCreative.conversions)).toFixed(2)
+                          : '--',
+                      },
+                    ].map((stat, i) => (
+                      <div key={i} className="bg-[#f4f6fb] rounded-xl p-4">
+                        <p className="text-[11px] font-semibold text-[#414754] uppercase tracking-wide mb-1">{stat.label}</p>
+                        <p className="text-xl font-bold text-[#0b1c30]">{stat.value}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
