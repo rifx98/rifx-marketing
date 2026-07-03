@@ -43,6 +43,11 @@ const PROCESSED_ATTR = 'data-rv';
  */
 export default function GlobalTextReveal() {
   useEffect(() => {
+    // No corre en el panel: la mutación directa del DOM (reemplazar nodos de
+    // texto por spans) choca con los re-renders de React del dashboard y
+    // provoca crashes de "removeChild" que tumban toda la app.
+    if (window.location.pathname.startsWith('/panel')) return;
+
     // Small delay so React fully hydrates before we touch the DOM
     const init = setTimeout(() => {
       processAll();
