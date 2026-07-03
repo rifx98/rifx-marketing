@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
+import dynamic from 'next/dynamic';
+const ReactApexChart = dynamic(() => import('react-apexcharts'), { ssr: false });
 import { CREATIVE_TEMPLATES, CreativeTemplate } from './templates';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import ThemeSettings from './theme-settings';
@@ -41,6 +43,106 @@ import PublicationTracker from '@/components/social/PublicationTracker';
 
 // Auth UI
 import { AuthComponent } from '@/components/ui/sign-up';
+
+// Ad Performance Chart (area, adapted from ApexCharts stock-movement pattern)
+type AdMetricKey = 'impressions' | 'clicks' | 'conversions';
+
+const AdPerformanceChart = ({ dailyInsights, language }: { dailyInsights: any[] | undefined; language: string }) => {
+  const [metric, setMetric] = useState<AdMetricKey>('impressions');
+
+  const metricConfig: Record<AdMetricKey, { label: string; labelEn: string; color: string }> = {
+    impressions: { label: 'Impresiones', labelEn: 'Impressions', color: '#0058bc' },
+    clicks: { label: 'Clics', labelEn: 'Clicks', color: '#515f78' },
+    conversions: { label: 'Conversiones', labelEn: 'Conversions', color: '#006947' },
+  };
+
+  const hasData = !!(dailyInsights && dailyInsights.length > 0);
+  const activeColor = metricConfig[metric].color;
+
+  const series = [{
+    name: language === 'en' ? metricConfig[metric].labelEn : metricConfig[metric].label,
+    data: hasData
+      ? dailyInsights!.map((d: any) => ({
+          x: new Date(d.date + 'T00:00:00').getTime(),
+          y: parseInt(d[metric] || '0', 10),
+        }))
+      : [],
+  }];
+
+  const options: any = {
+    chart: {
+      type: 'area',
+      height: 260,
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      animations: { speed: 300 },
+    },
+    dataLabels: { enabled: false },
+    stroke: { curve: 'smooth', width: 2, colors: [activeColor] },
+    markers: { size: 0, hover: { size: 5 }, colors: [activeColor], strokeColors: '#fff', strokeWidth: 2 },
+    fill: {
+      type: 'gradient',
+      gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0, stops: [0, 90, 100] },
+      colors: [activeColor],
+    },
+    colors: [activeColor],
+    grid: {
+      borderColor: '#e5eeff',
+      strokeDashArray: 4,
+      xaxis: { lines: { show: false } },
+      yaxis: { lines: { show: true } },
+      padding: { left: 8, right: 8 },
+    },
+    xaxis: {
+      type: 'datetime',
+      labels: { style: { colors: '#414754', fontSize: '11px' }, datetimeUTC: false },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      crosshairs: { stroke: { color: activeColor, width: 1, dashArray: 3 } },
+    },
+    yaxis: {
+      labels: {
+        style: { colors: '#414754', fontSize: '11px' },
+        formatter: (val: number) => (val >= 1000 ? `${(val / 1000).toFixed(1)}k` : Math.round(val).toString()),
+      },
+    },
+    tooltip: {
+      theme: 'light',
+      x: { format: 'dd MMM' },
+      y: { formatter: (val: number) => val.toLocaleString() },
+    },
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        {(Object.keys(metricConfig) as AdMetricKey[]).map((key) => (
+          <button
+            key={key}
+            onClick={() => setMetric(key)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+              metric === key ? 'text-white' : 'text-[#414754] bg-[#f4f6fb] hover:bg-[#e5eeff]'
+            }`}
+            style={metric === key ? { backgroundColor: metricConfig[key].color } : undefined}
+          >
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: metric === key ? '#fff' : metricConfig[key].color }} />
+            {language === 'en' ? metricConfig[key].labelEn : metricConfig[key].label}
+          </button>
+        ))}
+      </div>
+
+      {hasData ? (
+        <ReactApexChart options={options} series={series} type="area" height={260} />
+      ) : (
+        <div className="h-[260px] flex items-center justify-center text-center px-6">
+          <p className="text-sm text-[#414754]">
+            {language === 'en' ? 'Load Facebook data to see the real performance trend.' : 'Carga los datos de Facebook para ver la tendencia real de rendimiento.'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Kanban Card Component
 const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { conv: any, onClick: () => void, getLeadClassification: (score: number) => any, formatIntent: (intent: string) => string }) => {
@@ -11533,65 +11635,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   {/* Performance Chart */}
                   <div className="lg:col-span-8 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                    <div className="flex items-center justify-between mb-8">
-                      <div>
-                        <h4 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Ad Performance Over Time' : 'Rendimiento del Anuncio en el Tiempo'}</h4>
-                        <p className="text-sm text-[#414754]">{language === 'en' ? 'Impressions, Clicks & Conversions comparison' : 'Comparativa de Impresiones, Clics y Conversiones'}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {[
-                          { color: '#0058bc', label: language === 'en' ? 'Impressions' : 'Impresiones' },
-                          { color: '#515f78', label: language === 'en' ? 'Clicks' : 'Clics' },
-                          { color: '#006947', label: language === 'en' ? 'Conversions' : 'Conversiones' },
-                        ].map((l, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: l.color }} />
-                            <span className="text-[12px] font-semibold">{l.label}</span>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="mb-2">
+                      <h4 className="text-xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Ad Performance Over Time' : 'Rendimiento del Anuncio en el Tiempo'}</h4>
+                      <p className="text-sm text-[#414754]">{language === 'en' ? 'Impressions, Clicks & Conversions comparison' : 'Comparativa de Impresiones, Clics y Conversiones'}</p>
                     </div>
-                    <div className="h-[300px] flex items-end justify-between relative px-4">
-                      {(fbInsights?.dailyInsights?.length > 0 
-                        ? (() => {
-                            const maxImpressions = Math.max(...fbInsights.dailyInsights.map((d: any) => parseInt(d.impressions || '0')), 1);
-                            const maxConversions = Math.max(...fbInsights.dailyInsights.map((d: any) => parseInt(d.conversions || '0')), 1);
-                            return fbInsights.dailyInsights.map((d: any) => {
-                              const dateObj = new Date(d.date + 'T00:00:00');
-                              const label = isNaN(dateObj.getTime()) 
-                                ? d.date 
-                                : dateObj.toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { weekday: 'short', day: 'numeric' });
-                              return {
-                                day: label,
-                                h1: Math.max(Math.round((parseInt(d.impressions || '0') / maxImpressions) * 80), 5),
-                                h2: Math.max(Math.round((parseInt(d.conversions || '0') / maxConversions) * 80), 5),
-                                tooltip: `${language === 'en' ? 'Impressions' : 'Impresiones'}: ${parseInt(d.impressions).toLocaleString()} | ${language === 'en' ? 'Conversions' : 'Conversiones'}: ${d.conversions}`
-                              };
-                            });
-                          })()
-                        : [
-                            { day: 'Lun', h1: 40, h2: 15, tooltip: '4,000 imp · 150 conv' },
-                            { day: 'Mar', h1: 60, h2: 25, tooltip: '6,000 imp · 250 conv' },
-                            { day: language === 'en' ? 'Wed' : 'Mie', h1: 50, h2: 20, tooltip: '5,000 imp · 200 conv' },
-                            { day: 'Jue', h1: 85, h2: 45, tooltip: '8,500 imp · 450 conv' },
-                            { day: 'Vie', h1: 70, h2: 35, tooltip: '7,000 imp · 350 conv' },
-                            { day: language === 'en' ? 'Sat' : 'Sab', h1: 55, h2: 25, tooltip: '5,500 imp · 250 conv' },
-                            { day: 'Dom', h1: 95, h2: 60, tooltip: '9,500 imp · 600 conv' },
-                          ]
-                      ).map((d: any, i: number) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
-                          {/* Tooltip on Hover */}
-                          <div className="absolute bottom-full mb-2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 font-semibold font-sans">
-                            {d.tooltip}
-                          </div>
-                          <div className="w-5 flex flex-col justify-end" style={{ height: '240px' }}>
-                            <div className="w-5 rounded-t" style={{ height: d.h1+'%', backgroundColor: '#0058bc' }} />
-                            <div className="w-5 rounded-t -mt-8" style={{ height: d.h2+'%', backgroundColor: '#006947' }} />
-                          </div>
-                          <span className="text-[10px] text-[#414754] mt-2 capitalize">{d.day}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <AdPerformanceChart dailyInsights={fbInsights?.dailyInsights} language={language} />
                   </div>
 
                   {/* AI Predictive Insights */}
