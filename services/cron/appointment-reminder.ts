@@ -23,7 +23,8 @@ export async function runAppointmentReminders(options: {
   const supabase = createSupabaseAdmin();
   const now = new Date();
 
-  const batchSize = options.batchSize || parseInt(process.env.APPOINTMENT_BATCH_SIZE || '10');
+  const batchSize = options.batchSize || parseInt(process.env.APPOINTMENT_BATCH_SIZE || '30');
+  const concurrency = parseInt(process.env.APPOINTMENT_CONCURRENCY || '10');
   const maxRetries = options.maxRetries || parseInt(process.env.MAX_RETRIES || '3');
   const startTime = options.startTime;
 
@@ -105,15 +106,8 @@ export async function runAppointmentReminders(options: {
     const itemsToProcess = pendingAppts.slice(0, batchSize);
     result.remaining = Math.max(0, pendingAppts.length - batchSize);
 
-    // 4. Procesar lote secuencialmente monitoreando el timeout
-    for (const appt of itemsToProcess) {
-      const elapsed = (Date.now() - startTime) / 1000;
-      if (elapsed > 8.0) { // 2s de margen sobre el límite de 10s de Vercel Hobby
-        console.warn(`[Appointments Service] Timeout preventivo activado. Transcurridos: ${elapsed}s. Suspendiendo lote.`);
-        result.remaining += itemsToProcess.length - itemsToProcess.indexOf(appt);
-        break;
-      }
-
+    // 4. Procesar el lote en chunks paralelos (concurrency) monitoreando el timeout global
+    const processOne = async (appt: any) => {
       try {
         const apptTime = new Date(appt.scheduled_time).getTime();
         const diffMs = apptTime - now.getTime();
@@ -130,10 +124,10 @@ export async function runAppointmentReminders(options: {
               .update({ status: 'pending_completion', updated_at: new Date().toISOString() })
               .eq('id', appt.id);
             if (err) throw err;
-            
+
             result.processed++;
             result.processedIds.push(appt.id);
-            continue;
+            return;
           }
 
           if (pastMinutes > 60 && (appt.status === 'pending' || appt.status === 'awaiting_reschedule')) {
@@ -146,7 +140,7 @@ export async function runAppointmentReminders(options: {
 
             result.processed++;
             result.processedIds.push(appt.id);
-            continue;
+            return;
           }
         }
 
@@ -179,7 +173,7 @@ export async function runAppointmentReminders(options: {
 
         if (!type) {
           result.skipped++;
-          continue;
+          return;
         }
 
         // Obtener configuración del tenant para credenciales de WhatsApp
@@ -286,6 +280,18 @@ export async function runAppointmentReminders(options: {
         result.errorDetails.push({ appointmentId: appt.id, error: err.message || err });
         console.error(`[Appointments Service] Error en cita ${appt.id}:`, err);
       }
+    };
+
+    for (let i = 0; i < itemsToProcess.length; i += concurrency) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      if (elapsed > 8.0) { // 2s de margen sobre el límite de 10s de Vercel Hobby
+        console.warn(`[Appointments Service] Timeout preventivo activado. Transcurridos: ${elapsed}s. Suspendiendo lote.`);
+        result.remaining += itemsToProcess.length - i;
+        break;
+      }
+
+      const chunk = itemsToProcess.slice(i, i + concurrency);
+      await Promise.allSettled(chunk.map(processOne));
     }
   } catch (err: any) {
     result.errors++;
