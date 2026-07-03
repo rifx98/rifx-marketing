@@ -39,6 +39,9 @@ import VideoUploader from '@/components/social/VideoUploader';
 import PublishForm from '@/components/social/PublishForm';
 import PublicationTracker from '@/components/social/PublicationTracker';
 
+// Auth UI
+import { AuthComponent } from '@/components/ui/sign-up';
+
 // Kanban Card Component
 const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { conv: any, onClick: () => void, getLeadClassification: (score: number) => any, formatIntent: (intent: string) => string }) => {
   const score = conv.lead_score ?? 0;
@@ -586,6 +589,7 @@ export default function PanelClient() {
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerCompany, setRegisterCompany] = useState('');
   const [registerOwner, setRegisterOwner] = useState('');
+  const [registerError, setRegisterError] = useState('');
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [tenantData, setTenantData] = useState<any>(null);
   
@@ -752,7 +756,15 @@ export default function PanelClient() {
     };
 
     const timeout = setTimeout(renderGoogleButton, 100);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      // Vaciar el contenedor antes de que React lo desmonte: el botón de Google
+      // se inyecta con document/iframe fuera del control de React (renderButton),
+      // así que si no lo limpiamos primero, React intenta un removeChild sobre un
+      // nodo que ya no es hijo suyo y crashea toda la app al iniciar sesión.
+      const container = document.getElementById('google-signin-button');
+      if (container) container.replaceChildren();
+    };
   }, [gsiLoaded, isLoggedIn, isRegistering]);
 
   // Load saved playground config from localStorage
@@ -2181,9 +2193,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [fbInsights, setFbInsights] = useState<any>(null);
   const [fbLoading, setFbLoading] = useState(false);
   const [fbError, setFbError] = useState<string | null>(null);
+  const [aiInsights, setAiInsights] = useState<{ message: string; metric: string; confidence: string }[] | null>(null);
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const isNoMetaApiError = (msg: string) => msg?.toLowerCase().includes('no tienes credenciales') || msg?.toLowerCase().includes('meta ads configuradas') || msg?.toLowerCase().includes('faltan credenciales');
   const loadFbCampaigns = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/campaigns?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbCampaigns(d.campaigns||[]); else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
-  const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbInsights(d); else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
+  const loadAiInsights = async (insightsData: any) => {
+    setAiInsightsLoading(true);
+    try {
+      const r = await authFetch('/api/panel/campaigns/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kpis: insightsData.kpis, platformBreakdown: insightsData.platformBreakdown, topCreatives: insightsData.topCreatives }),
+      });
+      const d = await r.json();
+      if (d.insights) setAiInsights(d.insights); else setAiInsights(null);
+    } catch (e: any) {
+      setAiInsights(null);
+    } finally {
+      setAiInsightsLoading(false);
+    }
+  };
+  const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) { setFbInsights(d); loadAiInsights(d); } else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
   const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await authFetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await authFetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const [fbPublishing, setFbPublishing] = useState(false);
@@ -2200,6 +2230,79 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
     setFbPublishing(true);
     try {
+      // Subir la imagen primero si es necesario
+      setToast({ message: language === 'en' ? 'Uploading ad image...' : 'Subiendo imagen de publicidad...', type: 'info' });
+      
+      let imageUrl = '';
+      if (finalUploadedImage.startsWith('http://') || finalUploadedImage.startsWith('https://')) {
+        imageUrl = finalUploadedImage;
+      } else {
+        let fileToUpload: File | Blob;
+        let fileName = 'ad-image.png';
+        let fileType = 'image/png';
+        
+        if (campaignImage instanceof File) {
+          fileToUpload = campaignImage;
+          fileName = campaignImage.name;
+          fileType = campaignImage.type;
+        } else if (finalUploadedImage.startsWith('data:')) {
+          const arr = finalUploadedImage.split(',');
+          const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          fileToUpload = new Blob([u8arr], { type: mime });
+          fileType = mime;
+          const ext = mime.split('/')[1] || 'png';
+          fileName = `generated-banner.${ext}`;
+        } else if (finalUploadedImage.startsWith('blob:')) {
+          try {
+            const response = await fetch(finalUploadedImage);
+            fileToUpload = await response.blob();
+            fileType = fileToUpload.type || 'image/png';
+            const ext = fileType.split('/')[1] || 'png';
+            fileName = `blob-image.${ext}`;
+          } catch (err) {
+            console.error('Error fetching blob from object URL:', err);
+            throw new Error('Error al leer el archivo temporal de la imagen.');
+          }
+        } else {
+          throw new Error('Formato de imagen no soportado.');
+        }
+
+        // 1. Obtener URL firmada de subida de R2
+        const getUrlRes = await authFetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(fileType)}`);
+        if (!getUrlRes.ok) {
+          const errData = await getUrlRes.json();
+          throw new Error(errData.error || 'Error al obtener URL de subida de almacenamiento.');
+        }
+        const { uploadUrl, key } = await getUrlRes.json();
+
+        // 2. Subir el archivo usando PUT
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': fileType },
+          body: fileToUpload
+        });
+        if (!uploadRes.ok) {
+          throw new Error('Error al subir el archivo de imagen al almacenamiento.');
+        }
+
+        // 3. Obtener URL firmada de descarga
+        const signRes = await authFetch(`/api/panel/social/storage?action=sign&key=${encodeURIComponent(key)}`);
+        if (!signRes.ok) {
+          const errData = await signRes.json();
+          throw new Error(errData.error || 'Error al firmar la URL de la imagen.');
+        }
+        const { signedUrl } = await signRes.json();
+        imageUrl = signedUrl;
+      }
+
+      setToast({ message: language === 'en' ? 'Publishing campaign to Meta...' : 'Publicando campaña en Meta...', type: 'info' });
+
       const caption = campaignResult?.caption || adDescription || campaignDesc || '';
       const cfg = campaignResult?.campaign_config || {};
       const aud = campaignResult?.target_audience || {};
@@ -2222,6 +2325,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           age_min: aud.age_min || 18,
           age_max: aud.age_max || 65,
           link_url: 'https://rifx.online',
+          image_url: imageUrl,
           call_to_action: cfg.call_to_action || 'LEARN_MORE',
           status: 'PAUSED'
         })
@@ -2647,6 +2751,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const planPermissions: Record<string, string[]> = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
+      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
       plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
       master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"]
     };
@@ -3103,6 +3208,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     dropi_default_product_id: '',
     dropi_default_price: 50,
     dropi_prompt: '',
+    admin_notification_phone: '',
   });
   const originalConfigRef = React.useRef<any>(null);
   const configDataRef = React.useRef(configData);
@@ -3557,6 +3663,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              dropi_default_product_id: data.dropi_default_product_id || '',
              dropi_default_price: data.dropi_default_price ?? 50,
              dropi_prompt: data.dropi_prompt || '',
+             admin_notification_phone: data.admin_notification_phone || '',
             };
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
@@ -3899,6 +4006,46 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setLoginError('Error de conexión. Intenta de nuevo.');
     }
     setIsLoggingIn(false);
+  };
+
+  const handleLoginViaAuthComponent = async (email: string, password: string) => {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Email o contraseña incorrectos');
+    localStorage.setItem('rifx_token', data.token);
+    setAuthToken(data.token);
+    setTenantData(data.tenant);
+    setCurrentPlan(data.tenant.plan || 'trial');
+    setIsLoggedIn(true);
+  };
+
+  const handleRegisterViaAuthComponent = async (email: string, password: string) => {
+    setRegisterError('');
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        password,
+        companyName: registerCompany || 'Mi Empresa',
+        ownerName: registerOwner || '',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data.error || 'Error al registrarse';
+      setRegisterError(msg);
+      throw new Error(msg);
+    }
+    localStorage.setItem('rifx_token', data.token);
+    setAuthToken(data.token);
+    setTenantData(data.tenant);
+    setIsLoggedIn(true);
+    setIsRegistering(false);
   };
 
   // Auto-login from stored token and restore active states
@@ -5302,6 +5449,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         dropi_default_product_id: configData.dropi_default_product_id,
         dropi_default_price: configData.dropi_default_price,
         dropi_prompt: configData.dropi_prompt,
+        admin_notification_phone: configData.admin_notification_phone,
       };
       console.log('Enviando config payload:', Object.keys(payload));
       const res = await authFetch('/api/panel/config', {
@@ -5344,8 +5492,53 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     );
   }
 
+  // ========== REGISTER SCREEN ==========
+  if (!isLoggedIn && isRegistering) {
+    return (
+      <AuthComponent
+        mode="register"
+        onRegister={handleRegisterViaAuthComponent}
+        onSwitchToLogin={() => { setIsRegistering(false); setRegisterError(''); }}
+        externalError={registerError}
+      />
+    );
+  }
+
   // ========== LOGIN SCREEN ==========
   if (!isLoggedIn) {
+    const handleGoogleBtnClick = () => {
+      try {
+        const btn = document.querySelector<HTMLElement>('#google-signin-button div[role="button"]');
+        if (btn) { btn.click(); return; }
+        (window as any).google?.accounts?.id?.prompt?.();
+      } catch (_) {}
+    };
+
+    const GoogleInitNode = (
+      <>
+        <div id="google-signin-button" />
+        <Script
+          src="https://accounts.google.com/gsi/client"
+          strategy="afterInteractive"
+          onLoad={() => { window.dispatchEvent(new Event('google-gsi-loaded')); }}
+        />
+      </>
+    );
+
+    return (
+      <AuthComponent
+        mode="login"
+        onLogin={handleLoginViaAuthComponent}
+        onSwitchToRegister={() => { setLoginError(''); setIsRegistering(true); }}
+        externalError={loginError}
+        onGoogleClick={handleGoogleBtnClick}
+        googleInitNode={GoogleInitNode}
+      />
+    );
+  }
+
+  // ========== OLD LOGIN SCREEN (kept for reference, never reached) ==========
+  if (false) {
     return (
       <div className="h-screen w-full bg-brand-dark text-white font-sans antialiased overflow-hidden" suppressHydrationWarning>
         <style suppressHydrationWarning>{`
@@ -9102,6 +9295,93 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
                       ))}
                     </div>
+
+                    {/* Admin Notification Phone */}
+                    {(() => {
+                      const phoneVal = configData.admin_notification_phone || '';
+                      const codesList = [
+                        { code: '1787', label: '+1 787' },
+                        { code: '1939', label: '+1 939' },
+                        { code: '1809', label: '+1 809' },
+                        { code: '1829', label: '+1 829' },
+                        { code: '1849', label: '+1 849' },
+                        { code: '593', label: '+593' },
+                        { code: '502', label: '+502' },
+                        { code: '591', label: '+591' },
+                        { code: '504', label: '+504' },
+                        { code: '503', label: '+503' },
+                        { code: '595', label: '+595' },
+                        { code: '506', label: '+506' },
+                        { code: '505', label: '+505' },
+                        { code: '507', label: '+507' },
+                        { code: '598', label: '+598' },
+                        { code: '52', label: '+52' },
+                        { code: '57', label: '+57' },
+                        { code: '54', label: '+54' },
+                        { code: '51', label: '+51' },
+                        { code: '56', label: '+56' },
+                        { code: '58', label: '+58' },
+                        { code: '53', label: '+53' },
+                        { code: '34', label: '+34' },
+                        { code: '1', label: '+1' }
+                      ];
+                      let currentCode = '1';
+                      let currentNumber = phoneVal;
+                      for (const item of codesList) {
+                        if (phoneVal.startsWith(item.code)) {
+                          currentCode = item.code;
+                          currentNumber = phoneVal.slice(item.code.length);
+                          break;
+                        }
+                      }
+                      
+                      return (
+                        <div className="mt-6 p-5 bg-white rounded-2xl border border-primary-container/10 shadow-sm">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
+                              <span className="material-symbols-outlined text-sm">smartphone</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-black text-primary block">{language === 'en' ? 'Notification Phone (WhatsApp)' : 'Teléfono de Notificación (WhatsApp)'}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Receive an alert when a client requests a human agent' : 'Recibe una alerta cuando un cliente solicite un agente humano'}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <div className="relative flex-1 flex">
+                              <select 
+                                value={currentCode}
+                                onChange={e => setConfigData({ ...configData, admin_notification_phone: e.target.value + currentNumber })}
+                                className="bg-slate-100 border border-slate-100 border-r-0 rounded-l-xl pl-3 pr-8 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400/30 transition-all appearance-none cursor-pointer"
+                                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
+                              >
+                                {codesList.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                              </select>
+                              <input
+                                type="tel"
+                                className="w-full bg-slate-50 border border-slate-100 rounded-r-xl pl-4 pr-4 py-2.5 text-sm font-bold text-primary focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 outline-none transition-all"
+                                placeholder={language === 'en' ? '984123456 (number)' : '984123456 (número)'}
+                                value={currentNumber}
+                                onChange={e => setConfigData({ ...configData, admin_notification_phone: currentCode + e.target.value.replace(/[^0-9]/g, '') })}
+                              />
+                            </div>
+                            <button
+                              onClick={handleSaveSettings as any}
+                              disabled={isSaving}
+                              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-500/15 transition-all flex items-center gap-1.5 flex-shrink-0"
+                            >
+                              <span className="material-symbols-outlined text-sm">{isSaving ? 'sync' : 'save'}</span>
+                              {language === 'en' ? 'Save' : 'Guardar'}
+                            </button>
+                          </div>
+                          {configData.admin_notification_phone && (
+                            <div className="mt-2.5 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                              <span className="text-[9px] font-black text-emerald-600 uppercase">{language === 'en' ? 'Alerts active' : 'Alertas activas'} · +{configData.admin_notification_phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="absolute top-0 right-0 w-32 h-32 bg-primary-container/5 blur-3xl rounded-full translate-x-10 -translate-y-10" />
                 </section>
@@ -11209,8 +11489,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="flex items-center gap-3">
                     <div className="flex items-center bg-[#eff4ff] border border-[#c1c6d6] rounded-lg px-4 py-2 gap-3">
                       <span className="material-symbols-outlined text-[#414754]">calendar_today</span>
-                      <span className="text-sm font-medium">1 Oct - 31 Oct, 2024</span>
-                      <span className="material-symbols-outlined text-[#414754]">expand_more</span>
+                      <span className="text-sm font-medium">{language === 'en' ? 'Last 30 days' : 'Últimos 30 días'}</span>
                     </div>
                     <button onClick={() => loadFbInsights()} disabled={fbLoading} className="px-5 py-2 text-white font-semibold rounded-lg text-sm flex items-center gap-2 disabled:opacity-50 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
                       <span className="material-symbols-outlined text-sm">{fbLoading ? 'sync' : 'cloud_download'}</span>
@@ -11317,26 +11596,40 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="lg:col-span-4 p-6 rounded-xl text-white flex flex-col" style={{ background: 'linear-gradient(135deg, #0058bc 0%, #0070eb 100%)', boxShadow: '0px 4px 12px rgba(0,0,0,0.1)' }}>
                     <div className="flex items-center gap-2 mb-4">
                       <span className="material-symbols-outlined">auto_awesome</span>
-                      <h4 className="text-xl font-semibold">Insights Predictivos AI</h4>
+                      <h4 className="text-xl font-semibold">{language === 'en' ? 'AI Predictive Insights' : 'Insights Predictivos AI'}</h4>
                     </div>
                     <div className="flex-1 space-y-4">
-                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                        <p className="text-sm mb-2">{language === 'en' ? 'It is recommended to reallocate budget from' : 'Se recomienda reasignar presupuesto de'} <strong>{language === 'en' ? 'Summer Campaign' : 'Campaña Verano'}</strong> {language === 'en' ? 'to' : 'a'} <strong>Retargeting</strong>.</p>
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span>ROI Estimado: +22%</span>
-                          <span className="bg-[#006947] text-white px-2 py-0.5 rounded-full">{language === 'en' ? 'High Confidence' : 'Alta Confianza'}</span>
+                      {!fbInsights ? (
+                        <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                          <p className="text-sm">{language === 'en' ? 'Load Facebook data first to generate insights based on your real performance.' : 'Carga los datos de Facebook primero para generar insights basados en tu rendimiento real.'}</p>
                         </div>
-                      </div>
-                      <div className="bg-white/10 p-4 rounded-lg border border-white/20">
-                        <p className="text-sm mb-2">{language === 'en' ? 'Mobile CTR increased 15% in last 24h. Increase bids.' : 'El CTR en dispositivos moviles ha subido un 15% en las ultimas 24h. Incrementar pujas.'}</p>
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span>{language === 'en' ? 'Impact' : 'Impacto'}: $2,400+</span>
-                          <span className="bg-white/20 text-white px-2 py-0.5 rounded-full">{language === 'en' ? 'Processing...' : 'Procesando...'}</span>
+                      ) : aiInsightsLoading ? (
+                        <div className="bg-white/10 p-4 rounded-lg border border-white/20 flex items-center gap-2">
+                          <span className="material-symbols-outlined animate-spin text-lg">sync</span>
+                          <p className="text-sm">{language === 'en' ? 'Analyzing your real data...' : 'Analizando tus datos reales...'}</p>
                         </div>
-                      </div>
+                      ) : aiInsights && aiInsights.length > 0 ? (
+                        aiInsights.map((insight, i) => (
+                          <div key={i} className="bg-white/10 p-4 rounded-lg border border-white/20">
+                            <p className="text-sm mb-2">{insight.message}</p>
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span>{insight.metric}</span>
+                              <span className={`px-2 py-0.5 rounded-full ${insight.confidence.toLowerCase().includes('alta') || insight.confidence.toLowerCase().includes('high') ? 'bg-[#006947] text-white' : 'bg-white/20 text-white'}`}>{insight.confidence}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-white/10 p-4 rounded-lg border border-white/20">
+                          <p className="text-sm">{language === 'en' ? 'Could not generate insights. Try refreshing.' : 'No se pudieron generar insights. Intenta actualizar.'}</p>
+                        </div>
+                      )}
                     </div>
-                    <button className="mt-6 w-full bg-white text-[#0058bc] py-3 rounded-lg font-bold hover:bg-[#eff4ff] transition-colors">
-                      {language === 'en' ? 'Apply Auto Optimization' : 'Aplicar Optimizacion Automatica'}
+                    <button
+                      onClick={() => fbInsights && loadAiInsights(fbInsights)}
+                      disabled={!fbInsights || aiInsightsLoading}
+                      className="mt-6 w-full bg-white text-[#0058bc] py-3 rounded-lg font-bold hover:bg-[#eff4ff] transition-colors disabled:opacity-50"
+                    >
+                      {language === 'en' ? 'Refresh Insights' : 'Actualizar Insights'}
                     </button>
                   </div>
                 </div>
