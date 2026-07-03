@@ -11579,13 +11579,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             { day: 'Dom', h1: 95, h2: 60, tooltip: '9,500 imp · 600 conv' },
                           ]
                       ).map((d: any, i: number) => (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                        <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
                           {/* Tooltip on Hover */}
                           <div className="absolute bottom-full mb-2 bg-slate-900 text-white text-[9px] px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-30 font-semibold font-sans">
                             {d.tooltip}
                           </div>
-                          <div className="w-5 rounded-t" style={{ height: d.h1+'%', backgroundColor: '#0058bc' }} />
-                          <div className="w-5 rounded-t -mt-8" style={{ height: d.h2+'%', backgroundColor: '#006947' }} />
+                          <div className="w-5 flex flex-col justify-end" style={{ height: '240px' }}>
+                            <div className="w-5 rounded-t" style={{ height: d.h1+'%', backgroundColor: '#0058bc' }} />
+                            <div className="w-5 rounded-t -mt-8" style={{ height: d.h2+'%', backgroundColor: '#006947' }} />
+                          </div>
                           <span className="text-[10px] text-[#414754] mt-2 capitalize">{d.day}</span>
                         </div>
                       ))}
