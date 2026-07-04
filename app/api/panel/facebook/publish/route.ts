@@ -79,6 +79,11 @@ interface RequestBody {
   // se rellena ciclando si vienen menos)
   message_variants?: string[];
 
+  // Multiples creatividades (imagen o video) para A/B testing (min 6 por
+  // conjunto, se rellena ciclando si vienen menos). Si no viene, se usa
+  // image_url para todos los anuncios (comportamiento anterior).
+  creative_assets?: Array<{ url: string; type: 'image' | 'video' }>;
+
   // Duracion total solicitada — si es >= 14 dias se divide en 2 fases
   duration_days?: number;
 
@@ -127,6 +132,11 @@ interface MetaApiError {
 }
 
 type PublishStep = 'config' | 'campaign' | 'adset' | 'creative' | 'ad';
+
+interface CreativeAsset {
+  url: string;
+  type: 'image' | 'video';
+}
 
 // ─── Auto-detect Page ID ─────────────────────────────────
 async function fetchPageId(token: string): Promise<string> {
@@ -192,6 +202,17 @@ function buildMessageVariants(body: RequestBody): string[] {
     variants.push(base[i % base.length]);
   }
   return variants;
+}
+
+// ─── Build creative assets (imagen/video) — siempre al menos MIN_ADS_PER_SET ───
+function buildCreativeAssets(body: RequestBody): CreativeAsset[] {
+  const raw = (body.creative_assets || []).filter(a => a && a.url);
+  const base: CreativeAsset[] = raw.length > 0 ? raw : [{ url: body.image_url || '', type: 'image' }];
+  const assets: CreativeAsset[] = [];
+  for (let i = 0; i < MIN_ADS_PER_SET; i++) {
+    assets.push(base[i % base.length]);
+  }
+  return assets;
 }
 
 // ─── Build targeting spec ─────────────────────────────────
@@ -332,28 +353,107 @@ interface AdSetResult {
   adsFailed: number;
 }
 
+// ─── Sube un video a Meta (Meta lo descarga desde file_url) y espera a que
+// termine de procesarse antes de poder usarlo en una creatividad ───
+async function uploadVideoToMeta(adAccountId: string, videoUrl: string, token: string): Promise<string | null> {
+  try {
+    const data = await metaPost(`${FB_BASE}/${adAccountId}/advideos`, {
+      file_url: videoUrl,
+      access_token: token,
+    });
+    if (!data.id) {
+      console.error('⚠️ [VIDEO UPLOAD] No se pudo iniciar la subida:', data.error);
+      return null;
+    }
+    const videoId = data.id;
+
+    // El procesamiento (transcoding) es asincronico — se espera con un
+    // limite acotado de intentos para no exceder el timeout de la funcion.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const statusRes = await fetch(`${FB_BASE}/${videoId}?fields=status&access_token=${token}`);
+      const statusData = await statusRes.json();
+      const videoStatus = statusData.status?.video_status;
+      if (videoStatus === 'ready') return videoId;
+      if (videoStatus === 'error') {
+        console.error('⚠️ [VIDEO UPLOAD] Meta reportó error procesando el video:', statusData.status);
+        return null;
+      }
+    }
+    console.error('⚠️ [VIDEO UPLOAD] Timeout esperando el procesamiento del video, se omite ese anuncio.');
+    return null;
+  } catch (err) {
+    console.error('⚠️ [VIDEO UPLOAD] Excepción:', err);
+    return null;
+  }
+}
+
+async function getVideoThumbnail(videoId: string, token: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${FB_BASE}/${videoId}/thumbnails?access_token=${token}`);
+    const data = await res.json();
+    const thumbs = data.data || [];
+    const preferred = thumbs.find((t: any) => t.is_preferred) || thumbs[0];
+    return preferred?.uri || null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Create N ads (creative + ad) under one ad set, in parallel ───
 async function createAdsForSet(params: {
   adAccountId: string;
   adSetId: string;
   pageId: string;
   variants: string[];
+  assets: CreativeAsset[];
   linkUrl: string;
   cta: string;
-  imageUrl?: string;
   token: string;
   campaignName: string;
 }): Promise<{ created: Array<{ ad_id: string; creative_id: string }>; failed: number; firstError: MetaApiError | null }> {
-  const { adAccountId, adSetId, pageId, variants, linkUrl, cta, imageUrl, token, campaignName } = params;
+  const { adAccountId, adSetId, pageId, variants, assets, linkUrl, cta, token, campaignName } = params;
+
+  // 0. Subir todos los videos unicos a Meta y esperar a que esten listos
+  // (en paralelo — una sola vez por URL, aunque se repita en varios slots)
+  const uniqueVideoUrls = Array.from(new Set(assets.filter(a => a.type === 'video').map(a => a.url)));
+  const videoIdByUrl = new Map<string, string | null>();
+  await Promise.all(uniqueVideoUrls.map(async (url) => {
+    videoIdByUrl.set(url, await uploadVideoToMeta(adAccountId, url, token));
+  }));
+  const fallbackThumbnail = assets.find(a => a.type === 'image')?.url;
 
   // 1. Crear todas las creatividades en paralelo
-  const creativeResults = await Promise.allSettled(variants.map((message, idx) => {
+  const creativeResults = await Promise.allSettled(variants.map(async (message, idx) => {
+    const asset = assets[idx];
+
+    if (asset?.type === 'video') {
+      const videoId = videoIdByUrl.get(asset.url);
+      if (!videoId) {
+        return { error: { message: 'El video no se pudo procesar a tiempo, se omitió este anuncio.' } };
+      }
+      const thumbnail = (await getVideoThumbnail(videoId, token)) || fallbackThumbnail;
+      return metaPost(`${FB_BASE}/${adAccountId}/adcreatives`, {
+        name: `Creative ${idx + 1} - ${campaignName}`,
+        object_story_spec: {
+          page_id: pageId,
+          video_data: {
+            video_id: videoId,
+            message,
+            call_to_action: { type: cta },
+            ...(thumbnail ? { image_url: thumbnail } : {}),
+          },
+        },
+        access_token: token,
+      });
+    }
+
     const linkData: Record<string, any> = {
       message,
       link: linkUrl,
       call_to_action: { type: cta },
     };
-    if (imageUrl) linkData.picture = imageUrl;
+    if (asset?.url) linkData.picture = asset.url;
 
     return metaPost(`${FB_BASE}/${adAccountId}/adcreatives`, {
       name: `Creative ${idx + 1} - ${campaignName}`,
@@ -468,6 +568,7 @@ export async function POST(req: NextRequest) {
     const durationDays = Math.max(1, Math.min(90, body.duration_days || 30));
     const shouldSplit = durationDays >= 14;
     const messageVariants = buildMessageVariants(body);
+    const creativeAssets = buildCreativeAssets(body);
 
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`🚀 RIFX Ad Publisher — Mode: ${mode.toUpperCase()} | Advantage+: ON`);
@@ -530,9 +631,9 @@ export async function POST(req: NextRequest) {
       adSetId: adSet1Id,
       pageId: resolvedPageId,
       variants: messageVariants,
+      assets: creativeAssets,
       linkUrl,
       cta,
-      imageUrl: body.image_url,
       token,
       campaignName: phase1Name,
     });
@@ -643,9 +744,9 @@ export async function POST(req: NextRequest) {
       adSetId: adSet2Id,
       pageId: resolvedPageId,
       variants: remarketingVariants,
+      assets: creativeAssets,
       linkUrl,
       cta,
-      imageUrl: body.image_url,
       token,
       campaignName: phase2Name,
     });

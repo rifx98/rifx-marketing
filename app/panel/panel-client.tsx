@@ -1972,6 +1972,11 @@ export default function PanelClient() {
   const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
   const [dailyBudget, setDailyBudget] = useState(5);
   const [campaignDurationDays, setCampaignDurationDays] = useState(30);
+  // Hasta 6 anuncios por conjunto: la imagen principal (arriba) cuenta como
+  // el primer slot, estas son las hasta 5 adicionales (imagen o video).
+  const [extraCreativeAssets, setExtraCreativeAssets] = useState<Array<{ file: File; preview: string; type: 'image' | 'video' }>>([]);
+  const extraAssetsInputRef = React.useRef<HTMLInputElement>(null);
+  const MAX_CREATIVE_ASSETS = 6;
   const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [campaignResult, setCampaignResult] = useState<any>(null);
@@ -2480,6 +2485,33 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [fbPublishing, setFbPublishing] = useState(false);
   const [showMetaPermissionsModal, setShowMetaPermissionsModal] = useState(false);
   const [showMetaNoApiModal, setShowMetaNoApiModal] = useState(false);
+
+  // Sube un archivo (imagen o video) a R2 y devuelve su URL firmada de descarga.
+  const uploadFileToR2 = async (file: File | Blob, fallbackName: string): Promise<string> => {
+    const fileName = file instanceof File ? file.name : fallbackName;
+    const fileType = file.type || 'application/octet-stream';
+
+    const getUrlRes = await authFetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(fileType)}`);
+    if (!getUrlRes.ok) {
+      const errData = await getUrlRes.json();
+      throw new Error(errData.error || 'Error al obtener URL de subida de almacenamiento.');
+    }
+    const { uploadUrl, key } = await getUrlRes.json();
+
+    const uploadRes = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': fileType }, body: file });
+    if (!uploadRes.ok) {
+      throw new Error('Error al subir el archivo al almacenamiento.');
+    }
+
+    const signRes = await authFetch(`/api/panel/social/storage?action=sign&key=${encodeURIComponent(key)}`);
+    if (!signRes.ok) {
+      const errData = await signRes.json();
+      throw new Error(errData.error || 'Error al firmar la URL del archivo.');
+    }
+    const { signedUrl } = await signRes.json();
+    return signedUrl;
+  };
+
   const publishToFacebook = async () => {
     if (!finalUploadedImage) { 
       setToast({ message: language === 'en' ? 'First upload your ad image' : 'Primero sube tu imagen de publicidad', type: 'info' }); 
@@ -2562,6 +2594,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         imageUrl = signedUrl;
       }
 
+      // Subir las creatividades adicionales (imagen/video) para los otros
+      // anuncios del conjunto — la principal (imageUrl) ya se subio arriba.
+      let creativeAssets: Array<{ url: string; type: 'image' | 'video' }> = [{ url: imageUrl, type: 'image' }];
+      if (extraCreativeAssets.length > 0) {
+        setToast({ message: language === 'en' ? `Uploading ${extraCreativeAssets.length} more creatives...` : `Subiendo ${extraCreativeAssets.length} creatividades más...`, type: 'info' });
+        const uploadedExtras = await Promise.all(extraCreativeAssets.map(async (asset) => ({
+          url: await uploadFileToR2(asset.file, `extra-${asset.type}-${Date.now()}`),
+          type: asset.type,
+        })));
+        creativeAssets = [...creativeAssets, ...uploadedExtras];
+      }
+
       setToast({ message: language === 'en' ? 'Publishing campaign to Meta...' : 'Publicando campaña en Meta...', type: 'info' });
 
       const caption = campaignResult?.caption || adDescription || campaignDesc || '';
@@ -2599,6 +2643,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           age_max: aud.age_max || 65,
           link_url: 'https://rifx.online',
           image_url: imageUrl,
+          creative_assets: creativeAssets,
           call_to_action: cfg.call_to_action || 'LEARN_MORE',
           status: 'PAUSED'
         })
@@ -11306,6 +11351,73 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </span>
                             </div>
                           )}
+
+                          {/* Variantes adicionales — hasta 6 anuncios por conjunto (imagen o video) */}
+                          <div className="mt-5 pt-5 border-t border-[#e5eeff]">
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] uppercase tracking-widest">
+                                <span className="material-symbols-outlined text-sm text-violet-500">dynamic_feed</span>
+                                {language === 'en' ? 'Extra creatives for A/B testing' : 'Creatividades adicionales para A/B testing'}
+                              </label>
+                              <span className="text-[10px] text-[#727785] font-semibold">
+                                {1 + extraCreativeAssets.length}/{MAX_CREATIVE_ASSETS}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#727785] mb-3">
+                              {language === 'en'
+                                ? `Add up to ${MAX_CREATIVE_ASSETS - 1} more images or videos — each ad set publishes ${MAX_CREATIVE_ASSETS} ads, one per creative, pairing them with the AI copy variants.`
+                                : `Agregá hasta ${MAX_CREATIVE_ASSETS - 1} imágenes o videos más — cada conjunto publica ${MAX_CREATIVE_ASSETS} anuncios, uno por creatividad, combinados con las variantes de copy de la IA.`}
+                            </p>
+                            <input
+                              type="file"
+                              accept="image/*,video/*"
+                              multiple
+                              className="hidden"
+                              ref={extraAssetsInputRef}
+                              onChange={(e) => {
+                                const files = Array.from(e.target.files || []);
+                                const room = Math.max(0, (MAX_CREATIVE_ASSETS - 1) - extraCreativeAssets.length);
+                                const toAdd = files.slice(0, room).map(file => ({
+                                  file,
+                                  preview: URL.createObjectURL(file),
+                                  type: (file.type.startsWith('video/') ? 'video' : 'image') as 'image' | 'video',
+                                }));
+                                setExtraCreativeAssets(prev => [...prev, ...toAdd]);
+                                if (extraAssetsInputRef.current) extraAssetsInputRef.current.value = '';
+                              }}
+                            />
+                            <div className="flex flex-wrap gap-3">
+                              {extraCreativeAssets.map((asset, i) => (
+                                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-[#c1c6d6] bg-[#f8fafc] group shrink-0">
+                                  {asset.type === 'video' ? (
+                                    <video src={asset.preview} className="w-full h-full object-cover" muted />
+                                  ) : (
+                                    <img src={asset.preview} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
+                                  )}
+                                  {asset.type === 'video' && (
+                                    <span className="absolute bottom-1 left-1 material-symbols-outlined text-white text-sm drop-shadow">play_circle</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setExtraCreativeAssets(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+                                  >
+                                    <span className="material-symbols-outlined text-white text-lg">delete</span>
+                                  </button>
+                                </div>
+                              ))}
+                              {extraCreativeAssets.length < MAX_CREATIVE_ASSETS - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => extraAssetsInputRef.current?.click()}
+                                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#c1c6d6] flex flex-col items-center justify-center gap-1 text-[#727785] hover:border-[#0058bc] hover:text-[#0058bc] transition-all shrink-0"
+                                >
+                                  <span className="material-symbols-outlined text-xl">add</span>
+                                  <span className="text-[9px] font-bold">{language === 'en' ? 'Add' : 'Agregar'}</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </section>
 
                         {/* Ad Details Section */}
