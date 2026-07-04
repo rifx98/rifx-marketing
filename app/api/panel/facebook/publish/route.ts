@@ -20,7 +20,8 @@
  *   - Si duration_days >= 14, la campaña se divide automaticamente en 2
  *     fases encadenadas: la primera mitad de alcance/aprendizaje, y la
  *     segunda mitad de remarketing dirigido a quienes interactuaron con la
- *     Pagina durante la fase 1 (Custom Audience de engagement).
+ *     Pagina durante la fase 1 (Custom Audience de engagement, combinando
+ *     page_engaged + page_post_interaction + page_liked + page_cta_clicked).
  *
  *  Campos obligatorios del body:
  *   - campaign_name (string)
@@ -497,6 +498,18 @@ async function createAdsForSet(params: {
 
 // ─── Custom Audience de engagement con la Pagina (para remarketing) ───
 // Best-effort: si falla, la fase 2 sigue corriendo con targeting normal.
+// Eventos de interaccion de Pagina documentados por Meta (Engagement Custom
+// Audiences) que replican lo que el usuario ve en el selector rapido de
+// Ads Manager bajo "Interaccion: pagina":
+//  - page_post_interaction -> "personas que comentaron o dieron like"
+//  - page_engaged          -> "personas que interactuaron con la pagina"
+//    (incluye interactuar con cualquier anuncio publicado como post de la
+//    pagina, que es como publicamos los nuestros)
+//  - page_liked            -> "personas que siguen la cuenta"
+//  - page_cta_clicked      -> proxy mas cercano a "publico que indico interes"
+//    (alguien que clickeo el boton de CTA del anuncio/pagina)
+const PAGE_ENGAGEMENT_EVENTS = ['page_engaged', 'page_post_interaction', 'page_liked', 'page_cta_clicked'];
+
 async function createEngagementAudience(params: {
   adAccountId: string;
   pageId: string;
@@ -512,14 +525,14 @@ async function createEngagementAudience(params: {
       rule: JSON.stringify({
         inclusions: {
           operator: 'or',
-          rules: [{
+          rules: PAGE_ENGAGEMENT_EVENTS.map(eventName => ({
             event_sources: [{ type: 'page', id: pageId }],
             retention_seconds: Math.max(1, retentionDays) * 86400,
             filter: {
               operator: 'and',
-              filters: [{ field: 'event', operator: 'eq', value: 'page_engaged' }],
+              filters: [{ field: 'event', operator: 'eq', value: eventName }],
             },
-          }],
+          })),
         },
       }),
       access_token: token,

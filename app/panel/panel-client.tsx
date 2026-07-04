@@ -2621,9 +2621,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         `${hook}\n\n${caption}${hashtagsBlock}`.trim()
       );
 
-      // Validate objective
+      // Validate objective — "Atraer clientes a mi Local Físico" siempre usa
+      // Interacción (ENGAGEMENT): maximiza likes/comentarios/seguidores de
+      // la Página, que es justo la señal que alimenta el público personalizado
+      // de remarketing (interactuaron con la página / comentaron o dieron
+      // like / siguen la cuenta) en la fase 2.
       const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
-      const objective = validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC';
+      const objective = agentGoal === 'local'
+        ? 'OUTCOME_ENGAGEMENT'
+        : (validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC');
 
       const r = await authFetch('/api/panel/facebook/publish', {
         method: 'POST',
