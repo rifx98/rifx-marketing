@@ -2513,9 +2513,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   const publishToFacebook = async () => {
-    if (!finalUploadedImage) { 
-      setToast({ message: language === 'en' ? 'First upload your ad image' : 'Primero sube tu imagen de publicidad', type: 'info' }); 
-      return; 
+    const totalCreatives = (finalUploadedImage ? 1 : 0) + extraCreativeAssets.length;
+    if (!finalUploadedImage || totalCreatives < MAX_CREATIVE_ASSETS) {
+      setToast({
+        message: language === 'en'
+          ? `Select ${MAX_CREATIVE_ASSETS} images or videos to publish (${totalCreatives}/${MAX_CREATIVE_ASSETS} so far)`
+          : `Seleccioná ${MAX_CREATIVE_ASSETS} imágenes o videos para publicar (llevás ${totalCreatives}/${MAX_CREATIVE_ASSETS})`,
+        type: 'info'
+      });
+      return;
     }
     if (adCountries.length === 0) {
       setToast({ message: language === 'en' ? 'Select at least one target country' : 'Selecciona al menos un país destino', type: 'info' }); 
@@ -11302,139 +11308,116 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                           <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,video/*"
+                            multiple
                             className="hidden"
-                            ref={finalImageInputRef}
+                            ref={extraAssetsInputRef}
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const url = URL.createObjectURL(file);
-                                setFinalUploadedImage(url);
-                                setCampaignImage(file);
-                                setCampaignImagePreview(url);
-                                setGeneratedBanner(url);
+                              const files = Array.from(e.target.files || []);
+                              const filledCount = (finalUploadedImage ? 1 : 0) + extraCreativeAssets.length;
+                              const room = Math.max(0, MAX_CREATIVE_ASSETS - filledCount);
+                              const toAdd = files.slice(0, room).map(file => ({
+                                file,
+                                preview: URL.createObjectURL(file),
+                                type: (file.type.startsWith('video/') ? 'video' : 'image') as 'image' | 'video',
+                              }));
+                              let rest = toAdd;
+                              if (!finalUploadedImage && toAdd.length > 0) {
+                                const [first, ...others] = toAdd;
+                                setFinalUploadedImage(first.preview);
+                                setCampaignImage(first.file);
+                                setCampaignImagePreview(first.preview);
+                                setGeneratedBanner(first.preview);
+                                rest = others;
                               }
+                              if (rest.length > 0) setExtraCreativeAssets(prev => [...prev, ...rest]);
+                              if (extraAssetsInputRef.current) extraAssetsInputRef.current.value = '';
                             }}
                           />
 
-                          {finalUploadedImage ? (
-                            <div className="space-y-4">
-                              <div className="relative rounded-xl overflow-hidden border-2 border-[#006947] bg-[#f8fafc] group">
-                                <img src={finalUploadedImage} alt="Final ad" className="w-full max-h-[400px] object-contain" />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] uppercase tracking-widest">
+                              <span className="material-symbols-outlined text-sm text-violet-500">dynamic_feed</span>
+                              {language === 'en' ? 'Ad creatives' : 'Creatividades del anuncio'}
+                            </label>
+                            <span className={`text-[10px] font-bold ${(1 * (finalUploadedImage ? 1 : 0) + extraCreativeAssets.length) === MAX_CREATIVE_ASSETS ? 'text-[#006947]' : 'text-red-500'}`}>
+                              {(finalUploadedImage ? 1 : 0) + extraCreativeAssets.length}/{MAX_CREATIVE_ASSETS} · {language === 'en' ? 'required' : 'obligatorio'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#727785] mb-3">
+                            {language === 'en'
+                              ? `Select exactly ${MAX_CREATIVE_ASSETS} images or videos — each ad set publishes ${MAX_CREATIVE_ASSETS} ads, one per creative, pairing them with the AI copy variants.`
+                              : `Seleccioná exactamente ${MAX_CREATIVE_ASSETS} imágenes o videos — cada conjunto publica ${MAX_CREATIVE_ASSETS} anuncios, uno por creatividad, combinados con las variantes de copy de la IA.`}
+                          </p>
+
+                          <div className="grid grid-cols-3 gap-3">
+                            {finalUploadedImage && (
+                              <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-[#006947] bg-[#f8fafc] group">
+                                <img src={finalUploadedImage} alt="Creative 1" className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
                                   <button
-                                    onClick={() => finalImageInputRef.current?.click()}
-                                    className="px-4 py-2 bg-white text-[#0b1c30] font-bold text-[11px] rounded-lg shadow-xl hover:bg-slate-100 transition-all"
+                                    onClick={() => extraAssetsInputRef.current?.click()}
+                                    className="px-2.5 py-1.5 bg-white text-[#0b1c30] font-bold text-[10px] rounded-lg shadow-xl hover:bg-slate-100 transition-all"
                                   >
                                     {language === 'en' ? 'Replace' : 'Reemplazar'}
                                   </button>
                                   <button
                                     onClick={() => { setFinalUploadedImage(null); setCampaignImage(null); setCampaignImagePreview(null); setGeneratedBanner(null); }}
-                                    className="px-4 py-2 bg-red-500 text-white font-bold text-[11px] rounded-lg shadow-xl hover:bg-red-600 transition-all"
+                                    className="px-2.5 py-1.5 bg-red-500 text-white font-bold text-[10px] rounded-lg shadow-xl hover:bg-red-600 transition-all"
                                   >
                                     {language === 'en' ? 'Remove' : 'Eliminar'}
                                   </button>
                                 </div>
-                                <div className="absolute top-3 right-3 bg-[#006947] text-white px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-lg">
-                                  <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                                  {language === 'en' ? 'Uploaded' : 'Subida'}
+                                <div className="absolute top-1.5 right-1.5 bg-[#006947] text-white px-1.5 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1 shadow-lg">
+                                  <span className="material-symbols-outlined text-[10px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                  1
                                 </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div
-                              onClick={() => finalImageInputRef.current?.click()}
-                              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const file = e.dataTransfer.files?.[0];
-                                if (file && file.type.startsWith('image/')) {
-                                  const url = URL.createObjectURL(file);
-                                  setFinalUploadedImage(url);
-                                  setCampaignImage(file);
-                                  setCampaignImagePreview(url);
-                                  setGeneratedBanner(url);
-                                }
-                              }}
-                              className="border-2 border-dashed border-[#c1c6d6] rounded-xl bg-gradient-to-br from-blue-50/50 to-violet-50/50 p-12 flex flex-col items-center justify-center cursor-pointer hover:border-[#0058bc] hover:bg-blue-50/80 transition-all group"
-                            >
-                              <div className="w-16 h-16 rounded-2xl bg-[#eff4ff] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                <span className="material-symbols-outlined text-[#0058bc] text-3xl">cloud_upload</span>
-                              </div>
-                              <p className="text-sm font-bold text-[#0b1c30] mb-1">{language === 'en' ? 'Drop your image here' : 'Arrastra tu imagen aquí'}</p>
-                              <p className="text-[12px] text-[#414754] mb-4">{language === 'en' ? 'or click to browse files' : 'o haz clic para buscar archivos'}</p>
-                              <span className="px-4 py-2 bg-[#0058bc] text-white text-[11px] font-bold rounded-lg shadow-md group-hover:bg-[#054ADA] transition-colors">
-                                {language === 'en' ? 'Select Image' : 'Seleccionar Imagen'}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Variantes adicionales — hasta 6 anuncios por conjunto (imagen o video) */}
-                          <div className="mt-5 pt-5 border-t border-[#e5eeff]">
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] uppercase tracking-widest">
-                                <span className="material-symbols-outlined text-sm text-violet-500">dynamic_feed</span>
-                                {language === 'en' ? 'Extra creatives for A/B testing' : 'Creatividades adicionales para A/B testing'}
-                              </label>
-                              <span className="text-[10px] text-[#727785] font-semibold">
-                                {1 + extraCreativeAssets.length}/{MAX_CREATIVE_ASSETS}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[#727785] mb-3">
-                              {language === 'en'
-                                ? `Add up to ${MAX_CREATIVE_ASSETS - 1} more images or videos — each ad set publishes ${MAX_CREATIVE_ASSETS} ads, one per creative, pairing them with the AI copy variants.`
-                                : `Agregá hasta ${MAX_CREATIVE_ASSETS - 1} imágenes o videos más — cada conjunto publica ${MAX_CREATIVE_ASSETS} anuncios, uno por creatividad, combinados con las variantes de copy de la IA.`}
-                            </p>
-                            <input
-                              type="file"
-                              accept="image/*,video/*"
-                              multiple
-                              className="hidden"
-                              ref={extraAssetsInputRef}
-                              onChange={(e) => {
-                                const files = Array.from(e.target.files || []);
-                                const room = Math.max(0, (MAX_CREATIVE_ASSETS - 1) - extraCreativeAssets.length);
-                                const toAdd = files.slice(0, room).map(file => ({
-                                  file,
-                                  preview: URL.createObjectURL(file),
-                                  type: (file.type.startsWith('video/') ? 'video' : 'image') as 'image' | 'video',
-                                }));
-                                setExtraCreativeAssets(prev => [...prev, ...toAdd]);
-                                if (extraAssetsInputRef.current) extraAssetsInputRef.current.value = '';
-                              }}
-                            />
-                            <div className="flex flex-wrap gap-3">
-                              {extraCreativeAssets.map((asset, i) => (
-                                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-[#c1c6d6] bg-[#f8fafc] group shrink-0">
-                                  {asset.type === 'video' ? (
-                                    <video src={asset.preview} className="w-full h-full object-cover" muted />
-                                  ) : (
-                                    <img src={asset.preview} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
-                                  )}
-                                  {asset.type === 'video' && (
-                                    <span className="absolute bottom-1 left-1 material-symbols-outlined text-white text-sm drop-shadow">play_circle</span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => setExtraCreativeAssets(prev => prev.filter((_, idx) => idx !== i))}
-                                    className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
-                                  >
-                                    <span className="material-symbols-outlined text-white text-lg">delete</span>
-                                  </button>
-                                </div>
-                              ))}
-                              {extraCreativeAssets.length < MAX_CREATIVE_ASSETS - 1 && (
+                            )}
+                            {extraCreativeAssets.map((asset, i) => (
+                              <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-[#c1c6d6] bg-[#f8fafc] group">
+                                {asset.type === 'video' ? (
+                                  <video src={asset.preview} className="w-full h-full object-cover" muted />
+                                ) : (
+                                  <img src={asset.preview} alt={`Creative ${i + 2}`} className="w-full h-full object-cover" />
+                                )}
+                                {asset.type === 'video' && (
+                                  <span className="absolute bottom-1.5 left-1.5 material-symbols-outlined text-white text-base drop-shadow">play_circle</span>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={() => extraAssetsInputRef.current?.click()}
-                                  className="w-20 h-20 rounded-lg border-2 border-dashed border-[#c1c6d6] flex flex-col items-center justify-center gap-1 text-[#727785] hover:border-[#0058bc] hover:text-[#0058bc] transition-all shrink-0"
+                                  onClick={() => setExtraCreativeAssets(prev => prev.filter((_, idx) => idx !== i))}
+                                  className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
                                 >
-                                  <span className="material-symbols-outlined text-xl">add</span>
-                                  <span className="text-[9px] font-bold">{language === 'en' ? 'Add' : 'Agregar'}</span>
+                                  <span className="material-symbols-outlined text-white text-lg">delete</span>
                                 </button>
-                              )}
-                            </div>
+                                <div className="absolute top-1.5 right-1.5 bg-[#006947] text-white w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shadow-lg">
+                                  {i + 2}
+                                </div>
+                              </div>
+                            ))}
+                            {(finalUploadedImage ? 1 : 0) + extraCreativeAssets.length < MAX_CREATIVE_ASSETS && (
+                              <div
+                                onClick={() => extraAssetsInputRef.current?.click()}
+                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const dt = new DataTransfer();
+                                  Array.from(e.dataTransfer.files || []).forEach(f => dt.items.add(f));
+                                  if (extraAssetsInputRef.current) {
+                                    extraAssetsInputRef.current.files = dt.files;
+                                    extraAssetsInputRef.current.dispatchEvent(new Event('change', { bubbles: true }));
+                                  }
+                                }}
+                                className="aspect-square border-2 border-dashed border-[#c1c6d6] rounded-xl bg-gradient-to-br from-blue-50/50 to-violet-50/50 flex flex-col items-center justify-center cursor-pointer hover:border-[#0058bc] hover:bg-blue-50/80 transition-all group"
+                              >
+                                <div className="w-10 h-10 rounded-xl bg-[#eff4ff] flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                  <span className="material-symbols-outlined text-[#0058bc] text-xl">add</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-[#0058bc] text-center px-2">{language === 'en' ? 'Add image/video' : 'Agregar imagen/video'}</span>
+                              </div>
+                            )}
                           </div>
                         </section>
 
@@ -11928,7 +11911,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <div className="mt-6">
                               <button
                                 onClick={publishToFacebook}
-                                disabled={fbPublishing}
+                                disabled={fbPublishing || (finalUploadedImage ? 1 : 0) + extraCreativeAssets.length < MAX_CREATIVE_ASSETS}
                                 className="w-full py-4 text-white font-bold text-base rounded-2xl shadow-xl hover:opacity-95 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                                 style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}
                               >
