@@ -13,6 +13,7 @@ function encodeExtendedConfig(fields: {
   model_selection?: string; confidence_threshold?: number; auto_classification?: boolean;
   fal_key?: string; visual_render_provider?: string;
   facebook_access_token?: string; facebook_ad_account_id?: string; facebook_page_id?: string;
+  meta_ad_account_name?: string; meta_page_name?: string;
   dropi_enabled?: boolean; dropi_token?: string; dropi_default_product_id?: string; dropi_default_price?: number;
   dropi_prompt?: string;
   sales_prompt?: string;
@@ -28,6 +29,7 @@ interface ExtendedConfig {
   model_selection: string; confidence_threshold: number; auto_classification: boolean;
   fal_key: string; visual_render_provider: string;
   facebook_access_token: string; facebook_ad_account_id: string; facebook_page_id: string;
+  meta_ad_account_name: string; meta_page_name: string;
   dropi_enabled: boolean;
   dropi_token: string;
   dropi_default_product_id: string;
@@ -46,6 +48,7 @@ function decodeExtendedConfig(stored: string): ExtendedConfig {
     model_selection: 'gpt-4o', confidence_threshold: 0.85, auto_classification: true,
     fal_key: '', visual_render_provider: 'flux',
     facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '',
+    meta_ad_account_name: '', meta_page_name: '',
     dropi_enabled: false,
     dropi_token: '',
     dropi_default_product_id: '',
@@ -73,6 +76,8 @@ function decodeExtendedConfig(stored: string): ExtendedConfig {
       facebook_access_token: parsed.facebook_access_token || '',
       facebook_ad_account_id: parsed.facebook_ad_account_id || '',
       facebook_page_id: parsed.facebook_page_id || '',
+      meta_ad_account_name: parsed.meta_ad_account_name || '',
+      meta_page_name: parsed.meta_page_name || '',
       dropi_enabled: parsed.dropi_enabled ?? false,
       dropi_token: parsed.dropi_token || '',
       dropi_default_product_id: parsed.dropi_default_product_id || '',
@@ -156,6 +161,8 @@ export async function GET(req: NextRequest) {
       facebook_access_token: extended.facebook_access_token,
       facebook_ad_account_id: extended.facebook_ad_account_id,
       facebook_page_id: extended.facebook_page_id,
+      meta_ad_account_name: extended.meta_ad_account_name,
+      meta_page_name: extended.meta_page_name,
       dropi_enabled: extended.dropi_enabled,
       dropi_token: extended.dropi_token,
       dropi_default_product_id: extended.dropi_default_product_id,
@@ -190,7 +197,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Encode AI keys + alert_email into a single column
-    const hasExtendedFields = body.openai_key !== undefined || body.gemini_key !== undefined || body.groq_key !== undefined || body.alert_email !== undefined || body.bulk_wa_token !== undefined || body.bulk_wa_phone_id !== undefined || body.model_selection !== undefined || body.confidence_threshold !== undefined || body.auto_classification !== undefined || body.fal_key !== undefined || body.visual_render_provider !== undefined || body.facebook_access_token !== undefined || body.facebook_ad_account_id !== undefined || body.facebook_page_id !== undefined || body.dropi_enabled !== undefined || body.dropi_token !== undefined || body.dropi_default_product_id !== undefined || body.dropi_default_price !== undefined || body.dropi_prompt !== undefined || body.sales_prompt !== undefined || body.support_prompt !== undefined || body.admin_notification_phone !== undefined;
+    const hasExtendedFields = body.openai_key !== undefined || body.gemini_key !== undefined || body.groq_key !== undefined || body.alert_email !== undefined || body.bulk_wa_token !== undefined || body.bulk_wa_phone_id !== undefined || body.model_selection !== undefined || body.confidence_threshold !== undefined || body.auto_classification !== undefined || body.fal_key !== undefined || body.visual_render_provider !== undefined || body.facebook_access_token !== undefined || body.facebook_ad_account_id !== undefined || body.facebook_page_id !== undefined || body.meta_ad_account_name !== undefined || body.meta_page_name !== undefined || body.dropi_enabled !== undefined || body.dropi_token !== undefined || body.dropi_default_product_id !== undefined || body.dropi_default_price !== undefined || body.dropi_prompt !== undefined || body.sales_prompt !== undefined || body.support_prompt !== undefined || body.admin_notification_phone !== undefined;
     if (hasExtendedFields) {
       // First, get existing values so we don't lose them when only one is updated
       const { data: existing } = await supabase
@@ -217,6 +224,8 @@ export async function POST(req: NextRequest) {
         facebook_access_token: body.facebook_access_token !== undefined ? body.facebook_access_token : current.facebook_access_token,
         facebook_ad_account_id: body.facebook_ad_account_id !== undefined ? body.facebook_ad_account_id : current.facebook_ad_account_id,
         facebook_page_id: body.facebook_page_id !== undefined ? body.facebook_page_id : current.facebook_page_id,
+        meta_ad_account_name: body.meta_ad_account_name !== undefined ? body.meta_ad_account_name : current.meta_ad_account_name,
+        meta_page_name: body.meta_page_name !== undefined ? body.meta_page_name : current.meta_page_name,
         dropi_enabled: body.dropi_enabled !== undefined ? body.dropi_enabled : current.dropi_enabled,
         dropi_token: body.dropi_token !== undefined ? body.dropi_token : current.dropi_token,
         dropi_default_product_id: body.dropi_default_product_id !== undefined ? body.dropi_default_product_id : current.dropi_default_product_id,

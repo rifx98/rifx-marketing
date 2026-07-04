@@ -2043,30 +2043,9 @@ export default function PanelClient() {
     }
   }, [adLocationRadius]);
 
-  // Conversational AI Marketing Agent handlers & effects
-  React.useEffect(() => {
-    if (showMarketingAgent && agentMessages.length === 0) {
-      setAgentIsTyping(true);
-      const timer = setTimeout(() => {
-        setAgentMessages([
-          {
-            id: '1',
-            sender: 'agent',
-            text: language === 'en'
-              ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
-              : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
-            options: [
-              { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
-              { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
-              { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
-            ]
-          }
-        ]);
-        setAgentIsTyping(false);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [showMarketingAgent, agentMessages.length, language]);
+  // Conversational AI Marketing Agent handlers & effects - ver mas abajo, despues
+  // de la declaracion de configData (necesita leer el estado de conexion Meta).
+  const greetingSentRef = React.useRef(false);
 
   const generateCopywritingPrompt = (answers: Record<string, any>) => {
     const goalText = agentGoal === 'local' 
@@ -2146,6 +2125,42 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       safeSetActiveTab('settings');
       setSettingsSection('whatsapp');
       setToast({ message: language === 'en' ? 'Connect WhatsApp here, then come back to Creative Lab to continue.' : 'Conectá tu WhatsApp acá y después volvé a Creative Lab para continuar.', type: 'info' });
+      return;
+    }
+
+    if (value === '__connect_meta__') {
+      handleMetaFacebookLogin();
+      setToast({ message: language === 'en' ? 'Connect your Meta Ads account in the popup, then come back here.' : 'Conectá tu cuenta de Meta Ads en la ventana emergente y después volvé acá.', type: 'info' });
+      return;
+    }
+
+    if (value === '__change_meta__') {
+      handleMetaFacebookLogin();
+      return;
+    }
+
+    if (value === '__continue_after_meta_check__') {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (language === 'en' ? 'Continue without connecting' : 'Continuar sin conectar'),
+      }]);
+      setAgentIsTyping(true);
+      setTimeout(() => {
+        setAgentMessages(prev => [...prev, {
+          id: '1',
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? "No problem! To get started, tell me: what is your primary marketing goal?"
+            : "¡Sin problema! Para empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+          options: [
+            { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
+            { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+            { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+          ]
+        }]);
+        setAgentIsTyping(false);
+      }, 700);
       return;
     }
 
@@ -3356,6 +3371,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     facebook_access_token: '',
     facebook_ad_account_id: '',
     facebook_page_id: '',
+    meta_ad_account_name: '',
+    meta_page_name: '',
     ai_prompt: '',
     panel_password: '',
     media_retention_days: 0,
@@ -3377,6 +3394,69 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const originalConfigRef = React.useRef<any>(null);
   const configDataRef = React.useRef(configData);
   React.useEffect(() => { configDataRef.current = configData; }, [configData]);
+  // Senal explicita de que /api/panel/config ya resolvio (exito o error), para
+  // no adivinar con un timer fijo si el saludo del agente Meta Ads debe
+  // esperar los datos reales de conexion.
+  const [configReady, setConfigReady] = useState(false);
+
+  // Salvavidas: si /api/panel/config no responde en 5s (falla de red no
+  // capturada, etc.) igual dejamos que el saludo se arme en vez de quedar
+  // "escribiendo..." para siempre.
+  React.useEffect(() => {
+    const fallback = setTimeout(() => setConfigReady(true), 5000);
+    return () => clearTimeout(fallback);
+  }, []);
+
+  // Saludo inicial del Agente de Meta Ads - espera a que configReady sea true
+  // (el fetch de configuracion ya resolvio) para no mostrar un estado de
+  // conexion Meta vacio por una condicion de carrera con ese fetch.
+  React.useEffect(() => {
+    if (showMarketingAgent && agentMessages.length === 0 && !greetingSentRef.current && configReady) {
+      setAgentIsTyping(true);
+      const timer = setTimeout(() => {
+        greetingSentRef.current = true;
+        const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
+        const goalOptions = [
+          { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
+          { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+          { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+        ];
+
+        if (!isMetaConnected) {
+          setAgentMessages([
+            {
+              id: 'meta-check',
+              sender: 'agent',
+              text: language === 'en'
+                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent.\n\nBefore we start: you haven't connected a Meta Ads account yet, so I don't know which Page or Ad Account (portfolio) to publish to. Connect it now, or continue and connect it later before publishing."
+                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads.\n\nAntes de empezar: todavía no conectaste una cuenta de Meta Ads, así que no sé en qué Página ni Cuenta Publicitaria (portafolio) publicar. Conectala ahora, o seguí y conectala más tarde antes de publicar.",
+              options: [
+                { label: language === 'en' ? '🔗 Connect Meta Ads now' : '🔗 Conectar Meta Ads ahora', value: '__connect_meta__' },
+                { label: language === 'en' ? '➡️ Continue without connecting' : '➡️ Continuar sin conectar', value: '__continue_after_meta_check__' },
+              ]
+            }
+          ]);
+        } else {
+          const pageLabel = configData.meta_page_name || configData.facebook_page_id;
+          const accountLabel = configData.meta_ad_account_name || configData.facebook_ad_account_id;
+          setAgentMessages([
+            {
+              id: '1',
+              sender: 'agent',
+              text: (language === 'en'
+                ? `Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nWe'll publish to your Page "${pageLabel}" using ad account/portfolio "${accountLabel}" (you can change this anytime in Settings > Meta Ads).\n\nTo get started, tell me: what is your primary marketing goal?`
+                : `¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nVamos a publicar en tu página "${pageLabel}" usando la cuenta/portafolio publicitario "${accountLabel}" (podés cambiarlo cuando quieras en Configuración > Meta Ads).\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?`),
+              options: goalOptions
+            }
+          ]);
+        }
+        setAgentIsTyping(false);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMarketingAgent, agentMessages.length, language, configReady, configData.facebook_access_token, configData.facebook_ad_account_id, configData.meta_page_name, configData.meta_ad_account_name]);
+
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
   const [showWhatsappPanel, setShowWhatsappPanel] = useState(false);
   const [showBulkPanel, setShowBulkPanel] = useState(false);
@@ -3512,6 +3592,96 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
   const [metaPages, setMetaPages] = useState<any[]>([]);
   const [metaShowPicker, setMetaShowPicker] = useState(false);
+
+  // Conexion Meta Ads (hoisteado para poder usarse tanto en Configuracion
+  // como en el acceso rapido dentro de Pautas Publicitarias)
+  const handleMetaFacebookLogin = () => {
+    const fbAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '814217575104750';
+    const redirectUri = `${window.location.origin}/panel`;
+    const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
+    const state = btoa(JSON.stringify({ action: 'meta_connect', ts: Date.now() }));
+    const configId = process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '1718329089178291';
+    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}`;
+    const w = 600, h = 700;
+    const left = (window.screen.width - w) / 2;
+    const top = (window.screen.height - h) / 2;
+    const popup = window.open(fbUrl, 'fb_meta_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+    const poll = setInterval(async () => {
+      try {
+        if (!popup || popup.closed) { clearInterval(poll); return; }
+        const popupUrl = popup.location.href;
+        if (popupUrl.includes('code=')) {
+          clearInterval(poll);
+          popup.close();
+          const url = new URL(popupUrl);
+          const code = url.searchParams.get('code');
+          if (!code) return;
+          setToast({ message: language === 'en' ? 'Connecting to Meta...' : 'Conectando con Meta...', type: 'info' });
+          const res = await authFetch('/api/panel/meta/facebook-connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri: `${window.location.origin}/panel` }),
+          });
+          const data = await res.json();
+          if (data.error) { setToast({ message: data.error, type: 'error' }); return; }
+          if (data.adAccounts && data.adAccounts.length > 0) {
+            setMetaFbToken(data.accessToken);
+            setMetaAdAccounts(data.adAccounts);
+            setMetaPages(data.pages || []);
+            setMetaShowPicker(true);
+          } else {
+            setConfigData((prev: any) => ({ ...prev, facebook_access_token: data.accessToken }));
+            setToast({ message: language === 'en' ? 'Token saved. Enter your Ad Account ID manually.' : 'Token guardado. Ingresa tu Ad Account ID.', type: 'info' });
+          }
+        }
+      } catch {}
+    }, 500);
+  };
+
+  const handleSelectMetaAccount = async (account: any, page: any) => {
+    setToast({ message: language === 'en' ? 'Saving Meta connection...' : 'Guardando conexión Meta...', type: 'info' });
+    const res = await authFetch('/api/panel/meta/facebook-connect', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accessToken: metaFbToken || configData.facebook_access_token,
+        adAccountId: account.id,
+        adAccountName: account.name,
+        pageId: page?.id || '',
+        pageName: page?.name || '',
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setConfigData((prev: any) => ({
+        ...prev,
+        facebook_access_token: metaFbToken || prev.facebook_access_token,
+        facebook_ad_account_id: account.id,
+        facebook_page_id: page?.id || prev.facebook_page_id,
+        meta_ad_account_name: account.name || prev.meta_ad_account_name,
+        meta_page_name: page?.name || prev.meta_page_name,
+      }));
+      setMetaShowPicker(false);
+      setToast({ message: language === 'en' ? '✓ Meta Ads connected!' : '✓ Meta Ads conectado!', type: 'success' });
+    } else {
+      setToast({ message: data.error || 'Error saving', type: 'error' });
+    }
+  };
+
+  const handleMetaDisconnect = () => {
+    setConfigData((prev: any) => ({ ...prev, facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '', meta_ad_account_name: '', meta_page_name: '' }));
+    setToast({ message: language === 'en' ? 'Meta disconnected' : 'Meta desconectado', type: 'info' });
+  };
+  // El selector de cuenta/pagina solo esta montado en Configuracion > Meta Ads.
+  // Si el picker se activa desde el acceso rapido de Pautas Publicitarias, hay
+  // que llevar al usuario ahi para que pueda terminar de elegir la cuenta.
+  React.useEffect(() => {
+    if (metaShowPicker && settingsSection !== 'meta') {
+      safeSetActiveTab('settings');
+      setSettingsSection('meta');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaShowPicker]);
   const [memoryClearing, setMemoryClearing] = useState(false);
   const [memoryClearSuccess, setMemoryClearSuccess] = useState(false);
   const [memoryRetentionDays, setMemoryRetentionDays] = useState(30);
@@ -3823,6 +3993,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              facebook_access_token: data.facebook_access_token || '',
              facebook_ad_account_id: data.facebook_ad_account_id || '',
              facebook_page_id: data.facebook_page_id || '',
+             meta_ad_account_name: data.meta_ad_account_name || '',
+             meta_page_name: data.meta_page_name || '',
              dropi_enabled: data.dropi_enabled !== undefined ? data.dropi_enabled : false,
              dropi_token: data.dropi_token || '',
              dropi_default_product_id: data.dropi_default_product_id || '',
@@ -3833,8 +4005,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
           }
+          setConfigReady(true);
       })
-      .catch(console.error);
+      .catch((err) => { console.error(err); setConfigReady(true); });
   }, []);
 
   const discardChanges = () => {
@@ -5609,6 +5782,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         facebook_access_token: configData.facebook_access_token,
         facebook_ad_account_id: configData.facebook_ad_account_id,
         facebook_page_id: configData.facebook_page_id,
+        meta_ad_account_name: configData.meta_ad_account_name,
+        meta_page_name: configData.meta_page_name,
         dropi_enabled: configData.dropi_enabled,
         dropi_token: configData.dropi_token,
         dropi_default_product_id: configData.dropi_default_product_id,
@@ -8515,78 +8690,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                 {/* ════ META ADS ════ */}
                 {settingsSection === 'meta' && (() => {
-                  const fbAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '814217575104750';
                   const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
-
-                  const handleMetaFacebookLogin = () => {
-                    const redirectUri = `${window.location.origin}/panel`;
-                    const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
-                    const state = btoa(JSON.stringify({ action: 'meta_connect', ts: Date.now() }));
-                    const configId = process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '1718329089178291';
-                    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}`;
-                    const w = 600, h = 700;
-                    const left = (window.screen.width - w) / 2;
-                    const top = (window.screen.height - h) / 2;
-                    const popup = window.open(fbUrl, 'fb_meta_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
-                    const poll = setInterval(async () => {
-                      try {
-                        if (!popup || popup.closed) { clearInterval(poll); return; }
-                        const popupUrl = popup.location.href;
-                        if (popupUrl.includes('code=')) {
-                          clearInterval(poll);
-                          popup.close();
-                          const url = new URL(popupUrl);
-                          const code = url.searchParams.get('code');
-                          if (!code) return;
-                          setToast({ type: 'info', message: language === 'en' ? 'Connecting to Meta...' : 'Conectando con Meta...' });
-                          const res = await authFetch('/api/panel/meta/facebook-connect', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ code, redirectUri: `${window.location.origin}/panel` }),
-                          });
-                          const data = await res.json();
-                          if (data.error) { setToast({ type: 'error', message: data.error }); return; }
-                          if (data.adAccounts && data.adAccounts.length > 0) {
-                            setMetaFbToken(data.accessToken);
-                            setMetaAdAccounts(data.adAccounts);
-                            setMetaPages(data.pages || []);
-                            setMetaShowPicker(true);
-                          } else {
-                            setConfigData((prev: any) => ({ ...prev, facebook_access_token: data.accessToken }));
-                            setToast({ type: 'info', message: language === 'en' ? 'Token saved. Enter your Ad Account ID manually.' : 'Token guardado. Ingresa tu Ad Account ID.' });
-                          }
-                        }
-                      } catch {}
-                    }, 500);
-                  };
-
-                  const handleSelectMetaAccount = async (account: any, page: any) => {
-                    setToast({ type: 'info', message: language === 'en' ? 'Saving Meta connection...' : 'Guardando conexión Meta...' });
-                    const res = await authFetch('/api/panel/meta/facebook-connect', {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        accessToken: metaFbToken || configData.facebook_access_token,
-                        adAccountId: account.id,
-                        adAccountName: account.name,
-                        pageId: page?.id || '',
-                        pageName: page?.name || '',
-                      }),
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      setConfigData((prev: any) => ({
-                        ...prev,
-                        facebook_access_token: metaFbToken || prev.facebook_access_token,
-                        facebook_ad_account_id: account.id,
-                        facebook_page_id: page?.id || prev.facebook_page_id,
-                      }));
-                      setMetaShowPicker(false);
-                      setToast({ type: 'success', message: language === 'en' ? '✓ Meta Ads connected!' : '✓ Meta Ads conectado!' });
-                    } else {
-                      setToast({ type: 'error', message: data.error || 'Error saving' });
-                    }
-                  };
 
                   return (
                     <div className="space-y-6">
@@ -8628,7 +8732,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   {configData.facebook_page_id && <p className="text-[10px] text-blue-400 mt-0.5">Page ID: {configData.facebook_page_id}</p>}
                                 </div>
                                 <button
-                                  onClick={() => { setConfigData((prev: any) => ({ ...prev, facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '' })); setToast({ type: 'info', message: language === 'en' ? 'Meta disconnected' : 'Meta desconectado' }); }}
+                                  onClick={handleMetaDisconnect}
                                   className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all"
                                 >{language === 'en' ? 'Disconnect' : 'Desconectar'}</button>
                               </div>
@@ -10396,6 +10500,44 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </button>
                 ))}
               </nav>
+
+              {/* Meta Ads quick connect/disconnect - visible en las 3 sub-pestañas */}
+              <div className={`mt-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border ${
+                configData.facebook_access_token && configData.facebook_ad_account_id
+                  ? 'bg-blue-50 border-blue-100'
+                  : 'bg-amber-50 border-amber-100'
+              }`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'bg-[#1877F2]' : 'bg-amber-400'}`}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  </div>
+                  <div className="min-w-0">
+                    {configData.facebook_access_token && configData.facebook_ad_account_id ? (
+                      <>
+                        <p className="text-xs font-bold text-blue-800">{language === 'en' ? 'Meta Ads Connected' : 'Meta Ads Conectado'}</p>
+                        <p className="text-[10px] text-blue-500 truncate">
+                          {configData.meta_ad_account_name || configData.facebook_ad_account_id}
+                          {configData.meta_page_name || configData.facebook_page_id ? ` · ${configData.meta_page_name || configData.facebook_page_id}` : ''}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs font-bold text-amber-800">{language === 'en' ? 'Meta Ads not connected' : 'Meta Ads sin conectar'}</p>
+                        <p className="text-[10px] text-amber-600">{language === 'en' ? 'Connect to publish real campaigns' : 'Conectá para poder publicar campañas reales'}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {configData.facebook_access_token && configData.facebook_ad_account_id ? (
+                  <button onClick={handleMetaDisconnect} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-100/50 transition-all shrink-0">
+                    {language === 'en' ? 'Disconnect' : 'Desconectar'}
+                  </button>
+                ) : (
+                  <button onClick={handleMetaFacebookLogin} className="text-xs font-bold text-white px-4 py-2 rounded-lg shrink-0 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                    {language === 'en' ? 'Connect Facebook' : 'Conectar Facebook'}
+                  </button>
+                )}
+              </div>
             </header>
 
             {/* ===== SUB-TAB: CAMPAIGNS OVERVIEW ===== */}
