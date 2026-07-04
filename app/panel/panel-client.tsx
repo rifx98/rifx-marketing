@@ -2047,6 +2047,41 @@ export default function PanelClient() {
   // de la declaracion de configData (necesita leer el estado de conexion Meta).
   const greetingSentRef = React.useRef(false);
 
+  // Mensaje/opciones de la pregunta especifica del negocio (paso 1), extraido
+  // para poder reusarlo tanto en el flujo normal como despues de elegir
+  // portafolio/pagina de Meta.
+  const getStep1Message = (goal: 'local' | 'whatsapp' | 'web'): { text: string; options?: Array<{ label: string; value: string }> } => {
+    if (goal === 'local') {
+      return {
+        text: language === 'en'
+          ? "Excellent choice. Local geo-marketing is highly effective. What is the commercial name of your business?"
+          : "Excelente elección. El marketing geolocalizado es la mejor forma de llenar tu negocio. ¿Cuál es el nombre comercial de tu local?",
+      };
+    }
+    if (goal === 'whatsapp') {
+      const connectedWaPhone = configData.whatsapp_phone_id && configData.wa_display_phone ? configData.wa_display_phone : '';
+      if (connectedWaPhone) {
+        return {
+          text: language === 'en'
+            ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) — want to use it for this ad, or a different number?`
+            : `¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. Veo que ya tenés WhatsApp conectado (${connectedWaPhone}) — ¿querés usar ese número para este anuncio, o preferís escribir otro?`,
+          options: [{ label: `✅ ${connectedWaPhone}`, value: connectedWaPhone }],
+        };
+      }
+      return {
+        text: language === 'en'
+          ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)\n\n💡 You can also connect your WhatsApp Business number below so it's ready automatically next time."
+          : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).\n\n💡 También podés conectar tu WhatsApp Business abajo para tenerlo listo automáticamente la próxima vez.",
+        options: [{ label: language === 'en' ? '🔗 Connect my WhatsApp Business' : '🔗 Conectar mi WhatsApp Business', value: '__connect_whatsapp__' }],
+      };
+    }
+    return {
+      text: language === 'en'
+        ? "Perfect! Automating website sales is the best way to scale. What is the URL of your website or online store? (e.g., https://mystore.com)"
+        : "¡Excelente! Vender de manera automatizada a través de tu sitio web te permitirá escalar tus ventas. ¿Cuál es la URL de tu página o tienda online? (Ej: https://mitienda.com)",
+    };
+  };
+
   const generateCopywritingPrompt = (answers: Record<string, any>) => {
     const goalText = agentGoal === 'local' 
       ? `Reconocimiento local para el negocio físico "${answers.businessName}" ubicado en "${answers.address}". Radio de segmentación: ${answers.radius}km.`
@@ -2134,11 +2169,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       return;
     }
 
-    if (value === '__change_meta__') {
-      handleMetaFacebookLogin();
-      return;
-    }
-
     if (value.startsWith('__select_meta_account__:')) {
       const accountId = value.replace('__select_meta_account__:', '');
       const account = metaAdAccounts.find((a: any) => a.id === accountId);
@@ -2158,6 +2188,83 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           }]);
         });
       }
+      return;
+    }
+
+    // Justo despues de elegir el objetivo (paso 0), si Meta esta conectado,
+    // preguntamos con que portafolio (cuenta publicitaria) y pagina publicar
+    // antes de seguir con las preguntas del negocio.
+    if (agentChatStep === 0 && ['local', 'whatsapp', 'web'].includes(value) && !metaPortfolioAskedRef.current) {
+      const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
+      if (isMetaConnected) {
+        metaPortfolioAskedRef.current = true;
+        const goal = value as 'local' | 'whatsapp' | 'web';
+        setAgentGoal(goal);
+        setPendingGoalForMeta(goal);
+        setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || value }]);
+        setAgentInputText('');
+        setAgentIsTyping(true);
+        fetchMetaAccountsLive().then((result) => {
+          const accounts = result?.adAccounts || [];
+          if (accounts.length === 0) {
+            // No pudimos listar cuentas (token vencido, etc.) - seguimos con
+            // lo ya guardado en vez de bloquear al usuario.
+            advanceToStep1(goal);
+            return;
+          }
+          if (accounts.length === 1) {
+            // Una sola cuenta disponible: no tiene sentido preguntar, la
+            // confirmamos directamente y seguimos.
+            setWizardSelectedAccount(accounts[0]);
+            setAgentMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              sender: 'agent' as const,
+              text: language === 'en'
+                ? `You only have one ad account/portfolio: "${accounts[0].name}". We'll use that one.`
+                : `Solo tenés un portafolio/cuenta publicitaria: "${accounts[0].name}". Vamos a usar esa.`,
+            }]);
+            setTimeout(() => askMetaPageStep(accounts[0], result?.pages || []), 500);
+          } else {
+            setAgentMessages(prev => [...prev, {
+              id: 'ask-meta-portfolio',
+              sender: 'agent' as const,
+              text: language === 'en'
+                ? 'With which commercial portfolio (ad account) do you want to run this ad?'
+                : '¿Con qué portafolio comercial (cuenta publicitaria) querés hacer esta publicidad?',
+              options: accounts.map((a: any) => ({ label: `📊 ${a.name}`, value: `__wizard_account__:${a.id}` })),
+            }]);
+            setAgentIsTyping(false);
+          }
+        });
+      }
+      return;
+    }
+
+    if (value.startsWith('__wizard_account__:')) {
+      const accountId = value.replace('__wizard_account__:', '');
+      const account = metaAdAccounts.find((a: any) => a.id === accountId);
+      setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || account?.name || accountId }]);
+      setWizardSelectedAccount(account);
+      setAgentIsTyping(true);
+      setTimeout(() => askMetaPageStep(account), 500);
+      return;
+    }
+
+    if (value.startsWith('__wizard_page__:')) {
+      const pageId = value.replace('__wizard_page__:', '');
+      const page = metaPages.find((p: any) => p.id === pageId);
+      setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || page?.name || pageId }]);
+      setAgentIsTyping(true);
+      handleSelectMetaAccount(wizardSelectedAccount, page).then(() => {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? `Great! We'll publish on Page "${page?.name}" using ad account "${wizardSelectedAccount?.name}".`
+            : `¡Listo! Vamos a publicitar en la página "${page?.name}" usando la cuenta "${wizardSelectedAccount?.name}".`,
+        }]);
+        setTimeout(() => advanceToStep1(pendingGoalForMeta || 'local'), 500);
+      });
       return;
     }
 
@@ -2213,33 +2320,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         const goal = value as 'local' | 'whatsapp' | 'web';
         setAgentGoal(goal);
         newAnswers.goal = goal;
-        
-        if (goal === 'local') {
-          nextMsgText = language === 'en'
-            ? "Excellent choice. Local geo-marketing is highly effective. What is the commercial name of your business?"
-            : "Excelente elección. El marketing geolocalizado es la mejor forma de llenar tu negocio. ¿Cuál es el nombre comercial de tu local?";
-        } else if (goal === 'whatsapp') {
-          const connectedWaPhone = configData.whatsapp_phone_id && configData.wa_display_phone ? configData.wa_display_phone : '';
-          if (connectedWaPhone) {
-            nextMsgText = language === 'en'
-              ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) — want to use it for this ad, or a different number?`
-              : `¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. Veo que ya tenés WhatsApp conectado (${connectedWaPhone}) — ¿querés usar ese número para este anuncio, o preferís escribir otro?`;
-            options = [
-              { label: `✅ ${connectedWaPhone}`, value: connectedWaPhone },
-            ];
-          } else {
-            nextMsgText = language === 'en'
-              ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)\n\n💡 You can also connect your WhatsApp Business number below so it's ready automatically next time."
-              : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).\n\n💡 También podés conectar tu WhatsApp Business abajo para tenerlo listo automáticamente la próxima vez.";
-            options = [
-              { label: language === 'en' ? '🔗 Connect my WhatsApp Business' : '🔗 Conectar mi WhatsApp Business', value: '__connect_whatsapp__' },
-            ];
-          }
-        } else {
-          nextMsgText = language === 'en'
-            ? "Perfect! Automating website sales is the best way to scale. What is the URL of your website or online store? (e.g., https://mystore.com)"
-            : "¡Excelente! Vender de manera automatizada a través de tu sitio web te permitirá escalar tus ventas. ¿Cuál es la URL de tu página o tienda online? (Ej: https://mitienda.com)";
-        }
+        const step1 = getStep1Message(goal);
+        nextMsgText = step1.text;
+        options = step1.options;
       } else if (currentStep === 1) {
         if (currentGoal === 'local') {
           newAnswers.businessName = value;
@@ -3459,19 +3542,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             }
           ]);
         } else {
-          const pageLabel = configData.meta_page_name || configData.facebook_page_id;
-          const accountLabel = configData.meta_ad_account_name || configData.facebook_ad_account_id;
           setAgentMessages([
             {
               id: '1',
               sender: 'agent',
-              text: (language === 'en'
-                ? `Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nWe'll publish to your Page "${pageLabel}" using ad account/portfolio "${accountLabel}". If that's not right, hit "Change account" below.\n\nTo get started, tell me: what is your primary marketing goal?`
-                : `¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nVamos a publicar en tu página "${pageLabel}" usando la cuenta/portafolio publicitario "${accountLabel}". Si no es la correcta, tocá "Cambiar cuenta" abajo.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?`),
-              options: [
-                ...goalOptions,
-                { label: language === 'en' ? '🔄 Change account/page' : '🔄 Cambiar cuenta/página', value: '__change_meta__' },
-              ]
+              text: language === 'en'
+                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
+                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+              options: goalOptions
             }
           ]);
         }
@@ -3617,6 +3695,86 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
   const [metaPages, setMetaPages] = useState<any[]>([]);
   const [metaShowPicker, setMetaShowPicker] = useState(false);
+  // Flujo de portafolio/pagina dentro del chat, disparado justo despues de
+  // elegir el objetivo de la campana (paso 0).
+  const [pendingGoalForMeta, setPendingGoalForMeta] = useState<'local' | 'whatsapp' | 'web' | null>(null);
+  const [wizardSelectedAccount, setWizardSelectedAccount] = useState<any>(null);
+  const metaPortfolioAskedRef = React.useRef(false);
+
+  const fetchMetaAccountsLive = async (): Promise<{ adAccounts: any[]; pages: any[] } | null> => {
+    try {
+      const res = await authFetch('/api/panel/meta/facebook-connect');
+      const data = await res.json();
+      if (data.error) {
+        setToast({ message: data.error, type: 'error' });
+        return null;
+      }
+      setMetaAdAccounts(data.adAccounts || []);
+      setMetaPages(data.pages || []);
+      return { adAccounts: data.adAccounts || [], pages: data.pages || [] };
+    } catch (e: any) {
+      setToast({ message: e.message || 'Error consultando cuentas de Meta', type: 'error' });
+      return null;
+    }
+  };
+
+  // Genera el mensaje del paso 1 (pregunta especifica del negocio) y avanza
+  // formalmente el wizard a ese paso - usado tanto en el flujo normal como
+  // al terminar de elegir portafolio/pagina.
+  const advanceToStep1 = (goal: 'local' | 'whatsapp' | 'web') => {
+    const step1 = getStep1Message(goal);
+    setAgentChatStep(1);
+    setAgentMessages(prev => [...prev, {
+      id: Math.random().toString(),
+      sender: 'agent' as const,
+      text: step1.text,
+      options: step1.options,
+    }]);
+    setAgentIsTyping(false);
+  };
+
+  // Pregunta en que Pagina publicar, dada la cuenta publicitaria ya elegida.
+  // Si esa cuenta solo tiene una pagina disponible, la confirma directo.
+  // Recibe "pages" explicito (en vez de leer el estado metaPages) porque a
+  // veces se llama justo despues de un fetch, antes de que el closure de un
+  // setTimeout tenga la version actualizada del estado.
+  const askMetaPageStep = (account: any, pages: any[] = metaPages) => {
+    if (pages.length === 0) {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'agent' as const,
+        text: language === 'en'
+          ? `No Facebook Pages found for this account. We'll continue with account "${account?.name}" only.`
+          : `No encontré páginas de Facebook para esta cuenta. Seguimos solo con la cuenta "${account?.name}".`,
+      }]);
+      handleSelectMetaAccount(account, null).then(() => {
+        setTimeout(() => advanceToStep1(pendingGoalForMeta || 'local'), 400);
+      });
+      return;
+    }
+    if (pages.length === 1) {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'agent' as const,
+        text: language === 'en'
+          ? `We'll publish on your only connected Page: "${pages[0].name}".`
+          : `Vamos a publicitar en tu única página conectada: "${pages[0].name}".`,
+      }]);
+      handleSelectMetaAccount(account, pages[0]).then(() => {
+        setTimeout(() => advanceToStep1(pendingGoalForMeta || 'local'), 400);
+      });
+      return;
+    }
+    setAgentMessages(prev => [...prev, {
+      id: 'ask-meta-page',
+      sender: 'agent' as const,
+      text: language === 'en'
+        ? `Got it: "${account?.name}". Now, which Page do you want to advertise on?`
+        : `Perfecto: "${account?.name}". Ahora, ¿en qué página querés publicitar?`,
+      options: pages.map((p: any) => ({ label: `📄 ${p.name}`, value: `__wizard_page__:${p.id}` })),
+    }]);
+    setAgentIsTyping(false);
+  };
 
   // Conexion Meta Ads (hoisteado para poder usarse tanto en Configuracion
   // como en el acceso rapido dentro de Pautas Publicitarias)

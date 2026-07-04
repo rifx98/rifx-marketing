@@ -2,6 +2,73 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 
+// GET: List Ad Accounts & Pages using the tenant's already-stored access token
+// (no OAuth code exchange needed, so it works even if FACEBOOK_APP_SECRET is
+// misconfigured - that only affects establishing a brand new connection).
+export async function GET(req: NextRequest) {
+  try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    const supabase = createSupabaseAdmin();
+    const { data: config } = await supabase
+      .from('config')
+      .select('openai_key')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .maybeSingle();
+
+    let extConfig: any = {};
+    try { extConfig = JSON.parse(config?.openai_key || '{}'); } catch {}
+    const accessToken = extConfig.facebook_access_token;
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Meta Ads no esta conectado para este tenant' }, { status: 400 });
+    }
+
+    const adAccountsUrl = new URL('https://graph.facebook.com/v19.0/me/adaccounts');
+    adAccountsUrl.searchParams.set('access_token', accessToken);
+    adAccountsUrl.searchParams.set('fields', 'id,name,account_status,currency,timezone_name,business{id,name}');
+    adAccountsUrl.searchParams.set('limit', '50');
+
+    const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
+    pagesUrl.searchParams.set('access_token', accessToken);
+    pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url}');
+    pagesUrl.searchParams.set('limit', '50');
+
+    const [adRes, pagesRes] = await Promise.all([fetch(adAccountsUrl.toString()), fetch(pagesUrl.toString())]);
+    const [adData, pagesData] = await Promise.all([adRes.json(), pagesRes.json()]);
+
+    if (adData.error) {
+      return NextResponse.json({ error: adData.error.message || 'Error consultando cuentas publicitarias de Meta' }, { status: 400 });
+    }
+
+    const adAccounts = (adData.data || []).map((a: any) => ({
+      id: a.id,
+      name: a.name,
+      account_status: a.account_status,
+      currency: a.currency,
+      timezone: a.timezone_name,
+      business: a.business?.name || '',
+    }));
+
+    const pages = (pagesData.data || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      fanCount: p.fan_count,
+      picture: p.picture?.data?.url || '',
+    }));
+
+    return NextResponse.json({ accessToken, adAccounts, pages });
+  } catch (error: any) {
+    console.error('Meta list accounts error:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 // POST: Exchange OAuth code → long-lived token + list Ad Accounts & Pages
 export async function POST(req: NextRequest) {
   try {
