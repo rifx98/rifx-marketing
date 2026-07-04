@@ -3701,6 +3701,33 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [wizardSelectedAccount, setWizardSelectedAccount] = useState<any>(null);
   const metaPortfolioAskedRef = React.useRef(false);
 
+  // Selectores de cuenta/pagina en la barra superior de Pautas Publicitarias
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [showPageDropdown, setShowPageDropdown] = useState(false);
+  const [metaListLoading, setMetaListLoading] = useState(false);
+
+  const toggleMetaDropdown = async (which: 'account' | 'page') => {
+    const isOpen = which === 'account' ? showAccountDropdown : showPageDropdown;
+    setShowAccountDropdown(which === 'account' && !isOpen);
+    setShowPageDropdown(which === 'page' && !isOpen);
+    if (!isOpen && metaAdAccounts.length === 0 && metaPages.length === 0) {
+      setMetaListLoading(true);
+      await fetchMetaAccountsLive();
+      setMetaListLoading(false);
+    }
+  };
+
+  const selectAccountFromBar = async (account: any) => {
+    setShowAccountDropdown(false);
+    await handleSelectMetaAccount(account, metaPages.find((p: any) => p.id === configData.facebook_page_id) || null);
+  };
+
+  const selectPageFromBar = async (page: any) => {
+    setShowPageDropdown(false);
+    const currentAccount = metaAdAccounts.find((a: any) => a.id === configData.facebook_ad_account_id) || { id: configData.facebook_ad_account_id, name: configData.meta_ad_account_name };
+    await handleSelectMetaAccount(currentAccount, page);
+  };
+
   const fetchMetaAccountsLive = async (): Promise<{ adAccounts: any[]; pages: any[] } | null> => {
     try {
       const res = await authFetch('/api/panel/meta/facebook-connect');
@@ -10725,9 +10752,75 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 </div>
                 {configData.facebook_access_token && configData.facebook_ad_account_id ? (
-                  <button onClick={handleMetaDisconnect} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-100/50 transition-all shrink-0">
-                    {language === 'en' ? 'Disconnect' : 'Desconectar'}
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Selector de cuenta publicitaria */}
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleMetaDropdown('account')}
+                        className="flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-white border border-blue-200 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-all max-w-[140px]"
+                        title={language === 'en' ? 'Choose ad account' : 'Elegir cuenta publicitaria'}
+                      >
+                        <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+                        <span className="truncate">{configData.meta_ad_account_name || (language === 'en' ? 'Account' : 'Cuenta')}</span>
+                        <span className="material-symbols-outlined text-sm">{metaListLoading && showAccountDropdown ? 'sync' : 'expand_more'}</span>
+                      </button>
+                      {showAccountDropdown && (
+                        <div className="absolute z-30 top-full mt-1 left-0 w-64 bg-white border border-[#c1c6d6] rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+                          {metaListLoading && (
+                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'Loading accounts...' : 'Cargando cuentas...'}</div>
+                          )}
+                          {!metaListLoading && metaAdAccounts.length === 0 && (
+                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'No ad accounts found' : 'No se encontraron cuentas publicitarias'}</div>
+                          )}
+                          {!metaListLoading && metaAdAccounts.map((acc: any) => (
+                            <button
+                              key={acc.id}
+                              onClick={() => selectAccountFromBar(acc)}
+                              className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${acc.id === configData.facebook_ad_account_id ? 'bg-blue-50 font-bold text-blue-800' : 'text-[#414754]'}`}
+                            >
+                              <span className="truncate">{acc.name}</span>
+                              {acc.id === configData.facebook_ad_account_id && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Selector de pagina */}
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleMetaDropdown('page')}
+                        className="flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-white border border-blue-200 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-all max-w-[140px]"
+                        title={language === 'en' ? 'Choose page' : 'Elegir página'}
+                      >
+                        <span className="material-symbols-outlined text-sm">flag</span>
+                        <span className="truncate">{configData.meta_page_name || (language === 'en' ? 'Page' : 'Página')}</span>
+                        <span className="material-symbols-outlined text-sm">{metaListLoading && showPageDropdown ? 'sync' : 'expand_more'}</span>
+                      </button>
+                      {showPageDropdown && (
+                        <div className="absolute z-30 top-full mt-1 right-0 w-64 bg-white border border-[#c1c6d6] rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+                          {metaListLoading && (
+                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'Loading pages...' : 'Cargando páginas...'}</div>
+                          )}
+                          {!metaListLoading && metaPages.length === 0 && (
+                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'No pages found' : 'No se encontraron páginas'}</div>
+                          )}
+                          {!metaListLoading && metaPages.map((pg: any) => (
+                            <button
+                              key={pg.id}
+                              onClick={() => selectPageFromBar(pg)}
+                              className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${pg.id === configData.facebook_page_id ? 'bg-blue-50 font-bold text-blue-800' : 'text-[#414754]'}`}
+                            >
+                              <span className="truncate">{pg.name}</span>
+                              {pg.id === configData.facebook_page_id && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={handleMetaDisconnect} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-100/50 transition-all">
+                      {language === 'en' ? 'Disconnect' : 'Desconectar'}
+                    </button>
+                  </div>
                 ) : (
                   <button onClick={handleMetaFacebookLogin} className="text-xs font-bold text-white px-4 py-2 rounded-lg shrink-0 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
                     {language === 'en' ? 'Connect Facebook' : 'Conectar Facebook'}
