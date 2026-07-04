@@ -285,18 +285,56 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
   const mapElRef = React.useRef<HTMLDivElement>(null);
   const chatMapRef = React.useRef<any>(null);
   const chatMarkersRef = React.useRef<any[]>([]);
+  const radiusRefLocal = React.useRef(radius);
   const [search, setSearch] = React.useState('');
   const [searchResults, setSearchResults] = React.useState<any[]>([]);
   const [selectedLocs, setSelectedLocs] = React.useState<Array<{ lat: number; lng: number; radius: number; name: string }>>([]);
 
+  React.useEffect(() => { radiusRefLocal.current = radius; }, [radius]);
+
   React.useEffect(() => {
     if (chatMapRef.current && (window as any).L) {
-      chatMarkersRef.current.forEach(m => {
+      chatMarkersRef.current.forEach((m, i) => {
         if (m.circle) m.circle.setRadius(radius * 1000);
-        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[0]?.name || '📍'}</b><br>${radius}km`);
+        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[i]?.name || '📍'}</b><br>${radius}km`);
       });
+      setSelectedLocs(prev => prev.map(loc => ({ ...loc, radius })));
     }
-  }, [radius, selectedLocs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radius]);
+
+  const addLocation = (lat: number, lng: number, name: string) => {
+    setSelectedLocs(prev => [...prev, { lat, lng, radius, name }]);
+
+    if (chatMapRef.current && (window as any).L) {
+      const L = (window as any).L;
+      const map = chatMapRef.current;
+
+      const circle = L.circle([lat, lng], {
+        radius: radius * 1000,
+        color: '#0058bc',
+        fillColor: '#0058bc',
+        fillOpacity: 0.15,
+        weight: 2,
+      }).addTo(map);
+
+      const marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup(`<b>${name}</b><br>${radius}km`)
+        .openPopup();
+
+      chatMarkersRef.current.push({ circle, marker });
+    }
+  };
+
+  const removeLocation = (idx: number) => {
+    setSelectedLocs(prev => prev.filter((_, i) => i !== idx));
+    const entry = chatMarkersRef.current[idx];
+    if (entry) {
+      entry.circle?.remove();
+      entry.marker?.remove();
+      chatMarkersRef.current.splice(idx, 1);
+    }
+  };
 
   const handleSearch = async () => {
     if (!search.trim()) return;
@@ -313,35 +351,12 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
     const lat = parseFloat(item.lat);
     const lng = parseFloat(item.lon);
     const name = item.display_name.split(',')[0] || item.display_name;
-    const newLoc = { lat, lng, radius, name };
-    setSelectedLocs([newLoc]);
     setSearchResults([]);
-    setSearch(name);
+    setSearch('');
+    addLocation(lat, lng, name);
 
-    if (chatMapRef.current && (window as any).L) {
-      const L = (window as any).L;
-      const map = chatMapRef.current;
-      map.setView([lat, lng], 12);
-      
-      chatMarkersRef.current.forEach(m => {
-        map.removeLayer(m.circle);
-        map.removeLayer(m.marker);
-      });
-      chatMarkersRef.current = [];
-
-      const circle = L.circle([lat, lng], {
-        radius: radius * 1000,
-        color: '#0058bc',
-        fillColor: '#0058bc',
-        fillOpacity: 0.15,
-        weight: 2,
-      }).addTo(map);
-
-      const marker = L.marker([lat, lng]).addTo(map)
-        .bindPopup(`<b>${name}</b><br>${radius}km`)
-        .openPopup();
-
-      chatMarkersRef.current.push({ circle, marker });
+    if (chatMapRef.current) {
+      chatMapRef.current.setView([lat, lng], 12);
     }
   };
 
@@ -368,15 +383,9 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
 
       map.on('click', (e: any) => {
         const { lat, lng } = e.latlng;
-        
-        chatMarkersRef.current.forEach(m => {
-          map.removeLayer(m.circle);
-          map.removeLayer(m.marker);
-        });
-        chatMarkersRef.current = [];
 
         const circle = L.circle([lat, lng], {
-          radius: radius * 1000,
+          radius: radiusRefLocal.current * 1000,
           color: '#0058bc',
           fillColor: '#0058bc',
           fillOpacity: 0.15,
@@ -384,16 +393,18 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
         }).addTo(map);
 
         const marker = L.marker([lat, lng]).addTo(map)
-          .bindPopup(`<b>📍</b><br>${radius}km`);
+          .bindPopup(`<b>📍</b><br>${radiusRefLocal.current}km`);
         chatMarkersRef.current.push({ circle, marker });
 
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
           .then(r => r.json())
           .then(data => {
             const name = data.address?.city || data.address?.town || data.address?.state || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
-            setSelectedLocs([{ lat, lng, radius, name }]);
-            setSearch(name);
-            marker.setPopupContent(`<b>${name}</b><br>${radius}km`).openPopup();
+            setSelectedLocs(prev => [...prev, { lat, lng, radius: radiusRefLocal.current, name }]);
+            marker.setPopupContent(`<b>${name}</b><br>${radiusRefLocal.current}km`).openPopup();
+          })
+          .catch(() => {
+            setSelectedLocs(prev => [...prev, { lat, lng, radius: radiusRefLocal.current, name: `${lat.toFixed(2)}, ${lng.toFixed(2)}` }]);
           });
       });
 
@@ -449,7 +460,34 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
         </div>
       )}
 
-      <div ref={mapElRef} className="w-full h-[180px] rounded-lg overflow-hidden border border-slate-200" style={{ zIndex: 10 }} />
+      <div className="relative">
+        <div ref={mapElRef} className="w-full h-[180px] rounded-lg overflow-hidden border border-slate-200" style={{ zIndex: 10 }} />
+        {selectedLocs.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[500] px-4">
+            <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow border border-slate-200 text-center">
+              <p className="text-[10px] text-slate-600 font-medium">
+                {language === 'en' ? 'Click the map to add a location — click again for more' : 'Clic en el mapa para agregar una ubicación — podés hacer clic varias veces para agregar más'}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selectedLocs.length > 0 && (
+        <div className="bg-[#f8faff] border border-[#e5eeff] rounded-lg p-2 max-h-24 overflow-y-auto space-y-1">
+          {selectedLocs.map((loc, i) => (
+            <div key={i} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="material-symbols-outlined text-xs text-[#0058bc] shrink-0">location_on</span>
+                <span className="text-[10px] text-[#0b1c30] font-medium truncate">{loc.name}</span>
+              </div>
+              <button type="button" onClick={() => removeLocation(i)} className="text-[#727785] hover:text-red-500 shrink-0">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wide">
@@ -469,11 +507,13 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
       <button
         type="button"
         disabled={selectedLocs.length === 0}
-        onClick={() => onConfirm(selectedLocs, search)}
+        onClick={() => onConfirm(selectedLocs, selectedLocs[0]?.name || search)}
         className="w-full py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <span className="material-symbols-outlined text-sm">check_circle</span>
-        {language === 'en' ? 'Confirm Target Location' : 'Confirmar Ubicación y Radio'}
+        {selectedLocs.length > 1
+          ? (language === 'en' ? `Confirm ${selectedLocs.length} Locations` : `Confirmar ${selectedLocs.length} Ubicaciones`)
+          : (language === 'en' ? 'Confirm Target Location' : 'Confirmar Ubicación y Radio')}
       </button>
     </div>
   );
@@ -2101,7 +2141,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   const handleAgentMessageSubmit = (value: string, optionLabel?: string) => {
     if (!value.trim() && !optionLabel) return;
-    
+
+    if (value === '__connect_whatsapp__') {
+      safeSetActiveTab('settings');
+      setSettingsSection('whatsapp');
+      setToast({ message: language === 'en' ? 'Connect WhatsApp here, then come back to Creative Lab to continue.' : 'Conectá tu WhatsApp acá y después volvé a Creative Lab para continuar.', type: 'info' });
+      return;
+    }
+
     const userText = optionLabel || value;
     const currentGoal = agentGoal;
     const currentStep = agentChatStep;
@@ -2135,9 +2182,22 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             ? "Excellent choice. Local geo-marketing is highly effective. What is the commercial name of your business?"
             : "Excelente elección. El marketing geolocalizado es la mejor forma de llenar tu negocio. ¿Cuál es el nombre comercial de tu local?";
         } else if (goal === 'whatsapp') {
-          nextMsgText = language === 'en'
-            ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)"
-            : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).";
+          const connectedWaPhone = configData.whatsapp_phone_id && configData.wa_display_phone ? configData.wa_display_phone : '';
+          if (connectedWaPhone) {
+            nextMsgText = language === 'en'
+              ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) — want to use it for this ad, or a different number?`
+              : `¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. Veo que ya tenés WhatsApp conectado (${connectedWaPhone}) — ¿querés usar ese número para este anuncio, o preferís escribir otro?`;
+            options = [
+              { label: `✅ ${connectedWaPhone}`, value: connectedWaPhone },
+            ];
+          } else {
+            nextMsgText = language === 'en'
+              ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)\n\n💡 You can also connect your WhatsApp Business number below so it's ready automatically next time."
+              : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).\n\n💡 También podés conectar tu WhatsApp Business abajo para tenerlo listo automáticamente la próxima vez.";
+            options = [
+              { label: language === 'en' ? '🔗 Connect my WhatsApp Business' : '🔗 Conectar mi WhatsApp Business', value: '__connect_whatsapp__' },
+            ];
+          }
         } else {
           nextMsgText = language === 'en'
             ? "Perfect! Automating website sales is the best way to scale. What is the URL of your website or online store? (e.g., https://mystore.com)"
@@ -3285,6 +3345,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [configData, setConfigData] = useState<any>({
     whatsapp_token: '',
     whatsapp_phone_id: '',
+    wa_display_phone: '',
     bulk_wa_token: '',
     bulk_wa_phone_id: '',
     openai_key: '',
@@ -3737,6 +3798,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             const parsed = {
              whatsapp_token: data.whatsapp_token || '',
              whatsapp_phone_id: data.whatsapp_phone_id || '',
+             wa_display_phone: data.wa_display_phone || '',
              bulk_wa_token: data.bulk_wa_token || '',
              bulk_wa_phone_id: data.bulk_wa_phone_id || '',
              openai_key: data.openai_key || '',
@@ -11060,11 +11122,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <div className="relative">
                                 <div
                                   ref={(el) => {
+                                    if (!el) {
+                                      // Desmontaje (o doble-invocacion de Strict Mode en dev): liberar
+                                      // el mapa para que un remount no choque con "already initialized".
+                                      if (mapInstanceRef.current) {
+                                        mapInstanceRef.current.remove();
+                                        mapInstanceRef.current = null;
+                                        mapMarkersRef.current = [];
+                                      }
+                                      return;
+                                    }
+                                    if ((el as any)._leaflet_id) return;
                                     if (el && !mapInstanceRef.current) {
                                       const tryInit = () => {
                                         const L = (window as any).L;
                                         if (!L) { setTimeout(tryInit, 200); return; }
-                                        
+                                        if ((el as any)._leaflet_id) return;
+
                                         const map = L.map(el, {
                                           center: [20, 0],
                                           zoom: 2,
@@ -11080,7 +11154,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                                           maxZoom: 18,
                                         }).addTo(map);
-                                        
+
+                                        // Pintar las ubicaciones ya designadas (ej. desde el chat del agente)
+                                        // antes de esperar un nuevo clic - si no, el mapa arranca en blanco
+                                        // aunque adLocations ya tenga datos reales.
+                                        if (adLocations.length > 0) {
+                                          adLocations.forEach(loc => {
+                                            const circle = L.circle([loc.lat, loc.lng], {
+                                              radius: loc.radius * 1000,
+                                              color: '#0058bc',
+                                              fillColor: '#0058bc',
+                                              fillOpacity: 0.15,
+                                              weight: 2,
+                                            }).addTo(map);
+                                            const marker = L.marker([loc.lat, loc.lng]).addTo(map)
+                                              .bindPopup(`<b>${loc.name}</b><br>${loc.radius}km`);
+                                            mapMarkersRef.current.push({ circle, marker });
+                                          });
+                                          const bounds = L.latLngBounds(adLocations.map(l => [l.lat, l.lng]));
+                                          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+                                        }
+
                                         map.on('click', (e: any) => {
                                           const { lat, lng } = e.latlng;
                                           const radius = radiusRef.current;
