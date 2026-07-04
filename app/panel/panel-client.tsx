@@ -2621,14 +2621,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         `${hook}\n\n${caption}${hashtagsBlock}`.trim()
       );
 
-      // Validate objective — "Atraer clientes a mi Local Físico" siempre usa
-      // Interacción (ENGAGEMENT): maximiza likes/comentarios/seguidores de
-      // la Página, que es justo la señal que alimenta el público personalizado
-      // de remarketing (interactuaron con la página / comentaron o dieron
-      // like / siguen la cuenta) en la fase 2.
+      // Validate objective — cada objetivo de negocio usa el objetivo de
+      // campaña de Meta que mejor le sirve, en vez de dejarlo a lo que
+      // sugiera la IA:
+      //  - "Atraer clientes a mi Local Físico" -> Interacción (ENGAGEMENT):
+      //    maximiza likes/comentarios/seguidores de la Página, que es la
+      //    señal que alimenta el público personalizado de remarketing.
+      //  - "Recibir mensajes y vender por WhatsApp" -> Ventas (SALES): el
+      //    objetivo apunta directo a la conversión (venta) por chat, ya que
+      //    el paso anterior recolecta el numero de WhatsApp del negocio.
+      //  - "Vender desde mi Página Web o tienda online" -> Ventas (SALES):
+      //    igual, apunta a conversión, esta vez con destino la página/tienda
+      //    web que se pidió en el paso anterior.
+      // El público de remarketing de la fase 2 (page_engaged,
+      // page_post_interaction, page_liked, page_cta_clicked) se arma igual
+      // para los 3 objetivos — no depende del objetivo elegido.
       const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
       const objective = agentGoal === 'local'
         ? 'OUTCOME_ENGAGEMENT'
+        : (agentGoal === 'whatsapp' || agentGoal === 'web')
+        ? 'OUTCOME_SALES'
         : (validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC');
 
       const r = await authFetch('/api/panel/facebook/publish', {
