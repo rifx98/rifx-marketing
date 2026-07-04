@@ -2191,81 +2191,37 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       return;
     }
 
-    // Justo despues de elegir el objetivo (paso 0), si Meta esta conectado,
-    // preguntamos con que portafolio (cuenta publicitaria) y pagina publicar
-    // antes de seguir con las preguntas del negocio.
-    if (agentChatStep === 0 && ['local', 'whatsapp', 'web'].includes(value) && !metaPortfolioAskedRef.current) {
+    // Justo despues de elegir el objetivo (paso 0): la cuenta/pagina a usar
+    // ya se elige en los selectores de arriba (barra de Meta Ads), asi que
+    // acá solo confirmamos con cual se va a publicar y seguimos derecho,
+    // sin volver a preguntarlo en el chat.
+    if (agentChatStep === 0 && ['local', 'whatsapp', 'web'].includes(value)) {
       const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
       if (isMetaConnected) {
-        metaPortfolioAskedRef.current = true;
         const goal = value as 'local' | 'whatsapp' | 'web';
         setAgentGoal(goal);
-        setPendingGoalForMeta(goal);
         setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || value }]);
         setAgentInputText('');
         setAgentIsTyping(true);
-        fetchMetaAccountsLive().then((result) => {
-          const accounts = result?.adAccounts || [];
-          if (accounts.length === 0) {
-            // No pudimos listar cuentas (token vencido, etc.) - seguimos con
-            // lo ya guardado en vez de bloquear al usuario.
-            advanceToStep1(goal);
-            return;
-          }
-          if (accounts.length === 1) {
-            // Una sola cuenta disponible: no tiene sentido preguntar, la
-            // confirmamos directamente y seguimos.
-            setWizardSelectedAccount(accounts[0]);
-            setAgentMessages(prev => [...prev, {
-              id: Math.random().toString(),
-              sender: 'agent' as const,
-              text: language === 'en'
-                ? `You only have one ad account/portfolio: "${accounts[0].name}". We'll use that one.`
-                : `Solo tenés un portafolio/cuenta publicitaria: "${accounts[0].name}". Vamos a usar esa.`,
-            }]);
-            setTimeout(() => askMetaPageStep(accounts[0], result?.pages || []), 500);
-          } else {
-            setAgentMessages(prev => [...prev, {
-              id: 'ask-meta-portfolio',
-              sender: 'agent' as const,
-              text: language === 'en'
-                ? 'With which commercial portfolio (ad account) do you want to run this ad?'
-                : '¿Con qué portafolio comercial (cuenta publicitaria) querés hacer esta publicidad?',
-              options: accounts.map((a: any) => ({ label: `📊 ${a.name}`, value: `__wizard_account__:${a.id}` })),
-            }]);
-            setAgentIsTyping(false);
-          }
-        });
+        const accountName = configData.meta_ad_account_name || configData.facebook_ad_account_id;
+        const pageName = configData.meta_page_name || configData.facebook_page_id;
+        setTimeout(() => {
+          setAgentMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            sender: 'agent' as const,
+            text: pageName
+              ? (language === 'en'
+                  ? `We'll publish using ad account "${accountName}" on Page "${pageName}".`
+                  : `Vamos a publicitar con la cuenta "${accountName}" en la página "${pageName}".`)
+              : (language === 'en'
+                  ? `We'll publish using ad account "${accountName}".`
+                  : `Vamos a publicitar con la cuenta "${accountName}".`),
+          }]);
+          advanceToStep1(goal);
+        }, 500);
+        return;
       }
-      return;
-    }
-
-    if (value.startsWith('__wizard_account__:')) {
-      const accountId = value.replace('__wizard_account__:', '');
-      const account = metaAdAccounts.find((a: any) => a.id === accountId);
-      setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || account?.name || accountId }]);
-      setWizardSelectedAccount(account);
-      setAgentIsTyping(true);
-      setTimeout(() => askMetaPageStep(account), 500);
-      return;
-    }
-
-    if (value.startsWith('__wizard_page__:')) {
-      const pageId = value.replace('__wizard_page__:', '');
-      const page = metaPages.find((p: any) => p.id === pageId);
-      setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || page?.name || pageId }]);
-      setAgentIsTyping(true);
-      handleSelectMetaAccount(wizardSelectedAccount, page).then(() => {
-        setAgentMessages(prev => [...prev, {
-          id: Math.random().toString(),
-          sender: 'agent' as const,
-          text: language === 'en'
-            ? `Great! We'll publish on Page "${page?.name}" using ad account "${wizardSelectedAccount?.name}".`
-            : `¡Listo! Vamos a publicitar en la página "${page?.name}" usando la cuenta "${wizardSelectedAccount?.name}".`,
-        }]);
-        setTimeout(() => advanceToStep1(pendingGoalForMeta || 'local'), 500);
-      });
-      return;
+      // No conectado: seguimos con el flujo normal de abajo (pregunta de negocio).
     }
 
     if (value === '__continue_after_meta_check__') {
@@ -3695,11 +3651,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
   const [metaPages, setMetaPages] = useState<any[]>([]);
   const [metaShowPicker, setMetaShowPicker] = useState(false);
-  // Flujo de portafolio/pagina dentro del chat, disparado justo despues de
-  // elegir el objetivo de la campana (paso 0).
-  const [pendingGoalForMeta, setPendingGoalForMeta] = useState<'local' | 'whatsapp' | 'web' | null>(null);
-  const [wizardSelectedAccount, setWizardSelectedAccount] = useState<any>(null);
-  const metaPortfolioAskedRef = React.useRef(false);
 
   // Selectores de cuenta/pagina en la barra superior de Pautas Publicitarias
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
@@ -3756,49 +3707,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       sender: 'agent' as const,
       text: step1.text,
       options: step1.options,
-    }]);
-    setAgentIsTyping(false);
-  };
-
-  // Pregunta en que Pagina publicar, dada la cuenta publicitaria ya elegida.
-  // Si esa cuenta solo tiene una pagina disponible, la confirma directo.
-  // Recibe "pages" explicito (en vez de leer el estado metaPages) porque a
-  // veces se llama justo despues de un fetch, antes de que el closure de un
-  // setTimeout tenga la version actualizada del estado.
-  const askMetaPageStep = (account: any, pages: any[] = metaPages) => {
-    if (pages.length === 0) {
-      setAgentMessages(prev => [...prev, {
-        id: Math.random().toString(),
-        sender: 'agent' as const,
-        text: language === 'en'
-          ? `No Facebook Pages found for this account. We'll continue with account "${account?.name}" only.`
-          : `No encontré páginas de Facebook para esta cuenta. Seguimos solo con la cuenta "${account?.name}".`,
-      }]);
-      handleSelectMetaAccount(account, null).then(() => {
-        setTimeout(() => advanceToStep1(pendingGoalForMeta || 'local'), 400);
-      });
-      return;
-    }
-    if (pages.length === 1) {
-      setAgentMessages(prev => [...prev, {
-        id: Math.random().toString(),
-        sender: 'agent' as const,
-        text: language === 'en'
-          ? `We'll publish on your only connected Page: "${pages[0].name}".`
-          : `Vamos a publicitar en tu única página conectada: "${pages[0].name}".`,
-      }]);
-      handleSelectMetaAccount(account, pages[0]).then(() => {
-        setTimeout(() => advanceToStep1(pendingGoalForMeta || 'local'), 400);
-      });
-      return;
-    }
-    setAgentMessages(prev => [...prev, {
-      id: 'ask-meta-page',
-      sender: 'agent' as const,
-      text: language === 'en'
-        ? `Got it: "${account?.name}". Now, which Page do you want to advertise on?`
-        : `Perfecto: "${account?.name}". Ahora, ¿en qué página querés publicitar?`,
-      options: pages.map((p: any) => ({ label: `📄 ${p.name}`, value: `__wizard_page__:${p.id}` })),
     }]);
     setAgentIsTyping(false);
   };
