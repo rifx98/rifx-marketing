@@ -3882,8 +3882,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
   };
 
-  const handleMetaDisconnect = () => {
-    setConfigData((prev: any) => ({ ...prev, facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '', meta_ad_account_name: '', meta_page_name: '' }));
+  const handleMetaDisconnect = async () => {
+    const cleared = { facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '', meta_ad_account_name: '', meta_page_name: '' };
+    setConfigData((prev: any) => ({ ...prev, ...cleared }));
+    setMetaAdAccounts([]);
+    setMetaPages([]);
+    try {
+      const res = await authFetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cleared),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        setToast({ message: result.error || (language === 'en' ? 'Error disconnecting' : 'Error al desconectar'), type: 'error' });
+        return;
+      }
+    } catch (e: any) {
+      setToast({ message: e.message || (language === 'en' ? 'Error disconnecting' : 'Error al desconectar'), type: 'error' });
+      return;
+    }
     setToast({ message: language === 'en' ? 'Meta disconnected' : 'Meta desconectado', type: 'info' });
   };
   // Cuando el OAuth de Meta devuelve varias cuentas publicitarias mientras se
