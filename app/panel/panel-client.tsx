@@ -2459,6 +2459,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [fbInsights, setFbInsights] = useState<any>(null);
   const [fbLoading, setFbLoading] = useState(false);
   const [fbError, setFbError] = useState<string | null>(null);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month'>('week');
+  const [insightsLastUpdated, setInsightsLastUpdated] = useState<Date | null>(null);
+  const [insightsSecondsAgo, setInsightsSecondsAgo] = useState(0);
   const [aiInsights, setAiInsights] = useState<{ message: string; metric: string; confidence: string }[] | null>(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const isNoMetaApiError = (msg: string) => msg?.toLowerCase().includes('no tienes credenciales') || msg?.toLowerCase().includes('meta ads configuradas') || msg?.toLowerCase().includes('faltan credenciales');
@@ -2479,7 +2482,78 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setAiInsightsLoading(false);
     }
   };
-  const loadFbInsights = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/insights?date_preset=last_30d'); const d = await r.json(); if(d.success) { setFbInsights(d); loadAiInsights(d); } else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
+  const loadFbInsights = async (periodOverride?: 'week' | 'month') => {
+    setFbLoading(true); setFbError(null);
+    try {
+      const period = periodOverride || analyticsPeriod;
+      const r = await authFetch(`/api/panel/facebook/insights?period=${period}`);
+      const d = await r.json();
+      if (d.success) {
+        setFbInsights(d);
+        setInsightsLastUpdated(new Date());
+        loadAiInsights(d);
+      } else {
+        if (isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error || 'Error'); }
+      }
+    } catch (e: any) {
+      if (isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); }
+    } finally { setFbLoading(false); }
+  };
+
+  // Refresco automatico cada 60s mientras se esta viendo la pestaña de
+  // Analiticas y la pagina esta visible (se pausa si el usuario cambia de
+  // pestaña del navegador, para no gastar cuota de la API sin necesidad).
+  useEffect(() => {
+    if (activeTab !== 'campaigns' || campaignSubTab !== 'analytics' || !fbInsights) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadFbInsights();
+    }, 60000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, campaignSubTab, !!fbInsights, analyticsPeriod]);
+
+  // Contador de "hace X segundos" para el indicador de ultima actualizacion
+  useEffect(() => {
+    if (!insightsLastUpdated) return;
+    const tick = () => setInsightsSecondsAgo(Math.floor((Date.now() - insightsLastUpdated.getTime()) / 1000));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [insightsLastUpdated]);
+
+  const handleAnalyticsPeriodChange = (period: 'week' | 'month') => {
+    setAnalyticsPeriod(period);
+    if (fbInsights) loadFbInsights(period);
+  };
+
+  // delta null = periodo anterior sin datos suficientes para comparar
+  const formatDelta = (delta: number | null, lang: string): { text: string; positive: boolean | null } => {
+    if (delta === null) return { text: lang === 'en' ? 'Not enough data' : 'Datos insuficientes', positive: null };
+    return { text: `${delta > 0 ? '+' : ''}${delta}%`, positive: delta >= 0 };
+  };
+
+  const formatCompact = (raw: string | number): string => {
+    const n = typeof raw === 'string' ? parseInt(raw, 10) : raw;
+    if (!n || isNaN(n)) return '0';
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return n.toLocaleString();
+  };
+
+  // Sparkline real a partir de dailyInsights (no datos inventados)
+  const buildSparkline = (metric: 'impressions' | 'clicks' | 'conversionRate'): number[] => {
+    const daily = fbInsights?.dailyInsights as any[] | undefined;
+    if (!daily || daily.length === 0) return [];
+    const values = daily.map(d => {
+      if (metric === 'conversionRate') {
+        const clicks = parseInt(d.clicks || '0', 10);
+        const conv = parseInt(d.conversions || '0', 10);
+        return clicks > 0 ? (conv / clicks) * 100 : 0;
+      }
+      return parseInt(d[metric] || '0', 10);
+    });
+    const max = Math.max(...values, 1);
+    return values.map(v => Math.max(4, Math.round((v / max) * 100)));
+  };
   const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await authFetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await authFetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const [fbPublishing, setFbPublishing] = useState(false);
@@ -12236,15 +12310,31 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                   <div>
                     <h3 className="text-2xl font-semibold text-[#0b1c30]">{language === 'en' ? 'Performance Summary' : 'Resumen de Rendimiento'}</h3>
-                    <p className="text-sm text-[#414754]">{fbInsights ? (language === 'en' ? 'Live data from Facebook API' : 'Datos en vivo de Facebook API') : (language === 'en' ? 'Click Load to fetch real data' : 'Haz clic en Cargar para datos reales')}</p>
+                    <p className="text-sm text-[#414754] flex items-center gap-2">
+                      {fbInsights ? (
+                        <>
+                          <span className={`w-1.5 h-1.5 rounded-full ${fbLoading ? 'bg-amber-400 animate-pulse' : 'bg-[#006947]'}`} />
+                          {fbLoading
+                            ? (language === 'en' ? 'Updating...' : 'Actualizando...')
+                            : (language === 'en' ? `Updated ${insightsSecondsAgo}s ago` : `Actualizado hace ${insightsSecondsAgo}s`)}
+                        </>
+                      ) : (language === 'en' ? 'Click Load to fetch real data' : 'Haz clic en Cargar para datos reales')}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-[#eff4ff] border border-[#c1c6d6] rounded-lg px-4 py-2 gap-3">
-                      <span className="material-symbols-outlined text-[#414754]">calendar_today</span>
-                      <span className="text-sm font-medium">{language === 'en' ? 'Last 30 days' : 'Últimos 30 días'}</span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center bg-[#eff4ff] border border-[#c1c6d6] rounded-lg p-1 gap-1">
+                      {(['week', 'month'] as const).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => handleAnalyticsPeriodChange(p)}
+                          className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-all ${analyticsPeriod === p ? 'bg-white text-[#0058bc] shadow-sm' : 'text-[#414754] hover:text-[#0b1c30]'}`}
+                        >
+                          {p === 'week' ? (language === 'en' ? 'Weekly' : 'Semanal') : (language === 'en' ? 'Monthly' : 'Mensual')}
+                        </button>
+                      ))}
                     </div>
                     <button onClick={() => loadFbInsights()} disabled={fbLoading} className="px-5 py-2 text-white font-semibold rounded-lg text-sm flex items-center gap-2 disabled:opacity-50 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
-                      <span className="material-symbols-outlined text-sm">{fbLoading ? 'sync' : 'cloud_download'}</span>
+                      <span className={`material-symbols-outlined text-sm ${fbLoading ? 'animate-spin' : ''}`}>{fbLoading ? 'sync' : 'cloud_download'}</span>
                       {fbLoading ? (language === 'en' ? 'Loading...' : 'Cargando...') : (language === 'en' ? 'Load from Facebook' : 'Cargar de Facebook')}
                     </button>
                     <button className="bg-white border border-[#c1c6d6] text-[#0b1c30] px-6 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-[#eff4ff] transition-colors">
@@ -12254,31 +12344,87 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 </div>
 
-                {/* KPI Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {[
-                    { label: 'ROAS Total', value: (fbInsights?.kpis?.roas || '0.00') + 'x', change: fbInsights ? 'Facebook API' : '--', positive: true, bars: [40,60,50,70,90,85] },
-                    { label: language === 'en' ? 'Total Spend' : 'Gasto Total', value: '$' + (fbInsights?.kpis?.spend || '0.00'), change: fbInsights ? (language === 'en' ? 'Real data' : 'Datos reales') : '--', positive: true, bars: [30,50,40,80,70,100] },
-                    { label: language === 'en' ? 'Average CPA' : 'CPA Promedio', value: '$' + (fbInsights?.kpis?.cpa || '0.00'), change: fbInsights ? 'CPC: $' + (fbInsights?.kpis?.cpc || '0.00') : '--', positive: false, bars: [80,70,90,60,50,40] },
-                    { label: 'CTR Global', value: (fbInsights?.kpis?.ctr || '0.00') + '%', change: fbInsights ? (fbInsights?.kpis?.clicks || '0') + ' clicks' : '--', positive: true, bars: [40,45,55,60,65,70] },
-                  ].map((kpi, i) => (
-                    <div key={i} className="bg-white p-6 rounded-xl border border-[#c1c6d6] flex flex-col gap-4" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
-                      <div className="flex justify-between items-start">
-                        <span className="text-[12px] font-semibold text-[#414754] uppercase tracking-wider">{kpi.label}</span>
-                        <span className={`text-[11px] font-semibold px-2 py-1 rounded ${kpi.positive ? 'text-[#006947] bg-[#006947]/10' : 'text-[#ba1a1a] bg-[#ba1a1a]/10'}`}>{kpi.change}</span>
-                      </div>
-                      <div>
-                        <span className="text-3xl font-bold text-[#0b1c30] tracking-tight">{kpi.value}</span>
-                        <div className="h-8 w-full mt-2 rounded-lg flex items-end" style={{ backgroundColor: kpi.positive ? 'rgba(0,88,188,0.05)' : 'rgba(186,26,26,0.05)' }}>
-                          <div className="w-full flex items-baseline gap-[2px] px-1">
-                            {kpi.bars.map((h, j) => (
-                              <div key={j} className="w-full rounded-t-sm" style={{ height: h+'%', backgroundColor: kpi.positive ? `rgba(0,88,188,${0.2 + j*0.15})` : `rgba(186,26,26,${0.2 + j*0.15})` }} />
-                            ))}
+                {/* Alertas de Rendimiento */}
+                {fbInsights?.alerts && fbInsights.alerts.length > 0 && (
+                  <div className="space-y-2">
+                    {fbInsights.alerts.map((alert: any, i: number) => {
+                      const styles = alert.severity === 'critical'
+                        ? { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', icon: 'error', iconColor: 'text-red-500' }
+                        : alert.severity === 'warning'
+                        ? { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', icon: 'warning', iconColor: 'text-amber-500' }
+                        : { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', icon: 'info', iconColor: 'text-blue-500' };
+                      return (
+                        <div key={i} className={`flex items-start gap-3 p-4 rounded-xl border ${styles.bg} ${styles.border}`}>
+                          <span className={`material-symbols-outlined ${styles.iconColor}`} style={{ fontVariationSettings: "'FILL' 1" }}>{styles.icon}</span>
+                          <div className="min-w-0">
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${styles.text}`}>{alert.metric}</span>
+                            <p className={`text-sm ${styles.text}`}>{alert.message}</p>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* KPI Grid — 5 metricas clave, cada una con delta real vs periodo anterior */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                  {[
+                    {
+                      label: language === 'en' ? 'Impressions' : 'Impresiones',
+                      value: formatCompact(fbInsights?.current?.kpis?.impressions || 0),
+                      delta: fbInsights?.deltas?.impressions ?? null,
+                      sparkline: buildSparkline('impressions'),
+                    },
+                    {
+                      label: language === 'en' ? 'Clicks' : 'Clics',
+                      value: formatCompact(fbInsights?.current?.kpis?.clicks || 0),
+                      delta: fbInsights?.deltas?.clicks ?? null,
+                      sparkline: buildSparkline('clicks'),
+                    },
+                    {
+                      label: language === 'en' ? 'Conversion Rate' : 'Tasa de Conversión',
+                      value: (fbInsights?.current?.kpis?.conversionRate || '0.00') + '%',
+                      delta: fbInsights?.deltas?.conversionRate ?? null,
+                      sparkline: buildSparkline('conversionRate'),
+                    },
+                    {
+                      label: language === 'en' ? 'Revenue' : 'Ingresos',
+                      value: '$' + (fbInsights?.current?.revenue ?? 0).toFixed(2),
+                      delta: fbInsights?.deltas?.revenue ?? null,
+                      sub: fbInsights ? `ROAS: ${(fbInsights.current.revenue / Math.max(0.01, parseFloat(fbInsights.current.kpis.spend))).toFixed(2)}x` : undefined,
+                    },
+                    {
+                      label: language === 'en' ? 'Appointments Booked' : 'Citas Agendadas',
+                      value: String(fbInsights?.current?.appointments ?? 0),
+                      delta: fbInsights?.deltas?.appointments ?? null,
+                      sub: fbInsights && fbInsights.current.appointments > 0
+                        ? `${language === 'en' ? 'Cost/appt' : 'Costo/cita'}: $${(parseFloat(fbInsights.current.kpis.spend) / fbInsights.current.appointments).toFixed(2)}`
+                        : undefined,
+                    },
+                  ].map((kpi, i) => {
+                    const delta = formatDelta(fbInsights ? kpi.delta : null, language);
+                    return (
+                      <div key={i} className="bg-white p-6 rounded-xl border border-[#c1c6d6] flex flex-col gap-3" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                        <span className="text-[11px] font-semibold text-[#414754] uppercase tracking-wider">{kpi.label}</span>
+                        <span className="text-3xl font-bold text-[#0b1c30] tracking-tight">{fbInsights ? kpi.value : '--'}</span>
+                        {fbInsights && (
+                          <span className={`self-start text-[11px] font-semibold px-2 py-0.5 rounded ${
+                            delta.positive === null ? 'text-[#727785] bg-[#f4f6fb]' : delta.positive ? 'text-[#006947] bg-[#006947]/10' : 'text-[#ba1a1a] bg-[#ba1a1a]/10'
+                          }`}>{delta.text}</span>
+                        )}
+                        {kpi.sub && <span className="text-[11px] text-[#727785]">{kpi.sub}</span>}
+                        {kpi.sparkline && kpi.sparkline.length > 0 && (
+                          <div className="h-8 w-full mt-1 rounded-lg" style={{ backgroundColor: 'rgba(0,88,188,0.05)' }}>
+                            <div className="w-full h-full flex items-end gap-[2px] px-1">
+                              {kpi.sparkline.map((h, j) => (
+                                <div key={j} className="w-full rounded-t-sm bg-[#0058bc]" style={{ height: h + '%', opacity: 0.35 + (j / kpi.sparkline!.length) * 0.65 }} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Bento: Chart + AI Insights */}
@@ -12333,6 +12479,37 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </button>
                   </div>
                 </div>
+
+                {/* ROI Summary */}
+                {fbInsights && (
+                  <div className="bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                    <h4 className="text-xl font-semibold text-[#0b1c30] mb-1">{language === 'en' ? 'ROI Summary' : 'Resumen de ROI'}</h4>
+                    <p className="text-sm text-[#414754] mb-5">
+                      {language === 'en' ? 'For every $1 invested, you generated:' : 'Por cada $1 invertido, generaste:'}{' '}
+                      <span className="text-2xl font-bold text-[#006947] ml-1">
+                        ${(fbInsights.current.revenue / Math.max(0.01, parseFloat(fbInsights.current.kpis.spend))).toFixed(2)}
+                      </span>
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: language === 'en' ? 'Total Spend' : 'Gasto Total', value: '$' + fbInsights.current.kpis.spend },
+                        { label: language === 'en' ? 'Attributed Revenue' : 'Ingresos Atribuidos', value: '$' + fbInsights.current.revenue.toFixed(2) },
+                        { label: language === 'en' ? 'Appointments' : 'Citas Agendadas', value: String(fbInsights.current.appointments) },
+                        {
+                          label: language === 'en' ? 'Cost per Appointment' : 'Costo por Cita',
+                          value: fbInsights.current.appointments > 0
+                            ? '$' + (parseFloat(fbInsights.current.kpis.spend) / fbInsights.current.appointments).toFixed(2)
+                            : '--',
+                        },
+                      ].map((s, i) => (
+                        <div key={i} className="bg-[#f4f6fb] rounded-xl p-4">
+                          <p className="text-[11px] font-semibold text-[#414754] uppercase tracking-wide mb-1">{s.label}</p>
+                          <p className="text-xl font-bold text-[#0b1c30]">{s.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Bento: Platform Breakdown + Top Creatives */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
