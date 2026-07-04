@@ -51,12 +51,14 @@ export async function GET(req: NextRequest) {
       spend: item.spend || '0.00',
     }));
 
-    // Calcular porcentajes para el desglose
+    // Calcular porcentajes para el desglose (1 decimal para no esconder trafico real pero chico al redondear a 0%)
     const totalImpressions = platformBreakdown.reduce((sum: number, p: any) => sum + parseInt(p.impressions || '0'), 0);
-    const platformWithPct = platformBreakdown.map((p: any) => ({
-      ...p,
-      percentage: totalImpressions > 0 ? Math.round((parseInt(p.impressions) / totalImpressions) * 100) : 0,
-    }));
+    const platformWithPct = platformBreakdown
+      .map((p: any) => ({
+        ...p,
+        percentage: totalImpressions > 0 ? Math.round((parseInt(p.impressions) / totalImpressions) * 1000) / 10 : 0,
+      }))
+      .sort((a: any, b: any) => parseInt(b.impressions) - parseInt(a.impressions));
 
     // 3. Insights por dia (ultimos 7 dias) para grafico
     const dailyUrl = `${FB_BASE}/${adAccountId}/insights?fields=impressions,clicks,spend,actions&time_increment=1&date_preset=last_7d&access_token=${token}`;

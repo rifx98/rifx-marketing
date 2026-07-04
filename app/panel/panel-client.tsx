@@ -11698,12 +11698,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         { platform: 'messenger', percentage: 0 },
                       ]).map((p: any, i: number) => (
                         <div key={i}>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-sm font-medium capitalize">{p.platform === 'facebook' ? 'Facebook News Feed' : p.platform === 'instagram' ? 'Instagram Stories' : p.platform === 'audience_network' ? 'Audience Network' : p.platform === 'messenger' ? 'Messenger' : p.platform}</span>
-                            <span className="text-sm text-[#414754]">{p.percentage}%</span>
+                          <div className="flex justify-between items-baseline mb-2">
+                            <span className="text-sm font-medium capitalize">{p.platform === 'facebook' ? 'Facebook News Feed' : p.platform === 'instagram' ? 'Instagram Stories' : p.platform === 'audience_network' ? 'Audience Network' : p.platform === 'messenger' ? 'Messenger' : p.platform === 'whatsapp' ? 'WhatsApp' : p.platform}</span>
+                            <span className="text-sm text-[#414754]">
+                              {p.impressions !== undefined && <span className="text-[11px] text-[#898781] mr-2">{parseInt(p.impressions).toLocaleString()} {language === 'en' ? 'impr.' : 'impr.'}</span>}
+                              {p.percentage}%
+                            </span>
                           </div>
                           <div className="h-2 bg-[#e5eeff] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#0058bc] rounded-full transition-all duration-500" style={{ width: p.percentage+'%' }} />
+                            <div className="h-full bg-[#0058bc] rounded-full transition-all duration-500" style={{ width: Math.max(p.percentage, p.percentage > 0 ? 1 : 0)+'%' }} />
                           </div>
                         </div>
                       ))}
