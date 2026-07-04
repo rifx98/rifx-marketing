@@ -6556,6 +6556,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
+            { key: 'campaigns-analytics', icon: 'insights', labelEs: 'Métricas de Campañas', labelEn: 'Campaign Metrics', lockKey: 'campaigns', subTab: 'analytics' as const },
             { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
             { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
             { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
@@ -6563,12 +6564,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
             ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
           ].map(item => {
-            const isActive = activeTab === item.key;
-            const isLocked = isTabLocked(item.key);
+            const isActive = item.subTab
+              ? activeTab === 'campaigns' && campaignSubTab === item.subTab
+              : activeTab === item.key;
+            const isLocked = isTabLocked((item as any).lockKey || item.key);
             return (
               <button
                 key={item.key}
-                onClick={() => safeSetActiveTab(item.key as any)}
+                onClick={() => {
+                  if (item.subTab) {
+                    safeSetActiveTab('campaigns');
+                    setCampaignSubTab(item.subTab);
+                  } else {
+                    safeSetActiveTab(item.key as any);
+                  }
+                }}
                 className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${
                   isActive 
                     ? (isLocked 
