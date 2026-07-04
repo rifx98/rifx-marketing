@@ -3,14 +3,24 @@
  *  RIFX Facebook Ads Publisher — Meta Marketing API v25.0
  * ============================================================
  *
- *  Flujo:  Campaign → Ad Set → Ad Creative → Ad
+ *  Flujo:  Campaign → Ad Set → N Ad Creatives → N Ads
  *
  *  Modos de segmentación:
- *   • SIMPLE  (advantage_audience = 1) — Meta optimiza la audiencia
+ *   • SIMPLE  (advantage_audience = 1) — Meta optimiza la audiencia (Advantage+)
  *   • PRO     (advantage_audience = 0) — Segmentación manual completa
  *
  *  Detección automática: si el body NO trae interests, behaviors,
  *  custom_audiences ni lookalike_audiences → se usa SIMPLE.
+ *
+ *  Reglas de "agente experto":
+ *   - Siempre se prioriza Advantage+ (advantage_audience = 1), incluso en
+ *     remarketing (Meta permite expandir mas alla del publico base).
+ *   - Cada conjunto de anuncios publica un MINIMO de 6 anuncios (variantes
+ *     de copy) para dar señal suficiente al algoritmo de aprendizaje.
+ *   - Si duration_days >= 14, la campaña se divide automaticamente en 2
+ *     fases encadenadas: la primera mitad de alcance/aprendizaje, y la
+ *     segunda mitad de remarketing dirigido a quienes interactuaron con la
+ *     Pagina durante la fase 1 (Custom Audience de engagement).
  *
  *  Campos obligatorios del body:
  *   - campaign_name (string)
@@ -23,9 +33,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFacebookCredentials } from '@/lib/facebook';
 
+export const maxDuration = 60;
+
 // ─── Meta API Config ──────────────────────────────────────
 const FB_API_VERSION = 'v25.0';
 const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`;
+const MIN_ADS_PER_SET = 6;
 
 // ─── Valid Objectives (Meta Marketing API 2025+) ──────────
 const VALID_OBJECTIVES = [
@@ -61,6 +74,15 @@ interface RequestBody {
   // Required
   campaign_name: string;
   message: string;
+
+  // Multiples variantes de copy para A/B testing (min 6 por conjunto,
+  // se rellena ciclando si vienen menos)
+  message_variants?: string[];
+
+  // Duracion total solicitada — si es >= 14 dias se divide en 2 fases
+  duration_days?: number;
+
+  language?: 'en' | 'es';
 
   // Campaign
   objective?: string;
@@ -106,8 +128,6 @@ interface MetaApiError {
 
 type PublishStep = 'config' | 'campaign' | 'adset' | 'creative' | 'ad';
 
-
-
 // ─── Auto-detect Page ID ─────────────────────────────────
 async function fetchPageId(token: string): Promise<string> {
   const res = await fetch(`${FB_BASE}/me/accounts?access_token=${token}&limit=100`);
@@ -127,7 +147,6 @@ async function fetchPageId(token: string): Promise<string> {
     );
   }
 
-  // Intentar autodetectar la página que contenga "rifx" en su nombre
   const rifxPage = data.data.find((p: any) => p.name && p.name.toLowerCase().includes('rifx'));
   if (rifxPage) {
     console.log(`✨ Página RIFX autodetectada: ${rifxPage.name} (${rifxPage.id})`);
@@ -155,7 +174,6 @@ function validateCTA(raw?: string): string {
 function detectTargetingMode(body: RequestBody): 'simple' | 'professional' {
   if (body.targeting_mode) return body.targeting_mode;
 
-  // Si tiene intereses, behaviors, custom/lookalike → profesional
   const hasManual =
     (body.interests && body.interests.length > 0) ||
     (body.behaviors && body.behaviors.length > 0) ||
@@ -165,13 +183,23 @@ function detectTargetingMode(body: RequestBody): 'simple' | 'professional' {
   return hasManual ? 'professional' : 'simple';
 }
 
+// ─── Build message variants — siempre al menos MIN_ADS_PER_SET ───
+function buildMessageVariants(body: RequestBody): string[] {
+  const raw = (body.message_variants || []).map(v => (v || '').trim()).filter(Boolean);
+  const base = raw.length > 0 ? raw : [body.message];
+  const variants: string[] = [];
+  for (let i = 0; i < MIN_ADS_PER_SET; i++) {
+    variants.push(base[i % base.length]);
+  }
+  return variants;
+}
+
 // ─── Build targeting spec ─────────────────────────────────
-function buildTargeting(body: RequestBody, mode: 'simple' | 'professional') {
+function buildTargeting(body: RequestBody, mode: 'simple' | 'professional', customAudienceIds: string[] = []) {
   // Advantage+ (simple) requires age_min=18, age_max=65 — no custom ranges allowed
   const ageMin = mode === 'simple' ? 18 : Math.max(13, Math.min(65, body.age_min || 18));
   const ageMax = mode === 'simple' ? 65 : Math.max(ageMin, Math.min(65, body.age_max || 65));
 
-  // Build geo_locations — use custom_locations OR countries, never both (avoids overlap error)
   const hasCustomLocations = body.custom_locations && body.custom_locations.length > 0;
   const geoLocations: Record<string, any> = hasCustomLocations
     ? {
@@ -190,22 +218,22 @@ function buildTargeting(body: RequestBody, mode: 'simple' | 'professional') {
     geo_locations: geoLocations,
     age_min: ageMin,
     age_max: ageMax,
+    // Siempre Advantage+ audience — incluso en remarketing (Meta puede
+    // expandir mas alla del publico base de la custom audience si mejora
+    // el rendimiento). El "agente experto" nunca desactiva esto.
     targeting_automation: {
-      advantage_audience: mode === 'simple' ? 1 : 0,
+      advantage_audience: 1,
     },
   };
 
-  // Gender (only for professional mode)
   if (mode === 'professional' && body.gender !== undefined && body.gender !== 0) {
-    targeting.genders = [body.gender]; // 1=male, 2=female
+    targeting.genders = [body.gender];
   }
 
-  // Interests (professional only)
   if (mode === 'professional' && body.interests && body.interests.length > 0) {
     targeting.flexible_spec = [{ interests: body.interests }];
   }
 
-  // Behaviors (professional only)
   if (mode === 'professional' && body.behaviors && body.behaviors.length > 0) {
     if (targeting.flexible_spec) {
       targeting.flexible_spec[0].behaviors = body.behaviors;
@@ -214,16 +242,23 @@ function buildTargeting(body: RequestBody, mode: 'simple' | 'professional') {
     }
   }
 
-  // Custom audiences (professional only)
   if (mode === 'professional' && body.custom_audiences && body.custom_audiences.length > 0) {
     targeting.custom_audiences = body.custom_audiences;
   }
 
-  // Lookalike audiences (professional only)
   if (mode === 'professional' && body.lookalike_audiences && body.lookalike_audiences.length > 0) {
     targeting.custom_audiences = [
       ...(targeting.custom_audiences || []),
       ...body.lookalike_audiences,
+    ];
+  }
+
+  // Remarketing (fase 2): agrega la custom audience de engagement como
+  // "semilla", Advantage+ sigue activo para expandir si conviene.
+  if (customAudienceIds.length > 0) {
+    targeting.custom_audiences = [
+      ...(targeting.custom_audiences || []),
+      ...customAudienceIds.map(id => ({ id })),
     ];
   }
 
@@ -290,6 +325,120 @@ async function metaPost(url: string, payload: Record<string, any>) {
   return data;
 }
 
+interface AdSetResult {
+  campaignId: string;
+  adSetId: string;
+  adsCreated: Array<{ ad_id: string; creative_id: string }>;
+  adsFailed: number;
+}
+
+// ─── Create N ads (creative + ad) under one ad set, in parallel ───
+async function createAdsForSet(params: {
+  adAccountId: string;
+  adSetId: string;
+  pageId: string;
+  variants: string[];
+  linkUrl: string;
+  cta: string;
+  imageUrl?: string;
+  token: string;
+  campaignName: string;
+}): Promise<{ created: Array<{ ad_id: string; creative_id: string }>; failed: number; firstError: MetaApiError | null }> {
+  const { adAccountId, adSetId, pageId, variants, linkUrl, cta, imageUrl, token, campaignName } = params;
+
+  // 1. Crear todas las creatividades en paralelo
+  const creativeResults = await Promise.allSettled(variants.map((message, idx) => {
+    const linkData: Record<string, any> = {
+      message,
+      link: linkUrl,
+      call_to_action: { type: cta },
+    };
+    if (imageUrl) linkData.picture = imageUrl;
+
+    return metaPost(`${FB_BASE}/${adAccountId}/adcreatives`, {
+      name: `Creative ${idx + 1} - ${campaignName}`,
+      object_story_spec: { page_id: pageId, link_data: linkData },
+      access_token: token,
+    });
+  }));
+
+  let firstError: MetaApiError | null = null;
+  const okCreatives: Array<{ idx: number; creativeId: string }> = [];
+  creativeResults.forEach((r, idx) => {
+    if (r.status === 'fulfilled' && r.value.id) {
+      okCreatives.push({ idx, creativeId: r.value.id });
+    } else if (r.status === 'fulfilled' && r.value.error) {
+      if (!firstError) firstError = r.value.error;
+    }
+  });
+
+  // 2. Crear los ads correspondientes en paralelo
+  const adResults = await Promise.allSettled(okCreatives.map(({ idx, creativeId }) =>
+    metaPost(`${FB_BASE}/${adAccountId}/ads`, {
+      name: `Ad ${idx + 1} - ${campaignName}`,
+      adset_id: adSetId,
+      creative: { creative_id: creativeId },
+      status: 'PAUSED',
+      access_token: token,
+    }).then(data => ({ data, creativeId }))
+  ));
+
+  const created: Array<{ ad_id: string; creative_id: string }> = [];
+  adResults.forEach(r => {
+    if (r.status === 'fulfilled' && r.value.data.id) {
+      created.push({ ad_id: r.value.data.id, creative_id: r.value.creativeId });
+    } else if (r.status === 'fulfilled' && r.value.data.error) {
+      if (!firstError) firstError = r.value.data.error;
+    }
+  });
+
+  return { created, failed: variants.length - created.length, firstError };
+}
+
+// ─── Custom Audience de engagement con la Pagina (para remarketing) ───
+// Best-effort: si falla, la fase 2 sigue corriendo con targeting normal.
+async function createEngagementAudience(params: {
+  adAccountId: string;
+  pageId: string;
+  retentionDays: number;
+  name: string;
+  token: string;
+}): Promise<string | null> {
+  const { adAccountId, pageId, retentionDays, name, token } = params;
+  try {
+    const data = await metaPost(`${FB_BASE}/${adAccountId}/customaudiences`, {
+      name,
+      subtype: 'ENGAGEMENT',
+      rule: JSON.stringify({
+        inclusions: {
+          operator: 'or',
+          rules: [{
+            event_sources: [{ type: 'page', id: pageId }],
+            retention_seconds: Math.max(1, retentionDays) * 86400,
+            filter: {
+              operator: 'and',
+              filters: [{ field: 'event', operator: 'eq', value: 'page_engaged' }],
+            },
+          }],
+        },
+      }),
+      access_token: token,
+    });
+    if (data.id) return data.id;
+    console.error('⚠️ [REMARKETING AUDIENCE] No se pudo crear, se sigue con targeting normal:', data.error);
+    return null;
+  } catch (err) {
+    console.error('⚠️ [REMARKETING AUDIENCE] Excepción, se sigue con targeting normal:', err);
+    return null;
+  }
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 // ─── MAIN: POST handler ──────────────────────────────────
 export const dynamic = 'force-dynamic';
 
@@ -314,144 +463,226 @@ export async function POST(req: NextRequest) {
     const mode = detectTargetingMode(body);
     const status = body.status || 'PAUSED';
     const dailyBudget = Math.max(100, body.daily_budget || 500); // mínimo $1
+    const linkUrl = body.link_url || 'https://rifx.online';
+    const lang = body.language === 'en' ? 'en' : 'es';
+    const durationDays = Math.max(1, Math.min(90, body.duration_days || 30));
+    const shouldSplit = durationDays >= 14;
+    const messageVariants = buildMessageVariants(body);
 
     console.log(`\n${'═'.repeat(60)}`);
-    console.log(`🚀 RIFX Ad Publisher — Mode: ${mode.toUpperCase()}`);
+    console.log(`🚀 RIFX Ad Publisher — Mode: ${mode.toUpperCase()} | Advantage+: ON`);
     console.log(`   Objective: ${objective} | Goal: ${optimizationGoal}`);
-    console.log(`   Budget: $${(dailyBudget / 100).toFixed(2)}/day | Status: ${status}`);
-    console.log(`   Page: ${resolvedPageId} | API: ${FB_API_VERSION}`);
+    console.log(`   Budget: $${(dailyBudget / 100).toFixed(2)}/day | Duration: ${durationDays}d | Split: ${shouldSplit}`);
+    console.log(`   Ads per set: ${messageVariants.length} | Page: ${resolvedPageId} | API: ${FB_API_VERSION}`);
     console.log(`${'═'.repeat(60)}\n`);
 
-    // ── 1. Create Campaign ──────────────────────────────
-    const campaignPayload = {
-      name: body.campaign_name,
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+
+    const phase1Days = shouldSplit ? Math.ceil(durationDays / 2) : durationDays;
+    const phase2Days = shouldSplit ? durationDays - phase1Days : 0;
+    const phase1End = addDays(tomorrow, phase1Days);
+
+    // ── FASE 1 (o campaña unica si no hay split) ────────
+    const phase1Name = shouldSplit ? `${body.campaign_name} - Alcance` : body.campaign_name;
+    const campaign1Data = await metaPost(`${FB_BASE}/${adAccountId}/campaigns`, {
+      name: phase1Name,
       objective,
       status,
       special_ad_categories: [] as string[],
       is_adset_budget_sharing_enabled: false,
       access_token: token,
-    };
+    });
 
-    const campaignData = await metaPost(
-      `${FB_BASE}/${adAccountId}/campaigns`,
-      campaignPayload
-    );
-
-    if (campaignData.error) {
-      return createErrorResponse('campaign', campaignData.error);
+    if (campaign1Data.error) {
+      return createErrorResponse('campaign', campaign1Data.error);
     }
-    const campaignId = campaignData.id;
+    const campaign1Id = campaign1Data.id;
 
-    // ── 2. Create Ad Set ────────────────────────────────
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-
-    const targeting = buildTargeting(body, mode);
-
-    const adSetPayload = {
-      name: body.ad_set_name || `${body.campaign_name} - Ad Set`,
-      campaign_id: campaignId,
+    const targeting1 = buildTargeting(body, mode);
+    const adSet1Data = await metaPost(`${FB_BASE}/${adAccountId}/adsets`, {
+      name: body.ad_set_name || `${phase1Name} - Ad Set`,
+      campaign_id: campaign1Id,
       daily_budget: dailyBudget,
       billing_event: 'IMPRESSIONS',
       optimization_goal: optimizationGoal,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      targeting,
+      targeting: targeting1,
       start_time: tomorrow.toISOString(),
+      end_time: phase1End.toISOString(),
       status,
       access_token: token,
-    };
+    });
 
-    const adSetData = await metaPost(
-      `${FB_BASE}/${adAccountId}/adsets`,
-      adSetPayload
-    );
-
-    if (adSetData.error) {
-      await rollbackCampaign(campaignId, token);
-      return createErrorResponse('adset', adSetData.error, {
-        campaign_id: campaignId,
+    if (adSet1Data.error) {
+      await rollbackCampaign(campaign1Id, token);
+      return createErrorResponse('adset', adSet1Data.error, {
+        campaign_id: campaign1Id,
         targeting_mode: mode,
-        advantage_audience: targeting.targeting_automation.advantage_audience,
+        advantage_audience: 1,
       });
     }
-    const adSetId = adSetData.id;
+    const adSet1Id = adSet1Data.id;
 
-    // ── 3. Create Ad Creative ───────────────────────────
-    const linkData: Record<string, any> = {
-      message: body.message,
-      link: body.link_url || 'https://rifx.online',
-      call_to_action: { type: cta },
-    };
+    const ads1 = await createAdsForSet({
+      adAccountId,
+      adSetId: adSet1Id,
+      pageId: resolvedPageId,
+      variants: messageVariants,
+      linkUrl,
+      cta,
+      imageUrl: body.image_url,
+      token,
+      campaignName: phase1Name,
+    });
 
-    if (body.image_url) {
-      linkData.picture = body.image_url;
+    if (ads1.created.length === 0) {
+      await rollbackCampaign(campaign1Id, token);
+      return createErrorResponse('ad', ads1.firstError || { message: 'No se pudo crear ningún anuncio.' }, {
+        campaign_id: campaign1Id,
+        adset_id: adSet1Id,
+      });
     }
 
-    const creativePayload = {
-      name: `Creative - ${body.campaign_name}`,
-      object_story_spec: {
-        page_id: resolvedPageId,
-        link_data: linkData,
-      },
+    const phase1Result: AdSetResult = {
+      campaignId: campaign1Id,
+      adSetId: adSet1Id,
+      adsCreated: ads1.created,
+      adsFailed: ads1.failed,
+    };
+
+    console.log(`\n✅ Fase 1 publicada: campaign=${campaign1Id} adset=${adSet1Id} ads=${ads1.created.length}/${messageVariants.length}\n`);
+
+    if (!shouldSplit) {
+      return NextResponse.json({
+        success: true,
+        message: `Campaña publicada exitosamente en Facebook (Estado: ${status})`,
+        targeting_mode: mode,
+        advantage_audience: 1,
+        phases: 1,
+        ads_created: phase1Result.adsCreated.length,
+        data: { phase1: phase1Result },
+      });
+    }
+
+    // ── FASE 2: Remarketing ─────────────────────────────
+    const phase2Name = `${body.campaign_name} - Remarketing`;
+    const audienceName = `RIFX Remarketing - ${body.campaign_name}`.substring(0, 100);
+    const audienceId = await createEngagementAudience({
+      adAccountId,
+      pageId: resolvedPageId,
+      retentionDays: phase1Days,
+      name: audienceName,
+      token,
+    });
+
+    const campaign2Data = await metaPost(`${FB_BASE}/${adAccountId}/campaigns`, {
+      name: phase2Name,
+      objective,
+      status,
+      special_ad_categories: [] as string[],
+      is_adset_budget_sharing_enabled: false,
       access_token: token,
-    };
+    });
 
-    const creativeData = await metaPost(
-      `${FB_BASE}/${adAccountId}/adcreatives`,
-      creativePayload
-    );
-
-    if (creativeData.error) {
-      await rollbackCampaign(campaignId, token);
-      return createErrorResponse('creative', creativeData.error, {
-        campaign_id: campaignId,
-        adset_id: adSetId,
+    if (campaign2Data.error) {
+      // Fase 1 ya quedo publicada y es funcional por si sola — no se revierte.
+      return NextResponse.json({
+        success: true,
+        message: `Fase 1 publicada, pero la fase 2 (remarketing) falló al crearse: ${campaign2Data.error.message}`,
+        targeting_mode: mode,
+        advantage_audience: 1,
+        phases: 1,
+        ads_created: phase1Result.adsCreated.length,
+        data: { phase1: phase1Result },
+        phase2_error: campaign2Data.error.message,
       });
     }
-    const creativeId = creativeData.id;
+    const campaign2Id = campaign2Data.id;
 
-    // ── 4. Create Ad ────────────────────────────────────
-    const adPayload = {
-      name: body.ad_name || `Ad - ${body.campaign_name}`,
-      adset_id: adSetId,
-      creative: { creative_id: creativeId },
+    const targeting2 = buildTargeting(body, mode, audienceId ? [audienceId] : []);
+    const phase2End = addDays(phase1End, phase2Days);
+    const adSet2Data = await metaPost(`${FB_BASE}/${adAccountId}/adsets`, {
+      name: `${phase2Name} - Ad Set`,
+      campaign_id: campaign2Id,
+      daily_budget: dailyBudget,
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: optimizationGoal,
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      targeting: targeting2,
+      start_time: phase1End.toISOString(),
+      end_time: phase2End.toISOString(),
       status,
       access_token: token,
-    };
+    });
 
-    const adData = await metaPost(
-      `${FB_BASE}/${adAccountId}/ads`,
-      adPayload
-    );
+    if (adSet2Data.error) {
+      await rollbackCampaign(campaign2Id, token);
+      return NextResponse.json({
+        success: true,
+        message: `Fase 1 publicada, pero el conjunto de anuncios de la fase 2 (remarketing) falló: ${adSet2Data.error.message}`,
+        targeting_mode: mode,
+        advantage_audience: 1,
+        phases: 1,
+        ads_created: phase1Result.adsCreated.length,
+        data: { phase1: phase1Result },
+        phase2_error: adSet2Data.error.message,
+      });
+    }
+    const adSet2Id = adSet2Data.id;
 
-    if (adData.error) {
-      await rollbackCampaign(campaignId, token);
-      return createErrorResponse('ad', adData.error, {
-        campaign_id: campaignId,
-        adset_id: adSetId,
-        creative_id: creativeId,
+    // Copy de remarketing: reconoce que esta persona ya interactuo antes.
+    const remarketingPrefix = lang === 'en'
+      ? '👋 Still thinking about it? Here\'s another chance:\n\n'
+      : '👋 ¿Ya nos viste? Todavía estás a tiempo:\n\n';
+    const remarketingVariants = messageVariants.map(v => `${remarketingPrefix}${v}`);
+
+    const ads2 = await createAdsForSet({
+      adAccountId,
+      adSetId: adSet2Id,
+      pageId: resolvedPageId,
+      variants: remarketingVariants,
+      linkUrl,
+      cta,
+      imageUrl: body.image_url,
+      token,
+      campaignName: phase2Name,
+    });
+
+    if (ads2.created.length === 0) {
+      await rollbackCampaign(campaign2Id, token);
+      return NextResponse.json({
+        success: true,
+        message: `Fase 1 publicada, pero no se pudo crear ningún anuncio de remarketing para la fase 2.`,
+        targeting_mode: mode,
+        advantage_audience: 1,
+        phases: 1,
+        ads_created: phase1Result.adsCreated.length,
+        data: { phase1: phase1Result },
+        phase2_error: ads2.firstError?.message || 'No se pudo crear ningún anuncio de remarketing.',
       });
     }
 
-    // ── 5. Success ──────────────────────────────────────
-    console.log(`\n✅ RIFX Ad Published Successfully!`);
-    console.log(`   Campaign: ${campaignId}`);
-    console.log(`   Ad Set:   ${adSetId}`);
-    console.log(`   Creative: ${creativeId}`);
-    console.log(`   Ad:       ${adData.id}\n`);
+    const phase2Result: AdSetResult = {
+      campaignId: campaign2Id,
+      adSetId: adSet2Id,
+      adsCreated: ads2.created,
+      adsFailed: ads2.failed,
+    };
+
+    console.log(`\n✅ Fase 2 (remarketing) publicada: campaign=${campaign2Id} adset=${adSet2Id} ads=${ads2.created.length}/${remarketingVariants.length} audience=${audienceId || 'N/A'}\n`);
 
     return NextResponse.json({
       success: true,
-      message: `Anuncio publicado exitosamente en Facebook (Estado: ${status})`,
+      message: `Campaña publicada en 2 fases encadenadas (Estado: ${status})`,
       targeting_mode: mode,
-      advantage_audience: targeting.targeting_automation.advantage_audience,
-      data: {
-        campaign_id: campaignId,
-        adset_id: adSetId,
-        creative_id: creativeId,
-        ad_id: adData.id,
-      },
+      advantage_audience: 1,
+      phases: 2,
+      ads_created: phase1Result.adsCreated.length + phase2Result.adsCreated.length,
+      remarketing_audience_id: audienceId,
+      remarketing_audience_status: audienceId ? 'created' : 'fallback_broad_targeting',
+      data: { phase1: phase1Result, phase2: phase2Result },
     });
 
   } catch (error: any) {

@@ -1971,6 +1971,7 @@ export default function PanelClient() {
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
   const [dailyBudget, setDailyBudget] = useState(5);
+  const [campaignDurationDays, setCampaignDurationDays] = useState(30);
   const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [campaignResult, setCampaignResult] = useState<any>(null);
@@ -2118,8 +2119,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   const completeAgentSetup = (finalAnswers: Record<string, any>) => {
-    // 1. Set daily budget
+    // 1. Set daily budget and campaign duration
     setDailyBudget(finalAnswers.budget || 5);
+    setCampaignDurationDays(finalAnswers.duration_days || 30);
     
     const allTpls = [...CREATIVE_TEMPLATES, ...dbTemplates];
     
@@ -2329,10 +2331,30 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       } else if (currentStep === 5) {
         newAnswers.budget = Number(value) || 5;
         nextMsgText = language === 'en'
-          ? "Incredible! I have processed all marketing parameters.\n\nI have generated the AI Strategy Diagnosis and campaign preview for you here. Review it and press 'Apply Configuration' to complete:"
-          : "¡Increíble! He procesado todos los parámetros comerciales y geográficos de tu campaña.\n\nHe diseñado el Diagnóstico de Estrategia IA y el simulador de resultados para ti aquí abajo.\n\nRevísalo y presiona 'Aplicar Configuración' para ver tu campaña completamente configurada en el Paso 2 de publicación:";
-        isSummaryStep = true;
+          ? "Great! Last thing: how many days do you want this campaign to run? 📅\n\nIf you pick 14 days or more, I'll automatically split it into two phases for you: the first half to reach and learn from new people, and the second half as a dedicated remarketing campaign targeting the people who engaged during the first phase."
+          : "¡Perfecto! Última pregunta: ¿por cuántos días querés que corra esta campaña? 📅\n\nSi elegís 14 días o más, la voy a dividir automáticamente en dos fases: la primera mitad para llegar a gente nueva y aprender, y la segunda mitad como campaña de remarketing dedicada a las personas que interactuaron durante la primera fase.";
+        options = [
+          { label: "7 días", value: "7" },
+          { label: "14 días", value: "14" },
+          { label: "30 días", value: "30" },
+          { label: "60 días", value: "60" },
+        ];
       } else if (currentStep === 6) {
+        newAnswers.duration_days = Math.max(1, Math.min(90, Number(value) || 30));
+        const willSplit = newAnswers.duration_days >= 14;
+        nextMsgText = (language === 'en'
+          ? "Incredible! I have processed all marketing parameters.\n\n"
+          : "¡Increíble! He procesado todos los parámetros comerciales y geográficos de tu campaña.\n\n") +
+          (willSplit
+            ? (language === 'en'
+                ? `I'll run this as two linked campaigns: ~${Math.ceil(newAnswers.duration_days / 2)} days of reach/learning, then ~${newAnswers.duration_days - Math.ceil(newAnswers.duration_days / 2)} days of remarketing to the people reached in phase 1.\n\n`
+                : `La voy a correr como dos campañas encadenadas: ~${Math.ceil(newAnswers.duration_days / 2)} días de alcance/aprendizaje, y luego ~${newAnswers.duration_days - Math.ceil(newAnswers.duration_days / 2)} días de remarketing a quienes interactuaron en la fase 1.\n\n`)
+            : '') +
+          (language === 'en'
+            ? "I have generated the AI Strategy Diagnosis and campaign preview for you here. Review it and press 'Apply Configuration' to complete:"
+            : "He diseñado el Diagnóstico de Estrategia IA y el simulador de resultados para ti aquí abajo.\n\nRevísalo y presiona 'Aplicar Configuración' para ver tu campaña completamente configurada en el Paso 2 de publicación:");
+        isSummaryStep = true;
+      } else if (currentStep === 7) {
         if (value === 'apply') {
           completeAgentSetup(newAnswers);
           setChatgptFlowStep(2);
@@ -2543,22 +2565,34 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setToast({ message: language === 'en' ? 'Publishing campaign to Meta...' : 'Publicando campaña en Meta...', type: 'info' });
 
       const caption = campaignResult?.caption || adDescription || campaignDesc || '';
+      const hashtagsBlock = campaignResult?.hashtags ? '\n' + campaignResult.hashtags : '';
       const cfg = campaignResult?.campaign_config || {};
       const aud = campaignResult?.target_audience || {};
+
+      // Variantes de texto para poder publicar minimo 6 anuncios por conjunto
+      // (A/B testing de copy) — usa el hook principal + variantes generadas
+      // por IA. El backend rellena hasta 6 si vienen menos.
+      const hooks = [campaignResult?.hook, ...(campaignResult?.hook_variants || [])].filter(Boolean);
+      const messageVariants = (hooks.length > 0 ? hooks : [caption]).map((hook: string) =>
+        `${hook}\n\n${caption}${hashtagsBlock}`.trim()
+      );
 
       // Validate objective
       const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
       const objective = validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC';
 
       const r = await authFetch('/api/panel/facebook/publish', {
-        method: 'POST', 
+        method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           campaign_name: (campaignResult?.hook || caption || 'RIFX Campaign').substring(0, 50),
-          message: caption + (campaignResult?.hashtags ? '\n' + campaignResult.hashtags : ''),
+          message: caption + hashtagsBlock,
+          message_variants: messageVariants,
           daily_budget: dailyBudget * 100, // convert to cents
+          duration_days: campaignDurationDays,
+          language,
           objective,
-          targeting_mode: 'simple', // Advantage+ audience — Meta optimizes
+          targeting_mode: 'simple', // Advantage+ audience — Meta optimiza siempre
           countries: adCountries,
           custom_locations: adLocations.map(l => ({ lat: l.lat, lng: l.lng, radius: l.radius })),
           age_min: aud.age_min || 18,
@@ -2571,14 +2605,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       const d = await r.json();
       if (d.success) {
-        setToast({ message: language === 'en' 
-          ? `Campaign published! (${d.targeting_mode === 'simple' ? 'Advantage+ Audience' : 'Manual'} • PAUSED)` 
-          : `¡Campaña publicada! (${d.targeting_mode === 'simple' ? 'Audiencia Advantage+' : 'Manual'} • PAUSADA)`, 
-          type: 'success' 
+        const phasesMsg = d.phases === 2
+          ? (language === 'en' ? ` • 2 phases (learning + remarketing)` : ` • 2 fases (aprendizaje + remarketing)`)
+          : '';
+        const adsMsg = d.ads_created ? ` • ${d.ads_created} ${language === 'en' ? 'ads' : 'anuncios'}` : '';
+        setToast({ message: language === 'en'
+          ? `Campaign published! Advantage+ Audience${adsMsg}${phasesMsg} • PAUSED`
+          : `¡Campaña publicada! Audiencia Advantage+${adsMsg}${phasesMsg} • PAUSADA`,
+          type: 'success'
         });
         loadFbCampaigns();
         setCampaignSubTab('campaigns');
-      } else { 
+      } else {
         // Check if it's a "no API configured" error
         if (isNoMetaApiError(d.error)) {
           setShowMetaNoApiModal(true);
@@ -11130,8 +11168,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <>
                             <input
                               type={
-                                agentGoal === 'local' && agentChatStep === 5 ? 'number' :
-                                (agentGoal === 'whatsapp' || agentGoal === 'web') && agentChatStep === 5 ? 'number' : 'text'
+                                agentChatStep === 5 || agentChatStep === 6 ? 'number' : 'text'
                               }
                               value={agentInputText}
                               onChange={(e) => setAgentInputText(e.target.value)}
@@ -11408,6 +11445,35 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">USD/día</span>
                               </div>
                               <p className="text-[10px] text-[#727785] mt-1.5">{language === 'en' ? 'Minimum $1/day. Campaign starts paused, you can activate it from Facebook.' : 'Mínimo $1/día. La campaña inicia pausada, puedes activarla desde Facebook.'}</p>
+                            </div>
+
+                            {/* Campaign Duration */}
+                            <div className="mt-4 p-4 bg-gradient-to-r from-[#f0f7ff] to-[#eff4ff] rounded-xl border border-[#c1c6d6]">
+                              <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
+                                <span className="material-symbols-outlined text-sm text-indigo-500">event</span>
+                                {language === 'en' ? 'Campaign Duration' : 'Duración de la Campaña'}
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="90"
+                                  step="1"
+                                  value={campaignDurationDays}
+                                  onChange={e => setCampaignDurationDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
+                                  className="w-full pl-4 pr-16 py-3 bg-white border border-[#c1c6d6] rounded-xl text-sm font-semibold focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">{language === 'en' ? 'days' : 'días'}</span>
+                              </div>
+                              <p className="text-[10px] text-[#727785] mt-1.5">
+                                {campaignDurationDays >= 14
+                                  ? (language === 'en'
+                                      ? `Split automatically: ~${Math.ceil(campaignDurationDays / 2)} days reach/learning + ~${campaignDurationDays - Math.ceil(campaignDurationDays / 2)} days remarketing to people reached in phase 1.`
+                                      : `Se divide automáticamente: ~${Math.ceil(campaignDurationDays / 2)} días de alcance/aprendizaje + ~${campaignDurationDays - Math.ceil(campaignDurationDays / 2)} días de remarketing a quienes fueron alcanzados en la fase 1.`)
+                                  : (language === 'en'
+                                      ? 'Under 14 days: single continuous campaign (no remarketing split).'
+                                      : 'Menos de 14 días: campaña única continua (sin división de remarketing).')}
+                              </p>
                             </div>
 
                             {/* Location Targeting — Meta-style */}
