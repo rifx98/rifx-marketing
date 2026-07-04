@@ -2139,6 +2139,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       return;
     }
 
+    if (value.startsWith('__select_meta_account__:')) {
+      const accountId = value.replace('__select_meta_account__:', '');
+      const account = metaAdAccounts.find((a: any) => a.id === accountId);
+      if (account) {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'user' as const,
+          text: optionLabel || account.name,
+        }]);
+        handleSelectMetaAccount(account, metaPages[0]).then(() => {
+          setAgentMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            sender: 'agent' as const,
+            text: language === 'en'
+              ? `Done! We'll publish using "${account.name}"${metaPages[0]?.name ? ` on Page "${metaPages[0].name}"` : ''}. Continuing with your campaign...`
+              : `¡Listo! Vamos a publicar usando "${account.name}"${metaPages[0]?.name ? ` en la página "${metaPages[0].name}"` : ''}. Seguimos con tu campaña...`,
+          }]);
+        });
+      }
+      return;
+    }
+
     if (value === '__continue_after_meta_check__') {
       setAgentMessages(prev => [...prev, {
         id: Math.random().toString(),
@@ -3444,9 +3466,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               id: '1',
               sender: 'agent',
               text: (language === 'en'
-                ? `Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nWe'll publish to your Page "${pageLabel}" using ad account/portfolio "${accountLabel}" (you can change this anytime in Settings > Meta Ads).\n\nTo get started, tell me: what is your primary marketing goal?`
-                : `¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nVamos a publicar en tu página "${pageLabel}" usando la cuenta/portafolio publicitario "${accountLabel}" (podés cambiarlo cuando quieras en Configuración > Meta Ads).\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?`),
-              options: goalOptions
+                ? `Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nWe'll publish to your Page "${pageLabel}" using ad account/portfolio "${accountLabel}". If that's not right, hit "Change account" below.\n\nTo get started, tell me: what is your primary marketing goal?`
+                : `¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nVamos a publicar en tu página "${pageLabel}" usando la cuenta/portafolio publicitario "${accountLabel}". Si no es la correcta, tocá "Cambiar cuenta" abajo.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?`),
+              options: [
+                ...goalOptions,
+                { label: language === 'en' ? '🔄 Change account/page' : '🔄 Cambiar cuenta/página', value: '__change_meta__' },
+              ]
             }
           ]);
         }
@@ -3672,16 +3697,29 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setConfigData((prev: any) => ({ ...prev, facebook_access_token: '', facebook_ad_account_id: '', facebook_page_id: '', meta_ad_account_name: '', meta_page_name: '' }));
     setToast({ message: language === 'en' ? 'Meta disconnected' : 'Meta desconectado', type: 'info' });
   };
-  // El selector de cuenta/pagina solo esta montado en Configuracion > Meta Ads.
-  // Si el picker se activa desde el acceso rapido de Pautas Publicitarias, hay
-  // que llevar al usuario ahi para que pueda terminar de elegir la cuenta.
+  // Cuando el OAuth de Meta devuelve varias cuentas publicitarias mientras se
+  // esta en el chat del agente, mostramos el selector ahi mismo (como mensaje
+  // interactivo) en vez de mandar al usuario a Configuracion.
+  const metaPickerShownInChatRef = React.useRef(false);
   React.useEffect(() => {
-    if (metaShowPicker && settingsSection !== 'meta') {
-      safeSetActiveTab('settings');
-      setSettingsSection('meta');
+    if (metaShowPicker && activeTab === 'campaigns' && !metaPickerShownInChatRef.current) {
+      metaPickerShownInChatRef.current = true;
+      setAgentMessages(prev => [...prev, {
+        id: 'meta-account-picker',
+        sender: 'agent',
+        text: language === 'en'
+          ? 'Which ad account do you want to use to publish?'
+          : '¿Con qué cuenta publicitaria querés publicar?',
+        options: metaAdAccounts.map((account: any) => ({
+          label: `📊 ${account.name}`,
+          value: `__select_meta_account__:${account.id}`,
+        })),
+      }]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metaShowPicker]);
+    if (!metaShowPicker) {
+      metaPickerShownInChatRef.current = false;
+    }
+  }, [metaShowPicker, activeTab, metaAdAccounts, language]);
   const [memoryClearing, setMemoryClearing] = useState(false);
   const [memoryClearSuccess, setMemoryClearSuccess] = useState(false);
   const [memoryRetentionDays, setMemoryRetentionDays] = useState(30);
