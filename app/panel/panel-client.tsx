@@ -10836,11 +10836,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               </nav>
 
               {/* Meta Ads quick connect/disconnect - visible en las 3 sub-pestañas */}
-              <div className={`mt-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl border ${
-                configData.facebook_access_token && configData.facebook_ad_account_id
-                  ? 'bg-blue-50 border-blue-100'
-                  : 'bg-amber-50 border-amber-100'
-              }`}>
+              <div
+                className="mt-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-[#c1c6d6]"
+                style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${configData.facebook_access_token && configData.facebook_ad_account_id ? 'bg-[#1877F2]' : 'bg-amber-400'}`}>
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
@@ -10848,16 +10847,22 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="min-w-0">
                     {configData.facebook_access_token && configData.facebook_ad_account_id ? (
                       <>
-                        <p className="text-xs font-bold text-blue-800">{language === 'en' ? 'Meta Ads Connected' : 'Meta Ads Conectado'}</p>
-                        <p className="text-[10px] text-blue-500 truncate">
+                        <p className="text-xs font-bold text-[#0b1c30] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#006947] shrink-0" />
+                          {language === 'en' ? 'Meta Ads Connected' : 'Meta Ads Conectado'}
+                        </p>
+                        <p className="text-[10px] text-[#414754] truncate">
                           {configData.meta_ad_account_name || configData.facebook_ad_account_id}
                           {configData.meta_page_name || configData.facebook_page_id ? ` · ${configData.meta_page_name || configData.facebook_page_id}` : ''}
                         </p>
                       </>
                     ) : (
                       <>
-                        <p className="text-xs font-bold text-amber-800">{language === 'en' ? 'Meta Ads not connected' : 'Meta Ads sin conectar'}</p>
-                        <p className="text-[10px] text-amber-600">{language === 'en' ? 'Connect to publish real campaigns' : 'Conectá para poder publicar campañas reales'}</p>
+                        <p className="text-xs font-bold text-[#0b1c30] flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                          {language === 'en' ? 'Meta Ads not connected' : 'Meta Ads sin conectar'}
+                        </p>
+                        <p className="text-[10px] text-[#414754]">{language === 'en' ? 'Connect to publish real campaigns' : 'Conectá para poder publicar campañas reales'}</p>
                       </>
                     )}
                   </div>
@@ -10868,7 +10873,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="relative">
                       <button
                         onClick={() => toggleMetaDropdown('account')}
-                        className="flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-white border border-blue-200 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-all max-w-[140px]"
+                        className="flex items-center gap-1 text-[10px] font-bold text-[#0b1c30] bg-white border border-[#c1c6d6] px-2.5 py-1.5 rounded-lg hover:bg-[#eff4ff] transition-all max-w-[140px]"
                         title={language === 'en' ? 'Choose ad account' : 'Elegir cuenta publicitaria'}
                       >
                         <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
@@ -10900,7 +10905,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="relative">
                       <button
                         onClick={() => toggleMetaDropdown('page')}
-                        className="flex items-center gap-1 text-[10px] font-bold text-blue-800 bg-white border border-blue-200 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-all max-w-[140px]"
+                        className="flex items-center gap-1 text-[10px] font-bold text-[#0b1c30] bg-white border border-[#c1c6d6] px-2.5 py-1.5 rounded-lg hover:bg-[#eff4ff] transition-all max-w-[140px]"
                         title={language === 'en' ? 'Choose page' : 'Elegir página'}
                       >
                         <span className="material-symbols-outlined text-sm">flag</span>
