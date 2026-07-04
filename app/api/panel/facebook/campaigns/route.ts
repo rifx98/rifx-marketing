@@ -22,13 +22,17 @@ export async function GET(req: NextRequest) {
 
     const campaigns = campaignsData.data || [];
 
-    // 2. Obtener insights para cada campaña
+    // 2. Obtener insights + el schedule real (start_time/end_time viven en el
+    // Ad Set para campañas ABO, no en la campaña) para cada campaña
     const campaignsWithInsights = await Promise.all(
       campaigns.map(async (campaign: any) => {
         try {
-          const insightsUrl = `${FB_BASE}/${campaign.id}/insights?fields=impressions,clicks,ctr,cpc,spend,actions,cost_per_action_type&date_preset=${datePreset}&access_token=${token}`;
-          const insightsRes = await fetch(insightsUrl);
+          const [insightsRes, adsetsRes] = await Promise.all([
+            fetch(`${FB_BASE}/${campaign.id}/insights?fields=impressions,clicks,ctr,cpc,spend,actions,cost_per_action_type&date_preset=${datePreset}&access_token=${token}`),
+            fetch(`${FB_BASE}/${campaign.id}/adsets?fields=start_time,end_time&limit=50&access_token=${token}`),
+          ]);
           const insightsData = await insightsRes.json();
+          const adsetsData = await adsetsRes.json();
 
           const insight = insightsData.data?.[0] || {};
 
@@ -37,6 +41,18 @@ export async function GET(req: NextRequest) {
             (a: any) => a.action_type === 'offsite_conversion' || a.action_type === 'lead'
           );
 
+          // El schedule real de entrega vive en los Ad Sets (campaign.start_time
+          // suele venir vacio en campañas ABO) — usamos el mas temprano/tardio.
+          const adsets = adsetsData.data || [];
+          const adsetStarts = adsets.map((a: any) => a.start_time).filter(Boolean);
+          const adsetEnds = adsets.map((a: any) => a.end_time).filter(Boolean);
+          const effectiveStart = adsetStarts.length > 0
+            ? adsetStarts.sort()[0]
+            : campaign.start_time;
+          const effectiveEnd = adsetEnds.length > 0
+            ? adsetEnds.sort().reverse()[0]
+            : campaign.stop_time;
+
           return {
             id: campaign.id,
             name: campaign.name,
@@ -44,8 +60,8 @@ export async function GET(req: NextRequest) {
             objective: campaign.objective,
             daily_budget: campaign.daily_budget ? (parseInt(campaign.daily_budget) / 100).toFixed(2) : null,
             lifetime_budget: campaign.lifetime_budget ? (parseInt(campaign.lifetime_budget) / 100).toFixed(2) : null,
-            start_time: campaign.start_time,
-            stop_time: campaign.stop_time,
+            start_time: effectiveStart,
+            stop_time: effectiveEnd,
             created_time: campaign.created_time,
             insights: {
               impressions: insight.impressions || '0',
