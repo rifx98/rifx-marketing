@@ -3811,7 +3811,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
     const state = btoa(JSON.stringify({ action: 'meta_connect', ts: Date.now() }));
     const configId = process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '1718329089178291';
-    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}`;
+    // auth_type=rerequest fuerza a que Facebook vuelva a mostrar el dialogo de
+    // seleccion de paginas/cuentas (asset picker), incluso si el usuario ya
+    // habia conectado antes. Sin esto, Facebook a veces salta directo al
+    // permiso ya otorgado (solo 1 pagina) sin dejar elegir mas.
+    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}&auth_type=rerequest`;
     const w = 600, h = 700;
     const left = (window.screen.width - w) / 2;
     const top = (window.screen.height - h) / 2;
@@ -10814,6 +10818,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               {pg.id === configData.facebook_page_id && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
                             </button>
                           ))}
+                          {!metaListLoading && metaPages.length <= 1 && (
+                            <div className="border-t border-[#eee] px-3 py-2.5 bg-amber-50">
+                              <p className="text-[10px] text-amber-800 leading-snug mb-1.5">
+                                {language === 'en'
+                                  ? "Only seeing 1 page? Facebook only shares the pages you explicitly select during login."
+                                  : '¿Tenés más páginas y no aparecen? Facebook solo comparte las páginas que elegís explícitamente al conectar.'}
+                              </p>
+                              <button
+                                onClick={() => { setShowPageDropdown(false); handleMetaFacebookLogin(); }}
+                                className="text-[10px] font-black text-blue-700 hover:text-blue-900 uppercase tracking-wide"
+                              >
+                                {language === 'en' ? 'Reconnect & select all pages' : 'Reconectar y elegir todas las páginas'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
