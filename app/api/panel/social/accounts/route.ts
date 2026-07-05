@@ -339,6 +339,7 @@ export async function POST(req: NextRequest) {
 
       let updated = 0;
       let failed = 0;
+      const errors: Array<{ platform: string; platform_user_id: string; error: string }> = [];
       await Promise.all((accounts || []).map(async (acc) => {
         try {
           const token = decryptToken(acc.encrypted_access_token, acc.encryption_iv, acc.encryption_tag);
@@ -347,19 +348,26 @@ export async function POST(req: NextRequest) {
           const data = await res.json();
           if (data.error) {
             failed++;
+            errors.push({ platform: acc.platform, platform_user_id: acc.platform_user_id, error: data.error.message || JSON.stringify(data.error) });
+            console.error(`[refresh_pictures] Graph API error for ${acc.platform}/${acc.platform_user_id}:`, data.error);
             return;
           }
           const pictureUrl = acc.platform === 'facebook' ? (data.picture?.data?.url || null) : (data.profile_picture_url || null);
           if (pictureUrl) {
             await supabase.from('social_accounts').update({ profile_picture_url: pictureUrl }).eq('id', acc.id);
             updated++;
+          } else {
+            failed++;
+            errors.push({ platform: acc.platform, platform_user_id: acc.platform_user_id, error: 'No picture URL in response: ' + JSON.stringify(data) });
           }
-        } catch {
+        } catch (err: any) {
           failed++;
+          errors.push({ platform: acc.platform, platform_user_id: acc.platform_user_id, error: err.message || String(err) });
+          console.error(`[refresh_pictures] Exception for ${acc.platform}/${acc.platform_user_id}:`, err);
         }
       }));
 
-      return NextResponse.json({ success: true, updated, failed, total: accounts?.length || 0 });
+      return NextResponse.json({ success: true, updated, failed, total: accounts?.length || 0, errors });
     }
 
     // B. Guardar cuenta manualmente (como fallback o sandbox)
