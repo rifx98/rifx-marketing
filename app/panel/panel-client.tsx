@@ -2462,6 +2462,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month'>('week');
   const [insightsLastUpdated, setInsightsLastUpdated] = useState<Date | null>(null);
   const [insightsSecondsAgo, setInsightsSecondsAgo] = useState(0);
+  const analyticsExportRef = React.useRef<HTMLDivElement>(null);
+  const [exportingAnalytics, setExportingAnalytics] = useState(false);
   const [aiInsights, setAiInsights] = useState<{ message: string; metric: string; confidence: string }[] | null>(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const isNoMetaApiError = (msg: string) => msg?.toLowerCase().includes('no tienes credenciales') || msg?.toLowerCase().includes('meta ads configuradas') || msg?.toLowerCase().includes('faltan credenciales');
@@ -2524,6 +2526,45 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const handleAnalyticsPeriodChange = (period: 'week' | 'month') => {
     setAnalyticsPeriod(period);
     if (fbInsights) loadFbInsights(period);
+  };
+
+  // Exporta todo el panel de metricas (KPIs, alertas, grafico, ROI,
+  // plataformas y creatividades) como una sola imagen PNG de alta
+  // resolucion, tal como se ve en pantalla.
+  const handleExportAnalyticsImage = async () => {
+    if (!analyticsExportRef.current || exportingAnalytics) return;
+    setExportingAnalytics(true);
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+      const html2canvas = (await import('html2canvas-pro')).default;
+      const canvas = await html2canvas(analyticsExportRef.current, {
+        backgroundColor: '#f8f9ff',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDoc: Document) => {
+          // Los iconos de Material Symbols son ligaduras de fuente (el texto
+          // real detras es "error", "warning", etc.) — html2canvas dibuja
+          // texto caracter por caracter en un canvas 2D y no puede resolver
+          // ligaduras OpenType, asi que sale el nombre literal en vez del
+          // glifo. Los ocultamos para el export en vez de mostrar texto roto.
+          clonedDoc.querySelectorAll('.material-symbols-outlined').forEach((el) => {
+            (el as HTMLElement).style.visibility = 'hidden';
+          });
+        },
+      });
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().split('T')[0];
+      link.download = `rifx-analiticas-${analyticsPeriod}-${dateStr}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      setToast({ message: language === 'en' ? 'Report image downloaded' : 'Imagen del reporte descargada', type: 'success' });
+    } catch (e: any) {
+      console.error('[EXPORT ANALYTICS IMAGE]', e);
+      setToast({ message: language === 'en' ? 'Could not export the image' : 'No se pudo exportar la imagen', type: 'error' });
+    } finally {
+      setExportingAnalytics(false);
+    }
   };
 
   // delta null = periodo anterior sin datos suficientes para comparar
@@ -12342,12 +12383,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <span className={`material-symbols-outlined text-sm ${fbLoading ? 'animate-spin' : ''}`}>{fbLoading ? 'sync' : 'cloud_download'}</span>
                       {fbLoading ? (language === 'en' ? 'Loading...' : 'Cargando...') : (language === 'en' ? 'Load from Facebook' : 'Cargar de Facebook')}
                     </button>
-                    <button className="bg-white border border-[#c1c6d6] text-[#0b1c30] px-6 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-[#eff4ff] transition-colors">
-                      <span className="material-symbols-outlined">download</span>
-                      {language === 'en' ? 'Export' : 'Exportar'}
+                    <button
+                      onClick={handleExportAnalyticsImage}
+                      disabled={!fbInsights || exportingAnalytics}
+                      className="bg-white border border-[#c1c6d6] text-[#0b1c30] px-6 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-[#eff4ff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className={`material-symbols-outlined ${exportingAnalytics ? 'animate-spin' : ''}`}>{exportingAnalytics ? 'sync' : 'download'}</span>
+                      {exportingAnalytics ? (language === 'en' ? 'Exporting...' : 'Exportando...') : (language === 'en' ? 'Export' : 'Exportar')}
                     </button>
                   </div>
                 </div>
+
+                <div ref={analyticsExportRef} className="space-y-6 bg-[#f8f9ff] p-1">
+                {/* Encabezado del reporte — solo visible/relevante en la imagen exportada */}
+                {fbInsights && (
+                  <div className="px-2">
+                    <p className="text-[11px] font-bold text-[#0b1c30]">
+                      RIFX Marketing — {language === 'en' ? 'Performance Report' : 'Reporte de Rendimiento'} ({analyticsPeriod === 'week' ? (language === 'en' ? 'Weekly' : 'Semanal') : (language === 'en' ? 'Monthly' : 'Mensual')})
+                    </p>
+                    <p className="text-[10px] text-[#727785]">{language === 'en' ? 'Generated on' : 'Generado el'} {new Date().toLocaleString()}</p>
+                  </div>
+                )}
 
                 {/* Alertas de Rendimiento */}
                 {fbInsights?.alerts && fbInsights.alerts.length > 0 && (
@@ -12591,6 +12647,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </table>
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             )}
