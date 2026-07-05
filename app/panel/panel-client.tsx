@@ -11189,20 +11189,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     transition={{ duration: 0.3 }}
                     className="space-y-6"
                   >
-                    <div className="bg-white rounded-2xl border border-[#cbd5e1] overflow-hidden shadow-xl flex flex-col h-[650px] relative">
-                      {/* Premium Header */}
-                      <div className="bg-gradient-to-r from-[#0b1c30] to-[#0058bc] text-white p-4 px-6 flex items-center justify-between shadow-md">
+                    <div className="bg-white rounded-2xl border border-[#c1c6d6] overflow-hidden flex flex-col h-[650px] relative" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                      {/* Header */}
+                      <div className="bg-white border-b border-[#c1c6d6] p-4 px-6 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center border border-white/20 relative">
-                            <span className="material-symbols-outlined text-white text-xl animate-pulse">smart_toy</span>
-                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#0b1c30]" />
+                          <div className="w-10 h-10 bg-[#0058bc] rounded-full flex items-center justify-center relative">
+                            <span className="material-symbols-outlined text-white text-xl">smart_toy</span>
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#006947] rounded-full border-2 border-white" />
                           </div>
                           <div className="text-left">
-                            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-100">
+                            <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#0b1c30]">
                               {language === 'en' ? 'AI Ads Strategy Consultant' : 'Agente Experto en Meta Ads'}
                             </h4>
-                            <p className="text-[9px] text-green-400 font-bold flex items-center gap-1">
-                              <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full animate-ping" />
+                            <p className="text-[9px] text-[#006947] font-bold flex items-center gap-1">
+                              <span className="inline-block w-1.5 h-1.5 bg-[#006947] rounded-full animate-ping" />
                               {language === 'en' ? 'Online · Strategy Optimizer' : 'En línea · Optimización Estratégica'}
                             </p>
                           </div>
@@ -11240,7 +11240,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             setAgentInputText('');
                             setToast({ message: language === 'en' ? 'Chat restarted!' : '¡Conversación reiniciada!', type: 'info' });
                           }}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] font-bold text-white transition-all uppercase tracking-wider border border-white/10 active:scale-95"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-white border border-[#c1c6d6] hover:bg-[#eff4ff] rounded-lg text-[10px] font-bold text-[#0b1c30] transition-all uppercase tracking-wider active:scale-95"
                         >
                           <span className="material-symbols-outlined text-xs">restart_alt</span>
                           {language === 'en' ? 'Reset' : 'Reiniciar'}
@@ -11254,7 +11254,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           return (
                             <div key={msg.id} className={`flex gap-3 text-left ${isAgent ? 'justify-start' : 'justify-end'}`}>
                               {isAgent && (
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0b1c30] to-[#0058bc] flex items-center justify-center text-white text-xs shrink-0 shadow border border-slate-200">
+                                <div className="w-8 h-8 rounded-full bg-[#0058bc] flex items-center justify-center text-white text-xs shrink-0 shadow border border-slate-200">
                                   <span className="material-symbols-outlined text-[15px]">smart_toy</span>
                                 </div>
                               )}
@@ -11329,7 +11329,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         })}
                         {agentIsTyping && (
                           <div className="flex gap-3 text-left justify-start">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#0b1c30] to-[#0058bc] flex items-center justify-center text-white text-xs shrink-0 shadow border border-slate-200">
+                            <div className="w-8 h-8 rounded-full bg-[#0058bc] flex items-center justify-center text-white text-xs shrink-0 shadow border border-slate-200">
                               <span className="material-symbols-outlined text-[15px]">smart_toy</span>
                             </div>
                             <div className="bg-white border border-slate-200 text-slate-800 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1.5">
