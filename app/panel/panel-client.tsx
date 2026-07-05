@@ -1158,6 +1158,29 @@ export default function PanelClient() {
     }
   };
 
+  const [refreshingPictures, setRefreshingPictures] = useState(false);
+  const handleRefreshProfilePictures = async () => {
+    setRefreshingPictures(true);
+    try {
+      const res = await authFetch('/api/panel/social/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh_pictures' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({ message: language === 'en' ? `Updated ${data.updated}/${data.total} profile photos` : `Se actualizaron ${data.updated}/${data.total} fotos de perfil`, type: 'success' });
+        fetchSocialAccounts();
+      } else {
+        setToast({ message: data.error || (language === 'en' ? 'Could not refresh photos' : 'No se pudieron actualizar las fotos'), type: 'error' });
+      }
+    } catch (e: any) {
+      setToast({ message: e.message || (language === 'en' ? 'Could not refresh photos' : 'No se pudieron actualizar las fotos'), type: 'error' });
+    } finally {
+      setRefreshingPictures(false);
+    }
+  };
+
   const handleConnectMetaOAuth = async () => {
     try {
       const token = authToken || localStorage.getItem('rifx_token');
@@ -14701,9 +14724,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           Canales Vinculados
                         </h3>
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                          {socialAccounts.length}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleRefreshProfilePictures}
+                            disabled={refreshingPictures || socialAccounts.length === 0}
+                            title={language === 'en' ? 'Refresh profile photos' : 'Actualizar fotos de perfil'}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all disabled:opacity-40"
+                          >
+                            <span className={`material-symbols-outlined text-[15px] ${refreshingPictures ? 'animate-spin' : ''}`}>refresh</span>
+                          </button>
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                            {socialAccounts.length}
+                          </span>
+                        </div>
                       </div>
 
                       {socialAccountsLoading ? (

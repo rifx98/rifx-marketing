@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest, signToken, verifyToken } from '@/lib/auth';
-import { encryptToken } from '@/lib/encryption';
+import { encryptToken, decryptToken } from '@/lib/encryption';
 
 const META_API_VERSION = 'v19.0';
 const BASE_URL = 'https://graph.facebook.com';
@@ -67,8 +67,10 @@ export async function GET(req: NextRequest) {
       const tokenExpiresIn = llData.expires_in; // in seconds
       const tokenExpiresAt = tokenExpiresIn ? new Date(Date.now() + tokenExpiresIn * 1000).toISOString() : null;
 
-      // Step C: Fetch user's Facebook Pages
-      const pagesUrl = `${BASE_URL}/${META_API_VERSION}/me/accounts?access_token=${longLivedUserToken}&limit=100`;
+      // Step C: Fetch user's Facebook Pages (incluye la foto de perfil de la
+      // pagina, que antes no se pedia y por eso el panel mostraba solo la
+      // inicial en vez de la imagen real).
+      const pagesUrl = `${BASE_URL}/${META_API_VERSION}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${longLivedUserToken}&limit=100`;
       const pagesRes = await fetch(pagesUrl);
       const pagesData = await pagesRes.json();
 
@@ -140,6 +142,7 @@ export async function GET(req: NextRequest) {
         const pageId = page.id;
         const pageName = page.name;
         const pageAccessToken = page.access_token; // Page access token (long-lived)
+        const pagePicture = page.picture?.data?.url || null;
 
         // Encrypt page access token
         const fbEnc = encryptToken(pageAccessToken);
@@ -152,6 +155,7 @@ export async function GET(req: NextRequest) {
             platform: 'facebook',
             platform_user_id: pageId,
             platform_username: pageName,
+            profile_picture_url: pagePicture,
             encrypted_access_token: fbEnc.ciphertext,
             encrypted_refresh_token: null,
             encryption_iv: fbEnc.iv,
@@ -316,6 +320,46 @@ export async function POST(req: NextRequest) {
       const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${scopes}`;
 
       return NextResponse.json({ authUrl });
+    }
+
+    // A.2 Actualizar (backfill) las fotos de perfil de las cuentas de
+    // Facebook/Instagram ya conectadas — para cuentas vinculadas antes de que
+    // se guardara profile_picture_url, o si Facebook la rota/expira.
+    if (action === 'refresh_pictures') {
+      const supabase = createSupabaseAdmin();
+      const { data: accounts, error: fetchErr } = await supabase
+        .from('social_accounts')
+        .select('id, platform, platform_user_id, encrypted_access_token, encryption_iv, encryption_tag')
+        .eq('tenant_id', tenant.tenantId)
+        .in('platform', ['facebook', 'instagram']);
+
+      if (fetchErr) {
+        return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+      }
+
+      let updated = 0;
+      let failed = 0;
+      await Promise.all((accounts || []).map(async (acc) => {
+        try {
+          const token = decryptToken(acc.encrypted_access_token, acc.encryption_iv, acc.encryption_tag);
+          const field = acc.platform === 'facebook' ? 'picture{url}' : 'profile_picture_url';
+          const res = await fetch(`${BASE_URL}/${META_API_VERSION}/${acc.platform_user_id}?fields=${field}&access_token=${token}`);
+          const data = await res.json();
+          if (data.error) {
+            failed++;
+            return;
+          }
+          const pictureUrl = acc.platform === 'facebook' ? (data.picture?.data?.url || null) : (data.profile_picture_url || null);
+          if (pictureUrl) {
+            await supabase.from('social_accounts').update({ profile_picture_url: pictureUrl }).eq('id', acc.id);
+            updated++;
+          }
+        } catch {
+          failed++;
+        }
+      }));
+
+      return NextResponse.json({ success: true, updated, failed, total: accounts?.length || 0 });
     }
 
     // B. Guardar cuenta manualmente (como fallback o sandbox)
