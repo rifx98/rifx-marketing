@@ -1,9 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTenantFromRequest } from '@/lib/auth';
+import { createSupabaseAdmin } from '@/lib/supabase';
 
 // ============================================
 // LEMON SQUEEZY CHECKOUT — Crear sesión de pago
 // ============================================
+
+// GET: Historial real de pagos del tenant (tabla "payments", poblada por el
+// webhook de Lemon Squeezy en subscription_payment_success)
+export async function GET(req: NextRequest) {
+  try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    const supabase = createSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('payments')
+      .select('id, amount, currency, status, provider, plan, created_at')
+      .eq('tenant_id', tenant.tenantId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('❌ Error listando pagos:', error.message);
+      return NextResponse.json({ payments: [] });
+    }
+
+    return NextResponse.json({ payments: data || [] });
+  } catch (error: any) {
+    console.error('❌ Error en GET checkout/payments:', error);
+    return NextResponse.json({ payments: [] });
+  }
+}
 
 const VARIANT_MAP: Record<string, string> = {
   start: process.env.LEMONSQUEEZY_VARIANT_START || '',

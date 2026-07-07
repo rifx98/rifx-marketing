@@ -1594,6 +1594,20 @@ export default function PanelClient() {
   const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);
   const [isCancellingPlan, setIsCancellingPlan] = useState(false);
   const [isReactivatingPlan, setIsReactivatingPlan] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [paymentHistoryLoading, setPaymentHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'billing') return;
+    let cancelled = false;
+    setPaymentHistoryLoading(true);
+    authFetch('/api/panel/checkout')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setPaymentHistory(d.payments || []); })
+      .catch(() => { if (!cancelled) setPaymentHistory([]); })
+      .finally(() => { if (!cancelled) setPaymentHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab]);
   const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
 
   // API Setup Assistant State
@@ -13252,11 +13266,45 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             {/* Payment History */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <h3 className="text-sm font-extrabold text-primary mb-4">{language === 'en' ? 'Payment History' : 'Historial de Pagos'}</h3>
-              <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                <span className="material-symbols-outlined text-3xl mb-2">receipt_long</span>
-                <p className="text-xs font-medium">{language === 'en' ? 'No payments yet' : 'A\u00FAn no hay pagos registrados'}</p>
-                <p className="text-[10px] mt-1">{language === 'en' ? 'Payments will appear here once you subscribe to a plan' : 'Los pagos aparecer\u00E1n aqu\u00ED cuando te suscribas a un plan'}</p>
-              </div>
+              {paymentHistoryLoading ? (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                  <span className="material-symbols-outlined text-2xl mb-2 animate-spin">progress_activity</span>
+                  <p className="text-xs font-medium">{language === 'en' ? 'Loading...' : 'Cargando...'}</p>
+                </div>
+              ) : paymentHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                  <span className="material-symbols-outlined text-3xl mb-2">receipt_long</span>
+                  <p className="text-xs font-medium">{language === 'en' ? 'No payments yet' : 'A\u00FAn no hay pagos registrados'}</p>
+                  <p className="text-[10px] mt-1">{language === 'en' ? 'Payments will appear here once you subscribe to a plan' : 'Los pagos aparecer\u00E1n aqu\u00ED cuando te suscribas a un plan'}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="py-2 pr-4 font-bold text-slate-500 uppercase tracking-wide text-[10px]">{language === 'en' ? 'Date' : 'Fecha'}</th>
+                        <th className="py-2 pr-4 font-bold text-slate-500 uppercase tracking-wide text-[10px]">{language === 'en' ? 'Plan' : 'Plan'}</th>
+                        <th className="py-2 pr-4 font-bold text-slate-500 uppercase tracking-wide text-[10px]">{language === 'en' ? 'Amount' : 'Monto'}</th>
+                        <th className="py-2 font-bold text-slate-500 uppercase tracking-wide text-[10px]">{language === 'en' ? 'Status' : 'Estado'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {paymentHistory.map((p) => (
+                        <tr key={p.id}>
+                          <td className="py-3 pr-4 text-slate-600">{new Date(p.created_at).toLocaleDateString()}</td>
+                          <td className="py-3 pr-4 font-semibold text-slate-800 capitalize">{p.plan}</td>
+                          <td className="py-3 pr-4 font-bold text-slate-800">${(p.amount / 100).toFixed(2)} {p.currency}</td>
+                          <td className="py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${p.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                              {p.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
