@@ -358,8 +358,8 @@ function Particles() {
       let rotX = 0, rotY = 0, rotZ = (pA.noise || 0) * Math.PI * 2;
       let scale = 1.07;
 
-      const logoOffsetX = isMobile ? 0 : 18;
-      const alienOffsetX = isMobile ? 0 : -18;
+      const logoOffsetX = isMobile ? 0 : 16;
+      const alienOffsetX = isMobile ? 0 : -16;
 
       // Phase 1 Interpolation (Logo -> Alien)
       const yNorm = Math.min(1, Math.max(0, (16 - pA.y) / 32));

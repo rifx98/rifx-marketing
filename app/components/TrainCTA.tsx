@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Hyperspeed from './Hyperspeed';
 
 export default function TrainCTA({
   title = <>Tu próximo<br />proyecto empieza aquí</>,
@@ -50,18 +51,18 @@ export default function TrainCTA({
     return () => obs.disconnect();
   }, []);
 
-  const trainBg = '#0c101e';
+  const trainBg = '#111111';
   const trimColor = '#F27121';
-  const doorW = 'clamp(380px, 42vw, 560px)';
+  const wagonWidth = 'clamp(320px, 26vw, 450px)';
+  const cartelWidth = 'clamp(480px, 42vw, 700px)';
 
   return (
     <section id="train-cta" ref={sectionRef} style={{
-      padding: '100px 0', background: '#080b18', overflow: 'hidden',
+      padding: '100px 0', background: '#0C0C0C', overflow: 'hidden',
       minHeight: '620px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
     }}>
       {/* Decoración estación */}
-      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '6px', background: 'linear-gradient(90deg, transparent, #1a1f35, transparent)' }} />
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 60%, rgba(124,58,237,0.06) 0%, transparent 60%)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 60%, rgba(255,255,255,0.03) 0%, transparent 60%)', pointerEvents: 'none' }} />
       <div style={{
         position: 'absolute', bottom: 0, left: '-10%', width: '120%', height: '100px',
         backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 40px), repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 40px)',
@@ -78,30 +79,61 @@ export default function TrainCTA({
 
         {/* ══ CARTEL detrás de las puertas ══ */}
         <div style={{
-          position: 'absolute', width: doorW, height: '100%', zIndex: isClickable ? 50 : 15,
+          position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+          width: cartelWidth, height: '100%', zIndex: isClickable ? 50 : 15,
           opacity: doorsOpen ? 1 : 0,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           textAlign: 'center', padding: '24px',
           overflow: 'hidden',
-          background: '#030610', // Fondo base oscuro
+          background: '#050505', // Fondo base oscuro
           transition: 'opacity 0.1s', // Rápido para que esté listo cuando se abran las puertas
         }}>
 
-          {/* Fondo Circular Giratorio (Efecto Galáctico) */}
-          <div style={{
-            position: 'absolute',
-            top: '-100%', left: '-100%', width: '300%', height: '300%', // Muy grande para que al girar no se vean los bordes
-            background: 'conic-gradient(from 0deg, #0b1229 0%, #2e0854 20%, #f27121 40%, #8b3a0f 60%, #1c053a 80%, #0b1229 100%)',
-            animation: 'spinGalactic 25s linear infinite',
-            filter: 'blur(60px)',
-            zIndex: 0,
-            opacity: 0.8
-          }} />
+          {/* Hyperspeed Background Effect */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            <Hyperspeed
+              effectOptions={{
+                distortion: 'turbulentDistortion',
+                length: 400,
+                roadWidth: 10,
+                islandWidth: 2,
+                lanesPerRoad: 4,
+                fov: 90,
+                fovSpeedUp: 150,
+                speedUp: 2,
+                carLightsFade: 0.4,
+                totalSideLightSticks: 20,
+                lightPairsPerRoadWay: 40,
+                shoulderLinesWidthPercentage: 0.05,
+                brokenLinesWidthPercentage: 0.1,
+                brokenLinesLengthPercentage: 0.5,
+                lightStickWidth: [0.12, 0.5],
+                lightStickHeight: [1.3, 1.7],
+                movingAwaySpeed: [60, 80],
+                movingCloserSpeed: [-120, -160],
+                carLightsLength: [400 * 0.03, 400 * 0.2],
+                carLightsRadius: [0.05, 0.14],
+                carWidthPercentage: [0.3, 0.5],
+                carShiftX: [-0.8, 0.8],
+                carFloorSeparation: [0, 5],
+                colors: {
+                  roadColor: 0x080808,
+                  islandColor: 0x0a0a0a,
+                  background: 0x000000,
+                  shoulderLines: 0xffffff,
+                  brokenLines: 0xffffff,
+                  leftCars: [0xd856bf, 0x6750a2, 0xc247ac],
+                  rightCars: [0x03b3c3, 0x0e5ea5, 0x324555],
+                  sticks: 0x03b3c3,
+                }
+              }}
+            />
+          </div>
 
           {/* Sombra central para que las letras se lean perfecto */}
           <div style={{
             position: 'absolute', inset: 0,
-            background: 'radial-gradient(circle at center, rgba(11,18,41,0.6) 0%, rgba(3,6,16,0.9) 100%)',
+            background: 'radial-gradient(circle at center, rgba(17,17,17,0.6) 0%, rgba(5,5,5,0.9) 100%)',
             zIndex: 1
           }} />
 
@@ -138,23 +170,168 @@ export default function TrainCTA({
 
         {/* ══ TREN ══ */}
         <div style={{
-          position: 'absolute', height: '100%',
+          position: 'absolute', left: '50%', height: '100%',
           display: 'flex', alignItems: 'stretch', zIndex: 30,
           transition: isMoving ? 'transform 3.2s cubic-bezier(0.15, 0.6, 0.2, 1)' : 'none',
-          transform: isMoving ? 'translateX(0)' : 'translateX(80vw)',
+          transform: isMoving ? 'translateX(-50%)' : 'translateX(calc(-50% + 150vw))',
           pointerEvents: doorsOpen ? 'none' : 'auto',
         }}>
+
+          {/* ══ FRENTE TREN BALA ══ */}
+          <div style={{
+            width: 'clamp(220px, 28vw, 380px)', height: '100%', flexShrink: 0,
+            position: 'relative',
+          }}>
+            {/* Cuerpo principal con punta aerodinámica */}
+            <div style={{
+              width: '100%', height: '100%', position: 'absolute', top: 0, left: 0,
+              background: `linear-gradient(100deg, #181818 0%, #141414 30%, ${trainBg} 75%)`,
+              clipPath: 'polygon(0% 50%, 18% 15%, 40% 3%, 100% 0%, 100% 100%, 5% 100%, 0% 80%)',
+              boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5)',
+            }}>
+              {/* Gradiente metálico sobre la superficie */}
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 15%, transparent 85%, rgba(255,255,255,0.03) 100%)',
+                clipPath: 'inherit',
+              }} />
+
+              {/* Línea superior del techo */}
+              <div style={{
+                position: 'absolute', top: '3%', left: '38%', width: '62%', height: '2px',
+                background: 'linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))',
+              }} />
+
+              {/* ── Parabrisas envolvente ── */}
+              <div style={{
+                position: 'absolute', top: '15%', left: '22%', width: '42%', height: '30%',
+                background: 'linear-gradient(155deg, #0a0a18 0%, #060612 40%, #030308 100%)',
+                border: '2px solid #252530',
+                borderRadius: '4px 6px 6px 20px',
+                boxShadow: 'inset 0 0 20px rgba(0,0,10,0.95), 0 0 12px rgba(0,0,0,0.6)',
+                transform: 'perspective(300px) rotateY(4deg)',
+                overflow: 'hidden',
+              }}>
+                {/* Reflejo diagonal */}
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, width: '60%', height: '100%',
+                  background: 'linear-gradient(130deg, rgba(255,255,255,0.07) 0%, transparent 50%)',
+                }} />
+                {/* Reflejo inferior */}
+                <div style={{
+                  position: 'absolute', bottom: '10%', right: '10%', width: '30%', height: '15%',
+                  background: 'rgba(100,120,255,0.03)', borderRadius: '4px', filter: 'blur(3px)',
+                }} />
+              </div>
+
+              {/* Ventanilla lateral pequeña */}
+              <div style={{
+                position: 'absolute', top: '18%', right: '12%', width: '20%', height: '22%',
+                background: '#050508', border: '2px solid #1F1F1F', borderRadius: '10px',
+                boxShadow: 'inset 0 0 15px rgba(0,0,0,0.9)',
+              }}>
+                <div style={{
+                  position: 'absolute', top: '8%', left: '8%', width: '35%', height: '25%',
+                  background: 'rgba(255,255,255,0.03)', borderRadius: '4px', filter: 'blur(2px)',
+                }} />
+              </div>
+
+              {/* ── Franja naranja única (alineada con vagones al 72%) ── */}
+              <div style={{
+                position: 'absolute', top: '72%', left: '8%', width: '92%', height: '2px',
+                background: `linear-gradient(90deg, transparent 0%, ${trimColor} 15%, ${trimColor} 100%)`,
+                opacity: 0.5, boxShadow: `0 0 10px ${trimColor}`,
+              }} />
+
+              {/* ── Zona inferior (faldón) ── */}
+              <div style={{
+                position: 'absolute', bottom: 0, left: '10%', width: '90%', height: '20%',
+                background: 'linear-gradient(180deg, rgba(15,15,15,0.9), rgba(8,8,8,0.95))',
+                borderTop: '1px solid rgba(255,255,255,0.04)',
+                borderRadius: '0 0 0 12px',
+              }}>
+                {/* Grilla de ventilación */}
+                <div style={{
+                  position: 'absolute', top: '15%', left: '5%', width: '50%', height: '40%',
+                  overflow: 'hidden', borderRadius: '3px',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                }}>
+                  <div style={{
+                    width: '100%', height: '100%',
+                    backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 1px, transparent 4px)',
+                    backgroundSize: '4px 100%',
+                  }} />
+                </div>
+              </div>
+
+              {/* ── Faros ── */}
+              {/* Faro principal LED */}
+              <div style={{
+                position: 'absolute', top: '67%', left: '10%', width: '16px', height: '6px',
+                borderRadius: '3px',
+                background: 'linear-gradient(90deg, #FFFDE7, #FFF8E1 50%, #F27121)',
+                boxShadow: '0 0 15px 5px rgba(255,253,231,0.3), 0 0 40px 10px rgba(242,113,33,0.15)',
+              }} />
+              {/* Faro inferior */}
+              <div style={{
+                position: 'absolute', top: '78%', left: '12%', width: '10px', height: '5px',
+                borderRadius: '2px',
+                background: 'radial-gradient(ellipse, #FFF8E1 20%, #F27121 70%, transparent 100%)',
+                boxShadow: '0 0 8px 3px rgba(242,113,33,0.35)',
+              }} />
+              {/* Piloto rojo trasero (abajo) */}
+              <div style={{
+                position: 'absolute', bottom: '10%', left: '16%', width: '5px', height: '5px',
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, #ff4444, #aa0000)',
+                boxShadow: '0 0 6px 2px rgba(255,0,0,0.25)',
+              }} />
+
+              {/* ── Líneas aerodinámicas decorativas ── */}
+              {/* Línea que sigue la curva superior */}
+              <div style={{
+                position: 'absolute', top: '12%', left: '15%', width: '85%', height: '1px',
+                background: 'linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03) 60%, transparent)',
+                transform: 'rotate(-2deg)', transformOrigin: 'right center',
+              }} />
+              {/* Línea media */}
+              <div style={{
+                position: 'absolute', top: '42%', left: '5%', width: '95%', height: '1px',
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.03))',
+              }} />
+              {/* Línea curva inferior */}
+              <div style={{
+                position: 'absolute', bottom: '12%', left: '18%', width: '82%', height: '1px',
+                background: 'linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))',
+                transform: 'rotate(1deg)', transformOrigin: 'right center',
+              }} />
+
+              {/* Marca RFX sutil */}
+              <div style={{
+                position: 'absolute', top: '55%', right: '14%', fontSize: 'clamp(6px, 0.8vw, 10px)',
+                fontFamily: "'Montserrat', sans-serif", fontWeight: 900,
+                color: 'rgba(255,255,255,0.08)', letterSpacing: '0.2em',
+              }}>RFX</div>
+
+              {/* Borde luminoso en el perfil izquierdo (nariz) */}
+              <div style={{
+                position: 'absolute', top: '20%', left: '1%', width: '2px', height: '60%',
+                background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.08), rgba(255,255,255,0.1), rgba(255,255,255,0.08), transparent)',
+                borderRadius: '1px', filter: 'blur(0.5px)',
+              }} />
+            </div>
+          </div>
 
           {/* Vagones 1-5 */}
           {[1, 2, 3, 4, 5].map(i => (
             <div key={`L${i}`} style={{
-              width: '14vw', minWidth: '130px', height: '100%', background: trainBg,
+              width: wagonWidth, height: '100%', background: trainBg,
               borderTop: '3px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, position: 'relative', boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4)',
             }}>
               <div style={{ position: 'absolute', right: 0, top: '8%', height: '84%', width: '1px', background: 'rgba(255,255,255,0.08)' }} />
               <div style={{ position: 'absolute', top: '72%', left: 0, width: '100%', height: '2px', background: trimColor, opacity: 0.5, boxShadow: `0 0 10px ${trimColor}` }} />
-              <div style={{ width: '70%', height: '42%', background: '#040710', border: '3px solid #1a1f35', borderRadius: '18px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)', position: 'relative', marginTop: '-15%' }}>
+              <div style={{ width: '70%', height: '42%', background: '#050505', border: '3px solid #1F1F1F', borderRadius: '18px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)', position: 'relative', marginTop: '-15%' }}>
                 <div style={{ position: 'absolute', top: '8%', left: '8%', width: '30%', height: '25%', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', filter: 'blur(3px)' }} />
               </div>
             </div>
@@ -162,21 +339,16 @@ export default function TrainCTA({
 
           {/* ══ PUERTA ASCENSOR ══ */}
           <div style={{
-            width: doorW, height: '100%', flexShrink: 0, position: 'relative',
+            width: cartelWidth, height: '100%', flexShrink: 0, position: 'relative',
             background: 'transparent', borderTop: '3px solid rgba(255,255,255,0.06)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             {/* Trim line */}
             <div style={{ position: 'absolute', top: '72%', left: 0, width: '100%', height: '2px', background: trimColor, opacity: doorsOpen ? 0 : 0.5, boxShadow: `0 0 8px ${trimColor}`, zIndex: 36, pointerEvents: 'none', transition: 'opacity 0.5s' }} />
 
-            {/* Marco */}
-            <div style={{ width: '100%', height: '100%', position: 'relative', border: '3px solid #1a1f35', background: 'transparent', boxShadow: '0 0 0 2px #080b14, 0 0 0 5px #0e1225', overflow: 'hidden' }}>
 
-              {/* LED */}
-              <div style={{ position: 'absolute', top: '-26px', left: '50%', transform: 'translateX(-50%)', background: '#080b14', border: '2px solid #1a1f35', borderRadius: '6px', padding: '3px 12px', display: 'flex', alignItems: 'center', gap: '6px', zIndex: 60, whiteSpace: 'nowrap' }}>
-                <div style={{ width: 5, height: 5, borderRadius: '50%', background: doorsOpen ? '#22c55e' : trimColor, boxShadow: `0 0 8px ${doorsOpen ? '#22c55e' : trimColor}`, transition: 'all 0.5s' }} />
-                <span style={{ fontSize: '7px', fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', fontFamily: 'monospace', color: doorsOpen ? '#22c55e' : trimColor, transition: 'color 0.5s' }}>{doorsOpen ? 'Open' : 'Arriving'}</span>
-              </div>
+            {/* Marco */}
+            <div style={{ width: '100%', height: '100%', position: 'relative', borderLeft: '3px solid #1F1F1F', borderRight: '3px solid #1F1F1F', boxSizing: 'border-box', background: 'transparent', overflow: 'hidden' }}>
 
               {/* Puerta izquierda */}
               <div style={{
@@ -184,12 +356,12 @@ export default function TrainCTA({
                 transform: doorsOpen ? 'translateX(-100%)' : 'translateX(0)',
                 transition: doorsOpen ? 'transform 1.5s ease-in-out' : 'none',
               }}>
-                <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: 'linear-gradient(100deg, #0a0e1c, #0e1328 40%, #111730 80%, #141c38)', borderRight: '1px solid #1e2540' }}>
+                <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: 'linear-gradient(100deg, #0A0A0A, #111111 40%, #181818 80%, #1C1C1C)', borderRight: '1px solid #2A2A2A' }}>
                   <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 4px, rgba(255,255,255,0.01) 4px, rgba(255,255,255,0.01) 5px)' }} />
-                  <div style={{ position: 'absolute', top: '12%', right: '14%', width: '60%', height: '32%', background: '#030610', border: '3px solid #1a1f35', borderRadius: '14px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)' }}>
+                  <div style={{ position: 'absolute', top: '12%', right: '14%', width: '60%', height: '32%', background: '#050505', border: '3px solid #1F1F1F', borderRadius: '14px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)' }}>
                     <div style={{ position: 'absolute', top: '8%', left: '8%', width: '30%', height: '25%', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', filter: 'blur(3px)' }} />
                   </div>
-                  <div style={{ position: 'absolute', top: '56%', right: '10%', width: 6, height: 45, background: 'linear-gradient(to bottom, #252d50, #1a1f35)', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)' }} />
+                  <div style={{ position: 'absolute', top: '56%', right: '10%', width: 6, height: 45, background: 'linear-gradient(to bottom, #333333, #1F1F1F)', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)' }} />
                   <div style={{ position: 'absolute', right: 0, top: '4%', height: '92%', width: 2, background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.1), transparent)' }} />
                 </div>
               </div>
@@ -200,12 +372,12 @@ export default function TrainCTA({
                 transform: doorsOpen ? 'translateX(100%)' : 'translateX(0)',
                 transition: doorsOpen ? 'transform 1.5s ease-in-out' : 'none',
               }}>
-                <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: 'linear-gradient(80deg, #141c38, #111730 20%, #0e1328 60%, #0a0e1c)', borderLeft: '1px solid #1e2540' }}>
+                <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', background: 'linear-gradient(80deg, #1C1C1C, #181818 20%, #111111 60%, #0A0A0A)', borderLeft: '1px solid #2A2A2A' }}>
                   <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg, transparent, transparent 4px, rgba(255,255,255,0.01) 4px, rgba(255,255,255,0.01) 5px)' }} />
-                  <div style={{ position: 'absolute', top: '12%', left: '14%', width: '60%', height: '32%', background: '#030610', border: '3px solid #1a1f35', borderRadius: '14px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)' }}>
+                  <div style={{ position: 'absolute', top: '12%', left: '14%', width: '60%', height: '32%', background: '#050505', border: '3px solid #1F1F1F', borderRadius: '14px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)' }}>
                     <div style={{ position: 'absolute', top: '8%', left: '8%', width: '30%', height: '25%', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', filter: 'blur(3px)' }} />
                   </div>
-                  <div style={{ position: 'absolute', top: '56%', left: '10%', width: 6, height: 45, background: 'linear-gradient(to bottom, #252d50, #1a1f35)', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)' }} />
+                  <div style={{ position: 'absolute', top: '56%', left: '10%', width: 6, height: 45, background: 'linear-gradient(to bottom, #333333, #1F1F1F)', borderRadius: 3, border: '1px solid rgba(255,255,255,0.06)' }} />
                   <div style={{ position: 'absolute', left: 0, top: '4%', height: '92%', width: 2, background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.1), transparent)' }} />
                 </div>
               </div>
@@ -215,22 +387,23 @@ export default function TrainCTA({
           {/* Vagones 6-10 */}
           {[6, 7, 8, 9, 10].map(i => (
             <div key={`R${i}`} style={{
-              width: '14vw', minWidth: '130px', height: '100%', background: trainBg,
+              width: wagonWidth, height: '100%', background: trainBg,
               borderTop: '3px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, position: 'relative', boxShadow: 'inset 0 0 30px rgba(0,0,0,0.4)',
             }}>
               <div style={{ position: 'absolute', left: 0, top: '8%', height: '84%', width: '1px', background: 'rgba(255,255,255,0.08)' }} />
               <div style={{ position: 'absolute', top: '72%', left: 0, width: '100%', height: '2px', background: trimColor, opacity: 0.5, boxShadow: `0 0 10px ${trimColor}` }} />
-              <div style={{ width: '70%', height: '42%', background: '#040710', border: '3px solid #1a1f35', borderRadius: '18px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)', position: 'relative', marginTop: '-15%' }}>
+              <div style={{ width: '70%', height: '42%', background: '#050505', border: '3px solid #1F1F1F', borderRadius: '18px', boxShadow: 'inset 0 0 25px rgba(0,0,0,0.95)', position: 'relative', marginTop: '-15%' }}>
                 <div style={{ position: 'absolute', top: '8%', left: '8%', width: '30%', height: '25%', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', filter: 'blur(3px)' }} />
               </div>
             </div>
           ))}
+
+          {/* Spacer to make the train symmetric so the doors are perfectly centered */}
+          <div style={{ width: 'clamp(220px, 28vw, 380px)', flexShrink: 0 }} />
         </div>
       </div>
 
-      {/* Línea inferior */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '4px', background: 'linear-gradient(90deg, transparent, #1a1f35, transparent)' }} />
     </section>
   );
 }

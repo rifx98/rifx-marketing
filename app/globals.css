@@ -3,6 +3,21 @@
 @tailwind utilities;
 
 /* ============================================
+   SHADCN UI CSS VARIABLES (used by Hero195 + components/ui)
+   Dark theme matching RIFX aesthetic
+   ============================================ */
+:root {
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 98%;
+  --muted: 240 4% 14%;
+  --muted-foreground: 240 5% 60%;
+  --border: 240 4% 18%;
+  --input: 240 4% 18%;
+  --ring: 248 90% 66%;
+  --foreground: 0 0% 98%;
+}
+
+/* ============================================
    THEME DESIGN TOKENS (Panel Only)
    These CSS custom properties power the theme system.
    Values are overridden at runtime by ThemeProvider.
@@ -29,8 +44,24 @@
 }
 
 @layer base {
-  body {
-    font-family: 'Montserrat', sans-serif;
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html, body {
+    background-color: #0C0C0C;
+    color: #D7E2EA;
+    font-family: 'Kanit', sans-serif;
+  }
+}
+
+@layer utilities {
+  .hero-heading {
+    background: linear-gradient(180deg, #646973 0%, #BBCCD7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
 
@@ -88,11 +119,11 @@
   }
 
   .animate-infinite-scroll {
-    animation: scroll 30s linear infinite;
+    animation: scroll 55s linear infinite;
   }
 
   .animate-infinite-scroll-reverse {
-    animation: scroll 30s linear infinite reverse;
+    animation: scroll 55s linear infinite reverse;
   }
 
   .hover-pause:hover {

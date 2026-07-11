@@ -47,7 +47,7 @@ export default function EcommerceInterestelarPage() {
                   <button onClick={() => document.getElementById('train-cta')?.scrollIntoView({ behavior: 'smooth' })} className="bg-[#f27121] text-white px-10 py-5 rounded-xl font-bold text-base hover:shadow-[0_0_40px_rgba(242,113,33,0.3)] transition-all duration-300 uppercase tracking-widest">
                     Iniciar Misión 🚀
                   </button>
-                  <Link href="/#proyectos" className="bg-white/5 border border-white/10 px-10 py-5 rounded-xl font-bold text-base backdrop-blur-md hover:bg-white/10 transition-all uppercase tracking-widest text-white">
+                  <Link href="/#crm" className="bg-white/5 border border-white/10 px-10 py-5 rounded-xl font-bold text-base backdrop-blur-md hover:bg-white/10 transition-all uppercase tracking-widest text-white">
                     Ver Portafolio
                   </Link>
                 </div>

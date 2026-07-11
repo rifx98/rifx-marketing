@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+'use client';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 interface ContactChannelsProps {
   hideHeader?: boolean;
@@ -34,6 +36,7 @@ export default function ContactChannels({ hideHeader = false, onlyModal = false 
   const [isServiceOpen, setIsServiceOpen] = useState(false);
   const [isCountryOpen, setIsCountryOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
+  const modalScrollRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState({
     nombre: '',
@@ -92,11 +95,14 @@ export default function ContactChannels({ hideHeader = false, onlyModal = false 
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isModalOpen) {
+      document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
     } else {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
     }
     return () => {
+      document.documentElement.style.overflow = '';
       document.body.style.overflow = '';
     };
   }, [isModalOpen]);
@@ -238,261 +244,265 @@ export default function ContactChannels({ hideHeader = false, onlyModal = false 
       )}
 
       {/* Popup Form Modal (Tailwind CSS Only) */}
-      <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-500 ${isModalOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        {/* Overlay */}
+      {isModalOpen && (
         <div 
-          onClick={() => setIsModalOpen(false)}
-          className={`absolute inset-0 bg-[#0b1229]/95 backdrop-blur-md cursor-pointer transition-opacity duration-500 ${isModalOpen ? 'opacity-100' : 'opacity-0'}`}
-        />
-        
-        {/* Modal Content */}
-        <div 
-          className={`relative w-full max-w-2xl bg-white rounded-[2.5rem] overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.5)] flex flex-col transition-all duration-500 transform ${isModalOpen ? 'scale-100 translate-y-0 opacity-100' : 'scale-90 translate-y-10 opacity-0'}`}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
         >
-          {/* Close Button */}
-          <button 
+          {/* Overlay */}
+          <div 
             onClick={() => setIsModalOpen(false)}
-            className="absolute top-6 right-6 text-slate-400 hover:text-[#f27121] transition-colors z-10"
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer animate-in fade-in duration-300"
+          />
+          
+          {/* Modal Content */}
+          <div 
+            className="relative w-full max-w-2xl bg-white rounded-[2.5rem] overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.5)] flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-300"
           >
-            <span className="material-symbols-outlined text-3xl">close</span>
-          </button>
+            {/* Close Button */}
+            <button 
+              onClick={() => setIsModalOpen(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-[#f27121] transition-colors z-10"
+            >
+              <span className="material-symbols-outlined text-3xl">close</span>
+            </button>
 
-          <div className="p-8 md:p-12 overflow-y-auto max-h-[90vh]">
-            <div className="text-center mb-10">
-              <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-[#f27121] text-white text-[9px] font-black uppercase tracking-widest mb-6">
-                🚀 Formulario Express
-              </div>
-              <h2 className="text-4xl font-bold text-slate-900 mb-2 font-space tracking-tighter">Cuéntanos Tu Proyecto</h2>
-              <p className="text-slate-500 text-sm">Solo necesitamos algunos datos para crear tu propuesta personalizada</p>
-            </div>
-
-            <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100">
+            <div ref={modalScrollRef} className="p-6 md:p-10 overflow-y-auto overscroll-contain flex-1">
               <div className="text-center mb-8">
-                <p className="text-slate-700 font-bold text-sm mb-4">Cuéntanos qué necesitas y te contactamos</p>
-                <div className="flex flex-wrap justify-center gap-6 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[#f27121] text-sm">schedule</span> Respuesta en 24h</span>
-                  <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[#f27121] text-sm">verified_user</span> 100% seguro</span>
-                  <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[#f27121] text-sm">favorite</span> Sin compromiso</span>
+                <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-[#f27121] text-white text-[9px] font-black uppercase tracking-widest mb-4">
+                  🚀 Formulario Express
                 </div>
+                <h2 className="text-3xl font-bold text-slate-900 mb-2 font-space tracking-tighter">Cuéntanos Tu Proyecto</h2>
+                <p className="text-slate-500 text-xs">Solo necesitamos algunos datos para crear tu propuesta personalizada</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-900 ml-1">Tu nombre *</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-xl">person</span>
-                    <input 
-                      required
-                      type="text"
-                      placeholder="¿Cómo te llamas?"
-                      className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-slate-900 font-medium"
-                      value={formData.nombre}
-                      onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                    />
+              <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100">
+                <div className="text-center mb-8">
+                  <p className="text-slate-700 font-bold text-sm mb-4">Cuéntanos qué necesitas y te contactamos</p>
+                  <div className="flex flex-wrap justify-center gap-6 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[#f27121] text-sm">schedule</span> Respuesta en 24h</span>
+                    <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[#f27121] text-sm">verified_user</span> 100% seguro</span>
+                    <span className="flex items-center gap-2"><span className="material-symbols-outlined text-[#f27121] text-sm">favorite</span> Sin compromiso</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-900 ml-1">Email *</label>
+                    <label className="text-xs font-bold text-slate-900 ml-1">Tu nombre *</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-xl">mail</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">person</span>
                       <input 
                         required
-                        type="email"
-                        placeholder="tu@email.com"
-                        className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-slate-900 font-medium"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        type="text"
+                        placeholder="¿Cómo te llamas?"
+                        className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-sm text-slate-900 font-medium placeholder-slate-400"
+                        value={formData.nombre}
+                        onChange={(e) => setFormData({...formData, nombre: e.target.value})}
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-900 ml-1">Celular <span className="text-slate-400 font-normal">(min. 10 dígitos) *</span></label>
-                    <div className="flex gap-2">
-                      {/* Custom Country Dropdown */}
-                      <div className="relative custom-dropdown">
-                        <button 
-                          type="button"
-                          onClick={() => setIsCountryOpen(!isCountryOpen)}
-                          className="flex items-center gap-2 px-4 py-4 bg-white border border-slate-200 rounded-2xl text-slate-900 font-bold text-sm shrink-0 hover:border-[#f27121] transition-all min-w-[110px]"
-                        >
-                          <span className="text-slate-500">{formData.country.code}</span>
-                          <span className="text-slate-900">{formData.country.dial}</span>
-                          <span className="material-symbols-outlined text-sm text-slate-400">expand_more</span>
-                        </button>
 
-                        {isCountryOpen && (
-                          <div className="absolute top-full left-0 mt-2 w-[240px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                            <div className="p-3 border-b border-slate-50">
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">search</span>
-                                <input 
-                                  autoFocus
-                                  type="text"
-                                  placeholder="Buscar país..."
-                                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:border-[#f27121] transition-all"
-                                  value={countrySearch}
-                                  onChange={(e) => setCountrySearch(e.target.value)}
-                                />
-                              </div>
-                            </div>
-                            <div className="max-h-[220px] overflow-y-auto py-2">
-                              {filteredCountries.map((c) => (
-                                <button
-                                  key={c.code}
-                                  type="button"
-                                  onClick={() => {
-                                    setFormData({...formData, country: c});
-                                    setIsCountryOpen(false);
-                                    setCountrySearch('');
-                                  }}
-                                  className={`w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors ${formData.country.code === c.code ? 'bg-orange-50/50' : ''}`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-slate-400 font-bold text-xs w-6">{c.code}</span>
-                                    <span className="text-slate-700 font-medium text-sm">{c.name}</span>
-                                  </div>
-                                  <span className="text-[#f27121] font-bold text-xs">{c.dial}</span>
-                                </button>
-                              ))}
-                              {filteredCountries.length === 0 && (
-                                <div className="px-4 py-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
-                                  No se encontraron resultados
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-900 ml-1">Email *</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">mail</span>
+                        <input 
+                          required
+                          type="email"
+                          placeholder="tu@email.com"
+                          className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-sm text-slate-900 font-medium placeholder-slate-400"
+                          value={formData.email}
+                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-900 ml-1">Celular <span className="text-slate-400 font-normal">(min. 10 dígitos) *</span></label>
+                      <div className="flex gap-2">
+                        {/* Custom Country Dropdown */}
+                        <div className="relative custom-dropdown">
+                          <button 
+                            type="button"
+                            onClick={() => setIsCountryOpen(!isCountryOpen)}
+                            className="flex items-center gap-2 px-3 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold text-sm shrink-0 hover:border-[#f27121] transition-all min-w-[100px]"
+                          >
+                            <span className="text-slate-500 text-xs">{formData.country.code}</span>
+                            <span className="text-slate-900">{formData.country.dial}</span>
+                            <span className="material-symbols-outlined text-sm text-slate-400">expand_more</span>
+                          </button>
+
+                          {isCountryOpen && (
+                            <div className="absolute top-full left-0 mt-2 w-[240px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                              <div className="p-3 border-b border-slate-50">
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">search</span>
+                                  <input 
+                                    autoFocus
+                                    type="text"
+                                    placeholder="Buscar país..."
+                                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:border-[#f27121] transition-all"
+                                    value={countrySearch}
+                                    onChange={(e) => setCountrySearch(e.target.value)}
+                                  />
                                 </div>
-                              )}
+                              </div>
+                              <div className="max-h-[220px] overflow-y-auto py-2">
+                                {filteredCountries.map((c) => (
+                                  <button
+                                    key={c.code}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData({...formData, country: c});
+                                      setIsCountryOpen(false);
+                                      setCountrySearch('');
+                                    }}
+                                    className={`w-full px-4 py-3 flex items-center justify-between hover:bg-orange-50 transition-colors ${formData.country.code === c.code ? 'bg-orange-50/50' : ''}`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-slate-400 font-bold text-xs w-6">{c.code}</span>
+                                      <span className="text-slate-700 font-medium text-sm">{c.name}</span>
+                                    </div>
+                                    <span className="text-[#f27121] font-bold text-xs">{c.dial}</span>
+                                  </button>
+                                ))}
+                                {filteredCountries.length === 0 && (
+                                  <div className="px-4 py-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                    No se encontraron resultados
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                 <div className="flex items-center gap-2">
+                                   <span className="material-symbols-outlined text-sm">public</span> Otro país
+                                 </div>
+                                 <span className="text-slate-300">Escribir código</span>
+                              </div>
                             </div>
-                            <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                               <div className="flex items-center gap-2">
-                                 <span className="material-symbols-outlined text-sm">public</span> Otro país
-                               </div>
-                               <span className="text-slate-300">Escribir código</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                          )}
+                        </div>
 
-                      <input 
-                        required
-                        type="tel"
-                        placeholder="99 123 4567"
-                        className="w-full px-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-slate-900 font-medium"
-                        value={formData.celular}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                          let formatted = val;
-                          if (val.length > 2) formatted = val.slice(0, 2) + ' ' + val.slice(2);
-                          if (val.length > 5) formatted = val.slice(0, 2) + ' ' + val.slice(2, 5) + ' ' + val.slice(5);
-                          setFormData({...formData, celular: formatted});
-                        }}
-                      />
+                        <input 
+                          required
+                          type="tel"
+                          placeholder="99 123 4567"
+                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-sm text-slate-900 font-medium placeholder-slate-400"
+                          value={formData.celular}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            let formatted = val;
+                            if (val.length > 2) formatted = val.slice(0, 2) + ' ' + val.slice(2);
+                            if (val.length > 5) formatted = val.slice(0, 2) + ' ' + val.slice(2, 5) + ' ' + val.slice(5);
+                            setFormData({...formData, celular: formatted});
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-900 ml-1">¿Qué necesitas? *</label>
-                  
-                  {/* Custom Service Dropdown */}
-                  <div className="relative custom-dropdown">
-                    <button 
-                      type="button"
-                      onClick={() => setIsServiceOpen(!isServiceOpen)}
-                      className="w-full flex items-center justify-between pl-4 pr-6 py-4 bg-white border border-slate-200 rounded-2xl hover:border-[#f27121] focus:ring-2 focus:ring-[#f27121] transition-all outline-none"
-                    >
-                      <div className="flex items-center gap-4">
-                        <span className="material-symbols-outlined text-[#f27121] text-2xl">{formData.necesidad.icon}</span>
-                        <span className="text-slate-900 font-medium">{formData.necesidad.label}</span>
-                      </div>
-                      <span className={`material-symbols-outlined text-slate-400 transition-transform duration-300 ${isServiceOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                    </button>
-
-                    {isServiceOpen && (
-                      <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div className="py-2">
-                          {SERVICES.map((service) => (
-                            <button
-                              key={service.id}
-                              type="button"
-                              onClick={() => {
-                                setFormData({...formData, necesidad: service});
-                                setIsServiceOpen(false);
-                              }}
-                              className={`w-full px-6 py-4 flex items-center justify-between hover:bg-orange-50 transition-colors group ${formData.necesidad.id === service.id ? 'bg-orange-50/50' : ''}`}
-                            >
-                              <div className="flex items-center gap-4">
-                                <span className={`material-symbols-outlined text-2xl transition-colors ${formData.necesidad.id === service.id ? 'text-[#f27121]' : 'text-slate-400 group-hover:text-[#f27121]'}`}>
-                                  {service.icon}
-                                </span>
-                                <span className={`font-medium transition-colors ${formData.necesidad.id === service.id ? 'text-[#f27121]' : 'text-slate-700'}`}>
-                                  {service.label}
-                                </span>
-                              </div>
-                              {formData.necesidad.id === service.id && (
-                                <span className="material-symbols-outlined text-[#f27121] text-lg">check</span>
-                              )}
-                            </button>
-                          ))}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-900 ml-1">¿Qué necesitas? *</label>
+                    
+                    {/* Custom Service Dropdown */}
+                    <div className="relative custom-dropdown">
+                      <button 
+                        type="button"
+                        onClick={() => setIsServiceOpen(!isServiceOpen)}
+                        className="w-full flex items-center justify-between pl-4 pr-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-[#f27121] focus:ring-2 focus:ring-[#f27121] transition-all outline-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="material-symbols-outlined text-[#f27121] text-xl">{formData.necesidad.icon}</span>
+                          <span className="text-sm text-slate-900 font-medium">{formData.necesidad.label}</span>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                        <span className={`material-symbols-outlined text-slate-400 text-lg transition-transform duration-300 ${isServiceOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                      </button>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-900 ml-1">Cuéntanos más <span className="text-slate-400 font-normal">(opcional)</span></label>
-                  <textarea 
-                    rows={4}
-                    placeholder="Describe brevemente tu proyecto, objetivos o cualquier detalle que nos ayude a entenderte mejor..."
-                    className="w-full px-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-slate-900 font-medium resize-none"
-                    value={formData.descripcion}
-                    onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
-                  />
-                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
-                    <span>Un mensaje detallado nos ayuda a preparar mejor tu propuesta</span>
-                    <span>{formData.descripcion.length}/500</span>
+                      {isServiceOpen && (
+                        <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="py-2">
+                            {SERVICES.map((service) => (
+                              <button
+                                key={service.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData({...formData, necesidad: service});
+                                  setIsServiceOpen(false);
+                                }}
+                                className={`w-full px-6 py-4 flex items-center justify-between hover:bg-orange-50 transition-colors group ${formData.necesidad.id === service.id ? 'bg-orange-50/50' : ''}`}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <span className={`material-symbols-outlined text-2xl transition-colors ${formData.necesidad.id === service.id ? 'text-[#f27121]' : 'text-slate-400 group-hover:text-[#f27121]'}`}>
+                                    {service.icon}
+                                  </span>
+                                  <span className={`font-medium transition-colors ${formData.necesidad.id === service.id ? 'text-[#f27121]' : 'text-slate-700'}`}>
+                                    {service.label}
+                                  </span>
+                                </div>
+                                {formData.necesidad.id === service.id && (
+                                  <span className="material-symbols-outlined text-[#f27121] text-lg">check</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-4 pt-2">
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      className="mt-1 w-5 h-5 rounded border-slate-300 text-[#f27121] focus:ring-[#f27121]" 
-                      checked={formData.privacy}
-                      onChange={(e) => setFormData({...formData, privacy: e.target.checked})}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-900 ml-1">Cuéntanos más <span className="text-slate-400 font-normal">(opcional)</span></label>
+                    <textarea 
+                      rows={3}
+                      placeholder="Describe brevemente tu proyecto, objetivos o cualquier detalle que nos ayude a entenderte mejor..."
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#f27121] focus:border-[#f27121] outline-none transition-all text-sm text-slate-900 font-medium placeholder-slate-400 resize-none"
+                      value={formData.descripcion}
+                      onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
                     />
-                    <span className="text-xs text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Acepto la <span className="text-[#f27121] underline">política de privacidad</span> *</span>
-                  </label>
-                  <label className="flex items-start gap-3 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      className="mt-1 w-5 h-5 rounded border-slate-300 text-[#f27121] focus:ring-[#f27121]" 
-                      checked={formData.tips}
-                      onChange={(e) => setFormData({...formData, tips: e.target.checked})}
-                    />
-                    <span className="text-xs text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Quiero recibir tips de diseño y novedades (máx. 2/mes, sin spam)</span>
-                  </label>
-                </div>
-
-                <button 
-                  type="submit"
-                  className="w-full bg-[#f27121] text-white font-bold py-5 rounded-[1.25rem] shadow-xl shadow-orange-900/20 hover:scale-[1.02] hover:brightness-110 transition-all flex items-center justify-center gap-3 text-lg"
-                >
-                  Hablemos de tu proyecto <span className="material-symbols-outlined">arrow_forward</span>
-                </button>
-
-                <div className="text-center pt-4 flex flex-col items-center gap-3">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    <span className="material-symbols-outlined text-slate-900 text-sm">lock</span>
-                    Tus datos están seguros. Respondemos en menos de 24h. Sin spam.
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                      <span>Un mensaje detallado nos ayuda a preparar mejor tu propuesta</span>
+                      <span>{formData.descripcion.length}/500</span>
+                    </div>
                   </div>
-                </div>
-              </form>
+
+                  <div className="space-y-4 pt-2">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="mt-1 w-5 h-5 rounded border-slate-300 text-[#f27121] focus:ring-[#f27121]" 
+                        checked={formData.privacy}
+                        onChange={(e) => setFormData({...formData, privacy: e.target.checked})}
+                      />
+                      <span className="text-xs text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Acepto la <span className="text-[#f27121] underline">política de privacidad</span> *</span>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="mt-1 w-5 h-5 rounded border-slate-300 text-[#f27121] focus:ring-[#f27121]" 
+                        checked={formData.tips}
+                        onChange={(e) => setFormData({...formData, tips: e.target.checked})}
+                      />
+                      <span className="text-xs text-slate-600 font-medium group-hover:text-slate-900 transition-colors">Quiero recibir tips de diseño y novedades (máx. 2/mes, sin spam)</span>
+                    </label>
+                  </div>
+
+                  <button 
+                    type="submit"
+                    className="w-full bg-[#f27121] text-white font-bold py-4 rounded-xl shadow-xl shadow-orange-900/20 hover:scale-[1.02] hover:brightness-110 transition-all flex items-center justify-center gap-3 text-base"
+                  >
+                    Hablemos de tu proyecto <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                  </button>
+
+                  <div className="text-center pt-4 flex flex-col items-center gap-3">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <span className="material-symbols-outlined text-slate-900 text-sm">lock</span>
+                      Tus datos están seguros. Respondemos en menos de 24h. Sin spam.
+                    </div>
+                  </div>
+                </form>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
