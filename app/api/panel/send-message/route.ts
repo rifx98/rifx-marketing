@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
           .from('conversations')
           .select('id')
           .eq('phone_number', json.phone)
+          .eq('tenant_id', tenant.tenantId)
           .single();
         if (conv) {
           conversationId = conv.id;
@@ -194,11 +195,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan conversationId o phone' }, { status: 400 });
     }
 
-    // Obtener la conversación
+    // Obtener la conversación (VULN fix: solo del tenant autenticado, evita IDOR entre tenants)
     const { data: conversation } = await supabase
       .from('conversations')
       .select('*')
       .eq('id', conversationId)
+      .eq('tenant_id', tenant.tenantId)
       .single();
 
     if (!conversation) {

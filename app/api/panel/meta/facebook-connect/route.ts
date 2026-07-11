@@ -72,6 +72,11 @@ export async function GET(req: NextRequest) {
 // POST: Exchange OAuth code → long-lived token + list Ad Accounts & Pages
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
     const { code, redirectUri } = await req.json();
 
     if (!code) {

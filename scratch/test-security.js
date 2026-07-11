@@ -1,8 +1,10 @@
 import { SignJWT } from 'jose';
 import crypto from 'crypto';
 
-const JWT_SECRET_RAW = '/yR1Nxt6gV/lCDzM78NS/+8PQMfoA1kr6ia5RFgdZvFwb+8QI389KWuTzJGBIN2X';
-const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_RAW);
+if (!process.env.JWT_SECRET) {
+  throw new Error('Set JWT_SECRET in the environment before running this script (never hardcode it here).');
+}
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
 async function signToken(payload) {
   return new SignJWT({ ...payload })

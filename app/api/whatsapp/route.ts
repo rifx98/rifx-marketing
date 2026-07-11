@@ -6,6 +6,7 @@ import { classifyIntent } from '@/lib/intent-router';
 import { detectSignalsFromMessage, calculateLeadScore, inferSalesStage, extractSalesMetadata } from '@/lib/lead-scoring';
 import { getSalesStageInstructions, DEFAULT_SALES_PROMPT, DEFAULT_SUPPORT_PROMPT } from '@/lib/sales-prompts';
 import { loadTenantPricing, buildPricingPrompt, validatePricingInResponse } from '@/lib/pricing-guard';
+import { triggerCriticalAlert } from '@/lib/alerts';
 
 // ============================================
 // WHATSAPP WEBHOOK — El corazón del bot de IA
@@ -28,29 +29,36 @@ export async function GET(req: NextRequest) {
 // POST: Recibir mensajes de WhatsApp
 export async function POST(req: NextRequest) {
   try {
-    // VULN-12 fix: Verify Meta HMAC signature
+    // VULN-12 fix: Verify Meta HMAC signature.
+    // La app de WhatsApp Business (WHATSAPP_APP_SECRET) es una app de Meta distinta
+    // a la que usamos para Ads/Login (FACEBOOK_APP_SECRET) — Meta firma cada webhook
+    // con el secreto de la app dueña de esa integración específica. Probamos ambos
+    // secretos conocidos para no volver a romper WhatsApp si alguno de los dos cambia.
     const rawBody = await req.text();
     const signature = req.headers.get('x-hub-signature-256');
-    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    const candidateSecrets = [process.env.WHATSAPP_APP_SECRET, process.env.FACEBOOK_APP_SECRET].filter(Boolean) as string[];
 
-    if (process.env.NODE_ENV === 'production' && !appSecret) {
-      console.error('❌ WhatsApp webhook: FACEBOOK_APP_SECRET is missing in production!');
+    if (process.env.NODE_ENV === 'production' && candidateSecrets.length === 0) {
+      console.error('❌ WhatsApp webhook: no hay WHATSAPP_APP_SECRET ni FACEBOOK_APP_SECRET configurados en producción!');
       return NextResponse.json({ error: 'Configuration error: webhook signature verification key is missing' }, { status: 500 });
     }
 
-    if (appSecret) {
+    if (candidateSecrets.length > 0) {
       if (!signature) {
         console.warn('⚠️ WhatsApp webhook: Missing X-Hub-Signature-256 header');
         return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
       }
       const crypto = await import('crypto');
-      const expectedSig = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
-      if (signature !== expectedSig) {
-        console.error('❌ WhatsApp webhook: Invalid HMAC signature');
+      const isValidSignature = candidateSecrets.some(secret => {
+        const expectedSig = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+        return signature === expectedSig;
+      });
+      if (!isValidSignature) {
+        console.error('❌ WhatsApp webhook: Invalid HMAC signature (no coincide con ningún secreto conocido)');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
     } else {
-      console.warn('⚠️ FACEBOOK_APP_SECRET not set — skipping webhook signature verification (non-production only)');
+      console.warn('⚠️ Ningún app secret configurado — omitiendo verificación de firma del webhook (solo fuera de producción)');
     }
 
     const body = JSON.parse(rawBody);
@@ -337,14 +345,39 @@ export async function POST(req: NextRequest) {
     // 2.5 Verificar si la conversación está en MODO HUMANO (señal en mensajes)
     const { data: signalMessages } = await supabase
       .from('messages')
-      .select('content')
+      .select('content, created_at')
       .eq('conversation_id', conversation.id)
       .in('content', ['__SYSTEM_PAUSE__', '__SYSTEM_RESUME__'])
       .order('created_at', { ascending: false })
       .limit(1);
 
-    const isHumanMode = signalMessages && signalMessages.length > 0 && signalMessages[0].content === '__SYSTEM_PAUSE__';
+    const lastSignal = signalMessages && signalMessages.length > 0 ? signalMessages[0] : null;
+    const isPausedSignal = lastSignal?.content === '__SYSTEM_PAUSE__';
+
+    // Auto-reactivación: si nadie (humano) atendió la conversación pausada en 24h,
+    // la IA se reactiva sola en vez de dejar al cliente sin respuesta indefinidamente.
+    // Esto es lo que causaba que "el bot deje de funcionar" tras varios días de pausa
+    // (manual o por escalamiento de 3 intentos) sin que un humano la reanudara.
+    const PAUSE_AUTO_RESUME_MS = 24 * 60 * 60 * 1000;
+    const pausedSinceMs = isPausedSignal ? Date.now() - new Date(lastSignal!.created_at).getTime() : 0;
+    const isStalePause = isPausedSignal && pausedSinceMs > PAUSE_AUTO_RESUME_MS;
+
+    let isHumanMode = isPausedSignal && !isStalePause;
     console.log(`🔎 Modo humano para ${customerPhone}: ${isHumanMode ? 'PAUSADO ⏸️' : 'IA ACTIVA ▶️'}`);
+
+    if (isStalePause) {
+      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +24h (${Math.round(pausedSinceMs / 3600000)}h) sin respuesta humana — reactivando IA automáticamente`);
+      await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: '__SYSTEM_RESUME__',
+      });
+      await supabase
+        .from('conversations')
+        .update({ status: 'chatting', updated_at: new Date().toISOString() })
+        .eq('id', conversation.id);
+      isHumanMode = false;
+    }
 
     if (isHumanMode) {
       console.log(`⏸️ [MODO HUMANO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
@@ -840,6 +873,14 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
       if (!foundFallback) {
         console.error(`❌ No hay API Key configurada para NINGÚN proveedor de IA`);
         await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config);
+        if (tenantId) {
+          triggerCriticalAlert({
+            tenantId,
+            title: '🤖 Chatbot sin IA configurada',
+            message: 'Ningún proveedor de IA (OpenAI, Groq, Gemini) tiene una API Key válida configurada. El bot no puede responder mensajes.',
+            url: '/panel',
+          }).catch(() => {});
+        }
         return NextResponse.json({ error: 'No AI key configured' }, { status: 500 });
       }
     }
@@ -1094,6 +1135,14 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
 
         if (!aiResponse) {
           aiResponse = 'Estamos experimentando dificultades técnicas momentáneas. Por favor intenta en unos segundos. 🙏';
+          if (tenantId) {
+            triggerCriticalAlert({
+              tenantId,
+              title: '🤖 El chatbot no pudo responder',
+              message: `Todos los proveedores de IA fallaron al procesar un mensaje de ${customerName} (${customerPhone}).`,
+              url: '/panel',
+            }).catch(() => {});
+          }
         }
       }
     }

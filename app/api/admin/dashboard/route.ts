@@ -182,18 +182,57 @@ export async function POST(req: NextRequest) {
 
     // Action: create_announcement
     if (body.action === 'create_announcement') {
-      const { title, message, type, image_url, button_text, button_url } = body;
+      const { title, message, type, image_url, button_text, button_url, starts_at, expires_at } = body;
       if (!title || !message) {
         return NextResponse.json({ error: 'Título y mensaje son requeridos' }, { status: 400 });
+      }
+      if (starts_at && expires_at && new Date(expires_at) <= new Date(starts_at)) {
+        return NextResponse.json({ error: 'La fecha de caducidad debe ser posterior a la de inicio' }, { status: 400 });
       }
       const insertData: any = { title, message, type: type || 'info', is_active: true };
       if (image_url) insertData.image_url = image_url;
       if (button_text) insertData.button_text = button_text;
       if (button_url) insertData.button_url = button_url;
-      
+      if (starts_at) insertData.starts_at = new Date(starts_at).toISOString();
+      if (expires_at) insertData.expires_at = new Date(expires_at).toISOString();
+
       const { data, error } = await supabase
         .from('announcements')
         .insert(insertData)
+        .select()
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ success: true, announcement: data });
+    }
+
+    // Action: update_announcement
+    if (body.action === 'update_announcement') {
+      const { announcementId, title, message, type, image_url, button_text, button_url, starts_at, expires_at } = body;
+      if (!announcementId) {
+        return NextResponse.json({ error: 'announcementId es requerido' }, { status: 400 });
+      }
+      if (!title || !message) {
+        return NextResponse.json({ error: 'Título y mensaje son requeridos' }, { status: 400 });
+      }
+      if (starts_at && expires_at && new Date(expires_at) <= new Date(starts_at)) {
+        return NextResponse.json({ error: 'La fecha de caducidad debe ser posterior a la de inicio' }, { status: 400 });
+      }
+      const updateData: any = {
+        title,
+        message,
+        type: type || 'info',
+        image_url: image_url || null,
+        button_text: button_text || null,
+        button_url: button_url || null,
+        starts_at: starts_at ? new Date(starts_at).toISOString() : null,
+        expires_at: expires_at ? new Date(expires_at).toISOString() : null,
+      };
+
+      const { data, error } = await supabase
+        .from('announcements')
+        .update(updateData)
+        .eq('id', announcementId)
         .select()
         .single();
 
@@ -288,6 +327,10 @@ export async function POST(req: NextRequest) {
 
     // Action: update_plan_permissions
     if (body.action === 'update_plan_permissions') {
+      if (tenant.adminCanEditPlans === false) {
+        return NextResponse.json({ error: 'No tienes permisos para modificar planes.' }, { status: 403 });
+      }
+
       const { planPermissions } = body;
       if (!planPermissions) {
         return NextResponse.json({ error: 'Permisos de planes requeridos' }, { status: 400 });
@@ -317,6 +360,10 @@ export async function POST(req: NextRequest) {
 
     // Action: update_tenant_overrides
     if (body.action === 'update_tenant_overrides') {
+      if (tenant.adminCanEditPlans === false) {
+        return NextResponse.json({ error: 'No tienes permisos para modificar planes.' }, { status: 403 });
+      }
+
       const { targetTenantId, permissionOverrides } = body;
       if (!targetTenantId || !permissionOverrides) {
         return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
