@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://rifx-marketing.com'),
   title: 'Rifx Marketing - Agencia de Marketing Espacial',
   description: 'Marketing digital de vanguardia que te hace brillar. Es hora de despegar.',
   keywords: ['marketing digital', 'agencia de marketing', 'SEO', 'redes sociales', 'publicidad online', 'marketing espacial'],
@@ -16,11 +17,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Rifx Marketing - Agencia de Marketing Espacial',
     description: 'Marketing digital de vanguardia que te hace brillar. Es hora de despegar.',
-    url: 'https://rifxmarketing.com',
+    url: 'https://rifx-marketing.com',
     siteName: 'Rifx Marketing',
     images: [
       {
-        url: 'https://rifxmarketing.com/og-image.jpg',
+        url: '/images/rifx-logo-particles-clean.png',
         width: 1200,
         height: 630,
         alt: 'Rifx Marketing - Marketing Espacial',
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Rifx Marketing - Agencia de Marketing Espacial',
     description: 'Marketing digital de vanguardia que te hace brillar. Es hora de despegar.',
-    images: ['https://rifxmarketing.com/twitter-image.jpg'],
+    images: ['/images/rifx-logo-particles-clean.png'],
     creator: '@rifxmarketing',
   },
   robots: {
@@ -62,6 +63,7 @@ import Footer from './components/Footer';
 import AnimatedCursor from './components/AnimatedCursor';
 import LenisProvider from './components/LenisProvider';
 import GlobalTextReveal from './components/GlobalTextReveal';
+import { Analytics } from '@vercel/analytics/next';
 
 export default function RootLayout({
   children,
@@ -71,19 +73,19 @@ export default function RootLayout({
   return (
     <html lang="es">
       <head>
-        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Manrope:wght@200;400;600;700;800&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Manrope:wght@200;400;600;700;800&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-[#020510] text-white overflow-x-hidden min-h-screen flex flex-col">
+      <body className="bg-[#0C0C0C] text-[#D7E2EA] overflow-x-hidden min-h-screen flex flex-col font-['Kanit']">
         <LenisProvider>
           <GlobalTextReveal />
           <AnimatedCursor />
-          <Header />
           <div className="flex-grow">
             {children}
           </div>
           <Footer />
         </LenisProvider>
+        <Analytics />
       </body>
     </html>
   );

@@ -13,6 +13,15 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@imgly/background-removal-node'],
   },
+  async redirects() {
+    return [
+      {
+        source: '/privacidad',
+        destination: '/politica-privacidad',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
