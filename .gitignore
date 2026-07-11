@@ -6,3 +6,9 @@ node_modules/
 .tina/__generated__/
 
 .vercel
+
+# Scratch/debug workspace — throwaway scripts, screenshots, backups. Never commit new ones.
+scratch/
+*.tsbuildinfo
+*.log
+.claude/settings.local.json
