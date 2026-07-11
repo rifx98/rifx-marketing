@@ -120,6 +120,10 @@ interface RequestBody {
   call_to_action?: string;
   ad_name?: string;
   page_id?: string;
+
+  // Para el objetivo OUTCOME_SALES: distingue si la venta ocurre por
+  // WhatsApp (click-to-chat, sin pixel) o por sitio web (requiere pixel).
+  sales_destination?: 'whatsapp' | 'web';
 }
 
 interface MetaApiError {
@@ -165,6 +169,66 @@ async function fetchPageId(token: string): Promise<string> {
   }
 
   return data.data[0].id;
+}
+
+// ─── Obtiene el primer pixel de la cuenta publicitaria, o crea uno nuevo
+// si no existe ninguno (requerido por Meta para optimization_goal =
+// OFFSITE_CONVERSIONS). Para que las conversiones se registren de verdad,
+// el pixel debe estar instalado en el sitio web del cliente — eso lo hace
+// el propio negocio, no es algo que la API pueda hacer por ellos ───
+async function getOrCreatePixel(adAccountId: string, token: string): Promise<string | null> {
+  try {
+    const listRes = await fetch(`${FB_BASE}/${adAccountId}/adspixels?fields=id,name&access_token=${token}`);
+    const listData = await listRes.json();
+    if (listData.data && listData.data.length > 0) {
+      return listData.data[0].id;
+    }
+
+    const createData = await metaPost(`${FB_BASE}/${adAccountId}/adspixels`, {
+      name: 'RIFX Pixel',
+      access_token: token,
+    });
+    return createData.id || null;
+  } catch (err) {
+    console.error('⚠️ [PIXEL] Error obteniendo/creando pixel:', err);
+    return null;
+  }
+}
+
+// ─── Resuelve el promoted_object (y ajustes de optimization_goal/destination_type)
+// que Meta exige segun el objetivo — sin esto, Meta rechaza el ad set con
+// "Selecciona un objeto promocionado para tu conjunto de anuncios" ───
+async function resolvePromotedObject(
+  objective: MetaObjective,
+  optimizationGoal: string,
+  body: RequestBody,
+  pageId: string,
+  adAccountId: string,
+  token: string
+): Promise<{ promotedObject?: Record<string, any>; optimizationGoal: string; destinationType?: string }> {
+  if (objective === 'OUTCOME_ENGAGEMENT') {
+    // POST_ENGAGEMENT (likes/comments/shares en el anuncio-post) requiere
+    // destination_type = ON_POST ademas del promoted_object.page_id.
+    return { promotedObject: { page_id: pageId }, optimizationGoal, destinationType: 'ON_POST' };
+  }
+
+  if (objective === 'OUTCOME_LEADS') {
+    return { promotedObject: { page_id: pageId }, optimizationGoal };
+  }
+
+  if (objective === 'OUTCOME_SALES') {
+    if (body.sales_destination === 'whatsapp') {
+      // Click-to-WhatsApp: no requiere pixel, requiere la Pagina + destination_type
+      return { promotedObject: { page_id: pageId }, optimizationGoal: 'CONVERSATIONS', destinationType: 'WHATSAPP' };
+    }
+    const pixelId = await getOrCreatePixel(adAccountId, token);
+    if (pixelId) {
+      return { promotedObject: { pixel_id: pixelId, custom_event_type: 'PURCHASE' }, optimizationGoal };
+    }
+    return { optimizationGoal };
+  }
+
+  return { optimizationGoal };
 }
 
 // ─── Validate & sanitize objective ────────────────────────
@@ -412,8 +476,14 @@ async function createAdsForSet(params: {
   cta: string;
   token: string;
   campaignName: string;
+  isWhatsAppDestination?: boolean;
 }): Promise<{ created: Array<{ ad_id: string; creative_id: string }>; failed: number; firstError: MetaApiError | null }> {
-  const { adAccountId, adSetId, pageId, variants, assets, linkUrl, cta, token, campaignName } = params;
+  const { adAccountId, adSetId, pageId, variants, assets, linkUrl, cta, token, campaignName, isWhatsAppDestination } = params;
+
+  // Click-to-WhatsApp: el anuncio debe apuntar a WhatsApp, no a un link
+  // generico — si no, Meta muestra "Sitio web" como ubicacion de conversion
+  // aunque el ad set tenga destination_type=WHATSAPP.
+  const whatsAppCta = { type: 'WHATSAPP_MESSAGE', value: { app_destination: 'WHATSAPP' } };
 
   // 0. Subir todos los videos unicos a Meta y esperar a que esten listos
   // (en paralelo — una sola vez por URL, aunque se repita en varios slots)
@@ -441,7 +511,7 @@ async function createAdsForSet(params: {
           video_data: {
             video_id: videoId,
             message,
-            call_to_action: { type: cta },
+            call_to_action: isWhatsAppDestination ? whatsAppCta : { type: cta },
             ...(thumbnail ? { image_url: thumbnail } : {}),
           },
         },
@@ -451,8 +521,8 @@ async function createAdsForSet(params: {
 
     const linkData: Record<string, any> = {
       message,
-      link: linkUrl,
-      call_to_action: { type: cta },
+      link: isWhatsAppDestination ? 'https://api.whatsapp.com/send' : linkUrl,
+      call_to_action: isWhatsAppDestination ? whatsAppCta : { type: cta },
     };
     if (asset?.url) linkData.picture = asset.url;
 
@@ -474,12 +544,20 @@ async function createAdsForSet(params: {
   });
 
   // 2. Crear los ads correspondientes en paralelo
+  // url_tags: agrega parametros UTM a la URL de destino usando los macros
+  // nativos de Meta (se reemplazan solos con el nombre real de campaña/
+  // conjunto/anuncio) para que el negocio pueda distinguir el trafico de
+  // Facebook Ads en Google Analytics / su propio sitio. No aplica en
+  // Click-to-WhatsApp porque ahi no hay una pagina web recibiendo la URL.
+  const urlTags = 'utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{adset.name}}';
+
   const adResults = await Promise.allSettled(okCreatives.map(({ idx, creativeId }) =>
     metaPost(`${FB_BASE}/${adAccountId}/ads`, {
       name: `Ad ${idx + 1} - ${campaignName}`,
       adset_id: adSetId,
       creative: { creative_id: creativeId },
       status: 'PAUSED',
+      ...(isWhatsAppDestination ? {} : { url_tags: urlTags }),
       access_token: token,
     }).then(data => ({ data, creativeId }))
   ));
@@ -496,6 +574,86 @@ async function createAdsForSet(params: {
   return { created, failed: variants.length - created.length, firstError };
 }
 
+// ─── Presupuesto por debajo del cual conviene usar Creatividad Dinamica
+// (1 solo anuncio con varias imagenes/textos que Meta combina y prueba
+// solo) en vez de 6 anuncios separados compitiendo por el mismo dinero.
+// Verificado con Meta que SOLO admite objetivos de conversion (no
+// Engagement ni Conversations/WhatsApp — Meta los rechaza explicitamente).
+const DYNAMIC_CREATIVE_BUDGET_THRESHOLD_CENTS = 1500; // $15/dia
+
+function shouldUseDynamicCreative(
+  objective: MetaObjective,
+  isWhatsAppDestination: boolean,
+  dailyBudgetCents: number,
+  assets: CreativeAsset[]
+): boolean {
+  if (isWhatsAppDestination) return false; // Meta rechaza dynamic creative en CONVERSATIONS
+  if (objective === 'OUTCOME_ENGAGEMENT') return false; // Meta rechaza dynamic creative en POST_ENGAGEMENT
+  if (dailyBudgetCents >= DYNAMIC_CREATIVE_BUDGET_THRESHOLD_CENTS) return false;
+  return assets.every(a => a.type === 'image'); // por ahora solo probado con imagenes
+}
+
+// ─── Crea UN solo anuncio con Creatividad Dinamica (asset_feed_spec):
+// Meta prueba las combinaciones de imagenes/textos internamente sin
+// fragmentar el presupuesto de aprendizaje entre 6 anuncios separados —
+// mas eficiente para presupuestos bajos ───
+async function createDynamicCreativeAd(params: {
+  adAccountId: string;
+  adSetId: string;
+  pageId: string;
+  variants: string[];
+  assets: CreativeAsset[];
+  linkUrl: string;
+  cta: string;
+  token: string;
+  campaignName: string;
+}): Promise<{ created: Array<{ ad_id: string; creative_id: string }>; failed: number; firstError: MetaApiError | null }> {
+  const { adAccountId, adSetId, pageId, variants, assets, linkUrl, cta, token, campaignName } = params;
+
+  const urlTags = 'utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{adset.name}}';
+
+  // Limites de Meta para asset_feed_spec: max 10 imagenes, 5 textos, 5 titulos.
+  // Meta exige texto UNICO por cada body/title — si solo hay 1 mensaje base
+  // (sin variantes), buildMessageVariants lo repite 6 veces y hay que
+  // deduplicar antes de enviarlo, o Meta rechaza el anuncio.
+  const images = Array.from(new Set(assets.map(a => a.url).filter(Boolean))).slice(0, 10).map(url => ({ url }));
+  const bodies = Array.from(new Set(variants.map(v => v.trim()).filter(Boolean))).slice(0, 5).map(text => ({ text }));
+  const shortTitle = campaignName.replace(/\n/g, ' ').substring(0, 40);
+
+  const creativeData = await metaPost(`${FB_BASE}/${adAccountId}/adcreatives`, {
+    name: `Dynamic Creative - ${campaignName}`,
+    object_story_spec: { page_id: pageId },
+    asset_feed_spec: {
+      images,
+      bodies,
+      titles: [{ text: shortTitle }],
+      call_to_action_types: [cta],
+      link_urls: [{ website_url: linkUrl }],
+      ad_formats: ['SINGLE_IMAGE'],
+    },
+    access_token: token,
+  });
+
+  if (!creativeData.id) {
+    return { created: [], failed: variants.length, firstError: creativeData.error || { message: 'No se pudo crear la creatividad dinámica.' } };
+  }
+
+  const adData = await metaPost(`${FB_BASE}/${adAccountId}/ads`, {
+    name: `Ad Dinámico - ${campaignName}`,
+    adset_id: adSetId,
+    creative: { creative_id: creativeData.id },
+    status: 'PAUSED',
+    url_tags: urlTags,
+    access_token: token,
+  });
+
+  if (!adData.id) {
+    return { created: [], failed: variants.length, firstError: adData.error || { message: 'No se pudo crear el anuncio dinámico.' } };
+  }
+
+  return { created: [{ ad_id: adData.id, creative_id: creativeData.id }], failed: 0, firstError: null };
+}
+
 // ─── Custom Audience de engagement con la Pagina (para remarketing) ───
 // Best-effort: si falla, la fase 2 sigue corriendo con targeting normal.
 // Eventos de interaccion de Pagina documentados por Meta (Engagement Custom
@@ -510,6 +668,14 @@ async function createAdsForSet(params: {
 //    (alguien que clickeo el boton de CTA del anuncio/pagina)
 const PAGE_ENGAGEMENT_EVENTS = ['page_engaged', 'page_post_interaction', 'page_liked', 'page_cta_clicked'];
 
+// ─── Detecta errores de limite de llamadas de Meta (rate limit) para poder
+// reintentar una vez — evita que un pico transitorio de trafico (ej. varias
+// campañas seguidas) deje el remarketing sin audiencia por accidente ───
+function isRateLimitError(error: any): boolean {
+  if (!error) return false;
+  return error.code === 17 || error.error_subcode === 2446079 || /request limit/i.test(error.message || '');
+}
+
 async function createEngagementAudience(params: {
   adAccountId: string;
   pageId: string;
@@ -518,31 +684,80 @@ async function createEngagementAudience(params: {
   token: string;
 }): Promise<string | null> {
   const { adAccountId, pageId, retentionDays, name, token } = params;
+  const payload = {
+    name,
+    subtype: 'ENGAGEMENT',
+    rule: JSON.stringify({
+      inclusions: {
+        operator: 'or',
+        rules: PAGE_ENGAGEMENT_EVENTS.map(eventName => ({
+          event_sources: [{ type: 'page', id: pageId }],
+          retention_seconds: Math.max(1, retentionDays) * 86400,
+          filter: {
+            operator: 'and',
+            filters: [{ field: 'event', operator: 'eq', value: eventName }],
+          },
+        })),
+      },
+    }),
+    access_token: token,
+  };
   try {
-    const data = await metaPost(`${FB_BASE}/${adAccountId}/customaudiences`, {
-      name,
-      subtype: 'ENGAGEMENT',
-      rule: JSON.stringify({
-        inclusions: {
-          operator: 'or',
-          rules: PAGE_ENGAGEMENT_EVENTS.map(eventName => ({
-            event_sources: [{ type: 'page', id: pageId }],
-            retention_seconds: Math.max(1, retentionDays) * 86400,
-            filter: {
-              operator: 'and',
-              filters: [{ field: 'event', operator: 'eq', value: eventName }],
-            },
-          })),
-        },
-      }),
-      access_token: token,
-    });
+    let data = await metaPost(`${FB_BASE}/${adAccountId}/customaudiences`, payload);
     if (data.id) return data.id;
+    if (isRateLimitError(data.error)) {
+      console.warn('⏳ [REMARKETING AUDIENCE] Límite de la API alcanzado, reintentando en 3s...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      data = await metaPost(`${FB_BASE}/${adAccountId}/customaudiences`, payload);
+      if (data.id) return data.id;
+    }
     console.error('⚠️ [REMARKETING AUDIENCE] No se pudo crear, se sigue con targeting normal:', data.error);
     return null;
   } catch (err) {
     console.error('⚠️ [REMARKETING AUDIENCE] Excepción, se sigue con targeting normal:', err);
     return null;
+  }
+}
+
+// ─── Busca audiencias de tipo ENGAGEMENT que ya existan en la cuenta
+// publicitaria y que de verdad pertenezcan a ESTA Pagina (no a la de otro
+// cliente que haya usado la misma cuenta antes) y esten sanas (no
+// "demasiado pequeñas" ni obsoletas) — para sumarlas al remarketing en
+// automatico, ademas de la audiencia nueva que crea cada campaña ───
+async function findExistingEngagementAudiences(
+  adAccountId: string,
+  pageId: string,
+  token: string,
+  excludeId?: string
+): Promise<string[]> {
+  try {
+    const listUrl = `${FB_BASE}/${adAccountId}/customaudiences?fields=id,subtype,delivery_status,rule&limit=200&access_token=${token}`;
+    let data = await (await fetch(listUrl)).json();
+    if (!data.data && isRateLimitError(data.error)) {
+      console.warn('⏳ [REMARKETING AUDIENCE] Límite de la API alcanzado buscando audiencias existentes, reintentando en 3s...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      data = await (await fetch(listUrl)).json();
+    }
+    if (!data.data) return [];
+
+    const matches: string[] = [];
+    for (const audience of data.data) {
+      if (excludeId && audience.id === excludeId) continue;
+      if (audience.subtype !== 'ENGAGEMENT') continue;
+      if (audience.delivery_status?.code !== 200) continue; // evita "demasiado pequeña"/obsoleta
+
+      let rule: any = null;
+      try { rule = JSON.parse(audience.rule || '{}'); } catch { continue; }
+      const rules = rule?.inclusions?.rules || [];
+      const belongsToThisPage = rules.some((r: any) =>
+        (r.event_sources || []).some((s: any) => String(s.id) === String(pageId))
+      );
+      if (belongsToThisPage) matches.push(audience.id);
+    }
+    return matches;
+  } catch (err) {
+    console.error('⚠️ [REMARKETING AUDIENCE] Error buscando audiencias existentes de la Pagina:', err);
+    return [];
   }
 }
 
@@ -571,7 +786,7 @@ export async function POST(req: NextRequest) {
 
     const resolvedPageId = body.page_id || envPageId || await fetchPageId(token);
     const objective = validateObjective(body.objective);
-    const optimizationGoal = OPT_GOAL_MAP[objective];
+    const baseOptimizationGoal = OPT_GOAL_MAP[objective];
     const cta = validateCTA(body.call_to_action);
     const mode = detectTargetingMode(body);
     const status = body.status || 'PAUSED';
@@ -583,11 +798,19 @@ export async function POST(req: NextRequest) {
     const messageVariants = buildMessageVariants(body);
     const creativeAssets = buildCreativeAssets(body);
 
+    // Meta exige un "promoted_object" (Pagina, pixel, etc.) segun el objetivo
+    // — sin esto rechaza el ad set con "Selecciona un objeto promocionado".
+    const { promotedObject, optimizationGoal, destinationType } = await resolvePromotedObject(
+      objective, baseOptimizationGoal, body, resolvedPageId, adAccountId, token
+    );
+
+    const useDynamicCreative = shouldUseDynamicCreative(objective, destinationType === 'WHATSAPP', dailyBudget, creativeAssets);
+
     console.log(`\n${'═'.repeat(60)}`);
     console.log(`🚀 RIFX Ad Publisher — Mode: ${mode.toUpperCase()} | Advantage+: ON`);
-    console.log(`   Objective: ${objective} | Goal: ${optimizationGoal}`);
+    console.log(`   Objective: ${objective} | Goal: ${optimizationGoal} | Promoted object: ${JSON.stringify(promotedObject || {})}`);
     console.log(`   Budget: $${(dailyBudget / 100).toFixed(2)}/day | Duration: ${durationDays}d | Split: ${shouldSplit}`);
-    console.log(`   Ads per set: ${messageVariants.length} | Page: ${resolvedPageId} | API: ${FB_API_VERSION}`);
+    console.log(`   Ads per set: ${messageVariants.length} | Page: ${resolvedPageId} | API: ${FB_API_VERSION} | Dynamic Creative: ${useDynamicCreative}`);
     console.log(`${'═'.repeat(60)}\n`);
 
     const tomorrow = new Date();
@@ -626,6 +849,9 @@ export async function POST(req: NextRequest) {
       start_time: tomorrow.toISOString(),
       end_time: phase1End.toISOString(),
       status,
+      ...(promotedObject ? { promoted_object: promotedObject } : {}),
+      ...(destinationType ? { destination_type: destinationType } : {}),
+      ...(useDynamicCreative ? { is_dynamic_creative: true } : {}),
       access_token: token,
     });
 
@@ -639,7 +865,19 @@ export async function POST(req: NextRequest) {
     }
     const adSet1Id = adSet1Data.id;
 
-    const ads1 = await createAdsForSet({
+    const ads1 = useDynamicCreative
+      ? await createDynamicCreativeAd({
+          adAccountId,
+          adSetId: adSet1Id,
+          pageId: resolvedPageId,
+          variants: messageVariants,
+          assets: creativeAssets,
+          linkUrl,
+          cta,
+          token,
+          campaignName: phase1Name,
+        })
+      : await createAdsForSet({
       adAccountId,
       adSetId: adSet1Id,
       pageId: resolvedPageId,
@@ -649,6 +887,7 @@ export async function POST(req: NextRequest) {
       cta,
       token,
       campaignName: phase1Name,
+      isWhatsAppDestination: destinationType === 'WHATSAPP',
     });
 
     if (ads1.created.length === 0) {
@@ -691,6 +930,15 @@ export async function POST(req: NextRequest) {
       token,
     });
 
+    // Suma tambien cualquier audiencia de engagement ya existente que
+    // pertenezca a esta misma Pagina (no a la de otro cliente que haya
+    // usado la cuenta antes) para ampliar el remarketing automaticamente.
+    const existingAudienceIds = await findExistingEngagementAudiences(adAccountId, resolvedPageId, token, audienceId || undefined);
+    const remarketingAudienceIds = [audienceId, ...existingAudienceIds].filter(Boolean) as string[];
+    if (existingAudienceIds.length > 0) {
+      console.log(`✨ [REMARKETING AUDIENCE] Se sumaron ${existingAudienceIds.length} audiencia(s) existente(s) de esta Página al remarketing`);
+    }
+
     const campaign2Data = await metaPost(`${FB_BASE}/${adAccountId}/campaigns`, {
       name: phase2Name,
       objective,
@@ -715,7 +963,7 @@ export async function POST(req: NextRequest) {
     }
     const campaign2Id = campaign2Data.id;
 
-    const targeting2 = buildTargeting(body, mode, audienceId ? [audienceId] : []);
+    const targeting2 = buildTargeting(body, mode, remarketingAudienceIds);
     const phase2End = addDays(phase1End, phase2Days);
     const adSet2Data = await metaPost(`${FB_BASE}/${adAccountId}/adsets`, {
       name: `${phase2Name} - Ad Set`,
@@ -728,6 +976,9 @@ export async function POST(req: NextRequest) {
       start_time: phase1End.toISOString(),
       end_time: phase2End.toISOString(),
       status,
+      ...(promotedObject ? { promoted_object: promotedObject } : {}),
+      ...(destinationType ? { destination_type: destinationType } : {}),
+      ...(useDynamicCreative ? { is_dynamic_creative: true } : {}),
       access_token: token,
     });
 
@@ -752,7 +1003,19 @@ export async function POST(req: NextRequest) {
       : '👋 ¿Ya nos viste? Todavía estás a tiempo:\n\n';
     const remarketingVariants = messageVariants.map(v => `${remarketingPrefix}${v}`);
 
-    const ads2 = await createAdsForSet({
+    const ads2 = useDynamicCreative
+      ? await createDynamicCreativeAd({
+          adAccountId,
+          adSetId: adSet2Id,
+          pageId: resolvedPageId,
+          variants: remarketingVariants,
+          assets: creativeAssets,
+          linkUrl,
+          cta,
+          token,
+          campaignName: phase2Name,
+        })
+      : await createAdsForSet({
       adAccountId,
       adSetId: adSet2Id,
       pageId: resolvedPageId,
@@ -762,6 +1025,7 @@ export async function POST(req: NextRequest) {
       cta,
       token,
       campaignName: phase2Name,
+      isWhatsAppDestination: destinationType === 'WHATSAPP',
     });
 
     if (ads2.created.length === 0) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { decryptToken } from '@/lib/encryption';
+import { triggerCriticalAlert } from '@/lib/alerts';
 import { MetaPublishingService } from '@/services/social/meta';
 import { YouTubePublishingService } from '@/services/social/youtube';
 import { TikTokPublishingService } from '@/services/social/tiktok';
@@ -152,6 +153,14 @@ export async function POST(req: NextRequest) {
       console.error(`[Social Worker] ${decErrMsg}`);
       await writeLog(supabase, publicationId, decErrMsg, 'error');
       await supabase.from('social_publications').update({ status: 'failed', last_error: decErrMsg }).eq('id', publicationId);
+      if (account.tenant_id) {
+        triggerCriticalAlert({
+          tenantId: account.tenant_id,
+          title: '🔌 Cuenta social desconectada',
+          message: `No se pudo publicar en ${account.platform} (${account.platform_username || account.platform_user_id}) — el token de acceso ya no es válido. Reconecta la cuenta desde el panel.`,
+          url: '/panel',
+        }).catch(() => {});
+      }
       return NextResponse.json({ error: decErrMsg }, { status: 400 }); // Fatal error, no retry
     }
 

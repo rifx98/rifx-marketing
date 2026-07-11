@@ -179,9 +179,64 @@ export async function PUT(req: NextRequest) {
     const verifyData = await verifyRes.json();
     const isVerified = !verifyData.error;
 
+    // Registrar/asegurar que ESTA app (FACEBOOK_APP_ID) reciba los webhooks de WhatsApp.
+    // Sin esto, Meta puede canjear el token pero nunca enviar los eventos de mensajes
+    // entrantes a nuestra app, porque el WABA quedaría suscrito a otra app distinta
+    // (o a ninguna con la URL de callback correcta).
+    let webhookSubscribed = false;
+    let webhookSubscribeError = '';
+    try {
+      const appId = process.env.FACEBOOK_APP_ID;
+      const appSecret = process.env.FACEBOOK_APP_SECRET;
+      const waVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+
+      if (appId && appSecret && waVerifyToken) {
+        // 1. Registrar la URL de callback a nivel de app para el objeto whatsapp_business_account
+        const subUrl = new URL(`https://graph.facebook.com/v19.0/${appId}/subscriptions`);
+        subUrl.searchParams.set('object', 'whatsapp_business_account');
+        subUrl.searchParams.set('callback_url', `${req.nextUrl.origin}/api/whatsapp`);
+        subUrl.searchParams.set('verify_token', waVerifyToken);
+        subUrl.searchParams.set('fields', 'messages');
+        subUrl.searchParams.set('access_token', `${appId}|${appSecret}`);
+        const subRes = await fetch(subUrl.toString(), { method: 'POST' });
+        const subData = await subRes.json();
+        if (subData.error) {
+          console.error('❌ Error registrando app subscription:', subData.error);
+          webhookSubscribeError = subData.error.message || 'Error registrando webhook de app';
+        } else {
+          console.log('✅ App suscrita al objeto whatsapp_business_account (callback registrado)');
+
+          // 2. Suscribir este WABA específico para que envíe sus eventos a esta app
+          if (wabaId) {
+            const wabaSubRes = await fetch(
+              `https://graph.facebook.com/v19.0/${wabaId}/subscribed_apps`,
+              { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}` } }
+            );
+            const wabaSubData = await wabaSubRes.json();
+            if (wabaSubData.error) {
+              console.error('❌ Error suscribiendo WABA a la app:', wabaSubData.error);
+              webhookSubscribeError = wabaSubData.error.message || 'Error suscribiendo WABA';
+            } else {
+              webhookSubscribed = true;
+              console.log(`✅ WABA ${wabaId} suscrito exitosamente a la app ${appId}`);
+            }
+          } else {
+            webhookSubscribeError = 'No se recibió wabaId — no se pudo suscribir el WABA a la app';
+          }
+        }
+      } else {
+        webhookSubscribeError = 'Faltan FACEBOOK_APP_ID, FACEBOOK_APP_SECRET o WHATSAPP_VERIFY_TOKEN en el servidor';
+      }
+    } catch (subErr: any) {
+      console.error('❌ Error inesperado suscribiendo webhook de WhatsApp:', subErr);
+      webhookSubscribeError = subErr?.message || 'Error inesperado';
+    }
+
     return NextResponse.json({
       success: true,
       verified: isVerified,
+      webhookSubscribed,
+      webhookSubscribeError: webhookSubscribed ? undefined : webhookSubscribeError,
       phoneNumber: verifyData.display_phone_number || displayPhone,
       message: isVerified ? 'WhatsApp conectado exitosamente' : 'Guardado pero no se pudo verificar la conexión',
     });

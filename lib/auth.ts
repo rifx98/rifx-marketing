@@ -55,6 +55,7 @@ export async function getTenantFromRequest(req: NextRequest): Promise<TenantPayl
 export const PLAN_LIMITS: Record<string, { contacts: number; storage: number; members: number; bots: number }> = {
   trial:    { contacts: 200,    storage: 100 * 1024 * 1024,  members: 1,  bots: 1 },  // 100MB
   start:    { contacts: 1000,   storage: 250 * 1024 * 1024,  members: 5,  bots: 1 },  // 250MB
+  advanced: { contacts: 20000,  storage: 1024 * 1024 * 1024, members: 5,  bots: 1 },  // 1GB (alias for plus)
   plus:     { contacts: 20000,  storage: 1024 * 1024 * 1024, members: 5,  bots: 1 },  // 1GB
   master:   { contacts: 50000,  storage: 2048 * 1024 * 1024, members: 10, bots: 5 },  // 2GB
 };

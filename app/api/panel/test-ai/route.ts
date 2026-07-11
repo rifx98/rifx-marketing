@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey || apiKey.length < 10) {
       // Fallback: try Groq if available and we're not already trying Groq
-      const groqFallbackKey = process.env.GROQ_API_KEY || extConfig.groq_key || '';
+      const groqFallbackKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
       if (!isGroq && groqFallbackKey && groqFallbackKey.length >= 10) {
         console.warn(`⚠️ test-ai: No API key for ${selectedModel} (${isOpenAI ? 'OpenAI' : isGemini ? 'Gemini' : 'Anthropic'}). Falling back to Groq (llama-3.3-70b-versatile).`);
         apiKey = groqFallbackKey;

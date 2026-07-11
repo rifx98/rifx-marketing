@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (!groqKey) {
       const supabase = createSupabaseAdmin();
       const { data: config } = await supabase
-        .from('tenant_configs')
+        .from('config')
         .select('openai_key')
         .eq('tenant_id', tenant.tenantId)
         .single();

@@ -255,6 +255,19 @@ function getFirstDayOfWeek(year: number, month: number) {
   return d === 0 ? 6 : d - 1; // Monday = 0
 }
 
+// Convierte la VAPID public key (base64url) al formato Uint8Array que
+// pide pushManager.subscribe — boilerplate estandar de Web Push.
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 function formatRelativeTime(dateString: string | undefined, lang: string) {
   if (!dateString) return lang === 'es' ? 'Reciente' : 'Recent';
   const date = new Date(dateString);
@@ -2637,6 +2650,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [fbPublishing, setFbPublishing] = useState(false);
   const [showMetaPermissionsModal, setShowMetaPermissionsModal] = useState(false);
   const [showMetaNoApiModal, setShowMetaNoApiModal] = useState(false);
+  const [showWhatsAppNotLinkedModal, setShowWhatsAppNotLinkedModal] = useState(false);
 
   // Sube un archivo (imagen o video) a R2 y devuelve su URL firmada de descarga.
   const uploadFileToR2 = async (file: File | Blob, fallbackName: string): Promise<string> => {
@@ -2775,9 +2789,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       // (A/B testing de copy) — usa el hook principal + variantes generadas
       // por IA. El backend rellena hasta 6 si vienen menos.
       const hooks = [campaignResult?.hook, ...(campaignResult?.hook_variants || [])].filter(Boolean);
-      const messageVariants = (hooks.length > 0 ? hooks : [caption]).map((hook: string) =>
-        `${hook}\n\n${caption}${hashtagsBlock}`.trim()
-      );
+      const trimmedCaption = caption.trim();
+      const messageVariants = (hooks.length > 0 ? hooks : [caption]).map((hook: string) => {
+        const trimmedHook = (hook || '').trim();
+        // Evita texto duplicado cuando el hook generado por la IA ya es
+        // igual al caption o ya viene incluido al inicio del caption.
+        if (!trimmedHook || trimmedHook === trimmedCaption || trimmedCaption.startsWith(trimmedHook)) {
+          return `${trimmedCaption}${hashtagsBlock}`.trim();
+        }
+        return `${trimmedHook}\n\n${trimmedCaption}${hashtagsBlock}`.trim();
+      });
 
       // Validate objective — cada objetivo de negocio usa el objetivo de
       // campaña de Meta que mejor le sirve, en vez de dejarlo a lo que
@@ -2812,6 +2833,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           duration_days: campaignDurationDays,
           language,
           objective,
+          sales_destination: agentGoal === 'whatsapp' ? 'whatsapp' : agentGoal === 'web' ? 'web' : undefined,
           targeting_mode: 'simple', // Advantage+ audience — Meta optimiza siempre
           countries: adCountries,
           custom_locations: adLocations.map(l => ({ lat: l.lat, lng: l.lng, radius: l.radius })),
@@ -2843,16 +2865,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setShowMetaNoApiModal(true);
         } else {
           const isPermError = d.step === 'creative' && (
-            d.error?.toLowerCase().includes('permiso') || 
-            d.error?.toLowerCase().includes('perfil') || 
-            d.error?.toLowerCase().includes('permission') || 
+            d.error?.toLowerCase().includes('permiso') ||
+            d.error?.toLowerCase().includes('perfil') ||
+            d.error?.toLowerCase().includes('permission') ||
             d.error?.toLowerCase().includes('profile') ||
             d.error?.toLowerCase().includes('instagram')
           );
-          if (isPermError) {
+          const isWhatsAppNotLinkedError = d.error?.toLowerCase().includes('vinculada a una cuenta de whatsapp') ||
+            d.error?.toLowerCase().includes('not linked to a whatsapp');
+          if (isWhatsAppNotLinkedError) {
+            setShowWhatsAppNotLinkedModal(true);
+          } else if (isPermError) {
             setShowMetaPermissionsModal(true);
           } else {
-            setToast({ message: `Error (${d.step || '?'}): ${d.error || 'Error desconocido'}`, type: 'error' }); 
+            setToast({ message: `Error (${d.step || '?'}): ${d.error || 'Error desconocido'}`, type: 'error' });
           }
         }
       }
@@ -3589,7 +3615,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
   const [newAnnTitle, setNewAnnTitle] = useState('');
   const [newAnnMessage, setNewAnnMessage] = useState('');
-  const [newAnnType, setNewAnnType] = useState<'info' | 'update' | 'warning' | 'promo'>('info');
+  const [newAnnType, setNewAnnType] = useState<'info' | 'update' | 'warning' | 'promo' | 'training'>('info');
   const [showAnnForm, setShowAnnForm] = useState(false);
   const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
   const [editingTenantPlan, setEditingTenantPlan] = useState('trial');
@@ -3603,6 +3629,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [annImageUploading, setAnnImageUploading] = useState(false);
   const [newAnnBtnText, setNewAnnBtnText] = useState('');
   const [newAnnBtnUrl, setNewAnnBtnUrl] = useState('');
+  const [newAnnStartsAt, setNewAnnStartsAt] = useState('');
+  const [newAnnExpiresAt, setNewAnnExpiresAt] = useState('');
+  const [editingAnnId, setEditingAnnId] = useState<string | null>(null);
   const annImageInputRef = useRef<HTMLInputElement>(null);
   const [annAiLoading, setAnnAiLoading] = useState(false);
   const [annAiImproved, setAnnAiImproved] = useState<{ title: string; message: string } | null>(null);
@@ -4333,6 +4362,48 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     return fetch(url, { ...options, headers });
   };
 
+  const handleTogglePush = async (enabled: boolean) => {
+    if (enabled) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        setToast({ message: language === 'en' ? 'This browser does not support push notifications.' : 'Este navegador no soporta notificaciones push.', type: 'error' });
+        return;
+      }
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setToast({ message: language === 'en' ? 'Notification permission denied.' : 'Permiso de notificaciones denegado.', type: 'error' });
+          return;
+        }
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+        const existing = await reg.pushManager.getSubscription();
+        const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey as BufferSource });
+        const res = await authFetch('/api/panel/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: sub.toJSON() }),
+        });
+        if (!res.ok) throw new Error('No se pudo guardar la suscripción');
+        setConfigData((prev: any) => ({ ...prev, push_notifications: true }));
+        setToast({ message: language === 'en' ? 'Push notifications enabled!' : '¡Notificaciones push activadas!', type: 'success' });
+      } catch (e: any) {
+        setToast({ message: (language === 'en' ? 'Error enabling push: ' : 'Error activando push: ') + e.message, type: 'error' });
+      }
+    } else {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager.getSubscription();
+        if (sub) {
+          await authFetch('/api/panel/push?endpoint=' + encodeURIComponent(sub.endpoint), { method: 'DELETE' });
+          await sub.unsubscribe();
+        }
+      } catch {}
+      setConfigData((prev: any) => ({ ...prev, push_notifications: false }));
+      setToast({ message: language === 'en' ? 'Push notifications disabled.' : 'Notificaciones push desactivadas.', type: 'info' });
+    }
+  };
+
   const handleGenerateSalesPrompt = async () => {
     if (!botProductDetails.trim()) return;
     setBotPromptGenerating(true);
@@ -4503,15 +4574,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       // Cargar Plantillas de Base de Datos
       loadDbTemplates();
 
-      // Refrescar cada 10 segundos
-      const interval = setInterval(() => {
+      // Refrescar cada 10 segundos, solo mientras la pestaña esta visible
+      // (se pausa en segundo plano para no gastar requests sin necesidad)
+      // y se refresca de inmediato al volver a la pestaña.
+      const refreshCrmAndStats = () => {
         authFetch('/api/panel/conversations').then(res => res.json()).then(data => {
           setConversationsData(data);
           checkHumanAlerts(data);
         });
         authFetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
+      };
+      const interval = setInterval(() => {
+        if (document.visibilityState === 'visible') refreshCrmAndStats();
       }, 10000);
-      return () => clearInterval(interval);
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') refreshCrmAndStats();
+      };
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      };
     }
   }, [isLoggedIn]);
 
@@ -4671,9 +4754,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       })
       .catch(() => setLoadingMessages(false));
 
-    // Auto-refrescar cada 5 segundos
-    const msgInterval = setInterval(loadMessages, 5000);
-    return () => clearInterval(msgInterval);
+    // Auto-refrescar cada 5 segundos, solo mientras la pestaña esta visible;
+    // al volver a la pestaña se refresca de inmediato para no mostrar el
+    // chat desactualizado.
+    const msgInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadMessages();
+    }, 5000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') loadMessages();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(msgInterval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [selectedChat?.id]);
 
   // Solo hacer scroll al fondo cuando llegan mensajes NUEVOS
@@ -5494,13 +5588,45 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setAdminLoading(false);
   };
 
+  const resetAnnForm = () => {
+    setNewAnnTitle(''); setNewAnnMessage(''); setShowAnnForm(false);
+    setNewAnnType('info');
+    setNewAnnStartsAt(''); setNewAnnExpiresAt('');
+    setAnnImageFile(null); setAnnImagePreview('');
+    setNewAnnBtnText(''); setNewAnnBtnUrl('');
+    setEditingAnnId(null);
+  };
+
+  // Convierte un timestamp ISO de la base de datos al formato que espera
+  // <input type="datetime-local"> (sin segundos ni zona horaria).
+  const toDatetimeLocalValue = (iso: string | null | undefined): string => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleEditAnnouncement = (ann: any) => {
+    setEditingAnnId(ann.id);
+    setNewAnnTitle(ann.title || '');
+    setNewAnnMessage(ann.message || '');
+    setNewAnnType(ann.type || 'info');
+    setAnnImagePreview(ann.image_url || '');
+    setAnnImageFile(null);
+    setNewAnnBtnText(ann.button_text || '');
+    setNewAnnBtnUrl(ann.button_url || '');
+    setNewAnnStartsAt(toDatetimeLocalValue(ann.starts_at));
+    setNewAnnExpiresAt(toDatetimeLocalValue(ann.expires_at));
+    setShowAnnForm(true);
+  };
+
   const handleCreateAnnouncement = async () => {
     if (!newAnnTitle.trim() || !newAnnMessage.trim()) return;
     setAdminActionLoading(true);
     try {
-      let imageUrl = '';
-      
-      // Upload image first if provided
+      let imageUrl = annImagePreview && !annImageFile ? annImagePreview : '';
+
+      // Upload image first if a new file was selected
       if (annImageFile) {
         setAnnImageUploading(true);
         const formData = new FormData();
@@ -5515,27 +5641,35 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         }
         setAnnImageUploading(false);
       }
-      
+
       const res = await authFetch('/api/admin/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'create_announcement', 
-          title: newAnnTitle, 
-          message: newAnnMessage, 
+        body: JSON.stringify({
+          action: editingAnnId ? 'update_announcement' : 'create_announcement',
+          ...(editingAnnId ? { announcementId: editingAnnId } : {}),
+          title: newAnnTitle,
+          message: newAnnMessage,
           type: newAnnType,
           image_url: imageUrl || null,
           button_text: newAnnBtnText || null,
           button_url: newAnnBtnUrl || null,
+          starts_at: newAnnStartsAt || null,
+          expires_at: newAnnExpiresAt || null,
         }),
       });
       if (res.ok) {
-        setNewAnnTitle(''); setNewAnnMessage(''); setShowAnnForm(false);
-        setAnnImageFile(null); setAnnImagePreview('');
-        setNewAnnBtnText(''); setNewAnnBtnUrl('');
+        resetAnnForm();
         loadAdminData();
+        setToast({ message: editingAnnId ? '✅ Anuncio actualizado' : '✅ Anuncio publicado', type: 'success' });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setToast({ message: `Error: ${data.error || 'No se pudo guardar el anuncio'}`, type: 'error' });
       }
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      setToast({ message: 'Error de conexión: ' + e.message, type: 'error' });
+    }
     setAdminActionLoading(false);
   };
 
@@ -5633,14 +5767,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const handleToggleAdmin = async (targetTenantId: string, isAdmin: boolean, adminSections?: string[]) => {
     try {
       setAdminActionLoading(true);
-      await authFetch('/api/admin/dashboard', {
+      const res = await authFetch('/api/admin/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'toggle_admin', targetTenantId, isAdmin, adminSections: adminSections || ['overview', 'tenants', 'templates', 'announcements'] }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setToast({ message: language === 'en' ? `Error: ${data.error || 'Could not update admin role'}` : `Error: ${data.error || 'No se pudo actualizar el rol de administrador'}`, type: 'error' });
+        return;
+      }
       setShowAdminSectionsFor(null);
+      setToast({ message: language === 'en' ? '✅ Admin role updated!' : '✅ ¡Rol de administrador actualizado!', type: 'success' });
       loadAdminData();
-    } catch (e) { console.error(e); } finally { setAdminActionLoading(false); }
+    } catch (e: any) {
+      console.error(e);
+      setToast({ message: (language === 'en' ? 'Connection error: ' : 'Error de conexión: ') + e.message, type: 'error' });
+    } finally { setAdminActionLoading(false); }
   };
 
   const handleAdminDeleteTenant = async (targetTenantId: string) => {
@@ -7156,106 +7299,168 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                     );
                   })()}
-                  {/* Expert Cards */}
-                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {[
-                      {name:'Experta en ventas por WhatsApp', img:'AB6AXuDWSe1_L4wZI5vciZ440fFRXGRX_Jy9mCsJqKWeDk4HE-Ljl3Gu1E5Pv7_L5NcYJqr2ETTpZFeExyCE2XypIEK2vjXJ0SCDYSJq2e6JfyCMI1LiPfaGw-Rc7j5TAylDR9nwUkBTwNbCNVnfE-Vc3MP-d0zr9TEtqCyQ8oWyL8YTEdNqstELBp_-riW1gRIx0nsqFnvVXus0zVvMi-eEMcgGTj2vSQ5OntWsKkBqzkLYJ0jOJrd9yO6AC96gavZF11KkwhvPXDVE5YNa', online:true},
-                      {name:'Experto en logística', img:'AB6AXuBarYnXjTbS-YJFpfnLAYCtwnxMj4ecyo7lrGhGhkFAUtOluIPILBVpU9s63y6cW4s4lP4roXHMufp8eRBhm9RUVHPxC3cg8rWAbH5PnPjYIn_DSTgbolwSjPY1h_8tkVvEHCoOA7w0CWds5V9KapKNkkL2WPLYK_nhweD_by8E8fCUJRTw51XISU4En28JsnHZJRL9c262ihr6zZc44qvxfM0aPZbmQkEHOHvu_FgXciisI5QLgbr7Fn3B3Lb4oKTrGQeoaDrxd3ns', online:true},
-                      {name:'Especialista en recuperar carritos', img:'AB6AXuDw1TVF3SLRu-VMyIJGiH1m5ts4tKm4LYiPHm4oxOyzu3eZ_T6mp7gbMK1PN5IaC9_tDFYa3xZJoovjUvZg8iCJMP_kOlN5-m9zgjdYRo-U3LC3iIN38ckThN3YvkwB2ufNpLclTsPRElladsSOymDJYSApwZt1bcyG9Y4l_O17x3T0dcXG6tAXzDx21fulMb7Ife5-VDGCD7DiKXVMZBDR1EV7e-RLU_uKmpb4mA_pBVEcgwJ6bYZ_P0KPerwVqyi0AC1o6aH42daD', online:true},
-                      {name:'Mediadora de comentarios', img:'AB6AXuC1YTh3EdBAV_bv7N9aDXXB4YN4CgT4dUWwGTMvsPQesCRs_6YrPjx0uQKlZaivH1UYEwHBjzm6RR8Z2yImFDqmeDTukmPil6BBLbJzstpdCzuXxpsSk6GxYtJ4ak2QExlzDvVUEtlXnYtSq_qHXrhHTEo732Sm8qtAxRNcl_xxYh7WQ1zHQsDR6eXrqLTR4bNRzDvRw90ND0ODSVcSrkaliCv_GTtiJ9v0CUnnM_9_xwIhh-1bxMhpg9ymyIw4DaUREtW32ruDnX7J', online:true},
-                    ].map((expert, i) => (
-                      <div key={i} className="bg-crm-surface-container-low border border-slate-200 rounded-xl p-6 text-center hover:shadow-md transition-shadow group">
-                        <div className="relative w-20 h-20 mx-auto mb-4">
-                          <img alt={expert.name} className="rounded-full w-full h-full object-cover border-2 border-white shadow-sm group-hover:scale-105 transition-transform" src={`https://lh3.googleusercontent.com/aida-public/${expert.img}`} />
-                          <span className={`absolute bottom-1 right-1 w-4 h-4 ${expert.online ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full`}></span>
+                  {/* Expert Cards — reflejan el estado REAL de configuración de la cuenta */}
+                  {(() => {
+                    const experts = [
+                      {
+                        name: 'Experta en ventas por WhatsApp',
+                        icon: 'forum',
+                        active: !!(configData.whatsapp_token && configData.whatsapp_phone_id),
+                        onClick: () => { setActiveTab('settings'); setSettingsSection('whatsapp'); },
+                      },
+                      {
+                        name: 'Experto en logística',
+                        icon: 'local_shipping',
+                        active: !!configData.dropi_enabled,
+                        onClick: () => { setActiveTab('settings'); setSettingsSection('dropi'); },
+                      },
+                      {
+                        name: 'Experto en Pautas Publicitarias',
+                        icon: 'campaign',
+                        active: !!(configData.facebook_access_token && configData.facebook_ad_account_id),
+                        onClick: () => { setActiveTab('settings'); setSettingsSection('meta'); },
+                      },
+                      {
+                        name: 'Experto en crear pancartas',
+                        icon: 'auto_awesome',
+                        active: true,
+                        onClick: () => { setActiveTab('campaigns'); },
+                      },
+                    ];
+                    const missingCount = experts.filter(e => !e.active).length;
+                    const firstMissing = experts.find(e => !e.active);
+                    return (
+                      <>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                          {experts.map((expert, i) => (
+                            <button key={i} onClick={expert.onClick} className="bg-crm-surface-container-low border border-slate-200 rounded-xl p-6 text-center hover:shadow-md transition-shadow group">
+                              <div className="relative w-16 h-16 mx-auto mb-4">
+                                <div className={`w-full h-full rounded-full flex items-center justify-center border-2 border-white shadow-sm group-hover:scale-105 transition-transform ${expert.active ? 'bg-primary-container/10' : 'bg-slate-100'}`}>
+                                  <span className={`material-symbols-outlined text-2xl ${expert.active ? 'text-primary-container' : 'text-slate-400'}`}>{expert.icon}</span>
+                                </div>
+                                <span className={`absolute bottom-0 right-0 w-4 h-4 ${expert.active ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full`}></span>
+                              </div>
+                              <h4 className="text-sm font-bold text-slate-800">{expert.name}</h4>
+                              <p className={`text-xs font-medium mt-1 ${expert.active ? 'text-primary-container' : 'text-slate-400'}`}>{expert.active ? 'Configurado' : 'Falta configurar'}</p>
+                            </button>
+                          ))}
                         </div>
-                        <h4 className="text-sm font-bold text-slate-800">{expert.name}</h4>
-                        <p className={`text-xs font-medium mt-1 ${expert.online ? 'text-primary-container' : 'text-slate-400'}`}>{expert.online ? 'Disponible' : 'Desconectado'}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {/* CTA Bar */}
-                  <div className="bg-primary-container/5 px-6 py-4 border-t border-slate-100 flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-primary">
-                      <svg className="h-5 w-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" fillRule="evenodd"></path></svg>
-                      <span className="text-sm font-semibold">Te faltan 4 expertos para optimizar tu flujo</span>
-                    </div>
-                    <button onClick={() => setActiveTab('billing')} className="bg-primary-container text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-primary-container/90 shadow-sm transition-all flex items-center gap-2">
-                      Completar
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                    </button>
-                  </div>
+                        {/* CTA Bar */}
+                        <div className="bg-primary-container/5 px-6 py-4 border-t border-slate-100 flex justify-between items-center">
+                          <div className="flex items-center gap-2 text-primary">
+                            {missingCount > 0 ? (
+                              <>
+                                <svg className="h-5 w-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" fillRule="evenodd"></path></svg>
+                                <span className="text-sm font-semibold">Te falta{missingCount === 1 ? '' : 'n'} {missingCount} experto{missingCount === 1 ? '' : 's'} por configurar</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="material-symbols-outlined text-green-500">check_circle</span>
+                                <span className="text-sm font-semibold">¡Todos tus expertos están configurados!</span>
+                              </>
+                            )}
+                          </div>
+                          <button onClick={() => firstMissing ? firstMissing.onClick() : setActiveTab('billing')} className="bg-primary-container text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-primary-container/90 shadow-sm transition-all flex items-center gap-2">
+                            Completar
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
-                {/* Bottom two cards row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Actualizaciones */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
-                    <div className="bg-orange-500 p-4 flex justify-between items-center text-white rounded-t-2xl">
-                      <div>
-                        <h3 className="font-bold text-lg leading-none">Actualizaciones</h3>
-                        <p className="text-xs text-white/80 mt-1">Nuevas funciones disponibles</p>
-                      </div>
-                      <div className="relative">
-                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
-                        <span className="absolute -top-1 -right-1 bg-white text-orange-500 text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">4</span>
-                      </div>
-                    </div>
-                    <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                      <div className="border border-orange-200 bg-orange-50 rounded-xl p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Video solución</span>
-                          <span className="text-[10px] text-slate-400 font-medium">10 mar 2026</span>
+                {/* Bottom two cards row — ambas alimentadas por el mismo sistema de Anuncios,
+                    separadas por tipo: "training" va a Capacitaciones, el resto a Actualizaciones */}
+                {(() => {
+                  const updates = platformAnnouncements.filter((a: any) => a.type === 'update');
+                  const trainings = platformAnnouncements.filter((a: any) => a.type === 'training');
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Actualizaciones — datos reales del sistema de Anuncios */}
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
+                        <div className="bg-orange-500 p-4 flex justify-between items-center text-white rounded-t-2xl">
+                          <div>
+                            <h3 className="font-bold text-lg leading-none">Actualizaciones</h3>
+                            <p className="text-xs text-white/80 mt-1">Nuevas funciones disponibles</p>
+                          </div>
+                          <div className="relative">
+                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                            {updates.length > 0 && (
+                              <span className="absolute -top-1 -right-1 bg-white text-orange-500 text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">{updates.length}</span>
+                            )}
+                          </div>
                         </div>
-                        <h5 className="text-sm font-bold text-slate-800 mb-1">Video instructivo para solucionar el error del método de pago en Meta</h5>
-                        <p className="text-xs text-slate-600">La solución para añadir el método de pago a nivel del BM. A continuación el paso a paso...</p>
-                      </div>
-                      <div className="border border-orange-200 bg-orange-50 rounded-xl p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Nuevo</span>
-                          <span className="text-[10px] text-slate-400 font-medium">20 ene 2026</span>
+                        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+                          {updates.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center text-slate-300 py-8">
+                              <span className="material-symbols-outlined text-4xl mb-2">campaign</span>
+                              <p className="text-xs font-bold text-slate-400">No hay actualizaciones por ahora</p>
+                            </div>
+                          ) : (
+                            updates.map((ann: any) => {
+                              const badgeConfig: Record<string, { label: string; bg: string }> = {
+                                info: { label: 'Info', bg: 'bg-blue-500' },
+                                update: { label: 'Nuevo', bg: 'bg-green-500' },
+                                warning: { label: 'Aviso', bg: 'bg-red-500' },
+                                promo: { label: 'Promoción', bg: 'bg-emerald-500' },
+                              };
+                              const badge = badgeConfig[ann.type] || badgeConfig.info;
+                              return (
+                                <div key={ann.id} className="border border-orange-200 bg-orange-50 rounded-xl p-4">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <span className={`${badge.bg} text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase`}>{badge.label}</span>
+                                    <span className="text-[10px] text-slate-400 font-medium">{new Date(ann.created_at).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                  </div>
+                                  <h5 className="text-sm font-bold text-slate-800 mb-1">{ann.title}</h5>
+                                  <p className="text-xs text-slate-600">{ann.message}</p>
+                                  {ann.button_url && (
+                                    <a href={ann.button_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-orange-600 text-xs font-bold hover:underline">
+                                      {ann.button_text || 'Ver más'} <span className="material-symbols-outlined text-xs">open_in_new</span>
+                                    </a>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
-                        <h5 className="text-sm font-bold text-slate-800 mb-1">Nuevo panel de notificaciones de ventas</h5>
-                        <p className="text-xs text-slate-600">Recibe alertas automáticas en WhatsApp cuando se complete una venta o surja una novedad importante.</p>
                       </div>
-                    </div>
-                  </div>
 
-                  {/* Capacitaciones */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
-                    <div className="bg-primary-container p-4 flex justify-between items-center text-white rounded-t-2xl">
-                      <div>
-                        <h3 className="font-bold text-lg leading-none">Capacitaciones</h3>
-                        <p className="text-xs text-white/80 mt-1">Próximas sesiones importantes</p>
+                      {/* Capacitaciones — anuncios de tipo "training" */}
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
+                        <div className="bg-primary-container p-4 flex justify-between items-center text-white rounded-t-2xl">
+                          <div>
+                            <h3 className="font-bold text-lg leading-none">Capacitaciones</h3>
+                            <p className="text-xs text-white/80 mt-1">Próximas sesiones importantes</p>
+                          </div>
+                          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
+                        </div>
+                        <div className="p-4 flex-1 overflow-y-auto space-y-4">
+                          {trainings.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center text-slate-300 py-8">
+                              <span className="material-symbols-outlined text-4xl mb-2">school</span>
+                              <p className="text-xs font-bold text-slate-400">No hay capacitaciones programadas</p>
+                            </div>
+                          ) : (
+                            trainings.map((session: any) => (
+                              <div key={session.id} className="border border-blue-100 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
+                                <h5 className="text-sm font-bold text-slate-800 mb-2">{session.title}</h5>
+                                <p className="text-[11px] text-slate-500 whitespace-pre-line">{session.message}</p>
+                                {session.button_url && (
+                                  <div className="mt-3 flex justify-end">
+                                    <a href={session.button_url} target="_blank" rel="noopener noreferrer" className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">
+                                      {session.button_text || 'Ingresar'} <span className="material-symbols-outlined text-xs">open_in_new</span>
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
                     </div>
-                    <div className="p-4 flex-1 overflow-y-auto space-y-4">
-                      <div className="border border-blue-100 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
-                        <h5 className="text-sm font-bold text-slate-800 mb-2">Primeros pasos de Chatea PRO</h5>
-                        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">calendar_today</span><span>Todos los días de lunes a viernes</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">schedule</span><span>03:00 p.m.</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">timer</span><span>Dura: 60 min</span></div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <button className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">Ingresar <span className="material-symbols-outlined text-xs">open_in_new</span></button>
-                        </div>
-                      </div>
-                      <div className="border border-blue-100 rounded-xl p-4 hover:border-primary-container/30 transition-colors">
-                        <h5 className="text-sm font-bold text-slate-800 mb-2">Preguntas y respuestas con Chatea PRO</h5>
-                        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">calendar_today</span><span>Todos los días de lunes a viernes</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">schedule</span><span>03:30 p.m.</span></div>
-                          <div className="flex items-center gap-1.5"><span className="material-symbols-outlined text-xs">timer</span><span>Dura: 50 min</span></div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <button className="text-primary-container text-xs font-bold flex items-center gap-1 hover:underline">Ingresar <span className="material-symbols-outlined text-xs">open_in_new</span></button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </section>
             </div>
           </motion.div>
@@ -8836,7 +9041,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       setWaShowPhonePicker(false);
                       setWaStatus('success');
                       setWaStatusMsg(data.phoneNumber ? `✓ ${data.phoneNumber}` : '✓ Conectado');
-                      setToast({ type: 'success', message: language === 'en' ? '✓ WhatsApp connected!' : '✓ WhatsApp conectado!' });
+                      if (data.webhookSubscribed) {
+                        setToast({ type: 'success', message: language === 'en' ? '✓ WhatsApp connected! Incoming messages are active.' : '✓ WhatsApp conectado! Los mensajes entrantes están activos.' });
+                      } else {
+                        setToast({ type: 'error', message: (language === 'en' ? 'Connected, but incoming messages may not arrive: ' : 'Conectado, pero los mensajes entrantes podrían no llegar: ') + (data.webhookSubscribeError || '') });
+                      }
                     } else {
                       setToast({ type: 'error', message: data.error || 'Error saving' });
                     }
@@ -9076,8 +9285,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <div className="border-t border-slate-50 pt-5 space-y-3">
                         {[
                           { key: 'email_alerts', icon: 'mail', label: language === 'en' ? 'Critical Email Alerts' : 'Alertas Críticas por Email', desc: language === 'en' ? 'Receive alerts for critical system events' : 'Recibe alertas para eventos críticos del sistema' },
-                          { key: 'push_notifications', icon: 'notifications_active', label: language === 'en' ? 'Push Notifications' : 'Notificaciones Push', desc: language === 'en' ? 'Real-time browser notifications' : 'Notificaciones en tiempo real en el navegador' },
-                          { key: 'daily_briefing', icon: 'summarize', label: language === 'en' ? 'Daily Briefing' : 'Resumen Diario', desc: language === 'en' ? 'Daily summary of activity and metrics' : 'Resumen diario de actividad y métricas' },
+                          { key: 'push_notifications', icon: 'notifications_active', label: language === 'en' ? 'Push Notifications' : 'Notificaciones Push', desc: language === 'en' ? 'Real-time browser notifications' : 'Notificaciones en tiempo real en el navegador', needsBrowserSetup: true },
+                          { key: 'monthly_briefing', icon: 'summarize', label: language === 'en' ? 'Monthly Summary' : 'Resumen Mensual', desc: language === 'en' ? 'Monthly summary of activity and metrics' : 'Resumen mensual de actividad y métricas' },
                         ].map(alert => (
                           <div key={alert.key} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
                             <div className="flex items-center gap-3">
@@ -9090,7 +9299,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </div>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                              <input type="checkbox" className="sr-only peer" checked={configData[alert.key]} onChange={e => setConfigData({...configData, [alert.key]: e.target.checked})} />
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={!!configData[alert.key]}
+                                onChange={e => alert.needsBrowserSetup ? handleTogglePush(e.target.checked) : setConfigData({...configData, [alert.key]: e.target.checked})}
+                              />
                               <div className="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0058bc]"></div>
                             </label>
                           </div>
@@ -12161,6 +12375,95 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       </a>
                                       <button
                                         onClick={() => setShowMetaPermissionsModal(false)}
+                                        className="py-3 px-6 text-[#414754] bg-slate-50 hover:bg-slate-100 font-bold text-xs rounded-xl active:scale-[0.98] transition-all border border-slate-200"
+                                      >
+                                        {language === 'en' ? 'Close' : 'Cerrar'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Modal: Página de Facebook sin cuenta de WhatsApp vinculada */}
+                              {showWhatsAppNotLinkedModal && (
+                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in">
+                                  <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-100 shadow-2xl relative overflow-hidden animate-scale-in text-left">
+                                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#25D366] via-emerald-500 to-teal-500"></div>
+
+                                    <div className="flex items-start gap-4 mt-2">
+                                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center flex-shrink-0 border border-emerald-200">
+                                        <svg viewBox="0 0 24 24" width="22" height="22" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                      </div>
+                                      <div>
+                                        <h3 className="text-xl font-bold text-[#0b1c30]">
+                                          {language === 'en' ? 'WhatsApp Not Linked to Your Page' : 'WhatsApp No Vinculado a tu Página'}
+                                        </h3>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                          {language === 'en' ? 'Required to run Click-to-WhatsApp ads' : 'Necesario para anuncios que dirigen a WhatsApp'}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-5 text-sm text-[#414754] leading-relaxed space-y-4">
+                                      <p className="text-xs">
+                                        {language === 'en'
+                                          ? 'Meta requires your Facebook Page to have a linked WhatsApp Business Account before it can send ad traffic to WhatsApp. This connects your Page (used for ads) to a WhatsApp number, and is separate from your RIFX chatbot connection.'
+                                          : 'Meta exige que tu Página de Facebook tenga una cuenta de WhatsApp Business vinculada antes de poder dirigir tráfico de anuncios a WhatsApp. Esto conecta tu Página (la que se usa para los anuncios) con un número de WhatsApp, y es independiente de la conexión de tu chatbot en RIFX.'}
+                                      </p>
+
+                                      <div className="bg-[#f8fafc] border border-slate-100 rounded-2xl p-4 space-y-3">
+                                        <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-500">
+                                          {language === 'en' ? 'How to link it (on your Page settings):' : 'Cómo vincularlo (en la configuración de tu Página):'}
+                                        </h4>
+                                        <ol className="list-decimal pl-4 space-y-2.5 text-[11px] text-[#414754]">
+                                          <li>
+                                            <strong>{language === 'en' ? 'Open your Page settings' : 'Abre la configuración de tu Página'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'Click the button below — it opens your Page\'s own settings on Facebook.'
+                                                : 'Haz clic en el botón de abajo — abre la configuración de tu propia Página en Facebook.'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Find "WhatsApp" or "Linked Accounts"' : 'Busca "WhatsApp" o "Cuentas vinculadas"'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'In the left-side menu of Page settings, click "WhatsApp" (or "Linked Accounts" → "WhatsApp" if you don\'t see it directly).'
+                                                : 'En el menú de la izquierda de la configuración de la Página, busca "WhatsApp" (o "Cuentas vinculadas" → "WhatsApp" si no aparece directo).'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Enter the number and verify it' : 'Ingresa el número y verifícalo'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'Select the country code, type in your chatbot\'s WhatsApp number, and click "Continue"/"Send code". Meta will send a confirmation code to that WhatsApp number — enter it and confirm.'
+                                                : 'Elige el código de país, escribe el número de WhatsApp de tu chatbot y haz clic en "Continuar"/"Enviar código". Meta manda un código de confirmación a ese WhatsApp — ingrésalo y confirma.'}
+                                            </span>
+                                          </li>
+                                          <li>
+                                            <strong>{language === 'en' ? 'Publish again' : 'Vuelve a publicar'}</strong>:
+                                            <span className="block text-slate-500 mt-0.5 font-normal normal-case">
+                                              {language === 'en'
+                                                ? 'Once linked in Meta, return here and click "Publish Campaign" again.'
+                                                : 'Una vez vinculado en Meta, regresa aquí y vuelve a hacer clic en "Publicar Campaña".'}
+                                            </span>
+                                          </li>
+                                        </ol>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                                      <a
+                                        href={configData.facebook_page_id ? `https://www.facebook.com/${configData.facebook_page_id}/settings` : 'https://business.facebook.com/settings/whatsapp-accounts'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-1 py-3 text-center text-white bg-[#25D366] font-bold text-xs rounded-xl hover:bg-[#20bd5a] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
+                                      >
+                                        {language === 'en' ? 'Open Page Settings' : 'Abrir Configuración de la Página'}
+                                        <span className="material-symbols-outlined text-xs">open_in_new</span>
+                                      </a>
+                                      <button
+                                        onClick={() => setShowWhatsAppNotLinkedModal(false)}
                                         className="py-3 px-6 text-[#414754] bg-slate-50 hover:bg-slate-100 font-bold text-xs rounded-xl active:scale-[0.98] transition-all border border-slate-200"
                                       >
                                         {language === 'en' ? 'Close' : 'Cerrar'}
@@ -15897,7 +16200,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <h3 className="text-lg font-extrabold text-primary">Anuncios del Sistema</h3>
                           <p className="text-xs text-slate-400 mt-1">Los anuncios activos se muestran a todos los usuarios en su dashboard</p>
                         </div>
-                        <button onClick={() => setShowAnnForm(!showAnnForm)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all">
+                        <button onClick={() => showAnnForm ? resetAnnForm() : setShowAnnForm(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all">
                           <span className="material-symbols-outlined text-sm">add</span>
                           Nuevo Anuncio
                         </button>
@@ -15905,6 +16208,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       {showAnnForm && (
                         <div className="p-6 bg-slate-50 rounded-xl mb-6 border border-slate-200/50">
+                          <h4 className="text-sm font-extrabold text-primary mb-4">{editingAnnId ? 'Editar Anuncio' : 'Nuevo Anuncio'}</h4>
                           <div className="grid md:grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Título</label>
@@ -15917,12 +16221,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <option value="update"> Actualización</option>
                                 <option value="warning">! Aviso Importante</option>
                                 <option value="promo"> Promoción</option>
+                                <option value="training"> Capacitación</option>
                               </select>
                             </div>
                           </div>
                           <div className="mb-4">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Mensaje</label>
-                            <textarea value={newAnnMessage} onChange={e => setNewAnnMessage(e.target.value)} placeholder="Escribe el contenido del anuncio..." rows={3} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" />
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Horario de la sesión' : 'Mensaje'}</label>
+                            <textarea value={newAnnMessage} onChange={e => setNewAnnMessage(e.target.value)} placeholder={newAnnType === 'training' ? 'Ej: Todos los días de lunes a viernes · 03:00 p.m. · Dura: 60 min' : 'Escribe el contenido del anuncio...'} rows={3} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" />
+                            {newAnnType === 'training' && <p className="text-[10px] text-slate-400 mt-1">Este texto se muestra como el horario de la sesión en la tarjeta de Capacitaciones.</p>}
                           </div>
                           
                           {/* Image Upload */}
@@ -15947,14 +16253,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             )}
                           </div>
 
+                          {/* Programación y caducidad */}
+                          <div className="grid md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Programar para (opcional)</label>
+                              <input type="datetime-local" value={newAnnStartsAt} onChange={e => setNewAnnStartsAt(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                              <p className="text-[9px] text-slate-300 mt-1">Si lo dejas vacío, se muestra de inmediato al publicarlo.</p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Caduca el (opcional)</label>
+                              <input type="datetime-local" value={newAnnExpiresAt} onChange={e => setNewAnnExpiresAt(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                              <p className="text-[9px] text-slate-300 mt-1">Si lo dejas vacío, se muestra indefinidamente hasta que lo desactives.</p>
+                            </div>
+                          </div>
+
                           {/* Button CTA */}
                           <div className="grid md:grid-cols-2 gap-4 mb-4">
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Texto del Botón (opcional)</label>
-                              <input value={newAnnBtnText} onChange={e => setNewAnnBtnText(e.target.value)} placeholder="Ej: Ver más, Ir a la academia" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Texto del Botón' : 'Texto del Botón (opcional)'}</label>
+                              <input value={newAnnBtnText} onChange={e => setNewAnnBtnText(e.target.value)} placeholder={newAnnType === 'training' ? 'Ej: Ingresar' : 'Ej: Ver más, Ir a la academia'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
                             </div>
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">URL del Botón (opcional)</label>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Link de Zoom / Meet' : 'URL del Botón (opcional)'}</label>
                               <input value={newAnnBtnUrl} onChange={e => setNewAnnBtnUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
                             </div>
                           </div>
@@ -15966,10 +16286,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </button>
 
                             <div className="flex justify-end gap-3">
-                              <button onClick={() => { setShowAnnForm(false); setAnnImageFile(null); setAnnImagePreview(''); setNewAnnBtnText(''); setNewAnnBtnUrl(''); setAnnShowPreview(false); setAnnAiImproved(null); }} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">Cancelar</button>
+                              <button onClick={() => { resetAnnForm(); setAnnShowPreview(false); setAnnAiImproved(null); }} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">Cancelar</button>
                               <button onClick={handleCreateAnnouncement} disabled={adminActionLoading || annImageUploading || !newAnnTitle.trim() || !newAnnMessage.trim()} className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2">
                                 {(adminActionLoading || annImageUploading) ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">send</span>}
-                                {annImageUploading ? 'Subiendo imagen...' : 'Publicar Anuncio'}
+                                {annImageUploading ? 'Subiendo imagen...' : editingAnnId ? 'Guardar Cambios' : 'Publicar Anuncio'}
                               </button>
                             </div>
                           </div>
@@ -16012,8 +16332,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               update: { icon: 'new_releases', bg: 'bg-violet-50', text: 'text-violet-700', badge: 'bg-violet-100 text-violet-700' },
                               warning: { icon: 'warning', bg: 'bg-red-50', text: 'text-red-700', badge: 'bg-red-100 text-red-700' },
                               promo: { icon: 'celebration', bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+                              training: { icon: 'school', bg: 'bg-indigo-50', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700' },
                             };
                             const cfg = typeConfig[ann.type] || typeConfig.info;
+                            const now = Date.now();
+                            const isScheduled = ann.starts_at && new Date(ann.starts_at).getTime() > now;
+                            const isExpired = ann.expires_at && new Date(ann.expires_at).getTime() <= now;
                             return (
                               <div key={ann.id} className={`p-5 rounded-xl border ${ann.is_active ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-60'} transition-all`}>
                                 {ann.image_url && (
@@ -16027,17 +16351,24 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <span className={`material-symbols-outlined ${cfg.text}`}>{cfg.icon}</span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
+                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <h4 className="text-sm font-extrabold text-primary">{ann.title}</h4>
                                         <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md uppercase ${cfg.badge}`}>{ann.type}</span>
                                         {!ann.is_active && <span className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-red-100 text-red-600 uppercase">Inactivo</span>}
+                                        {isScheduled && <span className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-indigo-100 text-indigo-600 uppercase">Programado</span>}
+                                        {isExpired && <span className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-slate-200 text-slate-500 uppercase">Caducado</span>}
                                       </div>
                                       <p className="text-xs text-slate-500 line-clamp-2">{ann.message}</p>
                                       {ann.button_text && <p className="text-[10px] text-blue-500 mt-1 font-bold"> {ann.button_text}</p>}
                                       <p className="text-[10px] text-slate-300 mt-2">{new Date(ann.created_at).toLocaleString()}</p>
+                                      {ann.starts_at && <p className="text-[10px] text-indigo-400 mt-0.5">Programado para: {new Date(ann.starts_at).toLocaleString()}</p>}
+                                      {ann.expires_at && <p className="text-[10px] text-slate-400 mt-0.5">Caduca: {new Date(ann.expires_at).toLocaleString()}</p>}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button onClick={() => handleEditAnnouncement(ann)} className="px-3 py-1.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-colors">
+                                      <span className="material-symbols-outlined text-sm align-middle mr-1">edit</span>Editar
+                                    </button>
                                     <button onClick={() => handleToggleAnnouncement(ann.id, !ann.is_active)} className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition-colors ${ann.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}>
                                       {ann.is_active ? 'Desactivar' : 'Activar'}
                                     </button>

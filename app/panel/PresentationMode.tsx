@@ -495,7 +495,6 @@ export default function PresentationMode({ isActive, onClose, onTabChange }: Pre
                   src={`/panel?tab=${slide.tab}&demo=1`}
                   className="w-full"
                   style={{
-                    height: 'calc(80vh - 44px)',
                     border: 'none',
                     pointerEvents: 'none',
                     transform: 'scale(0.75)',
