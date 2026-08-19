@@ -1,10 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest } from '@/lib/auth';
+import {
+  getDashboardAdminPermission,
+  hasAdminPermission,
+  hasAdminSection,
+  requireAdminPermission,
+} from '@/lib/admin-rbac';
+import { enforceTenantRateLimit, readLimitedJsonObject } from '@/lib/request-guards';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
+
+const MAX_ANNOUNCEMENT_URL_LENGTH = 2_048;
+const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ADMIN_TENANT_FIELDS = [
+  'id', 'email', 'company_name', 'owner_name', 'plan', 'plan_status',
+  'plan_started_at', 'plan_expires_at', 'storage_used_bytes',
+  'storage_limit_bytes', 'contact_limit', 'is_admin', 'admin_role',
+  'admin_can_edit_plans', 'admin_sections', 'created_at', 'permission_overrides',
+].join(',');
+
+function normalizeAnnouncementButtonUrl(value: unknown): { value: string | null; error?: string } {
+  if (value === undefined || value === null || value === '') return { value: null };
+  if (typeof value !== 'string') return { value: null, error: 'El enlace del boton no es valido' };
+  const raw = value.trim();
+  if (!raw) return { value: null };
+  if (raw.length > MAX_ANNOUNCEMENT_URL_LENGTH || /[\u0000-\u001f\u007f]/.test(raw)) {
+    return { value: null, error: 'El enlace del boton es demasiado largo o contiene caracteres invalidos' };
+  }
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) {
+      return { value: null, error: 'El enlace del boton debe ser una URL HTTPS sin credenciales' };
+    }
+    const normalized = url.toString();
+    if (normalized.length > MAX_ANNOUNCEMENT_URL_LENGTH) {
+      return { value: null, error: 'El enlace del boton es demasiado largo' };
+    }
+    return { value: normalized };
+  } catch {
+    return { value: null, error: 'El enlace del boton debe ser una URL HTTPS valida' };
+  }
+}
 // ============================================
 // PANEL DE ADMINISTRADOR — Solo accesible por is_admin=true
 // ============================================
@@ -12,21 +50,24 @@ export const revalidate = 0;
 // GET: Obtener datos del dashboard admin
 export async function GET(req: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.isAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
+    const authorization = await requireAdminPermission(req, 'dashboard.read');
+    if (!authorization.ok) return authorization.response;
+    const admin = authorization.admin;
+    const canViewOverview = hasAdminSection(admin, 'overview');
+    const canViewTenants = hasAdminSection(admin, 'tenants');
+    const canViewAnnouncements = hasAdminSection(admin, 'announcements');
+    const canManagePlanPermissions = hasAdminPermission(admin, 'plan_permissions.update');
 
     const supabase = createSupabaseAdmin();
 
     // Total tenants
     const { data: allTenants, error: tenantsError } = await supabase
       .from('tenants')
-      .select('*')
+      .select(ADMIN_TENANT_FIELDS)
       .order('created_at', { ascending: false });
 
     if (tenantsError) {
-      return NextResponse.json({ error: tenantsError.message }, { status: 500 });
+      return NextResponse.json({ error: 'No se pudo cargar el dashboard' }, { status: 500 });
     }
 
     const tenants = allTenants || [];
@@ -44,19 +85,19 @@ export async function GET(req: NextRequest) {
     // Total conversations across all tenants
     const { count: totalConversations } = await supabase
       .from('conversations')
-      .select('*', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true });
 
     // Total messages across all tenants
     const { count: totalMessages } = await supabase
       .from('messages')
-      .select('*', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true });
 
     // Announcements (safe — table might not exist)
     let announcements: any[] = [];
     try {
       const { data: annData } = await supabase
         .from('announcements')
-        .select('*')
+        .select('id,title,message,type,image_url,button_text,button_url,is_active,starts_at,expires_at,created_at,updated_at')
         .order('created_at', { ascending: false });
       announcements = annData || [];
     } catch {}
@@ -66,7 +107,7 @@ export async function GET(req: NextRequest) {
     try {
       const { data: payData } = await supabase
         .from('payments')
-        .select('*')
+        .select('id,tenant_id,plan,amount,currency,payment_method,transaction_id,status,created_at')
         .order('created_at', { ascending: false });
       allPayments = payData || [];
     } catch {}
@@ -113,23 +154,36 @@ export async function GET(req: NextRequest) {
       if (settingsData?.plan_permissions) {
         planPermissions = settingsData.plan_permissions;
       }
-    } catch (e) {
-      console.error('Error fetching plan_permissions in dashboard:', e);
+    } catch {
+      console.error('Admin plan permissions lookup failed');
     }
 
+    const canViewTenantMetrics = canViewOverview || canViewTenants;
+    const canViewPayments = canViewOverview || canViewTenants;
+
     return NextResponse.json({
-      totalTenants,
-      activeTenants,
-      newThisWeek,
-      planCounts,
-      totalConversations: totalConversations || 0,
-      totalMessages: totalMessages || 0,
-      totalRevenue,
-      activeSubscriptions,
-      monthlyRevenue,
-      recentPayments,
-      planPermissions,
-      tenants: tenants.map(t => {
+      totalTenants: canViewTenantMetrics ? totalTenants : 0,
+      activeTenants: canViewTenantMetrics ? activeTenants : 0,
+      newThisWeek: canViewTenantMetrics ? newThisWeek : 0,
+      planCounts: canViewTenantMetrics ? planCounts : {},
+      totalConversations: canViewOverview ? totalConversations || 0 : 0,
+      totalMessages: canViewOverview ? totalMessages || 0 : 0,
+      totalRevenue: canViewOverview ? totalRevenue : 0,
+      activeSubscriptions: canViewOverview ? activeSubscriptions : 0,
+      monthlyRevenue: canViewOverview ? monthlyRevenue : 0,
+      recentPayments: canViewOverview ? recentPayments : [],
+      planPermissions: canManagePlanPermissions ? planPermissions : null,
+      tenants: (canViewTenants ? tenants : canViewOverview ? tenants.slice(0, 5) : []).map(t => {
+        if (!canViewTenants) {
+          return {
+            id: t.id,
+            email: t.email,
+            companyName: t.company_name,
+            ownerName: t.owner_name,
+            plan: t.plan,
+            createdAt: t.created_at,
+          };
+        }
         const tenantPayments = paymentsByTenant[t.id] || [];
         const totalSpent = tenantPayments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
         const lastPaymentDate = tenantPayments.length > 0 ? tenantPayments[0].created_at : null;
@@ -160,24 +214,35 @@ export async function GET(req: NextRequest) {
           permissionOverrides: t.permission_overrides || {},
         };
       }),
-      announcements: announcements || [],
-      payments,
+      announcements: canViewAnnouncements ? announcements : [],
+      payments: canViewPayments ? payments : [],
     });
-  } catch (error: any) {
-    console.error('❌ Error en admin dashboard:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+  } catch {
+    console.error('Admin dashboard load failed');
+    return NextResponse.json({ error: 'No se pudo cargar el dashboard' }, { status: 500 });
   }
 }
 
 // POST: Acciones del admin (crear anuncio, cambiar plan, etc.)
 export async function POST(req: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.isAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    const parsedBody = await readLimitedJsonObject(req, 128 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
+    const permission = getDashboardAdminPermission(body?.action);
+    if (!permission) {
+      return NextResponse.json({ error: 'Accion no reconocida' }, { status: 400 });
     }
-
-    const body = await req.json();
+    const authorization = await requireAdminPermission(req, permission);
+    if (!authorization.ok) return authorization.response;
+    const tenant = authorization.admin;
+    const rateDenied = await enforceTenantRateLimit(
+      'admin-dashboard-mutation',
+      tenant.tenantId,
+      30,
+      60_000,
+    );
+    if (rateDenied) return rateDenied;
     const supabase = createSupabaseAdmin();
 
     // Action: create_announcement
@@ -189,10 +254,14 @@ export async function POST(req: NextRequest) {
       if (starts_at && expires_at && new Date(expires_at) <= new Date(starts_at)) {
         return NextResponse.json({ error: 'La fecha de caducidad debe ser posterior a la de inicio' }, { status: 400 });
       }
+      const normalizedButtonUrl = normalizeAnnouncementButtonUrl(button_url);
+      if (normalizedButtonUrl.error) {
+        return NextResponse.json({ error: normalizedButtonUrl.error }, { status: 400 });
+      }
       const insertData: any = { title, message, type: type || 'info', is_active: true };
       if (image_url) insertData.image_url = image_url;
       if (button_text) insertData.button_text = button_text;
-      if (button_url) insertData.button_url = button_url;
+      if (normalizedButtonUrl.value) insertData.button_url = normalizedButtonUrl.value;
       if (starts_at) insertData.starts_at = new Date(starts_at).toISOString();
       if (expires_at) insertData.expires_at = new Date(expires_at).toISOString();
 
@@ -202,7 +271,7 @@ export async function POST(req: NextRequest) {
         .select()
         .single();
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudo crear el anuncio' }, { status: 500 });
       return NextResponse.json({ success: true, announcement: data });
     }
 
@@ -218,13 +287,17 @@ export async function POST(req: NextRequest) {
       if (starts_at && expires_at && new Date(expires_at) <= new Date(starts_at)) {
         return NextResponse.json({ error: 'La fecha de caducidad debe ser posterior a la de inicio' }, { status: 400 });
       }
+      const normalizedButtonUrl = normalizeAnnouncementButtonUrl(button_url);
+      if (normalizedButtonUrl.error) {
+        return NextResponse.json({ error: normalizedButtonUrl.error }, { status: 400 });
+      }
       const updateData: any = {
         title,
         message,
         type: type || 'info',
         image_url: image_url || null,
         button_text: button_text || null,
-        button_url: button_url || null,
+        button_url: normalizedButtonUrl.value,
         starts_at: starts_at ? new Date(starts_at).toISOString() : null,
         expires_at: expires_at ? new Date(expires_at).toISOString() : null,
       };
@@ -236,7 +309,7 @@ export async function POST(req: NextRequest) {
         .select()
         .single();
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudo actualizar el anuncio' }, { status: 500 });
       return NextResponse.json({ success: true, announcement: data });
     }
 
@@ -248,7 +321,7 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq('id', announcementId);
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudo eliminar el anuncio' }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
@@ -260,16 +333,12 @@ export async function POST(req: NextRequest) {
         .update({ is_active: isActive })
         .eq('id', announcementId);
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudo cambiar el estado del anuncio' }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
     // Action: update_tenant_plan
     if (body.action === 'update_tenant_plan') {
-      if (tenant.adminCanEditPlans === false) {
-        return NextResponse.json({ error: 'No tienes permisos para modificar planes.' }, { status: 403 });
-      }
-
       const { targetTenantId, plan } = body;
       const validPlans = ['trial', 'start', 'plus', 'master'];
       if (!validPlans.includes(plan)) {
@@ -296,17 +365,12 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', targetTenantId);
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudo actualizar el plan del tenant' }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
     // Action: toggle_admin
     if (body.action === 'toggle_admin') {
-      // Solo un admin full puede cambiar permisos de administrador
-      if (tenant.adminRole !== 'full' && tenant.adminRole !== undefined) {
-        return NextResponse.json({ error: 'Solo un Administrador Total puede asignar o quitar roles.' }, { status: 403 });
-      }
-
       const { targetTenantId, isAdmin, adminRole, adminCanEditPlans } = body;
       
       const updateData: any = { is_admin: isAdmin };
@@ -321,16 +385,12 @@ export async function POST(req: NextRequest) {
         .update(updateData)
         .eq('id', targetTenantId);
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudo actualizar el rol administrativo' }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
     // Action: update_plan_permissions
     if (body.action === 'update_plan_permissions') {
-      if (tenant.adminCanEditPlans === false) {
-        return NextResponse.json({ error: 'No tienes permisos para modificar planes.' }, { status: 403 });
-      }
-
       const { planPermissions } = body;
       if (!planPermissions) {
         return NextResponse.json({ error: 'Permisos de planes requeridos' }, { status: 400 });
@@ -354,16 +414,12 @@ export async function POST(req: NextRequest) {
           .insert({ plan_permissions: planPermissions });
       }
 
-      if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+      if (result.error) return NextResponse.json({ error: 'No se pudieron actualizar los permisos de planes' }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
     // Action: update_tenant_overrides
     if (body.action === 'update_tenant_overrides') {
-      if (tenant.adminCanEditPlans === false) {
-        return NextResponse.json({ error: 'No tienes permisos para modificar planes.' }, { status: 403 });
-      }
-
       const { targetTenantId, permissionOverrides } = body;
       if (!targetTenantId || !permissionOverrides) {
         return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 });
@@ -374,19 +430,14 @@ export async function POST(req: NextRequest) {
         .update({ permission_overrides: permissionOverrides })
         .eq('id', targetTenantId);
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return NextResponse.json({ error: 'No se pudieron actualizar los permisos del tenant' }, { status: 500 });
       return NextResponse.json({ success: true });
     }
 
     // Action: delete_tenant
     if (body.action === 'delete_tenant') {
-      // Solo un admin con rol completo (o indefinido por defecto) puede eliminar
-      if (tenant.adminRole !== 'full' && tenant.adminRole !== undefined) {
-        return NextResponse.json({ error: 'Solo un Administrador Total puede eliminar usuarios.' }, { status: 403 });
-      }
-
       const { targetTenantId } = body;
-      if (!targetTenantId) {
+      if (typeof targetTenantId !== 'string' || !TENANT_ID_PATTERN.test(targetTenantId)) {
         return NextResponse.json({ error: 'ID de usuario requerido' }, { status: 400 });
       }
 
@@ -395,18 +446,57 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta desde aquí.' }, { status: 400 });
       }
 
-      const { error } = await supabase
+      const { data: target, error: targetError } = await supabase
         .from('tenants')
-        .delete()
-        .eq('id', targetTenantId);
+        .select('id,is_active,deleted_at,session_version')
+        .eq('id', targetTenantId)
+        .maybeSingle();
+      if (targetError) {
+        return NextResponse.json({ error: 'No se pudo consultar el tenant' }, { status: 500 });
+      }
+      if (!target) {
+        return NextResponse.json({ error: 'Tenant no encontrado' }, { status: 404 });
+      }
+      // Reintentos del mismo soft-delete son seguros y no vuelven a incrementar
+      // la versión de sesión de un tenant que ya estaba desactivado.
+      if (target.deleted_at && target.is_active === false) {
+        return NextResponse.json({ success: true, alreadyDeleted: true });
+      }
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      const currentSessionVersion = Number(target.session_version);
+      const maxPostgresInteger = 2_147_483_647;
+      if (
+        !Number.isSafeInteger(currentSessionVersion)
+        || currentSessionVersion < 0
+        || currentSessionVersion >= maxPostgresInteger
+      ) {
+        return NextResponse.json({ error: 'No se pudo desactivar el tenant de forma segura' }, { status: 409 });
+      }
+
+      const { data: deactivated, error } = await supabase
+        .from('tenants')
+        .update({
+          deleted_at: new Date().toISOString(),
+          is_active: false,
+          session_version: currentSessionVersion + 1,
+        })
+        .eq('id', targetTenantId)
+        .eq('session_version', currentSessionVersion)
+        .select('id')
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ error: 'No se pudo desactivar el tenant' }, { status: 500 });
+      }
+      if (!deactivated) {
+        return NextResponse.json({ error: 'El tenant cambió mientras se procesaba la solicitud' }, { status: 409 });
+      }
       return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 });
-  } catch (error: any) {
-    console.error('❌ Error en admin action:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+  } catch {
+    console.error('Admin dashboard action failed');
+    return NextResponse.json({ error: 'No se pudo procesar la accion administrativa' }, { status: 500 });
   }
 }

@@ -15,15 +15,16 @@ CREATE TABLE IF NOT EXISTS config (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Insertar fila de config por defecto
-INSERT INTO config (id) VALUES (gen_random_uuid()) ON CONFLICT DO NOTHING;
+-- No insertar una configuración global sin tenant. La migración canónica
+-- crea la fila cuando existe un propietario verificado.
 
 -- 2. Conversaciones (cada contacto de WhatsApp)
 CREATE TABLE IF NOT EXISTS conversations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   phone_number TEXT NOT NULL,
   customer_name TEXT DEFAULT 'Sin nombre',
-  status TEXT DEFAULT 'chatting' CHECK (status IN ('chatting', 'interested', 'bought')),
+  status TEXT DEFAULT 'chatting'
+    CHECK (status IN ('chatting', 'interested', 'bought', 'requires_attention')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -65,7 +66,7 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 
 -- Políticas: permitir acceso completo al service_role (backend)
-CREATE POLICY "Service role full access" ON config TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON conversations TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON messages TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON sales TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON config FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON conversations FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON messages FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON sales FOR ALL TO service_role USING (true) WITH CHECK (true);

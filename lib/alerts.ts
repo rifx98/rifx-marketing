@@ -1,10 +1,11 @@
 import webpush from 'web-push';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { isAllowedPushEndpoint } from '@/lib/push-security';
 
 // ============================================
-// ALERTAS CRÍTICAS — Push ya funcional. El envío por
-// email queda pendiente hasta conectar un proveedor
-// (Resend u otro) — mientras tanto solo se loguea.
+// ALERTAS CRÍTICAS — Push funcional. No se simula el envío por email:
+// mientras no exista un proveedor real, solo se registra el estado del canal
+// sin incluir destinatarios ni contenido del cliente.
 // ============================================
 
 let vapidConfigured = false;
@@ -19,19 +20,6 @@ function ensureVapid() {
   }
 }
 
-function decodeExtendedAlertConfig(stored: string | null | undefined) {
-  try {
-    const parsed = JSON.parse(stored || '{}');
-    return {
-      email_alerts: !!parsed.email_alerts,
-      push_notifications: !!parsed.push_notifications,
-      alert_email: parsed.alert_email || '',
-    };
-  } catch {
-    return { email_alerts: false, push_notifications: false, alert_email: '' };
-  }
-}
-
 interface CriticalAlertParams {
   tenantId: string;
   title: string;
@@ -40,32 +28,28 @@ interface CriticalAlertParams {
 }
 
 // Dispara una alerta crítica para un tenant: envía push si tiene
-// push_notifications activado y correo si tiene email_alerts activado
-// (el correo queda pendiente de proveedor — ver sendAlertEmail).
+// push_notifications activado. El canal de correo se reporta como no
+// disponible hasta que exista una integración real.
 export async function triggerCriticalAlert(params: CriticalAlertParams): Promise<void> {
   const { tenantId, title, message, url } = params;
   try {
     const supabase = createSupabaseAdmin();
     const { data: config } = await supabase
       .from('config')
-      .select('openai_key')
+      .select('email_alerts, push_notifications, alert_email')
       .eq('tenant_id', tenantId)
       .limit(1)
       .maybeSingle();
 
-    const settings = decodeExtendedAlertConfig(config?.openai_key);
-
-    console.log(`🚨 [CRITICAL ALERT] tenant=${tenantId} | ${title}: ${message}`);
-
-    if (settings.push_notifications) {
+    if (config?.push_notifications === true) {
       await sendPushToTenant(tenantId, { title, body: message, url });
     }
 
-    if (settings.email_alerts) {
-      await sendAlertEmail(settings.alert_email, title, message);
+    if (config?.email_alerts === true && config.alert_email) {
+      await reportUnavailableEmailChannel();
     }
-  } catch (err) {
-    console.error('⚠️ [CRITICAL ALERT] Error disparando alerta:', err);
+  } catch {
+    console.error('[Critical Alert] Delivery failed');
   }
 }
 
@@ -79,10 +63,19 @@ async function sendPushToTenant(tenantId: string, payload: { title: string; body
   const supabase = createSupabaseAdmin();
   const { data: subs } = await supabase
     .from('push_subscriptions')
-    .select('*')
-    .eq('tenant_id', tenantId);
+    .select('endpoint, keys_p256dh, keys_auth')
+    .eq('tenant_id', tenantId)
+    .limit(101);
 
   if (!subs || subs.length === 0) return;
+  if (subs.length > 100) {
+    console.error('[Push] Subscription safety limit exceeded');
+    return;
+  }
+  if (subs.some((subscription) => !isAllowedPushEndpoint(subscription.endpoint))) {
+    console.error('[Push] Unsafe stored endpoint rejected');
+    return;
+  }
 
   const body = JSON.stringify({ title: payload.title, body: payload.body, url: payload.url || '/panel' });
 
@@ -95,22 +88,18 @@ async function sendPushToTenant(tenantId: string, payload: { title: string; body
     } catch (err: any) {
       // Suscripción expirada/invalida — se limpia para no reintentar en vano.
       if (err?.statusCode === 404 || err?.statusCode === 410) {
-        await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+        await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .eq('endpoint', sub.endpoint);
       } else {
-        console.error('⚠️ [PUSH] Error enviando a una suscripción:', err?.message || err);
+        console.error('⚠️ [PUSH] No se pudo enviar una suscripción del tenant');
       }
     }
   }));
 }
 
-// Placeholder hasta conectar un proveedor de email real (Resend, etc.)
-// No lanza error — solo deja constancia de que la alerta debió enviarse.
-async function sendAlertEmail(toEmail: string, title: string, message: string): Promise<void> {
-  if (!toEmail) return;
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.log(`📧 [EMAIL PENDIENTE] Se enviaría a ${toEmail} — "${title}": ${message} (falta conectar proveedor de email)`);
-    return;
-  }
-  // TODO: una vez conectado RESEND_API_KEY, enviar el correo real aquí.
+async function reportUnavailableEmailChannel(): Promise<void> {
+  console.warn('[Email] Provider not configured; delivery skipped');
 }

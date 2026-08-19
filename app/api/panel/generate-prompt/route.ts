@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+  readLimitedResponseJson,
+} from '@/lib/request-guards';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,20 +16,30 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'banners');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('generate-prompt', tenant.tenantId, 10, 60_000);
+    if (rateDenied) return rateDenied;
 
-    const { productDetails, mode = 'services' } = await req.json();
-    if (!productDetails || !productDetails.trim()) {
-      return NextResponse.json({ error: 'productDetails required' }, { status: 400 });
+    const bodyResult = await readLimitedJsonObject(req, 32 * 1024);
+    if (!bodyResult.ok) return bodyResult.response;
+    const productDetails = typeof bodyResult.body.productDetails === 'string'
+      ? bodyResult.body.productDetails.trim()
+      : '';
+    const mode = bodyResult.body.mode === 'dropshipping' ? 'dropshipping' : 'services';
+    if (!productDetails || productDetails.length > 8_000) {
+      return NextResponse.json({ error: 'Detalles del producto inválidos' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
 
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .maybeSingle();
+    if (configError) return internalApiError();
 
     let apiKey = '';
     let isGroq = false;
@@ -103,9 +120,9 @@ Responde únicamente con el prompt generado, listo para copiar y pegar en el sis
 
     if (isGemini) {
       // Google Gemini via REST API
-      const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+      const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [
             {
@@ -115,14 +132,20 @@ Responde únicamente con el prompt generado, listo para copiar y pegar en el sis
           ],
           generationConfig: { maxOutputTokens: 1000, temperature: 0.7 }
         }),
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(25_000),
       });
-      const gemData = await gemRes.json();
+      const gemData = await readLimitedResponseJson(gemRes, 256 * 1024) as any;
+      if (!gemRes.ok) throw new Error('provider_request_failed');
       generatedPrompt = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
     } else {
       // OpenAI / Groq SDK
       const client = new OpenAI({
         apiKey,
         baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
+        timeout: 25_000,
+        maxRetries: 1,
       });
       const completion = await client.chat.completions.create({
         model: modelName,
@@ -140,9 +163,9 @@ Responde únicamente con el prompt generado, listo para copiar y pegar en el sis
       return NextResponse.json({ error: 'La IA devolvió una respuesta vacía' }, { status: 500 });
     }
 
-    return NextResponse.json({ prompt: generatedPrompt.trim() });
+    return NextResponse.json({ prompt: generatedPrompt.trim().slice(0, 16_000) });
   } catch (error: any) {
     console.error('❌ Error generating sales prompt:', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return internalApiError();
   }
 }

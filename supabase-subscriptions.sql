@@ -1,4 +1,7 @@
 -- ============================================
+-- LEGADO / NO DESPLEGAR: el billing autoritativo vive en tenants + payments
+-- y en los recibos/RPC de 015_security_hardening.sql. Este archivo se conserva
+-- solo como referencia histórica y no forma parte del baseline reproducible.
 -- RIFX Marketing — Sistema de Suscripciones
 -- ============================================
 -- Ejecuta este SQL en: Supabase Dashboard → SQL Editor → New Query
@@ -39,5 +42,5 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
 -- 3. RLS
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscription_payments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Service role full access" ON subscriptions TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON subscription_payments TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON subscriptions FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON subscription_payments FOR ALL TO service_role USING (true) WITH CHECK (true);

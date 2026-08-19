@@ -12,8 +12,8 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
     if (pathname.startsWith('/panel')) return;
 
     const lenis = new Lenis({
-      lerp: 0.06,
-      wheelMultiplier: 0.9,
+      lerp: 0.12,
+      wheelMultiplier: 1,
       smoothWheel: true,
       touchMultiplier: 2,
     });
@@ -21,16 +21,18 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
       (window as any).lenis = lenis;
     }
 
+    let animationFrameId: number;
     function raf(time: number) {
       lenis.raf(time);
-      requestAnimationFrame(raf);
+      animationFrameId = requestAnimationFrame(raf);
     }
 
-    requestAnimationFrame(raf);
+    animationFrameId = requestAnimationFrame(raf);
 
     return () => {
+      cancelAnimationFrame(animationFrameId);
       lenis.destroy();
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && (window as any).lenis === lenis) {
         delete (window as any).lenis;
       }
     };

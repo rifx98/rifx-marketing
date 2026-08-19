@@ -1,11 +1,18 @@
 "use client";
 
-import React, { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useMotionValueEvent, useScroll, useTransform, type MotionValue } from "framer-motion";
 import FadeIn from "./FadeIn";
 import { LiveProjectButton } from "./Buttons";
 
-const projects = [
+interface Project {
+  num: string;
+  label: string;
+  name: string;
+  video: string;
+}
+
+const projects: Project[] = [
   {
     num: "01",
     label: "Servicio",
@@ -28,11 +35,41 @@ const projects = [
 
 export default function ProjectsSection() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
   });
+
+  const updateActiveIndex = useCallback((progress: number) => {
+    const nextIndex = Math.min(projects.length - 1, Math.max(0, Math.floor(progress * projects.length)));
+    setActiveIndex(currentIndex => currentIndex === nextIndex ? currentIndex : nextIndex);
+  }, []);
+
+  useMotionValueEvent(scrollYProgress, "change", updateActiveIndex);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsNearViewport(entry.isIntersecting);
+        if (entry.isIntersecting) updateActiveIndex(scrollYProgress.get());
+      },
+      {
+        // Start the active video shortly before it becomes visible, without
+        // assigning sources to the other large videos in the stack.
+        rootMargin: "300px 0px",
+        threshold: 0.01
+      }
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollYProgress, updateActiveIndex]);
 
   return (
     <section id="crm" className="bg-[#0C0C0C] rounded-t-[40px] sm:rounded-t-[50px] md:rounded-t-[60px] -mt-10 sm:-mt-12 md:-mt-14 relative z-20 pb-32">
@@ -53,6 +90,7 @@ export default function ProjectsSection() {
               index={i}
               totalCards={projects.length}
               progress={scrollYProgress}
+              isActive={isNearViewport && activeIndex === i}
             />
           );
         })}
@@ -61,7 +99,20 @@ export default function ProjectsSection() {
   );
 }
 
-function ProjectCard({ project, index, totalCards, progress }: { project: any, index: number, totalCards: number, progress: any }) {
+function ProjectCard({
+  project,
+  index,
+  totalCards,
+  progress,
+  isActive
+}: {
+  project: Project;
+  index: number;
+  totalCards: number;
+  progress: MotionValue<number>;
+  isActive: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
   const targetScale = 1 - (totalCards - 1 - index) * 0.03;
   // Progress ranges for this specific card
   const rangeStart = index * (1 / totalCards);
@@ -71,6 +122,31 @@ function ProjectCard({ project, index, totalCards, progress }: { project: any, i
   const scale = useTransform(progress, [rangeStart, 1], [1, targetScale]);
   
   const topOffset = index * 28;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const unloadVideo = () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+
+    if (!isActive) {
+      unloadVideo();
+      return;
+    }
+
+    video.src = project.video;
+    video.load();
+    void video.play().catch(() => {
+      // Autoplay can still be blocked by a browser policy; native controls
+      // remain available so the visitor can start playback explicitly.
+    });
+
+    return unloadVideo;
+  }, [isActive, project.video]);
 
   return (
     <motion.div 
@@ -105,14 +181,15 @@ function ProjectCard({ project, index, totalCards, progress }: { project: any, i
       {/* Bottom Row - Video Grid */}
       <div className="w-full mt-4 h-full aspect-video rounded-[40px] sm:rounded-[50px] md:rounded-[60px] overflow-hidden bg-[#1A1A1A]">
         <video 
-          src={project.video}
+          ref={videoRef}
           className="w-full h-full object-cover"
-          autoPlay
+          autoPlay={isActive}
           muted
           loop
           playsInline
           controls
-          preload="auto"
+          preload={isActive ? "metadata" : "none"}
+          aria-label={`Demostración de ${project.name}`}
         />
       </div>
     </motion.div>

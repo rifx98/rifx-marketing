@@ -9,8 +9,6 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);
 
-  if (pathname === '/panel') return null;
-
   // Close mobile menu on route change
   useEffect(() => {
     setMobileOpen(false);
@@ -26,6 +24,8 @@ export default function Header() {
     }
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
+
+  if (pathname === '/panel') return null;
 
   return (
     <>

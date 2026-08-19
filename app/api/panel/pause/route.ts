@@ -1,153 +1,182 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
-
-// ============================================
-// PAUSAR / REANUDAR IA PARA UNA CONVERSACIÓN
-// Usa mensajes con rol 'assistant' y contenido especial
-// como señal invisible. No requiere cambios de esquema.
-// ============================================
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+  readLimitedResponseJson,
+} from '@/lib/request-guards';
 
 const PAUSE_SIGNAL = '__SYSTEM_PAUSE__';
 const RESUME_SIGNAL = '__SYSTEM_RESUME__';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const RESUME_MESSAGE = 'Hola de nuevo. Gracias por tu paciencia. Nuestro equipo esta de vuelta para ayudarte. ¿En que podemos servirte?';
 
-// POST: Pausar o reanudar la IA
+async function authorize(req: NextRequest, attempts: number) {
+  const tenant = await getTenantFromRequest(req);
+  if (!tenant?.tenantId) {
+    return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) } as const;
+  }
+  const featureDenied = denyUnlessFeature(tenant, 'crm');
+  if (featureDenied) return { response: featureDenied } as const;
+  const rateDenied = await enforceTenantRateLimit('conversation-pause', tenant.tenantId, attempts, 60_000);
+  if (rateDenied) return { response: rateDenied } as const;
+  return { tenant } as const;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authorization = await authorize(req, 40);
+    if ('response' in authorization) return authorization.response;
+    const parsed = await readLimitedJsonObject(req, 4 * 1024);
+    if (!parsed.ok) return parsed.response;
+    const { conversationId, paused } = parsed.body;
+    if (typeof conversationId !== 'string' || !UUID_PATTERN.test(conversationId) || typeof paused !== 'boolean') {
+      return NextResponse.json({ error: 'Datos de pausa invalidos' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-    const { conversationId, paused } = await req.json();
-
-    if (!conversationId || typeof paused !== 'boolean') {
-      return NextResponse.json({ error: 'Faltan conversationId o paused (boolean)' }, { status: 400 });
-    }
-
-    // Verify ownership of the conversation
-    const { data: conversation, error: convErr } = await supabase
+    const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
-      .select('id, phone_number, customer_name')
+      .select('id,phone_number')
       .eq('id', conversationId)
-      .eq('tenant_id', tenant.tenantId)
-      .single();
-
-    if (convErr || !conversation) {
-      return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
+      .eq('tenant_id', authorization.tenant.tenantId)
+      .maybeSingle();
+    if (conversationError) {
+      console.error('Conversation ownership lookup failed:', conversationError.code || 'database_error');
+      return internalApiError();
     }
+    if (!conversation) return NextResponse.json({ error: 'Conversacion no encontrada' }, { status: 404 });
 
     const signal = paused ? PAUSE_SIGNAL : RESUME_SIGNAL;
-
-    // Insertar la señal usando rol 'assistant' (permitido por la DB)
-    const { error } = await supabase.from('messages').insert({
+    const { error: signalError } = await supabase.from('messages').insert({
+      tenant_id: authorization.tenant.tenantId,
       conversation_id: conversationId,
       role: 'assistant',
       content: signal,
     });
-
-    if (error) {
-      console.error('❌ Error insertando señal de pausa:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (signalError) {
+      console.error('Conversation pause signal failed:', signalError.code || 'database_error');
+      return internalApiError();
     }
 
-    console.log(`${paused ? '⏸️' : '▶️'} Conversación ${conversationId} ${paused ? 'PAUSADA' : 'REANUDADA'} por humano`);
+    if (paused) return NextResponse.json({ success: true, paused: true });
 
-    // Si estamos REANUDANDO la IA, enviar mensaje al cliente por WhatsApp
-    if (!paused) {
-      try {
-        if (conversation) {
-          // Obtener credenciales de WhatsApp for the authenticated tenant
-          const { data: config } = await supabase
-            .from('config')
-            .select('*')
-            .eq('tenant_id', tenant.tenantId)
-            .limit(1)
-            .single();
-          const token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-          const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-          if (token && phoneId) {
-            const resumeMessage = '¡Hola de nuevo! 👋 Gracias por tu paciencia. Nuestro equipo de asistencia especializada está de vuelta para ayudarte. ¿En qué podemos servirte? Estamos aquí para lo que necesites. ✨';
-
-            // Enviar por WhatsApp
-            await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                messaging_product: 'whatsapp',
-                to: conversation.phone_number,
-                type: 'text',
-                text: { body: resumeMessage },
-              }),
-            });
-
-            // Guardar en historial
-            await supabase.from('messages').insert({
-              conversation_id: conversationId,
-              role: 'assistant',
-              content: resumeMessage,
-            });
-
-            console.log(`🤖 Mensaje de reanudación enviado a ${conversation.customer_name}`);
-          }
-        }
-      } catch (resumeErr) {
-        console.error('⚠️ Error enviando mensaje de reanudación (no crítico):', resumeErr);
-        // No fallar por esto, la señal ya se insertó
-      }
+    const { data: config, error: configError } = await supabase
+      .from('config')
+      .select('whatsapp_token,whatsapp_phone_id')
+      .eq('tenant_id', authorization.tenant.tenantId)
+      .maybeSingle();
+    if (configError) {
+      console.error('WhatsApp resume configuration lookup failed:', configError.code || 'database_error');
+      return NextResponse.json({ success: true, paused: false, notificationSent: false });
+    }
+    if (
+      typeof config?.whatsapp_token !== 'string'
+      || !config.whatsapp_token
+      || typeof config.whatsapp_phone_id !== 'string'
+      || !/^\d{5,32}$/.test(config.whatsapp_phone_id)
+      || typeof conversation.phone_number !== 'string'
+      || !/^\+?\d{7,20}$/.test(conversation.phone_number)
+    ) {
+      return NextResponse.json({ success: true, paused: false, notificationSent: false });
     }
 
-    return NextResponse.json({ success: true, paused });
-  } catch (error) {
-    console.error('❌ Error en pause:', error);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    let providerResponse: Response;
+    try {
+      providerResponse = await fetch(
+        `https://graph.facebook.com/v24.0/${encodeURIComponent(config.whatsapp_phone_id)}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.whatsapp_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: conversation.phone_number,
+            type: 'text',
+            text: { body: RESUME_MESSAGE },
+          }),
+          redirect: 'error',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(12_000),
+        },
+      );
+      await readLimitedResponseJson(providerResponse, 64 * 1024);
+    } catch {
+      console.error('WhatsApp resume notification request failed');
+      return NextResponse.json({ success: true, paused: false, notificationSent: false });
+    }
+    if (!providerResponse.ok) {
+      console.error('WhatsApp resume notification rejected:', providerResponse.status);
+      return NextResponse.json({ success: true, paused: false, notificationSent: false });
+    }
+
+    const { error: historyError } = await supabase.from('messages').insert({
+      tenant_id: authorization.tenant.tenantId,
+      conversation_id: conversationId,
+      role: 'assistant',
+      content: RESUME_MESSAGE,
+    });
+    if (historyError) {
+      console.error('WhatsApp resume history write failed:', historyError.code || 'database_error');
+    }
+    return NextResponse.json({
+      success: true,
+      paused: false,
+      notificationSent: true,
+      historySaved: !historyError,
+    });
+  } catch {
+    console.error('Conversation pause mutation failed');
+    return internalApiError();
   }
 }
 
-// GET: Verificar si una conversación está pausada
 export async function GET(req: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authorization = await authorize(req, 120);
+    if ('response' in authorization) return authorization.response;
+    const conversationId = req.nextUrl.searchParams.get('conversationId');
+    if (!conversationId || !UUID_PATTERN.test(conversationId)) {
+      return NextResponse.json({ error: 'ID de conversacion invalido' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-    const conversationId = req.nextUrl.searchParams.get('conversationId');
-
-    if (!conversationId) {
-      return NextResponse.json({ error: 'Falta conversationId' }, { status: 400 });
-    }
-
-    // Verify conversation ownership
-    const { data: conversation, error: convErr } = await supabase
+    const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
       .select('id')
       .eq('id', conversationId)
-      .eq('tenant_id', tenant.tenantId)
-      .single();
-
-    if (convErr || !conversation) {
-      return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
+      .eq('tenant_id', authorization.tenant.tenantId)
+      .maybeSingle();
+    if (conversationError) {
+      console.error('Conversation ownership lookup failed:', conversationError.code || 'database_error');
+      return internalApiError();
     }
+    if (!conversation) return NextResponse.json({ error: 'Conversacion no encontrada' }, { status: 404 });
 
-    const { data: messages } = await supabase
+    const { data: messages, error: messagesError } = await supabase
       .from('messages')
       .select('content')
+      .eq('tenant_id', authorization.tenant.tenantId)
       .eq('conversation_id', conversationId)
       .in('content', [PAUSE_SIGNAL, RESUME_SIGNAL])
       .order('created_at', { ascending: false })
       .limit(1);
+    if (messagesError) {
+      console.error('Conversation pause state lookup failed:', messagesError.code || 'database_error');
+      return internalApiError();
+    }
 
-    const isPaused = messages && messages.length > 0 && messages[0].content === PAUSE_SIGNAL;
-
-    return NextResponse.json({ paused: isPaused });
-  } catch (error) {
-    return NextResponse.json({ paused: false });
+    return NextResponse.json(
+      { paused: messages?.[0]?.content === PAUSE_SIGNAL },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  } catch {
+    console.error('Conversation pause state request failed');
+    return internalApiError();
   }
 }

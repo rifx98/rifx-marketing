@@ -12,6 +12,10 @@ self.addEventListener('push', function (event) {
     body: data.body || '',
     icon: data.icon || '/images/rifx-logo-user.png',
     badge: '/images/rifx-logo-user.png',
+    // A stable event tag lets retries replace the same notification instead
+    // of showing duplicates after a worker/runtime interruption.
+    tag: typeof data.tag === 'string' ? data.tag.slice(0, 120) : undefined,
+    renotify: false,
     data: { url: data.url || '/panel' },
   };
 

@@ -86,7 +86,7 @@ export default function CloneScrollShowcase() {
 
           {/* Right: Mockup Graphic (Centered Outlined Icon Mark) */}
           <div className="relative h-[500px] w-full flex items-center justify-center">
-            {/* eslint-disable-next-line react-hooks/rules-of-hooks */}
+            { }
             <motion.div 
               style={{
                 scale: useTransform(scrollYProgress, [0, 1], [0.95, 1.05]),

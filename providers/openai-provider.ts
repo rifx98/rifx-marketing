@@ -1,8 +1,9 @@
 import OpenAI from 'openai';
 import { ProductAnalysis, Copywriting, TemplateDNA, QAResults, ArtDirection, AdaptedColorsResult } from './provider-types';
+import { getAiCredential } from '@/lib/ai-request-context';
 
 function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getAiCredential('openai');
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY no configurado en variables de entorno.');
   }
@@ -736,4 +737,3 @@ REMEMBER: The template DNA is the AUTHORITY. Product colors can ONLY influence p
     return JSON.parse(text) as AdaptedColorsResult;
   }
 };
-

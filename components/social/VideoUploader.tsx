@@ -65,14 +65,9 @@ export default function VideoUploader({ tenantId, onUploadComplete, onUploadStar
       const queueItem = initialQueue[idx];
       try {
         // 1. Obtener la URL firmada de subida para R2
-        const token = typeof window !== 'undefined' ? localStorage.getItem('rifx_token') : null;
-        const headers: Record<string, string> = {};
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-
-        const getUrlRes = await fetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`, {
-          headers
+        const getUrlRes = await fetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}&size=${file.size}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
         });
         if (!getUrlRes.ok) {
           const errData = await getUrlRes.json();
@@ -111,6 +106,17 @@ export default function VideoUploader({ tenantId, onUploadComplete, onUploadStar
 
           xhr.send(file);
         });
+
+        const confirmResponse = await fetch('/api/panel/social/storage', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: filePath }),
+        });
+        if (!confirmResponse.ok) {
+          const confirmationError = await confirmResponse.json().catch(() => ({}));
+          throw new Error(confirmationError.error || 'No se pudo confirmar la subida');
+        }
 
         setUploadQueue(prev =>
           prev.map(item => item.id === queueItem.id ? { ...item, progress: 100 } : item)

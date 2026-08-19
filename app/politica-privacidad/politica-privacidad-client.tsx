@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 
 const sections = [
   { id: 'quienes-somos', title: '1. Quiénes somos' },
@@ -28,19 +29,39 @@ export default function PoliticaPrivacidadClient() {
         .selection-orange::selection { background-color: #f27121; color: white; }
         .glass { background: rgba(24, 30, 54, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
         .text-gradient { background: linear-gradient(to right, #ffb692, #f27121); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        @keyframes pp-fade-up {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .pp-title { animation: pp-fade-up 700ms cubic-bezier(0.16,1,0.3,1) both; }
+        .pp-subtitle { animation: pp-fade-up 700ms cubic-bezier(0.16,1,0.3,1) 180ms both; }
       `}</style>
 
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=swap" rel="stylesheet" />
 
-      <div className="bg-[#0b1229] text-[#dce1ff] selection-orange antialiased overflow-x-hidden min-h-screen">
+      <div className="bg-[#0b1229] text-[#dce1ff] selection-orange antialiased overflow-x-hidden min-h-screen" data-no-reveal>
         <main className="pt-24 pb-20">
           <section className="relative px-6 py-20 max-w-4xl mx-auto">
             <div className="absolute top-0 right-0 w-64 h-64 bg-[#f27121] blur-[150px] opacity-10 rounded-full"></div>
+            <div className="absolute top-24 left-0 w-72 h-72 bg-[#5865f2] blur-[160px] opacity-[0.08] rounded-full"></div>
 
-            <h1 className="text-4xl md:text-6xl text-white mb-6 font-bold font-space uppercase">
-              Política de <br /><span className="text-gradient">Privacidad</span>
-            </h1>
-            <p className="text-slate-400 text-sm mb-10">Última actualización: 10 de julio de 2026</p>
+            <div className="pp-title relative flex items-center gap-4 mb-6">
+              <h1 className="text-4xl md:text-6xl text-white font-bold font-space uppercase leading-[1.05]">
+                Política de <br />Privacidad
+              </h1>
+              <Image
+                src="/images/rifx-logo-particles-clean.png"
+                alt="Rifx Marketing"
+                width={220}
+                height={220}
+                className="w-28 h-28 md:w-48 md:h-48 object-contain shrink-0"
+              />
+            </div>
+            <p className="pp-subtitle text-slate-400 text-sm mb-10 flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm leading-none text-slate-500">update</span>
+              Última actualización: 10 de julio de 2026
+            </p>
 
             {/* Tabla de contenidos */}
             <nav className="glass rounded-2xl p-6 md:p-8 mb-8 border-white/5">

@@ -7,6 +7,121 @@ import { detectSignalsFromMessage, calculateLeadScore, inferSalesStage, extractS
 import { getSalesStageInstructions, DEFAULT_SALES_PROMPT, DEFAULT_SUPPORT_PROMPT } from '@/lib/sales-prompts';
 import { loadTenantPricing, buildPricingPrompt, validatePricingInResponse } from '@/lib/pricing-guard';
 import { triggerCriticalAlert } from '@/lib/alerts';
+import { createHmac, randomUUID } from 'node:crypto';
+import { safeEqualSecrets } from '@/lib/security';
+import {
+  claimWebhookEvent,
+  completeWebhookEvent,
+  sha256Hex,
+  type WebhookClaim,
+} from '@/lib/webhook-events';
+import { tenantCanUseFeature } from '@/lib/feature-access';
+
+class ContinueWebhookBatch extends Error {}
+
+const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
+const MAX_INGRESS_MESSAGES = 1000;
+const PHONE_ID_PATTERN = /^\d{6,30}$/;
+
+interface WhatsAppIngressEvent {
+  provider_message_id: string;
+  destination_phone_id: string;
+  payload_sha256: string;
+  payload: Record<string, unknown>;
+}
+
+async function readWebhookBody(req: NextRequest): Promise<string> {
+  const declaredLength = Number(req.headers.get('content-length') || '0');
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+    throw new Error('payload_too_large');
+  }
+  if (!req.body) return '';
+
+  const reader = req.body.getReader();
+  const decoder = new TextDecoder();
+  let total = 0;
+  let rawBody = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_WEBHOOK_BODY_BYTES) throw new Error('payload_too_large');
+      rawBody += decoder.decode(value, { stream: true });
+    }
+    rawBody += decoder.decode();
+    return rawBody;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function buildIngressEvents(body: Record<string, any>): WhatsAppIngressEvent[] {
+  const events: WhatsAppIngressEvent[] = [];
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const value = change?.value;
+      const messages = Array.isArray(value?.messages) ? value.messages : [];
+      const destinationPhoneId = String(value?.metadata?.phone_number_id || '');
+      if (messages.length > 0 && !PHONE_ID_PATTERN.test(destinationPhoneId)) continue;
+
+      for (const message of messages) {
+        if (!message || typeof message !== 'object') continue;
+        const providerMessageId = String(message.id || '');
+        const sender = String(message.from || '');
+        if (!providerMessageId || providerMessageId.length > 200 || !PHONE_ID_PATTERN.test(sender)) continue;
+        if (events.length >= MAX_INGRESS_MESSAGES) throw new Error('too_many_messages');
+
+        const contacts = Array.isArray(value?.contacts)
+          ? value.contacts.filter((contact: any) => String(contact?.wa_id || '') === sender).slice(0, 2)
+          : [];
+        const payload: Record<string, unknown> = {
+          object: typeof body.object === 'string' ? body.object : 'whatsapp_business_account',
+          entry: [{
+            id: String(entry?.id || '').slice(0, 200),
+            changes: [{
+              field: typeof change?.field === 'string' ? change.field.slice(0, 80) : 'messages',
+              value: {
+                messaging_product: value?.messaging_product || 'whatsapp',
+                metadata: value?.metadata || {},
+                contacts,
+                messages: [message],
+              },
+            }],
+          }],
+        };
+
+        events.push({
+          provider_message_id: providerMessageId,
+          destination_phone_id: destinationPhoneId,
+          // Contact display names can legitimately change between provider
+          // retries. Bind identity to the message and destination metadata,
+          // which are the fields that drive tenant routing and side effects.
+          payload_sha256: sha256Hex(JSON.stringify({
+            message,
+            metadata: value?.metadata || {},
+          })),
+          payload,
+        });
+      }
+    }
+  }
+  return events;
+}
+
+function isAllowedAppointmentSlot(date: string, time: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
+  const [hour, minute] = time.split(':').map(Number);
+  if (hour < 9 || hour > 17 || minute < 0 || minute > 59) return false;
+  const scheduled = new Date(`${date}T${time}:00-05:00`);
+  if (Number.isNaN(scheduled.getTime())) return false;
+  const day = scheduled.getUTCDay();
+  return day >= 1 && day <= 5 && scheduled.getTime() >= Date.now() - 5 * 60_000
+    && scheduled.getTime() <= Date.now() + 366 * 24 * 60 * 60_000;
+}
 
 // ============================================
 // WHATSAPP WEBHOOK — El corazón del bot de IA
@@ -19,139 +134,251 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && safeEqualSecrets(token, process.env.WHATSAPP_VERIFY_TOKEN)) {
     console.log('✅ Webhook verificado correctamente');
     return new NextResponse(challenge, { status: 200 });
   }
   return NextResponse.json({ error: 'Token inválido' }, { status: 403 });
 }
 
-// POST: Recibir mensajes de WhatsApp
+// POST publico: verifica la firma y persiste cada mensaje antes de responder.
+// El procesamiento costoso se ejecuta exclusivamente desde el worker durable.
 export async function POST(req: NextRequest) {
+  const isWorkerRequest = req.headers.get('x-rifx-whatsapp-worker') === '1';
+  if (isWorkerRequest) {
+    const workerSecret = process.env.WHATSAPP_WORKER_SECRET || process.env.CRON_SECRET;
+    const suppliedSecret = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || null;
+    if (!workerSecret) {
+      console.error('[WhatsApp] Internal worker authentication is not configured');
+      return NextResponse.json({ error: 'Worker unavailable' }, { status: 503 });
+    }
+    if (!safeEqualSecrets(suppliedSecret, workerSecret)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return processQueuedWhatsAppMessage(req);
+  }
+
+  let rawBody: string;
   try {
-    // VULN-12 fix: Verify Meta HMAC signature.
-    // La app de WhatsApp Business (WHATSAPP_APP_SECRET) es una app de Meta distinta
-    // a la que usamos para Ads/Login (FACEBOOK_APP_SECRET) — Meta firma cada webhook
-    // con el secreto de la app dueña de esa integración específica. Probamos ambos
-    // secretos conocidos para no volver a romper WhatsApp si alguno de los dos cambia.
+    rawBody = await readWebhookBody(req);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'payload_too_large') {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+
+  const signature = req.headers.get('x-hub-signature-256');
+  const webhookSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!webhookSecret) {
+    console.error('[WhatsApp] WHATSAPP_APP_SECRET is not configured');
+    return NextResponse.json({ error: 'Webhook signature verification is unavailable' }, { status: 503 });
+  }
+  if (!signature) return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+
+  const expectedSignature = `sha256=${createHmac('sha256', webhookSecret).update(rawBody).digest('hex')}`;
+  if (!safeEqualSecrets(signature, expectedSignature)) {
+    console.error('[WhatsApp] Invalid HMAC signature');
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
+  let ingressEvents: WhatsAppIngressEvent[];
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
+    ingressEvents = buildIngressEvents(parsed);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'too_many_messages') {
+      return NextResponse.json({ error: 'Too many messages' }, { status: 413 });
+    }
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+
+  if (ingressEvents.length === 0) {
+    return NextResponse.json({ status: 'ignored' });
+  }
+
+  const supabase = createSupabaseAdmin();
+  const { data, error } = await supabase.rpc('enqueue_whatsapp_ingress_batch', {
+    p_events: ingressEvents,
+  });
+  if (error) {
+    console.error('[WhatsApp] Durable ingress enqueue failed:', error.code || 'database_error');
+    return NextResponse.json(
+      { error: 'Ingress temporarily unavailable' },
+      { status: 503, headers: { 'Retry-After': '2' } },
+    );
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  const conflicts = Number(result?.conflict_count || 0);
+  if (conflicts > 0) {
+    console.error('[WhatsApp] Provider message identity conflict');
+    return NextResponse.json({ error: 'Webhook event conflict' }, { status: 409 });
+  }
+
+  return NextResponse.json({
+    status: 'accepted',
+    queued: Number(result?.enqueued_count || 0),
+    duplicates: Number(result?.duplicate_count || 0),
+    ignored: Number(result?.ignored_count || 0),
+  });
+}
+
+// Procesador interno. El worker le entrega un sobre con exactamente un mensaje,
+// por lo que el comportamiento historico se conserva sin bloquear el ACK de Meta.
+async function processQueuedWhatsAppMessage(req: NextRequest) {
+  let claimedEvent: Extract<WebhookClaim, { state: 'claimed' }> | null = null;
+  try {
+    // Only the secret of this exact WhatsApp app belongs in the webhook trust boundary.
     const rawBody = await req.text();
     const signature = req.headers.get('x-hub-signature-256');
-    const candidateSecrets = [process.env.WHATSAPP_APP_SECRET, process.env.FACEBOOK_APP_SECRET].filter(Boolean) as string[];
+    const webhookSecret = process.env.WHATSAPP_APP_SECRET;
 
-    if (process.env.NODE_ENV === 'production' && candidateSecrets.length === 0) {
-      console.error('❌ WhatsApp webhook: no hay WHATSAPP_APP_SECRET ni FACEBOOK_APP_SECRET configurados en producción!');
-      return NextResponse.json({ error: 'Configuration error: webhook signature verification key is missing' }, { status: 500 });
+    if (!webhookSecret) {
+      console.error('[WhatsApp] WHATSAPP_APP_SECRET is not configured');
+      return NextResponse.json({ error: 'Webhook signature verification is unavailable' }, { status: 503 });
+    }
+    if (!signature) {
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+    }
+    const expectedSignature = `sha256=${createHmac('sha256', webhookSecret).update(rawBody).digest('hex')}`;
+    if (!safeEqualSecrets(signature, expectedSignature)) {
+      console.error('[WhatsApp] Invalid HMAC signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    if (candidateSecrets.length > 0) {
-      if (!signature) {
-        console.warn('⚠️ WhatsApp webhook: Missing X-Hub-Signature-256 header');
-        return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
-      }
-      const crypto = await import('crypto');
-      const isValidSignature = candidateSecrets.some(secret => {
-        const expectedSig = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-        return signature === expectedSig;
-      });
-      if (!isValidSignature) {
-        console.error('❌ WhatsApp webhook: Invalid HMAC signature (no coincide con ningún secreto conocido)');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
-    } else {
-      console.warn('⚠️ Ningún app secret configurado — omitiendo verificación de firma del webhook (solo fuera de producción)');
+    if (Buffer.byteLength(rawBody, 'utf8') > 1024 * 1024) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
     }
-
     const body = JSON.parse(rawBody);
 
     // Extraer el mensaje del payload de Meta
     const entry = body?.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
-    const messageData = value?.messages?.[0];
+    const messageCandidates = Array.isArray(value?.messages)
+      ? value.messages.filter((message: any) => message && (message.type === 'text' || message.type === 'audio')).slice(0, 20)
+      : [];
 
     // Ignorar si no es texto ni audio
-    if (!messageData || (messageData.type !== 'text' && messageData.type !== 'audio')) {
+    if (messageCandidates.length === 0) {
       return NextResponse.json({ status: 'ignored' });
     }
 
-    const customerPhone = messageData.from; // ej: "593984111222"
-    const customerName = value?.contacts?.[0]?.profile?.name || 'Cliente';
     // Extract the WhatsApp Phone Number ID from Meta's webhook payload
-    const webhookPhoneId = value?.metadata?.phone_number_id || '';
+    const webhookPhoneId = String(value?.metadata?.phone_number_id || '');
+    if (!/^\d{6,30}$/.test(webhookPhoneId)) {
+      return NextResponse.json({ status: 'ignored_invalid_envelope' });
+    }
 
     const supabase = createSupabaseAdmin();
 
-    // 0. Resolve tenant config using the webhook phone_number_id
-    //    This ensures we always load the correct tenant's config in multi-tenant setups
-    let config: Record<string, any> | null = null;
-    let tenantId: string | null = null;
+    // Route exclusively by Meta's destination phone ID. Customer-phone and
+    // "first config" fallbacks can cross tenant boundaries and are forbidden.
+    const { data: matchedConfigs, error: configError } = await supabase
+      .from('config')
+      .select('*')
+      .eq('whatsapp_phone_id', webhookPhoneId)
+      .limit(2);
+    if (configError || !matchedConfigs || matchedConfigs.length !== 1 || !matchedConfigs[0].tenant_id) {
+      console.error('[WhatsApp] Destination phone ID is missing or ambiguous');
+      return NextResponse.json({ status: 'ignored_unknown_destination' });
+    }
+    const config: Record<string, any> = matchedConfigs[0];
+    const tenantId: string = config.tenant_id;
 
-    // Strategy 1: Match by whatsapp_phone_id from the webhook
-    if (webhookPhoneId) {
-      const { data: matchedConfig } = await supabase
-        .from('config')
-        .select('*')
-        .eq('whatsapp_phone_id', webhookPhoneId)
-        .limit(1)
-        .single();
-      if (matchedConfig) {
-        config = matchedConfig;
-        tenantId = matchedConfig.tenant_id || null;
-        console.log(`✅ Config encontrada por phone_id ${webhookPhoneId} → tenant: ${tenantId}`);
+    const { data: planOwner, error: planOwnerError } = await supabase
+      .from('tenants')
+      .select('id, plan, plan_status, plan_expires_at, permission_overrides, is_admin, is_active, deleted_at')
+      .eq('id', tenantId)
+      .maybeSingle();
+    if (planOwnerError || !planOwner) {
+      console.error('[WhatsApp] Tenant entitlement lookup failed');
+      return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
+    }
+    if (planOwner.is_active === false || planOwner.deleted_at || !tenantCanUseFeature({
+      tenantId: planOwner.id,
+      plan: planOwner.plan,
+      planStatus: planOwner.plan_status,
+      planExpiresAt: planOwner.plan_expires_at,
+      permissionOverrides: planOwner.permission_overrides || {},
+      isAdmin: planOwner.is_admin === true,
+    }, 'crm')) {
+      return NextResponse.json({ status: 'ignored_inactive_plan' });
+    }
+
+    let messageData: Record<string, any> | null = null;
+    let selectedMessageIndex = -1;
+    for (let index = 0; index < messageCandidates.length; index += 1) {
+      const candidate = messageCandidates[index];
+      const candidateId = String(candidate.id || '');
+      const candidatePhone = String(candidate.from || '');
+      if (!candidateId || !/^\d{6,30}$/.test(candidatePhone)) continue;
+
+      const claim = await claimWebhookEvent(supabase, {
+        provider: 'whatsapp',
+        eventKey: candidateId,
+        eventName: 'message',
+        tenantId,
+        payloadSha256: sha256Hex(JSON.stringify({ message: candidate, metadata: value?.metadata || {} })),
+        // The current handler is synchronous and can legitimately perform AI,
+        // media and calendar work. The bounded DB lease permits safe retry after
+        // a crashed function without allowing two workers to own the event.
+        leaseSeconds: 900,
+      });
+      if (claim.state === 'duplicate') continue;
+      if (claim.state === 'busy') {
+        return NextResponse.json(
+          { status: 'duplicate_in_progress' },
+          { status: 503, headers: { 'Retry-After': '2' } },
+        );
       }
-    }
-
-    // Strategy 2: If the customer already has a conversation, use its tenant_id
-    if (!config) {
-      const { data: existingConv } = await supabase
-        .from('conversations')
-        .select('tenant_id')
-        .eq('phone_number', customerPhone)
-        .single();
-      if (existingConv?.tenant_id) {
-        const { data: tenantConfig } = await supabase
-          .from('config')
-          .select('*')
-          .eq('tenant_id', existingConv.tenant_id)
-          .limit(1)
-          .single();
-        if (tenantConfig) {
-          config = tenantConfig;
-          tenantId = tenantConfig.tenant_id || null;
-          console.log(`✅ Config encontrada por tenant de conversación existente → tenant: ${tenantId}`);
-        }
+      if (claim.state === 'conflict') {
+        return NextResponse.json({ error: 'Webhook event conflict' }, { status: 409 });
       }
-    }
-
-    // Strategy 3: Fallback — pick the first config that has whatsapp_token set
-    if (!config) {
-      const { data: fallbackConfig } = await supabase
-        .from('config')
-        .select('*')
-        .not('whatsapp_token', 'is', null)
-        .not('whatsapp_token', 'eq', '')
-        .limit(1)
-        .single();
-      if (fallbackConfig) {
-        config = fallbackConfig;
-        tenantId = fallbackConfig.tenant_id || null;
-        console.log(`⚠️ Config fallback (primera con token): tenant: ${tenantId}`);
+      if (claim.state === 'error') {
+        return NextResponse.json({ error: 'Idempotency store unavailable' }, { status: 503 });
       }
+      claimedEvent = claim;
+      messageData = candidate;
+      selectedMessageIndex = index;
+      break;
+    }
+    if (!claimedEvent || !messageData) {
+      return NextResponse.json({ status: 'duplicate_ignored' });
     }
 
-    // Strategy 4: Absolute fallback — first row
-    if (!config) {
-      const { data: anyConfig } = await supabase
-        .from('config')
-        .select('*')
-        .limit(1)
-        .single();
-      config = anyConfig;
-      tenantId = anyConfig?.tenant_id || null;
-      console.log(`⚠️ Config absolute fallback → tenant: ${tenantId}`);
-    }
+    const providerMessageId = String(messageData.id);
+    const customerPhone = String(messageData.from);
+    // Every outbound send derived from this inbound message gets a stable
+    // delivery identity. This closes the common retry-after-success duplicate
+    // window; Meta itself does not expose an idempotency key for this endpoint.
+    config.__source_message_id = providerMessageId;
+    const customerName = (Array.isArray(value?.contacts)
+      ? value.contacts.find((contact: any) => String(contact?.wa_id || '') === customerPhone)?.profile?.name
+      : null) || 'Cliente';
+    const hasRemainingMessages = selectedMessageIndex < messageCandidates.length - 1;
 
-    console.log(`🏢 Tenant resuelto: ${tenantId || '(ninguno)'} | Config ID: ${config?.id || '(ninguna)'}`);
+    const finalizeWebhookEvent = async (
+      status: 'processed' | 'ignored' | 'failed',
+      errorCode: string | null = null,
+    ) => {
+      if (!claimedEvent) return;
+      const completed = await completeWebhookEvent(
+        supabase,
+        claimedEvent,
+        status,
+        errorCode,
+      );
+      if (!completed) {
+        throw new Error('webhook_receipt_completion_failed');
+      }
+      claimedEvent = null;
+      if (hasRemainingMessages && status !== 'failed') throw new ContinueWebhookBatch();
+    };
 
     // Decodificar campos extendidos del config (admin_notification_phone está dentro del JSON de openai_key)
     let adminNotificationPhone = '';
@@ -169,7 +396,7 @@ export async function POST(req: NextRequest) {
     if (messageData.type === 'text') {
       customerMessage = messageData.text.body;
     } else if (isAudio) {
-      console.log(`🎙️ Audio detectado de ${customerName} (${customerPhone}). Transcribiendo...`);
+      console.log(`[WhatsApp ${providerMessageId}] Audio recibido; iniciando transcripción`);
       let extConfig = { openai_key: '', gemini_key: '', groq_key: '' };
       try { 
         const p = JSON.parse(config?.openai_key || '{}');
@@ -178,8 +405,7 @@ export async function POST(req: NextRequest) {
         extConfig.openai_key = config?.openai_key || '';
       }
 
-      let token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-      if (token && token.length < 20) token = process.env.WHATSAPP_TOKEN;
+      const token = config?.whatsapp_token;
 
       const openAiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
       const groqKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
@@ -192,15 +418,14 @@ export async function POST(req: NextRequest) {
         const text = await transcribeWhatsAppAudio(audioId, token, openAiKey, groqKey);
         if (text) {
           customerMessage = text;
-          console.log(`🎙️ Audio transcribido de ${customerPhone}: "${customerMessage}"`);
+          console.log(`[WhatsApp ${providerMessageId}] Audio transcrito`);
         } else {
           customerMessage = '(Mensaje de audio enviado pero falló la transcripción)';
         }
       }
     }
 
-    console.log(`📩 Mensaje de ${customerName} (${customerPhone}): ${customerMessage}`);
-    console.log(`📞 Webhook phone_number_id: ${webhookPhoneId}`);
+    console.log(`[WhatsApp ${providerMessageId}] Mensaje validado para tenant ${tenantId}`);
 
     // ============================================
     // 0.5 PROXY DE ADMINISTRADOR (WHATSAPP-TO-WHATSAPP)
@@ -217,6 +442,7 @@ export async function POST(req: NextRequest) {
           .from('conversations')
           .select('*')
           .eq('phone_number', targetPhone)
+          .eq('tenant_id', tenantId)
           .maybeSingle();
           
         if (targetConv) {
@@ -226,11 +452,13 @@ export async function POST(req: NextRequest) {
             content: adminReply
           });
           
-          await sendWhatsAppMessage(targetPhone, adminReply, config);
-          await sendWhatsAppMessage(adminNotificationPhone, `✅ Mensaje enviado a ${targetPhone}`, config);
+          await sendWhatsAppMessage(targetPhone, adminReply, config, 'admin_proxy_reply');
+          await sendWhatsAppMessage(adminNotificationPhone, `✅ Mensaje enviado a ${targetPhone}`, config, 'admin_proxy_ack');
+          await finalizeWebhookEvent('processed');
           return NextResponse.json({ status: 'admin_proxy_reply_sent' });
         } else {
-          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config);
+          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_reply_not_found');
+          await finalizeWebhookEvent('ignored', 'admin_proxy_target_not_found');
           return NextResponse.json({ status: 'admin_proxy_not_found' });
         }
       }
@@ -242,6 +470,7 @@ export async function POST(req: NextRequest) {
           .from('conversations')
           .select('*')
           .eq('phone_number', targetPhone)
+          .eq('tenant_id', tenantId)
           .maybeSingle();
           
         if (targetConv) {
@@ -254,80 +483,67 @@ export async function POST(req: NextRequest) {
           await supabase
             .from('conversations')
             .update({ status: 'chatting', updated_at: new Date().toISOString() })
-            .eq('id', targetConv.id);
+            .eq('id', targetConv.id)
+            .eq('tenant_id', tenantId);
             
-          await sendWhatsAppMessage(adminNotificationPhone, `🤖 ✅ Bot reactivado para ${targetPhone}`, config);
+          await sendWhatsAppMessage(adminNotificationPhone, `🤖 ✅ Bot reactivado para ${targetPhone}`, config, 'admin_proxy_bot_resumed');
+          await finalizeWebhookEvent('processed');
           return NextResponse.json({ status: 'admin_proxy_bot_resumed' });
         } else {
-          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config);
+          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_bot_not_found');
+          await finalizeWebhookEvent('ignored', 'admin_proxy_target_not_found');
           return NextResponse.json({ status: 'admin_proxy_not_found' });
         }
       }
       
-      await sendWhatsAppMessage(adminNotificationPhone, `⚠️ Comando no reconocido.\nUsos:\n!r [numero] [mensaje]\n!bot [numero]`, config);
+      await sendWhatsAppMessage(adminNotificationPhone, `⚠️ Comando no reconocido.\nUsos:\n!r [numero] [mensaje]\n!bot [numero]`, config, 'admin_proxy_invalid_command');
+      await finalizeWebhookEvent('ignored', 'admin_proxy_invalid_command');
       return NextResponse.json({ status: 'admin_proxy_invalid_command' });
     }
 
     // 1. Buscar o crear conversación (filtrar por tenant_id para aislamiento multi-tenant)
-    let conversationQuery = supabase
+    const conversationQuery = supabase
       .from('conversations')
       .select('*')
-      .eq('phone_number', customerPhone);
-    if (tenantId) {
-      conversationQuery = conversationQuery.eq('tenant_id', tenantId);
-    }
-    let { data: conversation } = await conversationQuery.single();
+      .eq('phone_number', customerPhone)
+      .eq('tenant_id', tenantId);
+    let { data: conversation } = await conversationQuery.maybeSingle();
 
     if (!conversation) {
-      const insertData: any = { phone_number: customerPhone, customer_name: customerName, status: 'chatting' };
-      if (tenantId) insertData.tenant_id = tenantId;
-      const { data: newConv } = await supabase
+      const { data: newConv, error: insertConversationError } = await supabase
         .from('conversations')
-        .insert(insertData)
+        .insert({
+          tenant_id: tenantId,
+          phone_number: customerPhone,
+          customer_name: String(customerName).slice(0, 160),
+          status: 'chatting',
+        })
         .select()
-        .single();
+        .maybeSingle();
       conversation = newConv;
-      console.log(`📝 Nueva conversación creada para ${customerName} (${customerPhone}) con tenant: ${tenantId || '(sin tenant)'}`);
-    } else {
-      // Actualizar nombre, timestamp, y asignar tenant_id si falta
-      const updateData: any = { customer_name: customerName, updated_at: new Date().toISOString() };
-      if (tenantId && !conversation.tenant_id) {
-        updateData.tenant_id = tenantId;
-        console.log(`🔧 Asignando tenant_id a conversación existente de ${customerName}`);
+      // A concurrent delivery may have won the UNIQUE(tenant_id,phone_number)
+      // race. Fetch the canonical row instead of creating a second tenant link.
+      if (!conversation && insertConversationError?.code === '23505') {
+        const retry = await supabase.from('conversations').select('*')
+          .eq('tenant_id', tenantId).eq('phone_number', customerPhone).maybeSingle();
+        conversation = retry.data;
       }
+    } else {
       await supabase
         .from('conversations')
-        .update(updateData)
-        .eq('id', conversation.id);
+        .update({ customer_name: String(customerName).slice(0, 160), updated_at: new Date().toISOString() })
+        .eq('id', conversation.id)
+        .eq('tenant_id', tenantId);
     }
 
     if (!conversation) {
       console.error('❌ No se pudo crear/encontrar conversación');
-      return NextResponse.json({ error: 'DB error' }, { status: 500 });
+      await finalizeWebhookEvent('failed', 'conversation_unavailable');
+      return NextResponse.json({ error: 'DB error' }, { status: 503 });
     }
 
     // 2. Guardar mensaje del cliente
     const dbContent = isAudio ? `🎙️ [Audio]: ${customerMessage}` : customerMessage;
-
-    // Evitar procesamiento duplicado por reintentos de webhook de Meta (Meta reintenta si tardamos > 5s)
-    if (dbContent) {
-      const { data: recentMessages } = await supabase
-        .from('messages')
-        .select('created_at')
-        .eq('conversation_id', conversation.id)
-        .eq('role', 'user')
-        .eq('content', dbContent)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (recentMessages && recentMessages.length > 0) {
-        const timeDiff = Date.now() - new Date(recentMessages[0].created_at).getTime();
-        if (timeDiff < 20000) { // 20 segundos
-          console.log(`⚠️ [WEBHOOK DUPLICATE] Ignorando mensaje duplicado de ${customerPhone} (recibido hace ${timeDiff}ms)`);
-          return NextResponse.json({ status: 'duplicate_ignored' });
-        }
-      }
-    }
 
     await supabase.from('messages').insert({
       conversation_id: conversation.id,
@@ -340,6 +556,7 @@ export async function POST(req: NextRequest) {
       .from('customer_profiles')
       .select('*')
       .eq('phone_number', customerPhone)
+      .eq('tenant_id', tenantId)
       .maybeSingle();
 
     // 2.5 Verificar si la conversación está en MODO HUMANO (señal en mensajes)
@@ -363,7 +580,7 @@ export async function POST(req: NextRequest) {
     const isStalePause = isPausedSignal && pausedSinceMs > PAUSE_AUTO_RESUME_MS;
 
     let isHumanMode = isPausedSignal && !isStalePause;
-    console.log(`🔎 Modo humano para ${customerPhone}: ${isHumanMode ? 'PAUSADO ⏸️' : 'IA ACTIVA ▶️'}`);
+    console.log(`[WhatsApp ${providerMessageId}] Modo humano: ${isHumanMode}`);
 
     if (isStalePause) {
       console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +24h (${Math.round(pausedSinceMs / 3600000)}h) sin respuesta humana — reactivando IA automáticamente`);
@@ -380,7 +597,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (isHumanMode) {
-      console.log(`⏸️ [MODO HUMANO] — Mensaje de ${customerPhone} guardado. La IA NO responderá.`);
+      console.log(`[WhatsApp ${providerMessageId}] Mensaje almacenado sin respuesta automática`);
 
       // Notificar al admin que hay un mensaje esperando respuesta humana
       const adminPhone = adminNotificationPhone;
@@ -394,7 +611,7 @@ export async function POST(req: NextRequest) {
           `!r ${customerPhone} tu mensaje\n\n` +
           `🤖 *Para reactivar el bot:*\n` +
           `!bot ${customerPhone}`;
-        await sendWhatsAppMessage(adminPhone, notifMsg, config);
+        await sendWhatsAppMessage(adminPhone, notifMsg, config, 'human_mode_notification');
         console.log(`🔔 Notificación enviada al admin (${adminPhone}) — cliente en modo humano`);
       }
 
@@ -402,6 +619,7 @@ export async function POST(req: NextRequest) {
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversation.id);
+      await finalizeWebhookEvent('processed');
       return NextResponse.json({ status: 'paused_human_mode' });
     }
 
@@ -425,7 +643,7 @@ export async function POST(req: NextRequest) {
           .from('conversations')
           .update({ status: 'interested', updated_at: new Date().toISOString() })
           .eq('id', conversation.id);
-        console.log(`⚡ ${customerName} movido a INTERESADO (keyword detectada en: "${customerMessage.substring(0, 50)}")`);
+        console.log(`[WhatsApp ${providerMessageId}] Conversación movida a estado interested`);
       }
     }
 
@@ -463,7 +681,7 @@ export async function POST(req: NextRequest) {
           role: 'assistant',
           content: '__HUMAN_ASK__',
         });
-        console.log(`💬 ${customerName} pidió humano (intento ${humanAskCount + 1}/3) — IA insistirá`);
+        console.log(`[WhatsApp ${providerMessageId}] Solicitud de humano ${humanAskCount + 1}/3`);
       } else {
         // 3ra+ vez: escalar a humano real, insertar alerta, pausar IA y marcar conversacion
         await supabase.from('messages').insert([
@@ -484,7 +702,7 @@ export async function POST(req: NextRequest) {
           .eq('id', conversation.id);
 
         forceHumanEscalation = true;
-        console.log(`🚨 ${customerName} (${customerPhone}) pidió humano 3+ veces — ALERTA ACTIVADA`);
+        console.log(`[WhatsApp ${providerMessageId}] Escalamiento humano activado`);
 
         // Notificar al admin con alerta urgente
         const adminPhone = adminNotificationPhone;
@@ -499,11 +717,12 @@ export async function POST(req: NextRequest) {
             `!r ${customerPhone} tu mensaje\n\n` +
             `🤖 *Para reactivar el bot:*\n` +
             `!bot ${customerPhone}`;
-          await sendWhatsAppMessage(adminPhone, alertMsg, config);
+          await sendWhatsAppMessage(adminPhone, alertMsg, config, 'human_escalation_notification');
           console.log(`🚨 Alerta urgente enviada al admin (${adminPhone})`);
         }
         
         // Retornar temprano para que la IA no responda
+        await finalizeWebhookEvent('processed');
         return NextResponse.json({ status: 'escalated_to_human' });
       }
     }
@@ -619,40 +838,39 @@ export async function POST(req: NextRequest) {
     // 4.2 Cargar Base de Conocimiento del tenant
     if (tenantId) {
       try {
-        const kbIndexPath = `${tenantId}/index.json`;
-        const { data: kbData } = await supabase.storage
-          .from('knowledge-base')
-          .download(kbIndexPath);
-        
-        if (kbData) {
-          const kbText = await kbData.text();
-          const kbEntries = JSON.parse(kbText);
-          const activeEntries = kbEntries.filter((e: any) => e.active && e.content);
-          
-          if (activeEntries.length > 0) {
-            // Build knowledge context (limit total to ~30K chars to avoid token overflow)
-            let kbContext = '\n\n[BASE DE CONOCIMIENTO — Usa esta información para responder preguntas del cliente]:\n';
-            let totalChars = 0;
-            const maxKbChars = 30000;
-            
-            for (const entry of activeEntries) {
-              if (totalChars + entry.content.length > maxKbChars) {
-                const remaining = maxKbChars - totalChars;
-                if (remaining > 200) {
-                  kbContext += `\n--- ${entry.file_name} ---\n${entry.content.substring(0, remaining)}...\n`;
-                }
-                break;
+        const { data: activeEntries, error: knowledgeError } = await supabase
+          .from('knowledge_documents')
+          .select('file_name, content')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'ready')
+          .eq('active', true)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .limit(100);
+        if (knowledgeError) throw new Error('knowledge_context_unavailable');
+
+        if (activeEntries && activeEntries.length > 0) {
+          // Build knowledge context (limit total to ~30K chars to avoid token overflow)
+          let kbContext = '\n\n[BASE DE CONOCIMIENTO — Usa esta información para responder preguntas del cliente]:\n';
+          let totalChars = 0;
+          const maxKbChars = 30000;
+
+          for (const entry of activeEntries) {
+            if (totalChars + entry.content.length > maxKbChars) {
+              const remaining = maxKbChars - totalChars;
+              if (remaining > 200) {
+                kbContext += `\n--- ${entry.file_name} ---\n${entry.content.substring(0, remaining)}...\n`;
               }
-              kbContext += `\n--- ${entry.file_name} ---\n${entry.content}\n`;
-              totalChars += entry.content.length;
+              break;
             }
-            
-            aiPrompt += kbContext;
-            console.log(`📚 KB: ${activeEntries.length} archivos activos inyectados (${totalChars} chars) para tenant ${tenantId}`);
+            kbContext += `\n--- ${entry.file_name} ---\n${entry.content}\n`;
+            totalChars += entry.content.length;
           }
+
+          aiPrompt += kbContext;
         }
-      } catch (kbErr) {
-        console.log(`📚 KB: Sin base de conocimiento para tenant ${tenantId} (${kbErr})`);
+      } catch {
+        console.warn('Knowledge context unavailable during WhatsApp processing');
       }
     }
 
@@ -764,6 +982,7 @@ IMPORTANTE:
           .from('appointments')
           .select('*')
           .eq('conversation_id', conversation.id)
+          .eq('tenant_id', tenantId)
           .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
           .gte('scheduled_time', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
           .order('scheduled_time', { ascending: true })
@@ -872,7 +1091,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
       }
       if (!foundFallback) {
         console.error(`❌ No hay API Key configurada para NINGÚN proveedor de IA`);
-        await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config);
+        await sendWhatsAppMessage(customerPhone, 'Estamos experimentando dificultades técnicas. Por favor intenta más tarde. 🙏', config, 'ai_unavailable_fallback');
         if (tenantId) {
           triggerCriticalAlert({
             tenantId,
@@ -881,7 +1100,8 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
             url: '/panel',
           }).catch(() => {});
         }
-        return NextResponse.json({ error: 'No AI key configured' }, { status: 500 });
+        await finalizeWebhookEvent('failed', 'ai_provider_unavailable');
+        return NextResponse.json({ error: 'No AI key configured' }, { status: 503 });
       }
     }
 
@@ -1163,7 +1383,8 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
         service,
         conversation.id,
         customerName,
-        config
+        config,
+        tenantId
       );
 
       if (paymentResult.success) {
@@ -1331,8 +1552,11 @@ Transportadora: *${orderResult.carrier}*`;
 
     // 6.8 Detectar si la IA quiere agendar una cita en Google Calendar
     const appointmentMatch = aiResponse.match(/\[AGENDAR_CITA:(.+?):(.+?):(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):(.+?)\]/);
-    if (appointmentMatch && tenantId) {
-      const [, clientName, clientPhone, date, time, service] = appointmentMatch;
+    if (appointmentMatch && tenantId && isAllowedAppointmentSlot(appointmentMatch[3], appointmentMatch[4])) {
+      const [, , , date, time, rawService] = appointmentMatch;
+      const clientName = String(customerName || 'Cliente').slice(0, 160);
+      const clientPhone = customerPhone;
+      const service = String(rawService || 'Asesoría').slice(0, 200);
       aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
 
       console.log(`📅 Agendando cita para ${clientName} el ${date} a las ${time}...`);
@@ -1364,6 +1588,7 @@ Transportadora: *${orderResult.carrier}*`;
             .from('appointments')
             .select('*')
             .eq('conversation_id', conversation.id)
+            .eq('tenant_id', tenantId)
             .order('scheduled_time', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -1395,7 +1620,9 @@ Transportadora: *${orderResult.carrier}*`;
                 confirmation_message: null,
                 updated_at: new Date().toISOString()
               })
-              .eq('id', existingAppt.id);
+              .eq('id', existingAppt.id)
+              .eq('tenant_id', tenantId)
+              .eq('conversation_id', conversation.id);
 
             if (dbUpdateErr) {
               console.error('❌ Error al actualizar la cita reagendada en la DB:', dbUpdateErr);
@@ -1430,6 +1657,9 @@ Transportadora: *${orderResult.carrier}*`;
         console.error(`❌ Error agendando cita: ${result.error}`);
         aiResponse += `\n\n⚠️ Hubo un problema al agendar tu cita. Un asesor se pondrá en contacto contigo para confirmar manualmente. 🙏`;
       }
+    } else if (appointmentMatch) {
+      aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
+      aiResponse += '\n\nNo pude validar ese horario. Elige un día hábil entre 9:00 AM y 6:00 PM.';
     }
 
     // 6.85 Sanitizar cualquier placeholder estático de reunión remanente en la respuesta de la IA
@@ -1476,7 +1706,9 @@ Transportadora: *${orderResult.carrier}*`;
             confirmation_message: customerMessage || 'Confirmado por chat',
             updated_at: new Date().toISOString()
           })
-          .eq('id', apptId);
+          .eq('id', apptId)
+          .eq('tenant_id', tenantId)
+          .eq('conversation_id', conversation.id);
         if (dbUpdateErr) {
           console.error(`❌ Error al actualizar estado de cita a confirmado:`, dbUpdateErr);
         } else {
@@ -1501,7 +1733,9 @@ Transportadora: *${orderResult.carrier}*`;
             status: 'awaiting_reschedule',
             updated_at: new Date().toISOString()
           })
-          .eq('id', apptId);
+          .eq('id', apptId)
+          .eq('tenant_id', tenantId)
+          .eq('conversation_id', conversation.id);
         if (dbUpdateErr) {
           console.error(`❌ Error al actualizar estado de cita a awaiting_reschedule:`, dbUpdateErr);
         } else {
@@ -1525,6 +1759,8 @@ Transportadora: *${orderResult.carrier}*`;
           .from('appointments')
           .select('event_id, tenant_id')
           .eq('id', apptId)
+          .eq('tenant_id', tenantId)
+          .eq('conversation_id', conversation.id)
           .limit(1)
           .maybeSingle();
 
@@ -1547,7 +1783,9 @@ Transportadora: *${orderResult.carrier}*`;
             cancelled_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('id', apptId);
+          .eq('id', apptId)
+          .eq('tenant_id', tenantId)
+          .eq('conversation_id', conversation.id);
         
         if (dbCancelErr) {
           console.error(`❌ Error al marcar cita ${apptId} como cancelada:`, dbCancelErr);
@@ -1600,7 +1838,7 @@ Transportadora: *${orderResult.carrier}*`;
       service_interest: salesUpdate.service_interest || customerProfile?.service_interest,
       last_interaction: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    }, { onConflict: 'phone_number' });
+    }, { onConflict: 'tenant_id,phone_number' });
 
     // 7. Guardar respuesta de la IA
     await supabase.from('messages').insert({
@@ -1610,27 +1848,29 @@ Transportadora: *${orderResult.carrier}*`;
     });
 
     // 8. Enviar respuesta por WhatsApp
-    await sendWhatsAppMessage(customerPhone, aiResponse, config);
+    await sendWhatsAppMessage(customerPhone, aiResponse, config, 'assistant_response');
 
-    console.log(`🤖 Respuesta enviada a ${customerName}: ${aiResponse.substring(0, 80)}...`);
+    console.log(`[WhatsApp ${providerMessageId}] Respuesta enviada`);
 
-    // 🔔 Piggyback: disparar verificación de recordatorios (fire-and-forget, sin bloquear)
-    // El cron de Vercel Hobby solo corre 1x/día, así que aprovechamos el tráfico del webhook
-    // para verificar y enviar recordatorios de 2h y 30min que el cron diario no alcanza.
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3000';
-      const cronSecret = process.env.CRON_SECRET || '';
-      fetch(`${baseUrl}/api/cron/appointments`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${cronSecret}` },
-      }).catch(() => {}); // fire-and-forget
-    } catch {}
+    await finalizeWebhookEvent('processed');
 
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
-    console.error('❌ Error en webhook WhatsApp:', error);
+    if (error instanceof ContinueWebhookBatch) {
+      return NextResponse.json(
+        { status: 'batch_continuation_required' },
+        { status: 503, headers: { 'Retry-After': '1' } },
+      );
+    }
+    console.error('[WhatsApp] Webhook processing failed');
+    if (claimedEvent) {
+      await completeWebhookEvent(
+        createSupabaseAdmin(),
+        claimedEvent,
+        'failed',
+        'unhandled_processing_error',
+      );
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
@@ -1639,21 +1879,79 @@ Transportadora: *${orderResult.carrier}*`;
 // FUNCIONES AUXILIARES
 // ============================================
 
-async function sendWhatsAppMessage(to: string, text: string, config: Record<string, string> | null) {
-  let token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-  let phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
+async function readProviderResponse(response: Response, maxBytes = 256 * 1024): Promise<string> {
+  const declaredLength = Number(response.headers.get('content-length') || '0');
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error('provider_response_too_large');
+  }
+  if (!response.body) return '';
 
-  // Si los tokens de la DB son cortos o parecen de prueba, forzamos usar el .env
-  if (token && token.length < 20) token = process.env.WHATSAPP_TOKEN;
-  if (phoneId && phoneId.length < 5) phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let body = '';
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) throw new Error('provider_response_too_large');
+      body += decoder.decode(value, { stream: true });
+    }
+    body += decoder.decode();
+    return body;
+  } finally {
+    reader.releaseLock();
+  }
+}
 
-  if (!token || !phoneId) {
-    console.error('❌ Faltan credenciales de WhatsApp');
-    return;
+async function sendWhatsAppMessage(
+  to: string,
+  text: string,
+  config: Record<string, string> | null,
+  deliveryPurpose: string,
+) {
+  const token = config?.whatsapp_token;
+  const phoneId = config?.whatsapp_phone_id;
+  const tenantId = config?.tenant_id;
+  const sourceMessageId = config?.__source_message_id;
+
+  if (!token || !phoneId || !tenantId || !sourceMessageId || !/^[a-z0-9_]{3,80}$/.test(deliveryPurpose)) {
+    console.error('❌ Faltan credenciales o identidad durable de WhatsApp');
+    throw new Error('whatsapp_delivery_configuration_unavailable');
   }
 
+  const supabase = createSupabaseAdmin();
+  const ownerToken = randomUUID();
+  const contentSha256 = sha256Hex(text);
+  // Purpose, not generated text, defines the business operation. If a retry
+  // generates different prose after an ambiguous provider response, it cannot
+  // silently become a second outbound operation.
+  const deliveryKey = sha256Hex(JSON.stringify([sourceMessageId, deliveryPurpose]));
+  const { data: claimData, error: claimError } = await supabase.rpc('claim_whatsapp_delivery', {
+    p_delivery_key: deliveryKey,
+    p_tenant_id: tenantId,
+    p_source_message_id: sourceMessageId,
+    p_delivery_purpose: deliveryPurpose,
+    p_recipient_phone: to,
+    p_content_sha256: contentSha256,
+    p_processing_token: ownerToken,
+    p_lease_seconds: 120,
+  });
+  if (claimError) {
+    console.error('[WhatsApp] Outbound delivery claim failed:', claimError.code || 'database_error');
+    throw new Error('whatsapp_delivery_claim_unavailable');
+  }
+
+  const claim = Array.isArray(claimData) ? claimData[0] : claimData;
+  if (claim?.claim_status === 'duplicate') return;
+  if (claim?.claim_status !== 'claimed' || typeof claim?.claimed_delivery_id !== 'string') {
+    throw new Error(`whatsapp_delivery_${claim?.claim_status || 'claim_invalid'}`);
+  }
+
+  const deliveryId = claim.claimed_delivery_id;
   try {
-    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v24.0/${encodeURIComponent(phoneId)}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -1665,15 +1963,22 @@ async function sendWhatsAppMessage(to: string, text: string, config: Record<stri
         type: 'text',
         text: { body: text },
       }),
+      signal: AbortSignal.timeout(10_000),
     });
-    
-    const result = await response.json();
+
+    const rawResult = await readProviderResponse(response);
+    let result: Record<string, any> = {};
+    try {
+      result = rawResult ? JSON.parse(rawResult) : {};
+    } catch {
+      result = {};
+    }
     if (!response.ok) {
-      const errStr = JSON.stringify(result, null, 2);
-      console.error('❌ Error de Meta API:', errStr);
+      const errStr = `Meta API status ${response.status}`;
+      console.error('❌ Error de Meta API:', response.status);
       try {
-        const supabase = createSupabaseAdmin();
-        const { data: conv } = await supabase.from('conversations').select('id').eq('phone_number', to).limit(1).single();
+        const { data: conv } = await supabase.from('conversations').select('id')
+          .eq('tenant_id', tenantId).eq('phone_number', to).limit(1).maybeSingle();
         if (conv) {
           await supabase.from('messages').insert({
             conversation_id: conv.id,
@@ -1681,14 +1986,44 @@ async function sendWhatsAppMessage(to: string, text: string, config: Record<stri
             content: `__SYSTEM_ERROR__ WhatsApp API Falló al enviar: ${errStr.substring(0, 500)}`
           });
         }
-      } catch (e) {
-        console.error('Error insertando log en BD', e);
+      } catch {
+        console.error('[WhatsApp] Unable to persist provider failure diagnostic');
       }
-    } else {
-      console.log('✅ WhatsApp enviado:', result);
+
+      const { data: failed, error: completionError } = await supabase.rpc('complete_whatsapp_delivery', {
+        p_delivery_id: deliveryId,
+        p_processing_token: ownerToken,
+        p_succeeded: false,
+        p_provider_message_id: null,
+        p_error_code: `meta_http_${response.status}`,
+      });
+      if (completionError || failed !== true) {
+        console.error('[WhatsApp] Outbound failure persistence failed');
+      }
+      throw new Error(`whatsapp_provider_http_${response.status}`);
     }
-  } catch (err) {
-    console.error('❌ Error en fetch WhatsApp:', err);
+
+    const providerOutboundId = String(result?.messages?.[0]?.id || '').slice(0, 200) || null;
+    const { data: completed, error: completionError } = await supabase.rpc('complete_whatsapp_delivery', {
+      p_delivery_id: deliveryId,
+      p_processing_token: ownerToken,
+      p_succeeded: true,
+      p_provider_message_id: providerOutboundId,
+      p_error_code: null,
+    });
+    if (completionError || completed !== true) {
+      console.error('[WhatsApp] Accepted outbound delivery could not be finalized');
+      throw new Error('whatsapp_delivery_completion_unavailable');
+    }
+    console.log('✅ Mensaje de WhatsApp aceptado por Meta');
+  } catch (error) {
+    // Definite HTTP failures were finalized above. Network/response ambiguity
+    // deliberately leaves the lease in processing: a retry with different
+    // generated content is rejected, while same-content recovery waits for the
+    // lease. Meta offers no idempotency key, so the latter still has a narrow
+    // unavoidable duplicate window after a lost successful response.
+    console.error('❌ Error en envio WhatsApp');
+    throw error;
   }
 }
 
@@ -1698,10 +2033,11 @@ async function generatePayPhonePayment(
   service: string,
   conversationId: string,
   customerName: string,
-  config: Record<string, string> | null
+  config: Record<string, string> | null,
+  tenantId: string
 ) {
-  const token = config?.payphone_token || process.env.PAYPHONE_TOKEN;
-  const storeId = config?.payphone_store_id || process.env.PAYPHONE_STORE_ID;
+  const token = config?.payphone_token;
+  const storeId = config?.payphone_store_id;
 
   if (!token || !storeId) {
     console.error('❌ Faltan credenciales de PayPhone');
@@ -1709,7 +2045,10 @@ async function generatePayPhonePayment(
   }
 
   const supabase = createSupabaseAdmin();
-  const clientTransactionId = `RIFX-${Date.now()}`;
+  if (!Number.isFinite(amountDollars) || amountDollars <= 0 || amountDollars > 100_000) {
+    return { success: false };
+  }
+  const clientTransactionId = `RIFX-${randomUUID()}`;
   const amountCents = amountDollars * 100; // PayPhone usa centavos
 
   try {
@@ -1730,6 +2069,7 @@ async function generatePayPhonePayment(
         currency: 'USD',
         timeZone: -5,
       }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     const data = await response.json();
@@ -1737,11 +2077,12 @@ async function generatePayPhonePayment(
     if (data.transactionId) {
       // Guardar la venta como pendiente
       await supabase.from('sales').insert({
+        tenant_id: tenantId,
         conversation_id: conversationId,
         customer_name: customerName,
         phone_number: phone,
         amount: amountCents,
-        service,
+        service: String(service).slice(0, 200),
         payphone_transaction_id: String(data.transactionId),
         client_transaction_id: clientTransactionId,
         status: 'pending',

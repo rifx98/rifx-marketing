@@ -1,457 +1,546 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest, signToken, verifyToken } from '@/lib/auth';
+import { getTenantFromRequest, signOAuthState } from '@/lib/auth';
 import { encryptToken, decryptToken } from '@/lib/encryption';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  MAX_SOCIAL_ACCOUNTS,
+  SOCIAL_OAUTH_ACTION,
+  boundedProfileUrl,
+  boundedProviderId,
+  boundedProviderName,
+  boundedProviderToken,
+  buildOAuthRedirectUri,
+  buildPanelRedirect,
+  fetchOAuthJson,
+  isValidOAuthCode,
+  isValidUuid,
+  oauthTenantCanUseFeature,
+  readLimitedJsonBody,
+  resolveOAuthAppOrigin,
+  tokenExpiryFromSeconds,
+  verifySocialOAuthState,
+} from '@/lib/social-oauth';
 
 const META_API_VERSION = 'v19.0';
-const BASE_URL = 'https://graph.facebook.com';
+const META_BASE_URL = 'https://graph.facebook.com';
+const AUTH_PLATFORMS = new Set([
+  'meta',
+  'facebook',
+  'instagram',
+  'tiktok',
+  'youtube',
+  'google_calendar',
+]);
+const MANUAL_PLATFORMS = new Set([
+  'facebook',
+  'instagram',
+  'tiktok',
+  'youtube',
+  'google_calendar',
+]);
 
-// GET: Listar cuentas vinculadas para el tenant, o manejar el Callback OAuth de Meta
+interface MetaTokenResponse {
+  access_token?: unknown;
+  expires_in?: unknown;
+  error?: unknown;
+}
+
+interface MetaPage {
+  id?: unknown;
+  name?: unknown;
+  access_token?: unknown;
+  picture?: { data?: { url?: unknown } };
+  instagram_business_account?: {
+    id?: unknown;
+    username?: unknown;
+    profile_picture_url?: unknown;
+  };
+}
+
+interface MetaPagesResponse {
+  data?: MetaPage[];
+  error?: unknown;
+}
+
+interface MetaAdAccountsResponse {
+  data?: Array<{ id?: unknown }>;
+  error?: unknown;
+}
+
+interface MetaPictureResponse {
+  picture?: { data?: { url?: unknown } };
+  profile_picture_url?: unknown;
+  error?: unknown;
+}
+
+function jsonResponse(body: Record<string, unknown>, status = 200): NextResponse {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
+async function handleMetaCallback(
+  code: string,
+  state: string,
+  appOrigin: string,
+): Promise<NextResponse> {
+  try {
+    const tenantId = await verifySocialOAuthState(state);
+    if (!tenantId) {
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'invalid_state' }));
+    }
+
+    const supabase = createSupabaseAdmin();
+    if (!await oauthTenantCanUseFeature(supabase, tenantId, 'social')) {
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'access_denied' }));
+    }
+
+    const appId = process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    if (!appId || !appSecret) {
+      console.error('[Meta OAuth] Provider configuration unavailable');
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'oauth_unavailable' }));
+    }
+    const redirectUri = buildOAuthRedirectUri(appOrigin, '/api/panel/social/accounts');
+
+    // Meta supports POST for these exchanges. Credentials and tokens must not
+    // be placed in URLs where proxies, analytics and access logs can retain them.
+    const shortTokenResult = await fetchOAuthJson<MetaTokenResponse>(
+      `${META_BASE_URL}/${META_API_VERSION}/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: appId,
+          client_secret: appSecret,
+          redirect_uri: redirectUri,
+          code,
+        }),
+      },
+    );
+    const shortToken = boundedProviderToken(shortTokenResult.data.access_token);
+    if (!shortTokenResult.ok || shortTokenResult.data.error || !shortToken) {
+      throw new Error('provider_exchange_failed');
+    }
+
+    const longTokenResult = await fetchOAuthJson<MetaTokenResponse>(
+      `${META_BASE_URL}/${META_API_VERSION}/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'fb_exchange_token',
+          client_id: appId,
+          client_secret: appSecret,
+          fb_exchange_token: shortToken,
+        }),
+      },
+    );
+    const userToken = boundedProviderToken(longTokenResult.data.access_token);
+    if (!longTokenResult.ok || longTokenResult.data.error || !userToken) {
+      throw new Error('provider_exchange_failed');
+    }
+    const tokenExpiresAt = tokenExpiryFromSeconds(longTokenResult.data.expires_in);
+
+    const pagesUrl = new URL(`${META_BASE_URL}/${META_API_VERSION}/me/accounts`);
+    pagesUrl.searchParams.set(
+      'fields',
+      'id,name,access_token,picture{url},instagram_business_account{id,username,profile_picture_url}',
+    );
+    pagesUrl.searchParams.set('limit', String(MAX_SOCIAL_ACCOUNTS));
+    const pagesResult = await fetchOAuthJson<MetaPagesResponse>(pagesUrl, {
+      headers: { Authorization: `Bearer ${userToken}` },
+    });
+    if (!pagesResult.ok || pagesResult.data.error || !Array.isArray(pagesResult.data.data)) {
+      throw new Error('provider_profile_failed');
+    }
+    const pages = pagesResult.data.data.slice(0, MAX_SOCIAL_ACCOUNTS);
+
+    let defaultAdAccountId = '';
+    try {
+      const adAccountsUrl = new URL(`${META_BASE_URL}/${META_API_VERSION}/me/adaccounts`);
+      adAccountsUrl.searchParams.set('fields', 'id');
+      adAccountsUrl.searchParams.set('limit', String(MAX_SOCIAL_ACCOUNTS));
+      const adAccountsResult = await fetchOAuthJson<MetaAdAccountsResponse>(adAccountsUrl, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+      if (adAccountsResult.ok && !adAccountsResult.data.error) {
+        defaultAdAccountId = boundedProviderId(adAccountsResult.data.data?.[0]?.id) || '';
+      }
+    } catch {
+      console.error('[Meta OAuth] Optional ad-account lookup failed');
+    }
+
+    const defaultPageId = boundedProviderId(pages[0]?.id) || '';
+    const { data: existingConfig, error: configLookupError } = await supabase
+      .from('config')
+      .select('id,openai_key')
+      .eq('tenant_id', tenantId)
+      .limit(1)
+      .maybeSingle();
+    if (configLookupError) throw new Error('persistence_failed');
+
+    const currentConfig = decodeExtendedConfig(existingConfig?.openai_key || '');
+    const updatedOpenaiKey = encodeExtendedConfig({
+      ...currentConfig,
+      facebook_access_token: userToken,
+      facebook_page_id: defaultPageId || currentConfig.facebook_page_id,
+      facebook_ad_account_id: defaultAdAccountId || currentConfig.facebook_ad_account_id,
+    });
+    const configUpdate = existingConfig
+      ? await supabase
+        .from('config')
+        .update({ openai_key: updatedOpenaiKey, updated_at: new Date().toISOString() })
+        .eq('id', existingConfig.id)
+        .eq('tenant_id', tenantId)
+      : await supabase
+        .from('config')
+        .insert({
+          tenant_id: tenantId,
+          openai_key: updatedOpenaiKey,
+          updated_at: new Date().toISOString(),
+        });
+    if (configUpdate.error) throw new Error('persistence_failed');
+
+    for (const page of pages) {
+      const pageId = boundedProviderId(page.id);
+      const pageToken = boundedProviderToken(page.access_token);
+      if (!pageId || !pageToken) continue;
+
+      const pageEncryption = encryptToken(pageToken);
+      const { error: pageError } = await supabase
+        .from('social_accounts')
+        .upsert({
+          tenant_id: tenantId,
+          platform: 'facebook',
+          platform_user_id: pageId,
+          platform_username: boundedProviderName(page.name, 'Facebook Page'),
+          profile_picture_url: boundedProfileUrl(page.picture?.data?.url),
+          encrypted_access_token: pageEncryption.ciphertext,
+          encrypted_refresh_token: null,
+          encryption_iv: pageEncryption.iv,
+          encryption_tag: pageEncryption.tag,
+          token_expires_at: null,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'tenant_id,platform,platform_user_id',
+        });
+      if (pageError) throw new Error('persistence_failed');
+
+      const instagram = page.instagram_business_account;
+      const instagramId = boundedProviderId(instagram?.id);
+      if (!instagramId) continue;
+      const instagramEncryption = encryptToken(userToken);
+      const { error: instagramError } = await supabase
+        .from('social_accounts')
+        .upsert({
+          tenant_id: tenantId,
+          platform: 'instagram',
+          platform_user_id: instagramId,
+          platform_username: boundedProviderName(instagram?.username, 'Instagram account'),
+          profile_picture_url: boundedProfileUrl(instagram?.profile_picture_url),
+          encrypted_access_token: instagramEncryption.ciphertext,
+          encrypted_refresh_token: null,
+          encryption_iv: instagramEncryption.iv,
+          encryption_tag: instagramEncryption.tag,
+          token_expires_at: tokenExpiresAt,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'tenant_id,platform,platform_user_id',
+        });
+      if (instagramError) throw new Error('persistence_failed');
+    }
+
+    return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { success: 'oauth_success' }));
+  } catch {
+    console.error('[Meta OAuth] Callback failed');
+    return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'oauth_failed' }));
+  }
+}
+
+// List linked accounts, or handle Meta's OAuth callback.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
+  const isCallback = code !== null || state !== null || searchParams.has('error');
 
-  // 1. Manejo del Callback de OAuth (Meta Redirect)
-  if (code && state) {
-    try {
-      let tenantId = '';
-      try {
-        const decodedPayload = await verifyToken(decodeURIComponent(state));
-        if (!decodedPayload || decodedPayload.purpose !== 'oauth_state' || !decodedPayload.tenantId) {
-          throw new Error('Invalid or expired state parameter');
-        }
-        tenantId = decodedPayload.tenantId;
-      } catch (err: any) {
-        console.error('❌ [Social Accounts] Error decoding or verifying state parameter:', err.message);
-        return NextResponse.redirect(new URL('/panel?tab=social&error=invalid_state', req.url));
-      }
-
-      if (!tenantId) {
-        return NextResponse.redirect(new URL('/panel?tab=social&error=missing_tenant', req.url));
-      }
-
-      const appId = process.env.FACEBOOK_APP_ID;
-      const appSecret = process.env.FACEBOOK_APP_SECRET;
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-      const redirectUri = `${appUrl}/api/panel/social/accounts`;
-
-      if (!appId || !appSecret) {
-        console.error('❌ [Social Accounts] Meta App ID or Secret not configured in .env.local');
-        return NextResponse.redirect(new URL('/panel?tab=social&error=app_not_configured', req.url));
-      }
-
-      console.log(`[Social Accounts] Exchanging OAuth code for User token... tenant: ${tenantId}`);
-
-      // Step A: Exchange code for short-lived User Access Token
-      const tokenExchangeUrl = `${BASE_URL}/${META_API_VERSION}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
-      const tokenRes = await fetch(tokenExchangeUrl);
-      const tokenData = await tokenRes.json();
-
-      if (tokenData.error) {
-        throw new Error(tokenData.error.message || 'OAuth token exchange failed');
-      }
-
-      const shortLivedToken = tokenData.access_token;
-
-      // Step B: Exchange short-lived token for long-lived User Access Token (valid for 60 days)
-      const longLivedUrl = `${BASE_URL}/${META_API_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortLivedToken}`;
-      const llRes = await fetch(longLivedUrl);
-      const llData = await llRes.json();
-
-      if (llData.error) {
-        throw new Error(llData.error.message || 'Long-lived token exchange failed');
-      }
-
-      const longLivedUserToken = llData.access_token;
-      const tokenExpiresIn = llData.expires_in; // in seconds
-      const tokenExpiresAt = tokenExpiresIn ? new Date(Date.now() + tokenExpiresIn * 1000).toISOString() : null;
-
-      // Step C: Fetch user's Facebook Pages (incluye la foto de perfil de la
-      // pagina, que antes no se pedia y por eso el panel mostraba solo la
-      // inicial en vez de la imagen real).
-      const pagesUrl = `${BASE_URL}/${META_API_VERSION}/me/accounts?fields=id,name,access_token,picture{url}&access_token=${longLivedUserToken}&limit=100`;
-      const pagesRes = await fetch(pagesUrl);
-      const pagesData = await pagesRes.json();
-
-      if (pagesData.error) {
-        throw new Error(pagesData.error.message || 'Failed to fetch Facebook Pages');
-      }
-
-      const supabase = createSupabaseAdmin();
-      const pagesList = pagesData.data || [];
-
-      // Step C.2: Fetch user's Facebook Ad Accounts
-      let defaultAdAccountId = '';
-      try {
-        const adAccountsUrl = `${BASE_URL}/${META_API_VERSION}/me/adaccounts?access_token=${longLivedUserToken}&limit=100`;
-        const adAccountsRes = await fetch(adAccountsUrl);
-        const adAccountsData = await adAccountsRes.json();
-        if (adAccountsData.data && adAccountsData.data.length > 0) {
-          defaultAdAccountId = adAccountsData.data[0].id;
-        }
-        console.log(`[Social Accounts] Found ${adAccountsData.data?.length || 0} ad accounts. Default is ${defaultAdAccountId}`);
-      } catch (err: any) {
-        console.error('⚠️ [Social Accounts] Error fetching Facebook Ad Accounts:', err.message || err);
-      }
-
-      // Step C.3: Automatically populate/update global config for this tenant
-      try {
-        const defaultPageId = pagesList.length > 0 ? pagesList[0].id : '';
-
-        // Fetch existing config row
-        let fetchQuery = supabase.from('config').select('id, openai_key');
-        fetchQuery = fetchQuery.eq('tenant_id', tenantId);
-        const { data: existingRow, error: fetchError } = await fetchQuery.limit(1).maybeSingle();
-
-        if (fetchError) {
-          console.error('⚠️ [Social Accounts] Error fetching existing config:', fetchError.message);
-        }
-
-        // Decode the existing extended config JSON (usually stored in openai_key column)
-        const current = decodeExtendedConfig(existingRow?.openai_key || '');
-
-        // Encode the updated config payload
-        const updatedOpenaiKey = encodeExtendedConfig({
-          ...current,
-          facebook_access_token: longLivedUserToken,
-          facebook_page_id: defaultPageId || current.facebook_page_id,
-          facebook_ad_account_id: defaultAdAccountId || current.facebook_ad_account_id,
-        });
-
-        const updateData: Record<string, any> = {
-          openai_key: updatedOpenaiKey,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (existingRow) {
-          console.log(`[Social Accounts] Updating config row for tenant ${tenantId}`);
-          await supabase.from('config').update(updateData).eq('id', existingRow.id);
-        } else {
-          console.log(`[Social Accounts] Inserting new config row for tenant ${tenantId}`);
-          updateData.tenant_id = tenantId;
-          await supabase.from('config').insert(updateData);
-        }
-      } catch (configErr: any) {
-        console.error('⚠️ [Social Accounts] Error auto-populating config table:', configErr.message || configErr);
-      }
-
-      console.log(`[Social Accounts] Found ${pagesList.length} pages. Storing in database...`);
-
-      for (const page of pagesList) {
-        const pageId = page.id;
-        const pageName = page.name;
-        const pageAccessToken = page.access_token; // Page access token (long-lived)
-        const pagePicture = page.picture?.data?.url || null;
-
-        // Encrypt page access token
-        const fbEnc = encryptToken(pageAccessToken);
-
-        // Store Facebook Page account
-        await supabase
-          .from('social_accounts')
-          .upsert({
-            tenant_id: tenantId,
-            platform: 'facebook',
-            platform_user_id: pageId,
-            platform_username: pageName,
-            profile_picture_url: pagePicture,
-            encrypted_access_token: fbEnc.ciphertext,
-            encrypted_refresh_token: null,
-            encryption_iv: fbEnc.iv,
-            encryption_tag: fbEnc.tag,
-            token_expires_at: null, // Page tokens never expire unless revoked
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'tenant_id,platform,platform_user_id'
-          });
-
-        // Step D: Check if Page has an connected Instagram Business Account
-        const igCheckUrl = `${BASE_URL}/${META_API_VERSION}/${pageId}?fields=instagram_business_account{id,username,profile_picture_url}&access_token=${longLivedUserToken}`;
-        const igRes = await fetch(igCheckUrl);
-        const igData = await igRes.json();
-
-        if (igData.instagram_business_account) {
-          const igId = igData.instagram_business_account.id;
-          const igUsername = igData.instagram_business_account.username;
-          const igPic = igData.instagram_business_account.profile_picture_url || null;
-
-          // For Instagram, we can publish using the long-lived User Access Token
-          const igEnc = encryptToken(longLivedUserToken);
-
-          console.log(`[Social Accounts] Found linked Instagram account: ${igUsername} (${igId})`);
-
-          // Store Instagram Account
-          await supabase
-            .from('social_accounts')
-            .upsert({
-              tenant_id: tenantId,
-              platform: 'instagram',
-              platform_user_id: igId,
-              platform_username: igUsername,
-              profile_picture_url: igPic,
-              encrypted_access_token: igEnc.ciphertext,
-              encrypted_refresh_token: null,
-              encryption_iv: igEnc.iv,
-              encryption_tag: igEnc.tag,
-              token_expires_at: tokenExpiresAt, // Expires in 60 days
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'tenant_id,platform,platform_user_id'
-            });
-        }
-      }
-
-      return NextResponse.redirect(new URL('/panel?tab=social&oauth_success=true', req.url));
-    } catch (error: any) {
-      console.error('❌ [Social Accounts] OAuth callback error:', error.message || error);
-      return NextResponse.redirect(new URL(`/panel?tab=social&error=${encodeURIComponent(error.message || 'oauth_failed')}`, req.url));
+  if (isCallback) {
+    const appOrigin = resolveOAuthAppOrigin();
+    if (!appOrigin) return jsonResponse({ error: 'OAuth no disponible' }, 503);
+    if (searchParams.has('error')) {
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'oauth_denied' }));
     }
+    if (!isValidOAuthCode(code) || !state) {
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'invalid_callback' }));
+    }
+    return handleMetaCallback(code, state, appOrigin);
   }
 
-  // 2. Listar cuentas conectadas para el panel del usuario
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
+    if (!tenant?.tenantId) return jsonResponse({ error: 'No autenticado' }, 401);
+    const featureDenied = denyUnlessFeature(tenant, 'social');
+    if (featureDenied) return featureDenied;
 
     const supabase = createSupabaseAdmin();
     const { data: accounts, error } = await supabase
       .from('social_accounts')
-      .select('id, platform, platform_user_id, platform_username, profile_picture_url, created_at')
+      .select('id,platform,platform_user_id,platform_username,profile_picture_url,created_at')
       .eq('tenant_id', tenant.tenantId)
-      .order('platform', { ascending: true });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ accounts });
-  } catch (error: any) {
-    console.error('Error listing social accounts:', error);
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+      .order('platform', { ascending: true })
+      .limit(MAX_SOCIAL_ACCOUNTS);
+    if (error) return jsonResponse({ error: 'No se pudieron cargar las cuentas' }, 500);
+    return jsonResponse({ accounts: accounts || [] });
+  } catch {
+    console.error('[Social Accounts] Account listing failed');
+    return jsonResponse({ error: 'No se pudieron cargar las cuentas' }, 500);
   }
 }
 
-// POST: Vincular una cuenta manualmente (o generar la URL de OAuth)
+function buildProviderAuthorizationUrl(
+  platform: string,
+  appOrigin: string,
+  state: string,
+): URL | null {
+  if (platform === 'youtube' || platform === 'google_calendar') {
+    const clientId = boundedProviderId(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+    if (!clientId) return null;
+    const callback = platform === 'youtube'
+      ? '/api/panel/social/accounts/google-callback'
+      : '/api/panel/social/accounts/google-calendar-callback';
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    const scopes = platform === 'youtube'
+      ? [
+        'https://www.googleapis.com/auth/youtube.upload',
+        'https://www.googleapis.com/auth/youtube.readonly',
+      ]
+      : [
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/calendar.readonly',
+        'https://www.googleapis.com/auth/userinfo.email',
+      ];
+    authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('redirect_uri', buildOAuthRedirectUri(appOrigin, callback));
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('scope', scopes.join(' '));
+    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('access_type', 'offline');
+    authUrl.searchParams.set('prompt', 'consent');
+    return authUrl;
+  }
+
+  if (platform === 'tiktok') {
+    const clientKey = boundedProviderId(process.env.TIKTOK_CLIENT_KEY);
+    if (!clientKey) return null;
+    const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
+    authUrl.searchParams.set('client_key', clientKey);
+    authUrl.searchParams.set('scope', 'user.info.basic,video.upload,video.publish');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set(
+      'redirect_uri',
+      buildOAuthRedirectUri(appOrigin, '/api/panel/social/accounts/tiktok-callback'),
+    );
+    authUrl.searchParams.set('state', state);
+    return authUrl;
+  }
+
+  if (platform === 'meta' || platform === 'facebook' || platform === 'instagram') {
+    const appId = boundedProviderId(process.env.FACEBOOK_APP_ID);
+    if (!appId) return null;
+    const authUrl = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+    authUrl.searchParams.set('client_id', appId);
+    authUrl.searchParams.set(
+      'redirect_uri',
+      buildOAuthRedirectUri(appOrigin, '/api/panel/social/accounts'),
+    );
+    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('scope', [
+      'pages_manage_posts',
+      'pages_show_list',
+      'instagram_basic',
+      'instagram_content_publish',
+      'business_management',
+      'ads_management',
+      'ads_read',
+      'pages_read_engagement',
+      'pages_manage_ads',
+    ].join(','));
+    return authUrl;
+  }
+
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    if (!tenant?.tenantId) return jsonResponse({ error: 'No autenticado' }, 401);
+    const body = await readLimitedJsonBody(req);
+    if (!body || typeof body.action !== 'string') {
+      return jsonResponse({ error: 'Solicitud invalida' }, 400);
     }
 
-    const body = await req.json();
-    const { action } = body;
+    if (body.action === 'get_auth_url') {
+      const platform = body.platform === undefined ? 'meta' : body.platform;
+      if (typeof platform !== 'string' || !AUTH_PLATFORMS.has(platform)) {
+        return jsonResponse({ error: 'Plataforma invalida' }, 400);
+      }
+      const feature = platform === 'google_calendar' ? 'appointments' : 'social';
+      const featureDenied = denyUnlessFeature(tenant, feature);
+      if (featureDenied) return featureDenied;
 
-    // A. Generar URL de inicio de flujo OAuth
-    if (action === 'get_auth_url') {
-      const { platform } = body;
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-      const stateToken = await signToken({
+      const appOrigin = resolveOAuthAppOrigin();
+      if (!appOrigin) return jsonResponse({ error: 'OAuth no disponible' }, 503);
+      const state = await signOAuthState({
         tenantId: tenant.tenantId,
-        purpose: 'oauth_state',
+        oauthAction: SOCIAL_OAUTH_ACTION,
       });
-      const state = encodeURIComponent(stateToken);
-
-      if (platform === 'youtube') {
-        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-        const redirectUri = `${appUrl}/api/panel/social/accounts/google-callback`;
-
-        if (!clientId) {
-          return NextResponse.json({ error: 'Google Client ID no configurado en .env.local' }, { status: 500 });
-        }
-
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly')}&state=${state}&access_type=offline&prompt=consent`;
-
-        return NextResponse.json({ authUrl });
-      }
-
-      if (platform === 'google_calendar') {
-        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-        const redirectUri = `${appUrl}/api/panel/social/accounts/google-calendar-callback`;
-
-        if (!clientId) {
-          return NextResponse.json({ error: 'Google Client ID no configurado en .env.local' }, { status: 500 });
-        }
-
-        const calendarScopes = [
-          'https://www.googleapis.com/auth/calendar.events',
-          'https://www.googleapis.com/auth/calendar.readonly',
-          'https://www.googleapis.com/auth/userinfo.email'
-        ].join(' ');
-
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(calendarScopes)}&state=${state}&access_type=offline&prompt=consent`;
-
-        return NextResponse.json({ authUrl });
-      }
-
-      if (platform === 'tiktok') {
-        const clientKey = process.env.TIKTOK_CLIENT_KEY || 'dummy_client_key';
-        const redirectUri = `${appUrl}/api/panel/social/accounts/tiktok-callback`;
-
-        const scopes = 'user.info.basic,video.upload,video.publish';
-        const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${clientKey}&scope=${scopes}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-
-        return NextResponse.json({ authUrl });
-      }
-
-      // Default a Meta (facebook/instagram)
-      const appId = process.env.FACEBOOK_APP_ID;
-      const redirectUri = `${appUrl}/api/panel/social/accounts`;
-
-      if (!appId) {
-        return NextResponse.json({ error: 'Meta App ID no configurado' }, { status: 500 });
-      }
-
-      const scopes = [
-        'pages_manage_posts',
-        'pages_show_list',
-        'instagram_basic',
-        'instagram_content_publish',
-        'business_management',
-        'ads_management',
-        'ads_read',
-        'pages_read_engagement',
-        'pages_manage_ads'
-      ].join(',');
-
-      const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=${scopes}`;
-
-      return NextResponse.json({ authUrl });
+      const authUrl = buildProviderAuthorizationUrl(platform, appOrigin, state);
+      if (!authUrl) return jsonResponse({ error: 'OAuth no disponible' }, 503);
+      return jsonResponse({ authUrl: authUrl.toString() });
     }
 
-    // A.2 Actualizar (backfill) las fotos de perfil de las cuentas de
-    // Facebook/Instagram ya conectadas — para cuentas vinculadas antes de que
-    // se guardara profile_picture_url, o si Facebook la rota/expira.
-    if (action === 'refresh_pictures') {
+    if (body.action === 'refresh_pictures') {
+      const featureDenied = denyUnlessFeature(tenant, 'social');
+      if (featureDenied) return featureDenied;
       const supabase = createSupabaseAdmin();
-      const { data: accounts, error: fetchErr } = await supabase
+      const { data: accounts, error: lookupError } = await supabase
         .from('social_accounts')
-        .select('id, platform, platform_user_id, encrypted_access_token, encryption_iv, encryption_tag')
+        .select('id,platform,platform_user_id,encrypted_access_token,encryption_iv,encryption_tag')
         .eq('tenant_id', tenant.tenantId)
-        .in('platform', ['facebook', 'instagram']);
-
-      if (fetchErr) {
-        return NextResponse.json({ error: fetchErr.message }, { status: 500 });
-      }
+        .in('platform', ['facebook', 'instagram'])
+        .limit(MAX_SOCIAL_ACCOUNTS);
+      if (lookupError) return jsonResponse({ error: 'No se pudieron actualizar las cuentas' }, 500);
 
       let updated = 0;
       let failed = 0;
-      const errors: Array<{ platform: string; platform_user_id: string; error: string }> = [];
-      await Promise.all((accounts || []).map(async (acc) => {
+      for (const account of accounts || []) {
         try {
-          const token = decryptToken(acc.encrypted_access_token, acc.encryption_iv, acc.encryption_tag);
-          const field = acc.platform === 'facebook' ? 'picture{url}' : 'profile_picture_url';
-          const res = await fetch(`${BASE_URL}/${META_API_VERSION}/${acc.platform_user_id}?fields=${field}&access_token=${token}`);
-          const data = await res.json();
-          if (data.error) {
-            failed++;
-            errors.push({ platform: acc.platform, platform_user_id: acc.platform_user_id, error: data.error.message || JSON.stringify(data.error) });
-            console.error(`[refresh_pictures] Graph API error for ${acc.platform}/${acc.platform_user_id}:`, data.error);
-            return;
+          const providerId = boundedProviderId(account.platform_user_id);
+          const token = boundedProviderToken(
+            decryptToken(account.encrypted_access_token, account.encryption_iv, account.encryption_tag),
+          );
+          if (!providerId || !token) throw new Error('invalid_account');
+          const profileUrl = new URL(
+            `${META_BASE_URL}/${META_API_VERSION}/${encodeURIComponent(providerId)}`,
+          );
+          profileUrl.searchParams.set(
+            'fields',
+            account.platform === 'facebook' ? 'picture{url}' : 'profile_picture_url',
+          );
+          const pictureResult = await fetchOAuthJson<MetaPictureResponse>(profileUrl, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const pictureUrl = boundedProfileUrl(
+            account.platform === 'facebook'
+              ? pictureResult.data.picture?.data?.url
+              : pictureResult.data.profile_picture_url,
+          );
+          if (!pictureResult.ok || pictureResult.data.error || !pictureUrl) {
+            throw new Error('provider_profile_failed');
           }
-          const pictureUrl = acc.platform === 'facebook' ? (data.picture?.data?.url || null) : (data.profile_picture_url || null);
-          if (pictureUrl) {
-            await supabase.from('social_accounts').update({ profile_picture_url: pictureUrl }).eq('id', acc.id);
-            updated++;
-          } else {
-            failed++;
-            errors.push({ platform: acc.platform, platform_user_id: acc.platform_user_id, error: 'No picture URL in response: ' + JSON.stringify(data) });
-          }
-        } catch (err: any) {
-          failed++;
-          errors.push({ platform: acc.platform, platform_user_id: acc.platform_user_id, error: err.message || String(err) });
-          console.error(`[refresh_pictures] Exception for ${acc.platform}/${acc.platform_user_id}:`, err);
+          const { error: updateError } = await supabase
+            .from('social_accounts')
+            .update({ profile_picture_url: pictureUrl })
+            .eq('id', account.id)
+            .eq('tenant_id', tenant.tenantId);
+          if (updateError) throw new Error('persistence_failed');
+          updated += 1;
+        } catch {
+          failed += 1;
         }
-      }));
-
-      return NextResponse.json({ success: true, updated, failed, total: accounts?.length || 0, errors });
+      }
+      return jsonResponse({ success: true, updated, failed, total: accounts?.length || 0 });
     }
 
-    // B. Guardar cuenta manualmente (como fallback o sandbox)
-    if (action === 'link_manual') {
-      const { platform, platformUserId, platformUsername, accessToken } = body;
-
-      if (!platform || !platformUserId || !accessToken) {
-        return NextResponse.json({ error: 'Faltan parámetros requeridos (platform, platformUserId, accessToken)' }, { status: 400 });
+    if (body.action === 'link_manual') {
+      if (process.env.NODE_ENV === 'production') {
+        return jsonResponse({ error: 'Accion no disponible' }, 404);
+      }
+      const platform = typeof body.platform === 'string' ? body.platform : '';
+      const feature = platform === 'google_calendar' ? 'appointments' : 'social';
+      const featureDenied = denyUnlessFeature(tenant, feature);
+      if (featureDenied) return featureDenied;
+      const providerId = boundedProviderId(body.platformUserId);
+      const accessToken = boundedProviderToken(body.accessToken);
+      if (!MANUAL_PLATFORMS.has(platform) || !providerId || !accessToken) {
+        return jsonResponse({ error: 'Parametros invalidos' }, 400);
+      }
+      if (
+        body.platformUsername !== undefined &&
+        (typeof body.platformUsername !== 'string' ||
+          boundedProviderName(body.platformUsername, '') === '')
+      ) {
+        return jsonResponse({ error: 'Parametros invalidos' }, 400);
       }
 
-      if (platform !== 'facebook' && platform !== 'instagram' && platform !== 'tiktok' && platform !== 'youtube' && platform !== 'google_calendar') {
-        return NextResponse.json({ error: 'Plataforma no soportada' }, { status: 400 });
-      }
-
-      const enc = encryptToken(accessToken);
+      const encryptedToken = encryptToken(accessToken);
       const supabase = createSupabaseAdmin();
-
       const { data, error } = await supabase
         .from('social_accounts')
         .upsert({
           tenant_id: tenant.tenantId,
           platform,
-          platform_user_id: platformUserId,
-          platform_username: platformUsername || 'Manual Link',
-          encrypted_access_token: enc.ciphertext,
+          platform_user_id: providerId,
+          platform_username: boundedProviderName(body.platformUsername, 'Manual link'),
+          encrypted_access_token: encryptedToken.ciphertext,
           encrypted_refresh_token: null,
-          encryption_iv: enc.iv,
-          encryption_tag: enc.tag,
+          encryption_iv: encryptedToken.iv,
+          encryption_tag: encryptedToken.tag,
           token_expires_at: null,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }, {
-          onConflict: 'tenant_id,platform,platform_user_id'
+          onConflict: 'tenant_id,platform,platform_user_id',
         })
-        .select('id, platform, platform_user_id, platform_username, created_at')
+        .select('id,platform,platform_user_id,platform_username,created_at')
         .single();
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ success: true, account: data });
+      if (error) return jsonResponse({ error: 'No se pudo vincular la cuenta' }, 500);
+      return jsonResponse({ success: true, account: data });
     }
 
-    return NextResponse.json({ error: 'Acción no válida' }, { status: 400 });
-  } catch (error: any) {
-    console.error('Error connecting social account:', error);
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+    return jsonResponse({ error: 'Accion no valida' }, 400);
+  } catch {
+    console.error('[Social Accounts] Account connection failed');
+    return jsonResponse({ error: 'No se pudo procesar la solicitud' }, 500);
   }
 }
 
-// DELETE: Desconectar cuenta vinculada
 export async function DELETE(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID de cuenta requerido' }, { status: 400 });
-    }
+    if (!tenant?.tenantId) return jsonResponse({ error: 'No autenticado' }, 401);
+    const id = new URL(req.url).searchParams.get('id');
+    if (!isValidUuid(id)) return jsonResponse({ error: 'ID de cuenta invalido' }, 400);
 
     const supabase = createSupabaseAdmin();
+    const { data: account, error: lookupError } = await supabase
+      .from('social_accounts')
+      .select('platform')
+      .eq('id', id)
+      .eq('tenant_id', tenant.tenantId)
+      .maybeSingle();
+    if (lookupError) return jsonResponse({ error: 'No se pudo desconectar la cuenta' }, 500);
+    if (!account) return jsonResponse({ error: 'Cuenta no encontrada' }, 404);
+
+    const feature = account.platform === 'google_calendar' ? 'appointments' : 'social';
+    const featureDenied = denyUnlessFeature(tenant, feature);
+    if (featureDenied) return featureDenied;
     const { error } = await supabase
       .from('social_accounts')
       .delete()
       .eq('id', id)
       .eq('tenant_id', tenant.tenantId);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Error deleting social account:', error);
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+    if (error) return jsonResponse({ error: 'No se pudo desconectar la cuenta' }, 500);
+    return jsonResponse({ success: true });
+  } catch {
+    console.error('[Social Accounts] Account deletion failed');
+    return jsonResponse({ error: 'No se pudo desconectar la cuenta' }, 500);
   }
 }
 
-// ─── Extended Config Helpers ─────────────────────────────
 function decodeExtendedConfig(stored: string) {
   const defaults = {
     openai_key: '', gemini_key: '', groq_key: '', alert_email: '',
@@ -470,6 +559,6 @@ function decodeExtendedConfig(stored: string) {
   }
 }
 
-function encodeExtendedConfig(fields: any): string {
+function encodeExtendedConfig(fields: Record<string, unknown>): string {
   return JSON.stringify(fields);
 }

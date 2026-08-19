@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import { enforceTenantRateLimit, internalApiError } from '@/lib/request-guards';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,14 +11,19 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'playground');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('ai-confidence', tenant.tenantId, 10, 60_000);
+    if (rateDenied) return rateDenied;
 
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('ai_prompt, openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .single();
+    if (configError) return internalApiError();
     
     const prompt = config?.ai_prompt || '';
     let groqKey = '';
@@ -50,6 +57,8 @@ export async function POST(req: NextRequest) {
     const groq = new OpenAI({
       apiKey: groqKey,
       baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 20_000,
+      maxRetries: 1,
     });
 
     const completion = await groq.chat.completions.create({
@@ -93,8 +102,8 @@ SOLO responde con el JSON, nada más.`
 
     return NextResponse.json({ score: 50, reason: 'No se pudo evaluar el prompt completamente.' });
 
-  } catch (error: any) {
-    console.error('AI Confidence Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    console.error('AI confidence request failed');
+    return internalApiError();
   }
 }

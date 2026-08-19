@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { decodeImageDataUri, fetchRemoteImage } from '@/lib/safe-fetch';
 
 export interface TextSlotZone {
   id: string;
@@ -34,16 +35,9 @@ function clamp(value: number, min: number, max: number): number {
  */
 async function resolveImageToBuffer(input: string): Promise<Buffer> {
   if (input.startsWith('data:image')) {
-    const base64Data = input.split(',')[1];
-    return Buffer.from(base64Data, 'base64');
+    return decodeImageDataUri(input).buffer;
   } else if (input.startsWith('http')) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const response = await fetch(input, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`Failed to download image: ${response.status}`);
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    return (await fetchRemoteImage(input, { maxBytes: 10 * 1024 * 1024, timeoutMs: 12_000 })).buffer;
   }
   throw new Error(`Invalid image input: must be base64 data URI or HTTP URL`);
 }

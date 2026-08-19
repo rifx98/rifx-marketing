@@ -1,123 +1,143 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { verifyToken } from '@/lib/auth';
 import { encryptToken } from '@/lib/encryption';
+import {
+  boundedProfileUrl,
+  boundedProviderId,
+  boundedProviderName,
+  boundedProviderToken,
+  buildOAuthRedirectUri,
+  buildPanelRedirect,
+  fetchOAuthJson,
+  isValidOAuthCode,
+  oauthTenantCanUseFeature,
+  resolveOAuthAppOrigin,
+  tokenExpiryFromSeconds,
+  verifySocialOAuthState,
+} from '@/lib/social-oauth';
+
+interface TikTokTokenResponse {
+  access_token?: unknown;
+  refresh_token?: unknown;
+  open_id?: unknown;
+  expires_in?: unknown;
+  error?: unknown;
+}
+
+interface TikTokUserResponse {
+  error?: { code?: unknown } | unknown;
+  data?: {
+    user?: {
+      display_name?: unknown;
+      username?: unknown;
+      avatar_url?: unknown;
+    };
+  };
+}
 
 export async function GET(req: NextRequest) {
+  const appOrigin = resolveOAuthAppOrigin();
+  if (!appOrigin) {
+    return NextResponse.json({ error: 'OAuth no disponible' }, { status: 503 });
+  }
+
   const { searchParams } = new URL(req.url);
   const code = searchParams.get('code');
   const state = searchParams.get('state');
-
-  if (!code || !state) {
-    console.error('❌ [TikTok OAuth] Missing code or state');
-    return NextResponse.redirect(new URL('/panel?tab=social&error=invalid_callback', req.url));
+  if (!isValidOAuthCode(code) || !state) {
+    return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'invalid_callback' }));
   }
 
   try {
-    let tenantId = '';
-    try {
-      const decodedPayload = await verifyToken(decodeURIComponent(state));
-      if (!decodedPayload || decodedPayload.purpose !== 'oauth_state' || !decodedPayload.tenantId) {
-        throw new Error('Invalid or expired state parameter');
-      }
-      tenantId = decodedPayload.tenantId;
-    } catch (err: any) {
-      console.error('❌ [TikTok OAuth] Error decoding or verifying state parameter:', err.message);
-      return NextResponse.redirect(new URL('/panel?tab=social&error=invalid_state', req.url));
+    const tenantId = await verifySocialOAuthState(state);
+    if (!tenantId) {
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'invalid_state' }));
     }
-
-    const clientKey = process.env.TIKTOK_CLIENT_KEY || '';
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET || '';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-    const redirectUri = `${appUrl}/api/panel/social/accounts/tiktok-callback`;
-
-    if (!clientKey) {
-      throw new Error('TikTok Client Key no configurada en .env.local');
-    }
-
-    if (!clientSecret) {
-      throw new Error('Falta TIKTOK_CLIENT_SECRET en .env.local para completar la autenticación OAuth');
-    }
-
-    console.log(`[TikTok OAuth] Exchanging code for token... tenant: ${tenantId}`);
-
-    // Exchange auth code for tokens
-    const tokenRes = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_key: clientKey,
-        client_secret: clientSecret,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri
-      })
-    });
-
-    const tokenData = await tokenRes.json();
-    if (tokenData.error || !tokenRes.ok) {
-      throw new Error(tokenData.error_description || tokenData.error || 'TikTok token exchange failed');
-    }
-
-    const { access_token, open_id, refresh_token, expires_in } = tokenData;
-    const tokenExpiresAt = expires_in ? new Date(Date.now() + expires_in * 1000).toISOString() : null;
-
-    // Fetch TikTok user details
-    console.log('[TikTok OAuth] Fetching user details...');
-    const userRes = await fetch('https://open.tiktokapis.com/v2/user/info/', {
-      headers: {
-        'Authorization': `Bearer ${access_token}`
-      }
-    });
-
-    const userData = await userRes.json();
-    if (userData.error || !userRes.ok) {
-      throw new Error(userData.error?.message || 'Failed to fetch TikTok profile info');
-    }
-
-    const user = userData.data?.user;
-    if (!user) {
-      throw new Error('No se encontró información de perfil de TikTok');
-    }
-
-    const username = user.display_name || user.username || 'TikTok User';
-    const profilePic = user.avatar_url || null;
-
-    // Securely encrypt the credentials
-    const tokenPayload = JSON.stringify({
-      access_token,
-      refresh_token: refresh_token || null
-    });
-    const enc = encryptToken(tokenPayload);
 
     const supabase = createSupabaseAdmin();
-    console.log(`[TikTok OAuth] Storing TikTok account: ${username} (${open_id})`);
+    if (!await oauthTenantCanUseFeature(supabase, tenantId, 'social')) {
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'access_denied' }));
+    }
 
+    const clientKey = process.env.TIKTOK_CLIENT_KEY;
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+    if (!clientKey || !clientSecret) {
+      console.error('[TikTok OAuth] Provider configuration unavailable');
+      return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'oauth_unavailable' }));
+    }
+    const redirectUri = buildOAuthRedirectUri(
+      appOrigin,
+      '/api/panel/social/accounts/tiktok-callback',
+    );
+
+    const tokenResult = await fetchOAuthJson<TikTokTokenResponse>(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_key: clientKey,
+          client_secret: clientSecret,
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+        }),
+      },
+    );
+    const accessToken = boundedProviderToken(tokenResult.data.access_token);
+    const refreshToken = boundedProviderToken(tokenResult.data.refresh_token, true);
+    const openId = boundedProviderId(tokenResult.data.open_id);
+    if (!tokenResult.ok || tokenResult.data.error || !accessToken || !openId) {
+      throw new Error('provider_exchange_failed');
+    }
+
+    const userUrl = new URL('https://open.tiktokapis.com/v2/user/info/');
+    userUrl.searchParams.set('fields', 'open_id,avatar_url,display_name,username');
+    const userResult = await fetchOAuthJson<TikTokUserResponse>(userUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const user = userResult.data.data?.user;
+    const providerErrorCode = userResult.data.error && typeof userResult.data.error === 'object'
+      ? (userResult.data.error as { code?: unknown }).code
+      : undefined;
+    if (
+      !userResult.ok ||
+      !user ||
+      (providerErrorCode !== undefined && providerErrorCode !== 'ok' && providerErrorCode !== 0)
+    ) {
+      throw new Error('provider_profile_failed');
+    }
+
+    const tokenPayload = JSON.stringify({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    const enc = encryptToken(tokenPayload);
     const { error: dbError } = await supabase
       .from('social_accounts')
       .upsert({
         tenant_id: tenantId,
         platform: 'tiktok',
-        platform_user_id: open_id,
-        platform_username: username,
-        profile_picture_url: profilePic,
+        platform_user_id: openId,
+        platform_username: boundedProviderName(
+          user.display_name || user.username,
+          'TikTok account',
+        ),
+        profile_picture_url: boundedProfileUrl(user.avatar_url),
         encrypted_access_token: enc.ciphertext,
-        encrypted_refresh_token: null, // Stored combined in encrypted_access_token
+        encrypted_refresh_token: null,
         encryption_iv: enc.iv,
         encryption_tag: enc.tag,
-        token_expires_at: tokenExpiresAt,
-        updated_at: new Date().toISOString()
+        token_expires_at: tokenExpiryFromSeconds(tokenResult.data.expires_in),
+        updated_at: new Date().toISOString(),
       }, {
-        onConflict: 'tenant_id,platform,platform_user_id'
+        onConflict: 'tenant_id,platform,platform_user_id',
       });
+    if (dbError) throw new Error('persistence_failed');
 
-    if (dbError) {
-      throw new Error(`Database error: ${dbError.message}`);
-    }
-
-    return NextResponse.redirect(new URL('/panel?tab=social&oauth_success=true', req.url));
-  } catch (error: any) {
-    console.error('❌ [TikTok OAuth] Callback error:', error.message || error);
-    return NextResponse.redirect(new URL(`/panel?tab=social&error=${encodeURIComponent(error.message || 'tiktok_oauth_failed')}`, req.url));
+    return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { success: 'oauth_success' }));
+  } catch {
+    console.error('[TikTok OAuth] Callback failed');
+    return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'oauth_failed' }));
   }
 }

@@ -1,248 +1,361 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest } from '@/lib/auth';
+import { getTenantFromRequest, signOAuthState, verifyOAuthState } from '@/lib/auth';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import { findConflictingTenantForExtendedField } from '@/lib/connection-guard';
+import { SECRET_PLACEHOLDER, resolveSecretUpdate } from '@/lib/security';
 
-// GET: List Ad Accounts & Pages using the tenant's already-stored access token
-// (no OAuth code exchange needed, so it works even if FACEBOOK_APP_SECRET is
-// misconfigured - that only affects establishing a brand new connection).
+const GRAPH_VERSION = 'v24.0';
+const GRAPH_TIMEOUT_MS = 8_000;
+const OAUTH_ACTION = 'meta_ads_connect' as const;
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+      Pragma: 'no-cache',
+    },
+  });
+}
+
+function getRedirectUri(req: NextRequest): string | null {
+  try {
+    const configuredOrigin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
+    if (!configuredOrigin && process.env.NODE_ENV === 'production') return null;
+    const origin = new URL(configuredOrigin || req.nextUrl.origin);
+    if (!['http:', 'https:'].includes(origin.protocol)) return null;
+    if (process.env.NODE_ENV === 'production' && origin.protocol !== 'https:') return null;
+    return new URL('/panel', `${origin.origin}/`).toString();
+  } catch {
+    return null;
+  }
+}
+
+async function graphFetch(input: string | URL, init: RequestInit = {}) {
+  return fetch(input, {
+    ...init,
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+  });
+}
+
+async function responseJson(response: Response): Promise<any> {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+function parseExtendedConfig(value: unknown): Record<string, any> {
+  try {
+    const parsed = JSON.parse(typeof value === 'string' ? value : '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function mapAdAccounts(data: any): any[] {
+  if (!Array.isArray(data?.data)) return [];
+  return data.data.slice(0, 50).map((account: any) => ({
+    id: String(account?.id || ''),
+    name: String(account?.name || ''),
+    account_status: account?.account_status,
+    currency: String(account?.currency || ''),
+    timezone: String(account?.timezone_name || ''),
+    business: String(account?.business?.name || ''),
+  })).filter((account: any) => account.id);
+}
+
+function mapPages(data: any): any[] {
+  if (!Array.isArray(data?.data)) return [];
+  return data.data.slice(0, 50).map((page: any) => ({
+    id: String(page?.id || ''),
+    name: String(page?.name || ''),
+    category: String(page?.category || ''),
+    fanCount: page?.fan_count,
+    picture: String(page?.picture?.data?.url || ''),
+  })).filter((page: any) => page.id);
+}
+
+async function listMetaAssets(accessToken: string, limit = 50) {
+  const adAccountsUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/adaccounts`);
+  adAccountsUrl.searchParams.set('fields', 'id,name,account_status,currency,timezone_name,business{id,name}');
+  adAccountsUrl.searchParams.set('limit', String(limit));
+
+  const pagesUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/accounts`);
+  pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url}');
+  pagesUrl.searchParams.set('limit', String(limit));
+
+  const requestInit: RequestInit = { headers: { Authorization: `Bearer ${accessToken}` } };
+  const [adResponse, pagesResponse] = await Promise.all([
+    graphFetch(adAccountsUrl, requestInit),
+    graphFetch(pagesUrl, requestInit),
+  ]);
+  const [adData, pagesData] = await Promise.all([
+    responseJson(adResponse),
+    responseJson(pagesResponse),
+  ]);
+
+  if (!adResponse.ok || adData?.error) {
+    throw new Error('META_ASSET_LOOKUP_FAILED');
+  }
+
+  return {
+    adAccounts: mapAdAccounts(adData),
+    pages: pagesResponse.ok && !pagesData?.error ? mapPages(pagesData) : [],
+  };
+}
+
+// List assets with the tenant's server-side token. The credential is never
+// included in the response; the sentinel only tells the client it is present.
 export async function GET(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
+    if (!tenant?.tenantId) return json({ error: 'No autenticado' }, 401);
+    const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+    if (featureDenied) return featureDenied;
 
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase
+    const { data: config, error } = await supabase
       .from('config')
       .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .maybeSingle();
 
-    let extConfig: any = {};
-    try { extConfig = JSON.parse(config?.openai_key || '{}'); } catch {}
-    const accessToken = extConfig.facebook_access_token;
-
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Meta Ads no esta conectado para este tenant' }, { status: 400 });
+    if (error || !config) return json({ error: 'Configuracion no disponible' }, 404);
+    const accessToken = parseExtendedConfig(config.openai_key).facebook_access_token;
+    if (typeof accessToken !== 'string' || !accessToken) {
+      return json({ error: 'Meta Ads no esta conectado para este tenant' }, 400);
     }
 
-    const adAccountsUrl = new URL('https://graph.facebook.com/v19.0/me/adaccounts');
-    adAccountsUrl.searchParams.set('access_token', accessToken);
-    adAccountsUrl.searchParams.set('fields', 'id,name,account_status,currency,timezone_name,business{id,name}');
-    adAccountsUrl.searchParams.set('limit', '50');
-
-    const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
-    pagesUrl.searchParams.set('access_token', accessToken);
-    pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url}');
-    pagesUrl.searchParams.set('limit', '50');
-
-    const [adRes, pagesRes] = await Promise.all([fetch(adAccountsUrl.toString()), fetch(pagesUrl.toString())]);
-    const [adData, pagesData] = await Promise.all([adRes.json(), pagesRes.json()]);
-
-    if (adData.error) {
-      return NextResponse.json({ error: adData.error.message || 'Error consultando cuentas publicitarias de Meta' }, { status: 400 });
-    }
-
-    const adAccounts = (adData.data || []).map((a: any) => ({
-      id: a.id,
-      name: a.name,
-      account_status: a.account_status,
-      currency: a.currency,
-      timezone: a.timezone_name,
-      business: a.business?.name || '',
-    }));
-
-    const pages = (pagesData.data || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      fanCount: p.fan_count,
-      picture: p.picture?.data?.url || '',
-    }));
-
-    return NextResponse.json({ accessToken, adAccounts, pages });
-  } catch (error: any) {
-    console.error('Meta list accounts error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    const { adAccounts, pages } = await listMetaAssets(accessToken);
+    return json({
+      accessToken: SECRET_PLACEHOLDER,
+      tokenConfigured: true,
+      adAccounts,
+      pages,
+    });
+  } catch {
+    console.error('Meta asset lookup failed');
+    return json({ error: 'No se pudieron consultar las cuentas de Meta' }, 502);
   }
 }
 
-// POST: Exchange OAuth code → long-lived token + list Ad Accounts & Pages
+// Issue a tenant/action-bound OAuth state or exchange a callback code. The
+// redirect URI is derived exclusively from server configuration.
 export async function POST(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
+    if (!tenant?.tenantId) return json({ error: 'No autenticado' }, 401);
+    const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+    if (featureDenied) return featureDenied;
 
-    const { code, redirectUri } = await req.json();
-
-    if (!code) {
-      return NextResponse.json({ error: 'No authorization code provided' }, { status: 400 });
-    }
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') return json({ error: 'Solicitud invalida' }, 400);
 
     const appId = process.env.FACEBOOK_APP_ID;
+    const redirectUri = getRedirectUri(req);
+    if (!appId || !redirectUri) return json({ error: 'OAuth de Meta no esta configurado' }, 503);
+
+    if (body.action === 'request_state') {
+      const state = await signOAuthState({ tenantId: tenant.tenantId, oauthAction: OAUTH_ACTION });
+      return json({
+        state,
+        redirectUri,
+        appId,
+        configId: process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '',
+      });
+    }
+
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    const state = typeof body.state === 'string' ? body.state : '';
+    if (!code || code.length > 4096 || !state || state.length > 4096) {
+      return json({ error: 'Codigo o state OAuth invalido' }, 400);
+    }
+
+    const verifiedState = await verifyOAuthState(state);
+    if (
+      !verifiedState ||
+      verifiedState.tenantId !== tenant.tenantId ||
+      verifiedState.oauthAction !== OAUTH_ACTION
+    ) {
+      return json({ error: 'State OAuth invalido o expirado' }, 400);
+    }
+
     const appSecret = process.env.FACEBOOK_APP_SECRET;
+    if (!appSecret) return json({ error: 'OAuth de Meta no esta configurado' }, 503);
 
-    if (!appId || !appSecret) {
-      return NextResponse.json({ error: 'Facebook App credentials not configured on server' }, { status: 500 });
+    const tokenParams = new URLSearchParams({
+      client_id: appId,
+      client_secret: appSecret,
+      redirect_uri: redirectUri,
+      code,
+    });
+    const tokenResponse = await graphFetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenParams,
+      },
+    );
+    const tokenData = await responseJson(tokenResponse);
+    if (!tokenResponse.ok || typeof tokenData?.access_token !== 'string') {
+      return json({ error: 'No se pudo completar la autorizacion con Meta' }, 400);
     }
 
-    // 1. Exchange code → short-lived token
-    const tokenUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
-    tokenUrl.searchParams.set('client_id', appId);
-    tokenUrl.searchParams.set('client_secret', appSecret);
-    tokenUrl.searchParams.set('redirect_uri', redirectUri);
-    tokenUrl.searchParams.set('code', code);
+    const longTokenParams = new URLSearchParams({
+      grant_type: 'fb_exchange_token',
+      client_id: appId,
+      client_secret: appSecret,
+      fb_exchange_token: tokenData.access_token,
+    });
+    const longTokenResponse = await graphFetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: longTokenParams,
+      },
+    );
+    const longTokenData = await responseJson(longTokenResponse);
+    const accessToken = longTokenResponse.ok && typeof longTokenData?.access_token === 'string'
+      ? longTokenData.access_token
+      : tokenData.access_token;
 
-    const tokenRes = await fetch(tokenUrl.toString());
-    const tokenData = await tokenRes.json();
+    // Persist before returning assets, so subsequent PUT requests can submit
+    // only SECRET_PLACEHOLDER and never echo the provider token through JS.
+    const supabase = createSupabaseAdmin();
+    const { data: config, error: configError } = await supabase
+      .from('config')
+      .select('openai_key')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .maybeSingle();
+    if (configError || !config) return json({ error: 'Configuracion no disponible' }, 404);
 
-    if (!tokenData.access_token) {
-      console.error('Meta token exchange failed:', tokenData);
-      return NextResponse.json({
-        error: tokenData.error?.message || 'Failed to exchange authorization code'
-      }, { status: 400 });
-    }
+    const extendedConfig = parseExtendedConfig(config.openai_key);
+    const { error: saveError } = await supabase
+      .from('config')
+      .update({
+        openai_key: JSON.stringify({
+          ...extendedConfig,
+          facebook_access_token: accessToken,
+          meta_oauth_token_updated_at: new Date().toISOString(),
+        }),
+      })
+      .eq('tenant_id', tenant.tenantId);
+    if (saveError) return json({ error: 'No se pudo guardar la conexion de Meta' }, 500);
 
-    // 2. Exchange short-lived → long-lived token (60 days)
-    const longTokenUrl = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
-    longTokenUrl.searchParams.set('grant_type', 'fb_exchange_token');
-    longTokenUrl.searchParams.set('client_id', appId);
-    longTokenUrl.searchParams.set('client_secret', appSecret);
-    longTokenUrl.searchParams.set('fb_exchange_token', tokenData.access_token);
-
-    const longTokenRes = await fetch(longTokenUrl.toString());
-    const longTokenData = await longTokenRes.json();
-    const accessToken = longTokenData.access_token || tokenData.access_token;
-
-    // 3. Get Ad Accounts
-    const adAccountsUrl = new URL('https://graph.facebook.com/v19.0/me/adaccounts');
-    adAccountsUrl.searchParams.set('access_token', accessToken);
-    adAccountsUrl.searchParams.set('fields', 'id,name,account_status,currency,timezone_name,business{id,name}');
-    adAccountsUrl.searchParams.set('limit', '20');
-
-    const adRes = await fetch(adAccountsUrl.toString());
-    const adData = await adRes.json();
-
-    // 4. Get Pages
-    const pagesUrl = new URL('https://graph.facebook.com/v19.0/me/accounts');
-    pagesUrl.searchParams.set('access_token', accessToken);
-    pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url}');
-    pagesUrl.searchParams.set('limit', '20');
-
-    const pagesRes = await fetch(pagesUrl.toString());
-    const pagesData = await pagesRes.json();
-
-    const adAccounts = (adData.data || []).map((a: any) => ({
-      id: a.id,
-      name: a.name,
-      account_status: a.account_status,
-      currency: a.currency,
-      timezone: a.timezone_name,
-      business: a.business?.name || '',
-    }));
-
-    const pages = (pagesData.data || []).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      fanCount: p.fan_count,
-      picture: p.picture?.data?.url || '',
-    }));
-
-    return NextResponse.json({
-      accessToken,
+    const { adAccounts, pages } = await listMetaAssets(accessToken, 20);
+    return json({
+      accessToken: SECRET_PLACEHOLDER,
+      tokenConfigured: true,
       adAccounts,
       pages,
       adAccountCount: adAccounts.length,
       pageCount: pages.length,
     });
-
-  } catch (error: any) {
-    console.error('Meta facebook-connect error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch {
+    console.error('Meta OAuth request failed');
+    return json({ error: 'No se pudo completar la conexion con Meta' }, 502);
   }
 }
 
-// PUT: Save selected Ad Account + Page to config
+// Save the selected Ad Account and Page. The token normally arrives as the
+// sentinel and is resolved exclusively against the tenant's stored secret.
 export async function PUT(req: NextRequest) {
   try {
-    const { accessToken, adAccountId, adAccountName, pageId, pageName } = await req.json();
-
-    if (!accessToken || !adAccountId) {
-      return NextResponse.json({ error: 'accessToken and adAccountId are required' }, { status: 400 });
-    }
-
-    // Resolve tenant from auth header — use proper auth helper for security
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    if (!tenant?.tenantId) return json({ error: 'No autenticado' }, 401);
+    const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+    if (featureDenied) return featureDenied;
+
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') return json({ error: 'Solicitud invalida' }, 400);
+    const accessToken = typeof body.accessToken === 'string' ? body.accessToken : '';
+    const adAccountId = typeof body.adAccountId === 'string' ? body.adAccountId.trim() : '';
+    const pageId = typeof body.pageId === 'string' ? body.pageId.trim() : '';
+    if (
+      accessToken !== SECRET_PLACEHOLDER ||
+      !/^act_\d+$/.test(adAccountId) ||
+      (pageId && !/^\d+$/.test(pageId))
+    ) {
+      return json({ error: 'Cuenta publicitaria o pagina invalida' }, 400);
     }
+
     const tenantId = tenant.tenantId;
-
     const supabase = createSupabaseAdmin();
-
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
       .select('*')
       .eq('tenant_id', tenantId)
       .limit(1)
       .maybeSingle();
+    if (configError || !config) return json({ error: 'Configuracion no disponible' }, 404);
 
-    if (!config) {
-      return NextResponse.json({ error: 'Config not found for tenant' }, { status: 404 });
-    }
-
-    // Parse existing extended config
-    let extConfig: any = {};
-    try {
-      extConfig = JSON.parse(config.openai_key || '{}');
-    } catch {}
-
-    // Build safe field updates
-    const updateData: any = {
-      openai_key: JSON.stringify({
-        ...extConfig,
-        // Store Meta credentials in extended config
-        facebook_access_token: accessToken,
-        facebook_ad_account_id: adAccountId,
-        facebook_page_id: pageId || '',
-        meta_connected_via: 'facebook_oauth',
-        meta_ad_account_name: adAccountName || '',
-        meta_page_name: pageName || '',
-        meta_connected_at: new Date().toISOString(),
-      }),
-    };
-
-    const { error } = await supabase
-      .from('config')
-      .update(updateData)
-      .eq('tenant_id', tenantId);
-
-    if (error) {
-      console.error('Meta save error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Verify token works by checking the ad account
-    const verifyRes = await fetch(
-      `https://graph.facebook.com/v19.0/${adAccountId}?fields=name,account_status&access_token=${accessToken}`
+    const conflictingAdAccount = await findConflictingTenantForExtendedField(
+      supabase,
+      tenantId,
+      'facebook_ad_account_id',
+      adAccountId,
     );
-    const verifyData = await verifyRes.json();
-    const isVerified = !verifyData.error && verifyData.name;
+    if (conflictingAdAccount) {
+      return json({ error: 'Esta cuenta publicitaria de Meta ya esta conectada a otra cuenta.' }, 409);
+    }
+    if (pageId) {
+      const conflictingPage = await findConflictingTenantForExtendedField(
+        supabase,
+        tenantId,
+        'facebook_page_id',
+        pageId,
+      );
+      if (conflictingPage) return json({ error: 'Esta pagina de Facebook ya esta conectada a otra cuenta.' }, 409);
+    }
 
-    return NextResponse.json({
+    const extendedConfig = parseExtendedConfig(config.openai_key);
+    const resolvedAccessToken = resolveSecretUpdate(accessToken, extendedConfig.facebook_access_token || '');
+    if (!resolvedAccessToken) return json({ error: 'Token de Meta requerido' }, 400);
+
+    const verifyResponse = await graphFetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(adAccountId)}?fields=name,account_status`,
+      { headers: { Authorization: `Bearer ${resolvedAccessToken}` } },
+    );
+    const verifyData = await responseJson(verifyResponse);
+    if (!verifyResponse.ok || verifyData?.error || !verifyData?.name) {
+      return json({ error: 'No se pudo verificar la cuenta publicitaria seleccionada' }, 400);
+    }
+
+    const { error: saveError } = await supabase
+      .from('config')
+      .update({
+        openai_key: JSON.stringify({
+          ...extendedConfig,
+          facebook_access_token: resolvedAccessToken,
+          facebook_ad_account_id: adAccountId,
+          facebook_page_id: pageId,
+          meta_connected_via: 'facebook_oauth',
+          meta_ad_account_name: String(body.adAccountName || '').slice(0, 200),
+          meta_page_name: String(body.pageName || '').slice(0, 200),
+          meta_connected_at: new Date().toISOString(),
+        }),
+      })
+      .eq('tenant_id', tenantId);
+    if (saveError) return json({ error: 'No se pudo guardar la conexion de Meta' }, 500);
+
+    return json({
       success: true,
-      verified: isVerified,
-      adAccountName: verifyData.name || adAccountName,
-      message: isVerified ? 'Meta Ads conectado exitosamente' : 'Guardado pero no se pudo verificar la cuenta',
+      verified: true,
+      adAccountName: String(verifyData.name).slice(0, 200),
+      message: 'Meta Ads conectado exitosamente',
     });
-
-  } catch (error: any) {
-    console.error('Meta save error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch {
+    console.error('Meta connection save failed');
+    return json({ error: 'No se pudo guardar la conexion de Meta' }, 502);
   }
 }

@@ -192,7 +192,7 @@ interface AuthComponentProps {
   logo?: React.ReactNode;
   brandName?: string;
   onLogin?: (email: string, password: string) => Promise<void>;
-  onRegister?: (email: string, password: string) => Promise<void>;
+  onRegister?: (email: string, password: string, acceptedTerms: boolean) => Promise<void>;
   onSwitchToRegister?: () => void;
   onSwitchToLogin?: () => void;
   externalError?: string;
@@ -218,6 +218,7 @@ export const AuthComponent = ({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [authStep, setAuthStep] = useState("email");
@@ -227,8 +228,8 @@ export const AuthComponent = ({
   const formRef = useRef<HTMLFormElement>(null);
 
   const isEmailValid = /\S+@\S+\.\S+/.test(email);
-  const isPasswordValid = password.length >= 6;
-  const isConfirmPasswordValid = confirmPassword.length >= 6;
+  const isPasswordValid = isLogin ? password.length > 0 : password.length >= 12;
+  const isConfirmPasswordValid = confirmPassword.length >= 12;
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const confirmPasswordInputRef = useRef<HTMLInputElement>(null);
@@ -275,7 +276,12 @@ export const AuthComponent = ({
         setModalStatus('error');
         return;
       }
-      await runWithLoadingSteps(() => onRegister ? onRegister(email, password) : Promise.resolve());
+      if (!acceptedTerms) {
+        setModalErrorMessage("Debes aceptar el Aviso Legal y la Política de Privacidad para continuar.");
+        setModalStatus('error');
+        return;
+      }
+      await runWithLoadingSteps(() => onRegister ? onRegister(email, password, acceptedTerms) : Promise.resolve());
     }
   };
 
@@ -341,11 +347,6 @@ export const AuthComponent = ({
     <div className="min-h-screen w-full flex flex-col" style={{ background: '#060918' }}>
       <style>{sharedStyles}</style>
       <Confetti ref={confettiRef} manualstart className="fixed top-0 left-0 w-full h-full pointer-events-none z-[999]" />
-      {googleInitNode && (
-        <div className="absolute w-0 h-0 overflow-hidden opacity-0 pointer-events-none" aria-hidden>
-          {googleInitNode}
-        </div>
-      )}
       <ModalUI />
 
       {/* Header */}
@@ -370,15 +371,31 @@ export const AuthComponent = ({
                 </BlurFade>
                 <BlurFade delay={0.4}><p className="text-sm font-medium text-gray-400">Continuar con</p></BlurFade>
                 <BlurFade delay={0.6} className="w-full flex justify-center">
-                  <GlassButton
-                    type="button"
-                    onClick={onGoogleClick}
-                    contentClassName="flex items-center justify-center gap-2"
-                    size="sm"
-                  >
-                    <GoogleIcon /><span className="font-semibold text-white">Google</span>
-                  </GlassButton>
+                  {googleInitNode ? (
+                    <div className="rounded-full overflow-hidden" style={{ height: 44 }}>
+                      {googleInitNode}
+                    </div>
+                  ) : (
+                    <GlassButton
+                      type="button"
+                      onClick={onGoogleClick}
+                      contentClassName="flex items-center justify-center gap-2"
+                      size="sm"
+                    >
+                      <GoogleIcon /><span className="font-semibold text-white">Google</span>
+                    </GlassButton>
+                  )}
                 </BlurFade>
+                {!isLogin && (
+                  <BlurFade delay={0.7} className="w-[280px] text-center">
+                    <p className="text-[11px] leading-snug text-gray-500">
+                      Al continuar con Google, aceptas nuestro{' '}
+                      <a href="/terminos" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-white hover:underline">Aviso Legal</a>
+                      {' '}y{' '}
+                      <a href="/politica-privacidad" target="_blank" rel="noreferrer" className="text-gray-400 hover:text-white hover:underline">Política de Privacidad</a>.
+                    </p>
+                  </BlurFade>
+                )}
                 <BlurFade delay={0.8} className="w-[300px]">
                   <div className="flex items-center w-full gap-2 py-1">
                     <hr className="w-full border-white/10"/><span className="text-xs font-semibold text-gray-500">O</span><hr className="w-full border-white/10"/>
@@ -395,7 +412,7 @@ export const AuthComponent = ({
                 </BlurFade>
                 <BlurFade delay={0.2}>
                   <p className="text-sm font-medium text-gray-400">
-                    {isLogin ? 'Tu contraseña de acceso.' : 'Mínimo 6 caracteres.'}
+                    {isLogin ? 'Tu contraseña de acceso.' : 'Mínimo 12 caracteres.'}
                   </p>
                 </BlurFade>
               </motion.div>
@@ -512,12 +529,29 @@ export const AuthComponent = ({
                             onChange={e => setConfirmPassword(e.target.value)}
                             className="su-input relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-white/40 focus:outline-none"
                           />
-                          <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300", isConfirmPasswordValid ? "w-10 pr-1" : "w-0")}>
-                            <GlassButton type="submit" size="icon" contentClassName="text-white/80"><ArrowRight className="w-5 h-5" /></GlassButton>
+                          <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300", isConfirmPasswordValid && acceptedTerms ? "w-10 pr-1" : "w-0")}>
+                            <GlassButton type="submit" size="icon" contentClassName="text-white/80" disabled={!acceptedTerms}><ArrowRight className="w-5 h-5" /></GlassButton>
                           </div>
                         </div>
                       </div>
                     </div>
+                    <BlurFade inView delay={0.1}>
+                      <label className="mt-4 flex items-start gap-2 text-left cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={acceptedTerms}
+                          onChange={e => setAcceptedTerms(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-[#4a6cf7]"
+                        />
+                        <span className="text-xs leading-snug text-gray-400">
+                          Acepto el{' '}
+                          <a href="/terminos" target="_blank" rel="noreferrer" className="text-[#8ea2ff] hover:underline">Aviso Legal</a>
+                          {' '}y la{' '}
+                          <a href="/politica-privacidad" target="_blank" rel="noreferrer" className="text-[#8ea2ff] hover:underline">Política de Privacidad</a>
+                          {' '}de Rifx Marketing.
+                        </span>
+                      </label>
+                    </BlurFade>
                     <BlurFade inView delay={0.2}>
                       <button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
                         <ArrowLeft className="w-4 h-4" /> Volver

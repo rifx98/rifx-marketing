@@ -1,18 +1,41 @@
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''} https://accounts.google.com https://connect.facebook.net`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "connect-src 'self' https: wss:",
+  "frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.payphone.app",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+  ...(isDevelopment ? [] : ['upgrade-insecure-requests']),
+].join('; ');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  images: {
-    domains: ['rfmoonr.com'],
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  poweredByHeader: false,
+  compress: true,
   typescript: {
+    // ⚠️ Permitir build en producción incluso con errores de TypeScript
     ignoreBuildErrors: true,
   },
-  experimental: {
-    serverComponentsExternalPackages: ['@imgly/background-removal-node'],
+  eslint: {
+    // ⚠️ Permitir build en producción incluso con errores de ESLint
+    ignoreDuringBuilds: true,
   },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'rfmoonr.com' },
+    ],
+  },
+  serverExternalPackages: ['@imgly/background-removal-node'],
   async redirects() {
     return [
       {
@@ -53,7 +76,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src 'self' https:; font-src 'self' https: data:;",
+            value: contentSecurityPolicy,
           },
         ],
       },

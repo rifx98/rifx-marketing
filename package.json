@@ -3,12 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=22.13.0 <23",
+    "npm": ">=10.9.0 <11"
+  },
   "scripts": {
     "dev": "tinacms dev -c \"next dev\"",
     "build": "next build",
     "vercel-build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint app components lib services providers tests scripts tina/config.ts next.config.js",
+    "typecheck": "tsc --noEmit --incremental false",
+    "test:security": "node --experimental-strip-types --test tests/security-regressions.test.mjs",
+    "test:load-harness": "node scripts/load-test-local.mjs --self-test --duration=2 --concurrency=10",
+    "test": "npm run test:security",
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1060.0",
@@ -19,7 +29,6 @@
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@supabase/supabase-js": "^2.105.3",
-    "@tinacms/cli": "^2.0.0",
     "@types/canvas-confetti": "^1.9.0",
     "@vercel/analytics": "^2.0.1",
     "apexcharts": "^5.16.0",
@@ -34,20 +43,19 @@
     "lenis": "^1.3.23",
     "lucide-react": "^1.21.0",
     "motion": "^12.40.0",
-    "next": "^14.2.35",
+    "next": "16.3.0",
     "openai": "^6.36.0",
     "pdf-parse": "^2.4.5",
     "postprocessing": "^6.39.2",
-    "puppeteer": "^24.43.1",
     "react": "^18.3.1",
     "react-apexcharts": "^2.1.1",
     "react-dom": "^18.3.1",
-    "sharp": "0.32.6",
+    "sharp": "0.35.3",
     "three": "^0.184.0",
-    "tinacms": "^2.0.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@tinacms/cli": "2.6.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
@@ -55,12 +63,19 @@
     "@types/three": "^0.184.1",
     "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.4.14",
-    "eslint": "^10.1.0",
+    "eslint": "9.39.2",
+    "eslint-config-next": "16.3.0",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.4.1",
+    "tinacms": "3.12.0",
     "typescript": "^5.5.3"
   },
   "overrides": {
-    "path-to-regexp": "^0.1.13"
+    "path-to-regexp": "^0.1.13",
+    "linkify-it": "5.0.2",
+    "markdown-it": "14.3.0",
+    "lodash": "4.18.1",
+    "react-router": "7.18.2",
+    "react-router-dom": "7.18.2"
   }
 }

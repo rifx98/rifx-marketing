@@ -1,5 +1,6 @@
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { retryWithBackoff } from '@/app/api/cron/auth';
+import { getEligibleTenantIds } from './tenant-eligibility';
 
 export interface AppointmentReminderResult {
   found: number;
@@ -39,21 +40,22 @@ export async function runAppointmentReminders(options: {
   };
 
   try {
+    const eligibleTenantIds = await getEligibleTenantIds(supabase, options.tenantId);
+    if (eligibleTenantIds.length === 0) return result;
+
     // 1. Buscar citas en un rango de -6h a +25h
     const rangeStart = new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString();
     const rangeEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
 
-    let query = supabase
+    const query = supabase
       .from('appointments')
       .select('*')
+      .in('tenant_id', eligibleTenantIds)
       .gte('scheduled_time', rangeStart)
       .lte('scheduled_time', rangeEnd)
       .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion', 'no_show'])
-      .order('scheduled_time', { ascending: true });
-
-    if (options.tenantId) {
-      query = query.eq('tenant_id', options.tenantId);
-    }
+      .order('scheduled_time', { ascending: true })
+      .limit(Math.max(batchSize * 5, 100));
 
     const { data: appts, error } = await query;
 
@@ -188,11 +190,8 @@ export async function runAppointmentReminders(options: {
           throw new Error(`Configuración de WhatsApp no encontrada para el tenant: ${appt.tenant_id}`);
         }
 
-        let token = tenantConfig.whatsapp_token || process.env.WHATSAPP_TOKEN;
-        let phoneId = tenantConfig.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-        if (token && token.length < 20) token = process.env.WHATSAPP_TOKEN;
-        if (phoneId && phoneId.length < 5) phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+        const token = tenantConfig.whatsapp_token;
+        const phoneId = tenantConfig.whatsapp_phone_id;
 
         if (!token || !phoneId) {
           throw new Error(`Credenciales de WhatsApp incompletas para el tenant: ${appt.tenant_id}`);

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       .single();
 
     if (error || !data) {
-      console.error('❌ /api/auth/me - Tenant not found:', { tenantId: tenant.tenantId, error: error?.message, code: error?.code });
+      console.error('/api/auth/me tenant lookup failed:', error?.code || 'not_found');
       return NextResponse.json({ error: 'Tenant no encontrado' }, { status: 404 });
     }
 
@@ -62,8 +62,8 @@ export async function GET(req: NextRequest) {
       if (settingsData?.plan_permissions) {
         planPermissions = settingsData.plan_permissions;
       }
-    } catch (e) {
-      console.warn("Could not load plan_permissions from database, using defaults:", e);
+    } catch {
+      console.warn('Could not load plan_permissions from database; using defaults');
     }
 
     const userPlan = data.plan || 'trial';
@@ -90,14 +90,6 @@ export async function GET(req: NextRequest) {
 
     const allowedTabs = Array.from(allowedTabsSet);
 
-    console.log("DEBUG /api/auth/me:", {
-      email: data.email,
-      plan: data.plan,
-      planStatus: data.plan_status,
-      isExpired,
-      allowedTabs
-    });
-
     return NextResponse.json({
       id: data.id,
       email: data.email,
@@ -116,9 +108,9 @@ export async function GET(req: NextRequest) {
       createdAt: data.created_at,
       allowedTabs,
       permissionOverrides: overrides,
-    });
-  } catch (error: any) {
-    console.error('❌ Error obteniendo tenant:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+    }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error) {
+    console.error('/api/auth/me failed:', error instanceof Error ? error.message : 'unknown_error');
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }

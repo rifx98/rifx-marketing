@@ -1,35 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { signToken } from '@/lib/auth';
+import { attachSessionCookie, signToken } from '@/lib/auth';
 import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
+import { getClientIp, normalizeEmail, rateLimitKey } from '@/lib/security';
+import { readLimitedJsonObject } from '@/lib/request-guards';
 import bcrypt from 'bcryptjs';
+
+const DUMMY_PASSWORD_HASH = '$2b$12$ndXPLq.gpB2p6TOnaB71ROCAYv0l/2FtKBJFu8vQahhzrdUMoVMZm';
 
 // POST: Login de tenant
 export async function POST(req: NextRequest) {
   try {
-    // VULN-09 fix: Rate limiting
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    const { allowed, retryAfterMs } = await checkRateLimit(
-      `login:${clientIp}`,
+    const clientIp = getClientIp(req.headers);
+    const ipLimit = await checkRateLimit(
+      rateLimitKey('login-ip', clientIp),
       AUTH_RATE_LIMITS.login.maxAttempts,
       AUTH_RATE_LIMITS.login.windowMs
     );
-    if (!allowed) {
+    if (ipLimit.unavailable) {
+      return NextResponse.json({ error: 'Servicio de autenticación temporalmente no disponible' }, { status: 503 });
+    }
+    if (!ipLimit.allowed) {
       return NextResponse.json(
-        { error: `Demasiados intentos. Intenta de nuevo en ${Math.ceil(retryAfterMs / 1000)} segundos.` },
-        { status: 429 }
+        { error: `Demasiados intentos. Intenta de nuevo en ${Math.ceil(ipLimit.retryAfterMs / 1000)} segundos.` },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(ipLimit.retryAfterMs / 1000)) } }
       );
     }
 
-    const { email, password } = await req.json();
+    const parsedBody = await readLimitedJsonObject(req, 8 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { email, password } = parsedBody.body;
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return NextResponse.json({ error: 'Email y contraseña son requeridos' }, { status: 400 });
     }
 
-    let loginEmail = email.toLowerCase().trim();
+    let loginEmail = normalizeEmail(email);
     if (loginEmail === 'admin') {
       loginEmail = 'admin@rifx.com';
+    }
+
+    const emailLimit = await checkRateLimit(
+      rateLimitKey('login-account', loginEmail),
+      AUTH_RATE_LIMITS.login.maxAttempts,
+      AUTH_RATE_LIMITS.login.windowMs
+    );
+    if (emailLimit.unavailable) {
+      return NextResponse.json({ error: 'Servicio de autenticación temporalmente no disponible' }, { status: 503 });
+    }
+    if (!emailLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Email o contraseña incorrectos' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(emailLimit.retryAfterMs / 1000)) } }
+      );
     }
 
     const supabase = createSupabaseAdmin();
@@ -41,14 +64,16 @@ export async function POST(req: NextRequest) {
       .eq('email', loginEmail)
       .single();
 
-    if (error || !tenant) {
-      return NextResponse.json({ error: 'Email o contraseña incorrectos' }, { status: 401 });
-    }
+    // Always perform bcrypt work to reduce account-enumeration timing differences.
+    const isValid = await bcrypt.compare(password, tenant?.password_hash || DUMMY_PASSWORD_HASH);
 
-    // Verify password
-    let isValid = await bcrypt.compare(password, tenant.password_hash);
-
-    if (!isValid) {
+    if (
+      error ||
+      !tenant ||
+      !isValid ||
+      tenant.is_active === false ||
+      Boolean(tenant.deleted_at)
+    ) {
       return NextResponse.json({ error: 'Email o contraseña incorrectos' }, { status: 401 });
     }
 
@@ -83,9 +108,8 @@ export async function POST(req: NextRequest) {
       isAdmin: tenant.is_admin,
       adminRole: tenant.admin_role || 'full',
       adminCanEditPlans: tenant.admin_can_edit_plans !== false,
+      sessionVersion: Number(tenant.session_version || 0),
     });
-
-    console.log('✅ Login exitoso:', tenant.email);
 
     // Fetch global plan permissions from platform_settings
     let planPermissions: any = {
@@ -104,8 +128,8 @@ export async function POST(req: NextRequest) {
       if (settingsData?.plan_permissions) {
         planPermissions = settingsData.plan_permissions;
       }
-    } catch (e) {
-      console.warn("Could not load plan_permissions from database, using defaults:", e);
+    } catch {
+      console.warn('Could not load plan_permissions from database; using defaults');
     }
 
     const userPlan = tenant.plan || 'trial';
@@ -132,9 +156,8 @@ export async function POST(req: NextRequest) {
 
     const allowedTabs = Array.from(allowedTabsSet);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
-      token,
       tenant: {
         id: tenant.id,
         email: tenant.email,
@@ -155,8 +178,9 @@ export async function POST(req: NextRequest) {
         permissionOverrides: overrides,
       },
     });
-  } catch (error: any) {
-    console.error('❌ Error en login:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+    return attachSessionCookie(response, token);
+  } catch (error) {
+    console.error('Login failed:', error instanceof Error ? error.message : 'unknown_error');
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }

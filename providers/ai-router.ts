@@ -2,6 +2,7 @@ import { openaiProvider } from './openai-provider';
 import { groqProvider } from './groq-provider';
 import { fluxProvider, compositePureSharp } from './flux-provider';
 import { ProductAnalysis, Copywriting, TemplateDNA, QAResults, ArtDirection, AdaptedColorsResult } from './provider-types';
+import { getAiCredential } from '@/lib/ai-request-context';
 
 export { compositePureSharp };
 
@@ -9,7 +10,7 @@ export { compositePureSharp };
 // Priority: FORCE_OPENAI=true → OpenAI | GROQ_API_KEY present → Groq | fallback → OpenAI
 function shouldUseGroq(): boolean {
   if (process.env.FORCE_OPENAI === 'true') return false;
-  if (process.env.GROQ_API_KEY) return true;
+  if (getAiCredential('groq')) return true;
   if (process.env.USE_GROQ === 'true') return true;
   return false;
 }
@@ -166,7 +167,7 @@ export const aiRouter = {
         } catch (err: any) {
           console.error(`[AI-ROUTER] ❌ Pure Sharp failed: ${err.message}`);
           // Fallback: try FLUX if FAL_KEY is available
-          if (process.env.FAL_KEY) {
+          if (getAiCredential('fal')) {
             console.log(`[AI-ROUTER] 🔄 Falling back to FLUX after Pure Sharp failure...`);
             try {
               const fluxResult = await fluxProvider.renderVisual(
@@ -184,7 +185,7 @@ export const aiRouter = {
       } else {
         // No product_slot — Sharp can't composite. Try FLUX, then return template as-is.
         console.warn(`[AI-ROUTER] ⚠️ PURE_SHARP_MODE active but template has NO product_slot — cannot composite product`);
-        if (process.env.FAL_KEY) {
+        if (getAiCredential('fal')) {
           console.log(`[AI-ROUTER] 🔄 Falling back to FLUX (template has no product_slot for Sharp)...`);
           try {
             const fluxResult = await fluxProvider.renderVisual(
@@ -228,7 +229,7 @@ export const aiRouter = {
     }
 
     // CASE 3: OpenAI — ONLY if explicitly selected AND key is valid
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const openaiKey = getAiCredential('openai');
     if (!openaiKey || !openaiKey.startsWith('sk-') || openaiKey.length < 20) {
       throw new Error('No visual provider available. Configure product_slot in template for Sharp mode, or set FAL_KEY for FLUX mode. OpenAI is not configured.');
     }

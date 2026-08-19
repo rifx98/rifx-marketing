@@ -355,7 +355,7 @@ function Particles() {
       }
 
       let rx, ry, rz;
-      let rotX = 0, rotY = 0, rotZ = (pA.noise || 0) * Math.PI * 2;
+      const rotX = 0, rotY = 0, rotZ = (pA.noise || 0) * Math.PI * 2;
       let scale = 1.07;
 
       const logoOffsetX = isMobile ? 0 : 16;
@@ -400,8 +400,8 @@ function Particles() {
       const currentOffsetX = logoOffsetX + (alienOffsetX - logoOffsetX) * easeP;
       const finalOffsetX = currentOffsetX * (1 - easeP2);
 
-      let baseFinalX = rx * shapeScale + finalOffsetX;
-      let baseFinalY = ry * shapeScale + mobileOffsetY;
+      const baseFinalX = rx * shapeScale + finalOffsetX;
+      const baseFinalY = ry * shapeScale + mobileOffsetY;
 
       let finalX = baseFinalX;
       let finalY = baseFinalY;
@@ -417,9 +417,9 @@ function Particles() {
         finalZ += Math.sin(time * 0.4 + pC.z * 0.1) * 20 * easeP2;
       }
 
-      let startX = pA.x * 2.5;
-      let startY = pA.y * 2.5;
-      let startZ = pA.z * 2.5;
+      const startX = pA.x * 2.5;
+      const startY = pA.y * 2.5;
+      const startZ = pA.z * 2.5;
       finalX = startX + (finalX - startX) * easeIntro;
       finalY = startY + (finalY - startY) * easeIntro;
       finalZ = startZ + (finalZ - startZ) * easeIntro;

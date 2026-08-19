@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React from "react";
 
 const images = [
   "https://motionsites.ai/assets/hero-space-voyage-preview-eECLH3Yc.gif",
@@ -32,65 +32,58 @@ const row2Base = images.slice(11);
 const row1 = [...row1Base, ...row1Base, ...row1Base];
 const row2 = [...row2Base, ...row2Base, ...row2Base];
 
+// Antes, la posición de cada fila se recalculaba a mano en cada evento de
+// scroll (con JS). En el celular eso competía por el hilo principal con la
+// decodificación de tantos GIFs pesados y se veía "a tirones". Una animación
+// CSS por keyframes corre en el compositor (GPU), independiente del scroll y
+// del hilo principal, así que se mantiene fluida sin importar qué tan cargado
+// esté el resto de la página.
 export default function MarqueeSection() {
-  const sectionRef = useRef<HTMLElement>(null);
-  const row1Ref = useRef<HTMLDivElement>(null);
-  const row2Ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!sectionRef.current || !row1Ref.current || !row2Ref.current) return;
-      
-      const sectionTop = sectionRef.current.offsetTop;
-      // Scroll offset calculated as: (window.scrollY - sectionTop + window.innerHeight) * 0.3
-      const offset = (window.scrollY - sectionTop + window.innerHeight) * 0.3;
-      
-      // Row 1: Moves RIGHT on scroll (translateX(offset - 200))
-      row1Ref.current.style.transform = `translate3d(${offset - 200}px, 0, 0)`;
-      
-      // Row 2: Moves LEFT on scroll (translateX(-(offset - 200)))
-      row2Ref.current.style.transform = `translate3d(${-(offset - 200)}px, 0, 0)`;
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    // Initial calculation
-    handleScroll();
-    
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   return (
-    <section ref={sectionRef} className="relative z-10 pt-24 sm:pt-32 md:pt-40 pb-10 overflow-hidden">
+    <section className="relative z-10 pt-24 sm:pt-32 md:pt-40 pb-10 overflow-hidden">
+      <style>{`
+        @keyframes marquee-left {
+          from { transform: translate3d(0, 0, 0); }
+          to { transform: translate3d(-33.3333%, 0, 0); }
+        }
+        @keyframes marquee-right {
+          from { transform: translate3d(-33.3333%, 0, 0); }
+          to { transform: translate3d(0, 0, 0); }
+        }
+        .marquee-row-1 { animation: marquee-left 50s linear infinite; }
+        .marquee-row-2 { animation: marquee-right 50s linear infinite; }
+
+        /* Solo en móvil: en vez de dar la vuelta infinita hacia el mismo
+           lado, las filas rebotan de ida y vuelta (como pidieron) — en PC
+           se queda igual, el ciclo continuo de siempre. */
+        @media (max-width: 767px) {
+          .marquee-row-1, .marquee-row-2 {
+            animation-direction: alternate;
+            animation-timing-function: ease-in-out;
+            animation-duration: 18s;
+          }
+        }
+      `}</style>
       <div className="flex flex-col gap-3">
         {/* Row 1 */}
-        <div 
-          ref={row1Ref} 
-          className="flex gap-3 w-max" 
-          style={{ willChange: "transform" }}
-        >
+        <div className="flex gap-3 w-max marquee-row-1" style={{ willChange: "transform" }}>
           {row1.map((src, i) => (
-            <img 
+            <img
               key={`r1-${i}`}
               src={src}
               alt="Project Showcase"
-              loading="lazy"
               className="w-[420px] h-[270px] rounded-2xl object-cover shrink-0"
             />
           ))}
         </div>
-        
+
         {/* Row 2 */}
-        <div 
-          ref={row2Ref} 
-          className="flex gap-3 w-max" 
-          style={{ willChange: "transform" }}
-        >
+        <div className="flex gap-3 w-max marquee-row-2" style={{ willChange: "transform" }}>
           {row2.map((src, i) => (
-            <img 
+            <img
               key={`r2-${i}`}
               src={src}
               alt="Project Showcase"
-              loading="lazy"
               className="w-[420px] h-[270px] rounded-2xl object-cover shrink-0"
             />
           ))}

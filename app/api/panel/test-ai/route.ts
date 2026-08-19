@@ -1,10 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { verifyToken } from '@/lib/auth';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { rateLimitKey } from '@/lib/security';
+import { denyUnlessFeature } from '@/lib/feature-access';
+
+interface KnowledgePromptEntry {
+  file_name: string;
+  content: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+    const featureDenied = denyUnlessFeature(tenant, 'playground');
+    if (featureDenied) return featureDenied;
+    const tenantId = tenant.tenantId;
+
+    const tenantLimit = await checkRateLimit(rateLimitKey('test-ai', tenantId), 30, 60_000);
+    if (tenantLimit.unavailable) {
+      return NextResponse.json({ error: 'Servicio temporalmente no disponible' }, { status: 503 });
+    }
+    if (!tenantLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Límite de pruebas alcanzado. Intenta de nuevo más tarde.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(tenantLimit.retryAfterMs / 1000)) } },
+      );
+    }
+
     const { 
       message, 
       history = [],
@@ -18,26 +45,25 @@ export async function POST(req: NextRequest) {
       model = '',
     } = await req.json();
 
+    if (typeof message !== 'string' || !message.trim() || message.length > 4_000) {
+      return NextResponse.json({ error: 'Mensaje inválido' }, { status: 400 });
+    }
+    const safeMessage = message.trim();
+    const safeHistory = (Array.isArray(history) ? history : [])
+      .slice(-20)
+      .filter((item): item is { role: string; content: string } => (
+        item !== null
+        && typeof item === 'object'
+        && (item.role === 'user' || item.role === 'assistant')
+        && typeof item.content === 'string'
+      ))
+      .map(item => ({ role: item.role, content: item.content.slice(0, 2_000) }));
+    const safeBotName = typeof botName === 'string' ? botName.trim().slice(0, 80) : '';
+    const safeBotRole = typeof botRole === 'string' ? botRole.trim().slice(0, 500) : '';
+    const safeBotTone = typeof botTone === 'string' ? botTone.slice(0, 40) : 'Profesional';
+    const requestedModel = typeof model === 'string' ? model.slice(0, 100) : '';
+
     const supabase = createSupabaseAdmin();
-    
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    let tenantId: string | null = null;
-    try {
-      const payload = await verifyToken(token);
-      tenantId = payload?.tenantId || null;
-    } catch (err) {
-      console.error('Error verifying token in test-ai:', err);
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    if (!tenantId) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
 
     // Obtener configuración (prompt y key) de la DB
     const { data: config } = await supabase
@@ -70,7 +96,7 @@ export async function POST(req: NextRequest) {
       : (config.ai_prompt || 'Eres un asesor de ventas amigable y profesional.');
 
     // Resolve model to use
-    let selectedModel = model;
+    let selectedModel = requestedModel;
     if (!selectedModel) {
       selectedModel = extConfig.model_selection || 'gpt-4o';
     }
@@ -118,7 +144,7 @@ export async function POST(req: NextRequest) {
         isAnthropic = false;
         isOpenAI = false;
       } else {
-        console.error(`❌ test-ai: No API key found for model "${selectedModel}". Provider: ${isOpenAI ? 'OpenAI' : isGroq ? 'Groq' : isGemini ? 'Gemini' : 'Anthropic'}. extConfig keys present: openai=${!!extConfig.openai_key}, groq=${!!extConfig.groq_key}, gemini=${!!extConfig.gemini_key}, anthropic=${!!extConfig.anthropic_key}. Env keys: OPENAI=${!!process.env.OPENAI_API_KEY}, GROQ=${!!process.env.GROQ_API_KEY}, GEMINI=${!!process.env.GEMINI_API_KEY}, ANTHROPIC=${!!process.env.ANTHROPIC_API_KEY}`);
+        console.error('test-ai provider credential unavailable');
         return NextResponse.json({ error: `No se encontró API key de IA para el proveedor de ${selectedModel}. Configúrala en Configuraciones.` }, { status: 500 });
       }
     }
@@ -132,8 +158,7 @@ export async function POST(req: NextRequest) {
     // Cargar Base de Conocimiento del tenant
     if (tenantId) {
       try {
-        const kbEntries = await getKBIndex(supabase, tenantId);
-        const activeEntries = kbEntries.filter((e: any) => e.active && e.content);
+        const activeEntries = await getKnowledgeDocuments(supabase, tenantId);
         
         if (activeEntries.length > 0) {
           let kbContext = '\n\n[BASE DE CONOCIMIENTO — Usa esta información para responder preguntas del cliente]:\n';
@@ -161,11 +186,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Identity & Tone
-    if (botName) {
-      parts.push(`\nTu nombre es "${botName}". Siempre preséntate con este nombre cuando sea apropiado.`);
+    if (safeBotName) {
+      parts.push(`\nTu nombre es "${safeBotName}". Siempre preséntate con este nombre cuando sea apropiado.`);
     }
-    if (botRole) {
-      parts.push(`Tu rol es: ${botRole}.`);
+    if (safeBotRole) {
+      parts.push(`Tu rol es: ${safeBotRole}.`);
     }
     
     // Tone mapping
@@ -176,8 +201,8 @@ export async function POST(req: NextRequest) {
       'Amigable': 'Sé muy cálido y empático. Usa emojis, sé entusiasta y haz que el cliente se sienta bienvenido.',
       'Formal': 'Mantén un tono estrictamente formal y corporativo. No uses emojis. Sé conciso y directo.',
     };
-    if (botTone && toneInstructions[botTone]) {
-      parts.push(`\n[TONO DE COMUNICACIÓN]: ${toneInstructions[botTone]}`);
+    if (safeBotTone && toneInstructions[safeBotTone]) {
+      parts.push(`\n[TONO DE COMUNICACIÓN]: ${toneInstructions[safeBotTone]}`);
     }
 
     // Security & Protections
@@ -217,8 +242,8 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
 
     const chatMessages: any[] = [
       { role: 'system', content: systemPrompt },
-      ...history.map((h: any) => ({ role: h.role, content: h.content })),
-      { role: 'user', content: message }
+      ...safeHistory,
+      { role: 'user', content: safeMessage }
     ];
 
     // Use temperature from playground settings
@@ -252,10 +277,10 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
           max_tokens: 500,
           temperature: safeTemp,
           system: systemPrompt,
-          messages: history.map((h: any) => ({
+          messages: safeHistory.map((h) => ({
             role: h.role === 'assistant' ? 'assistant' : 'user',
             content: h.content
-          })).concat([{ role: 'user', content: message }])
+          })).concat([{ role: 'user', content: safeMessage }])
         })
       });
       const anthData = await anthRes.json();
@@ -288,38 +313,13 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
       }
     }
 
-    // Interceptar Dropi en el test
+    // A playground/test endpoint must never create external orders. Treat the
+    // model tag only as a preview of a proposed action.
     const dropiMatch = cleanResponse.match(/\[CREAR_ORDEN_DROPI:(.+?):(.+?):(.+?):(.+?):(.+?):(\d+):(.+?)\]/);
     if (dropiMatch) {
-      const [, customerNameArg, phoneArg, addressArg, cityArg, productIdArg, quantityArg, paymentType] = dropiMatch;
-      
-      // Limpiar el tag del mensaje
       cleanResponse = cleanResponse.replace(/\[CREAR_ORDEN_DROPI:.+?\]/, '').trim();
-      
-      console.log(`🚛 (Test AI) Creando orden en Dropi para ${customerNameArg} en ${cityArg}...`);
-      const dropiToken = extConfig.dropi_token;
-      
-      const orderResult = await createDropiOrder({
-        customerName: customerNameArg,
-        phone: phoneArg,
-        address: addressArg,
-        city: cityArg,
-        productId: productIdArg,
-        quantity: parseInt(quantityArg),
-        paymentType,
-        token: dropiToken,
-        price: extConfig.dropi_default_price || 50
-      });
-
-      if (orderResult.success) {
-        cleanResponse += `\n\n🚛 *¡Pedido Confirmado!*
-Se ha generado la orden de envío en Dropi.
-Guía de seguimiento: *${orderResult.guideNumber}*
-Transportadora: *${orderResult.carrier}*`;
-      } else {
-        console.error(`❌ (Test AI) Error creando orden en Dropi: ${orderResult.error}`);
-        cleanResponse += `\n\n⚠️ Hemos tomado tus datos de envío, pero hubo un problema al conectar con el sistema de Dropi: ${orderResult.error}`;
-      }
+      classification.next_action = 'preview_order';
+      cleanResponse += '\n\n🧪 Vista previa: el modelo propuso crear una orden. No se envió ninguna orden real desde el entorno de prueba.';
     }
 
     return NextResponse.json({ 
@@ -327,119 +327,24 @@ Transportadora: *${orderResult.carrier}*`;
       inference: classification
     });
 
-  } catch (error: any) {
-    console.error('Test AI Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  } catch (error: unknown) {
+    console.error('Test AI failed:', error instanceof Error ? error.name : 'unknown_error');
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
-
-// Helper: Get KB index from storage
-async function getKBIndex(supabase: any, tenantId: string) {
-  const path = `${tenantId}/index.json`;
-  const { data, error } = await supabase.storage
-    .from('knowledge-base')
-    .download(path);
-  
-  if (error || !data) return [];
-  
-  try {
-    const text = await data.text();
-    return JSON.parse(text);
-  } catch {
-    return [];
-  }
-}
-
-interface DropiOrderParams {
-  customerName: string;
-  phone: string;
-  address: string;
-  city: string;
-  productId: string;
-  quantity: number;
-  paymentType: string;
-  token: string;
-  price: number;
-}
-
-function getDropiApiUrl(token: string): string {
-  if (!token) return 'https://api.dropi.co/api/orders/myorders';
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-      if (payload.iss) {
-        if (payload.iss.includes('dropi.ec')) return 'https://api.dropi.ec/api/orders/myorders';
-        if (payload.iss.includes('dropi.mx')) return 'https://api.dropi.mx/api/orders/myorders';
-        if (payload.iss.includes('dropi.pe')) return 'https://api.dropi.pe/api/orders/myorders';
-      }
-    }
-  } catch (e) {
-    console.error('Error parsing Dropi token issuer:', e);
-  }
-  return 'https://api.dropi.co/api/orders/myorders';
-}
-
-async function createDropiOrder(params: DropiOrderParams) {
-  const { customerName, phone, address, city, productId, quantity, paymentType, token, price } = params;
-
-  if (!token || token.length < 10) {
-    console.log('⚠️ No Dropi token configured or token too short. Running in SIMULATION mode.');
-    return {
-      success: true,
-      guideNumber: `MOCK-${Math.floor(100000 + Math.random() * 900000)}`,
-      carrier: 'Servientrega (Simulado)'
-    };
-  }
-
-  try {
-    const payload = {
-      nombre: customerName,
-      telefono: phone,
-      direccion: address,
-      ciudad: city,
-      metodo_pago: paymentType === 'contra_entrega' ? 1 : 2,
-      productos: [
-        {
-          id: productId,
-          cantidad: quantity,
-          precio: price
-        }
-      ]
-    };
-
-    const url = getDropiApiUrl(token);
-    console.log(`Sending order payload to Dropi (${url}):`, JSON.stringify(payload));
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-
-    if (response.ok && (result.success || result.isSuccess || result.id || result.guia)) {
-      return {
-        success: true,
-        guideNumber: result.guia || result.tracking_number || `DP-${result.id || Date.now()}`,
-        carrier: result.transportadora || 'Envía'
-      };
-    } else {
-      console.error('❌ Dropi API responded with error:', JSON.stringify(result));
-      return {
-        success: false,
-        error: result.message || 'API error'
-      };
-    }
-  } catch (err: any) {
-    console.error('❌ Error executing Dropi order request:', err);
-    return {
-      success: false,
-      error: err.message || 'Connection error'
-    };
-  }
+async function getKnowledgeDocuments(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  tenantId: string,
+): Promise<KnowledgePromptEntry[]> {
+  const { data, error } = await supabase
+    .from('knowledge_documents')
+    .select('file_name, content')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'ready')
+    .eq('active', true)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(100);
+  if (error) throw new Error('knowledge_context_unavailable');
+  return (data || []) as KnowledgePromptEntry[];
 }

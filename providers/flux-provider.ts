@@ -19,7 +19,8 @@
  *   Template rest    → BLACK (frozen)
  */
 
-import { fal } from '@fal-ai/client';
+import { createFalClient } from '@fal-ai/client';
+import { getAiCredential } from '@/lib/ai-request-context';
 import sharp from 'sharp';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -36,6 +37,7 @@ function getDebugDir(): string {
 }
 
 function saveDebug(name: string, buffer: Buffer): void {
+  if (process.env.NODE_ENV === 'production' || process.env.AI_DEBUG_ARTIFACTS !== 'true') return;
   try {
     const filePath = path.join(getDebugDir(), name);
     fs.writeFileSync(filePath, buffer);
@@ -538,9 +540,9 @@ export const fluxProvider = {
     }
   ): Promise<{ base64: string; provider: string }> {
 
-    const falKey = process.env.FAL_KEY;
+    const falKey = getAiCredential('fal');
     if (!falKey) throw new Error('FAL_KEY no configurado en variables de entorno.');
-    fal.config({ credentials: falKey });
+    const falClient = createFalClient({ credentials: falKey });
 
     const [canvasW, canvasH] = (!gptImageSize || gptImageSize === 'auto')
       ? [1024, 1536]
@@ -898,7 +900,7 @@ export const fluxProvider = {
     let fluxResult: any;
 
     try {
-      fluxResult = await fal.subscribe(fluxModel, {
+      fluxResult = await falClient.subscribe(fluxModel, {
         input: {
           prompt: promptText,
           image_url: preCompositeImage,

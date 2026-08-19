@@ -1,18 +1,90 @@
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { deleteFile, isTenantOwnedR2Key } from '@/lib/r2';
 
 export interface CleanupMediaResult {
   found: number;
   processed: number;
   skipped: number;
   errors: number;
-  errorDetails: any[];
+  errorDetails: Array<{ tenantId?: string; error: string }>;
   processedIds: string[];
   remaining: number;
 }
 
-/**
- * Servicio encargado de limpiar imágenes y videos antiguos del almacenamiento (storage) y la base de datos.
- */
+async function cleanupTenant(
+  supabase: ReturnType<typeof createSupabaseAdmin>,
+  tenantId: string,
+  retentionDays: number,
+  startTime: number,
+  result: CleanupMediaResult
+) {
+  if (retentionDays <= 0) return;
+  if ((Date.now() - startTime) / 1000 > 8) {
+    result.remaining += 1;
+    return;
+  }
+
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const { data: files, error: listError } = await supabase.storage
+    .from('chat_media')
+    .list(tenantId, { limit: 1000, sortBy: { column: 'name', order: 'asc' } });
+  if (listError) throw new Error(`Storage list failed: ${listError.message}`);
+
+  const pathsToDelete = (files || [])
+    .filter(file => {
+      const match = file.name.match(/^(\d+)_/);
+      return match ? Number(match[1]) < cutoff.getTime() : false;
+    })
+    .map(file => `${tenantId}/${file.name}`);
+  result.found += pathsToDelete.length;
+  if (pathsToDelete.length > 0) {
+    const { error } = await supabase.storage.from('chat_media').remove(pathsToDelete);
+    if (error) throw new Error(`Storage delete failed: ${error.message}`);
+    result.processed += pathsToDelete.length;
+  }
+
+  // Messages do not carry tenant_id consistently; establish ownership through
+  // the already tenant-scoped conversation IDs.
+  const { data: conversations, error: conversationError } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .limit(1000);
+  if (conversationError) throw new Error(`Conversation lookup failed: ${conversationError.message}`);
+  const conversationIds = (conversations || []).map(item => item.id);
+  if (conversationIds.length === 0) return;
+
+  const { data: messages, error: messageError } = await supabase
+    .from('messages')
+    .select('id, content')
+    .in('conversation_id', conversationIds)
+    .lt('created_at', cutoff.toISOString())
+    .like('content', '%![%')
+    .limit(500);
+  if (messageError) throw new Error(`Message lookup failed: ${messageError.message}`);
+
+  for (const message of messages || []) {
+    if ((Date.now() - startTime) / 1000 > 8) {
+      result.remaining += (messages || []).length - (messages || []).indexOf(message);
+      break;
+    }
+    const match = message.content?.match(/^!\[.*\]\((.*)\)(?:\n([\s\S]*))?/);
+    if (!match) {
+      result.skipped += 1;
+      continue;
+    }
+    const replacement = match[2] ? `[Imagen adjunta caducada]\n${match[2]}` : '[Imagen adjunta caducada]';
+    const { error } = await supabase.from('messages').update({ content: replacement }).eq('id', message.id);
+    if (error) {
+      result.errors += 1;
+      result.errorDetails.push({ tenantId, error: error.message });
+    } else {
+      result.processed += 1;
+      result.processedIds.push(message.id);
+    }
+  }
+}
+
 export async function runCleanupMedia(options: {
   tenantId?: string;
   startTime: number;
@@ -25,123 +97,70 @@ export async function runCleanupMedia(options: {
     errors: 0,
     errorDetails: [],
     processedIds: [],
-    remaining: 0
+    remaining: 0,
   };
 
-  try {
-    // 1. Obtener días de retención desde la configuración global o del tenant
-    let configQuery = supabase.from('config').select('media_retention_days');
-    
-    if (options.tenantId) {
-      configQuery = configQuery.eq('tenant_id', options.tenantId);
-    }
-    
-    const { data: config, error: configError } = await configQuery.limit(1).maybeSingle();
-    
-    if (configError) {
-      throw new Error(`Error al leer configuración de retención: ${configError.message}`);
-    }
-
-    const retentionDays = config?.media_retention_days || 0;
-    if (retentionDays <= 0) {
-      console.log('[Cleanup Media Service] Limpieza desactivada (Días de retención = 0).');
-      return result;
-    }
-
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-    const cutoffTimestamp = cutoffDate.getTime();
-
-    // 2. Limpieza del storage bucket 'chat_media'
-    const { data: files, error: filesError } = await supabase.storage.from('chat_media').list();
-    
-    if (filesError) {
-      throw new Error(`Error al listar archivos de storage: ${filesError.message}`);
-    }
-
-    if (files && files.length > 0) {
-      const filesToDelete = files.filter(f => {
-        // Extraer timestamp del nombre (ej: 1715467000000_imagen.jpg)
-        const tsMatch = f.name.match(/^(\d+)_/);
-        if (tsMatch) {
-          const ts = parseInt(tsMatch[1]);
-          return ts < cutoffTimestamp;
-        }
-        return false;
-      }).map(f => f.name);
-
-      result.found += filesToDelete.length;
-
-      if (filesToDelete.length > 0) {
-        const { error: deleteError } = await supabase.storage.from('chat_media').remove(filesToDelete);
-        if (deleteError) {
-          throw new Error(`Error al eliminar archivos de storage: ${deleteError.message}`);
-        }
-        result.processed += filesToDelete.length;
-        console.log(`[Cleanup Media Service] Eliminados ${filesToDelete.length} archivos antiguos de storage.`);
+  // Remove abandoned direct-upload objects after their atomic reservation
+  // expires. A failed R2 deletion keeps the reservation for a later retry.
+  const { data: abandonedUploads, error: abandonedError } = await supabase
+    .from('storage_upload_reservations')
+    .select('tenant_id, object_key')
+    .in('status', ['reserved', 'expired'])
+    .lt('expires_at', new Date().toISOString())
+    .order('expires_at', { ascending: true })
+    .limit(20);
+  if (abandonedError) {
+    result.errors += 1;
+    result.errorDetails.push({ error: 'Abandoned upload lookup failed' });
+  } else {
+    for (const upload of abandonedUploads || []) {
+      if ((Date.now() - options.startTime) / 1000 > 8) {
+        result.remaining += 1;
+        break;
+      }
+      if (!isTenantOwnedR2Key(upload.object_key, upload.tenant_id)) {
+        result.errors += 1;
+        result.errorDetails.push({ tenantId: upload.tenant_id, error: 'Invalid reserved object key' });
+        continue;
+      }
+      try {
+        await deleteFile(upload.object_key);
+        const { data: released, error: releaseError } = await supabase.rpc('release_tenant_storage_object', {
+          p_tenant_id: upload.tenant_id,
+          p_object_key: upload.object_key,
+        });
+        if (releaseError || released !== true) throw new Error('Reservation release failed');
+        result.processed += 1;
+      } catch {
+        result.errors += 1;
+        result.errorDetails.push({ tenantId: upload.tenant_id, error: 'Abandoned upload cleanup failed' });
       }
     }
+  }
 
-    // 3. Limpieza y marcado de mensajes en la DB
-    let msgQuery = supabase
-      .from('messages')
-      .select('id, content')
-      .lt('created_at', cutoffDate.toISOString())
-      .like('content', '%![%');
+  let query = supabase.from('config').select('tenant_id, media_retention_days').not('tenant_id', 'is', null);
+  if (options.tenantId) query = query.eq('tenant_id', options.tenantId);
+  const { data: configurations, error } = await query.order('tenant_id').limit(1000);
+  if (error) {
+    return { ...result, errors: 1, errorDetails: [{ error: error.message }] };
+  }
 
-    if (options.tenantId) {
-      msgQuery = msgQuery.eq('tenant_id', options.tenantId);
+  for (const config of configurations || []) {
+    try {
+      await cleanupTenant(
+        supabase,
+        config.tenant_id,
+        Number(config.media_retention_days || 0),
+        options.startTime,
+        result
+      );
+    } catch (error) {
+      result.errors += 1;
+      result.errorDetails.push({
+        tenantId: config.tenant_id,
+        error: error instanceof Error ? error.message : 'Unknown cleanup error',
+      });
     }
-
-    const { data: messages, error: msgsError } = await msgQuery;
-
-    if (msgsError) {
-      throw new Error(`Error al buscar mensajes expirados: ${msgsError.message}`);
-    }
-
-    if (messages && messages.length > 0) {
-      result.found += messages.length;
-      let updatedCount = 0;
-
-      for (const msg of messages) {
-        // Timeout check
-        const elapsed = (Date.now() - options.startTime) / 1000;
-        if (elapsed > 8.0) {
-          console.warn(`[Cleanup Media Service] Timeout preventivo en procesado de mensajes. Transcurrido: ${elapsed}s`);
-          result.remaining = messages.length - messages.indexOf(msg);
-          break;
-        }
-
-        const imgMatch = msg.content?.match(/^!\[.*\]\((.*)\)(?:\n([\s\S]*))?/);
-        if (imgMatch) {
-          const textContent = imgMatch[2] || '';
-          const newContent = textContent 
-            ? `[Imagen adjunta caducada]\n${textContent}` 
-            : '[Imagen adjunta caducada]';
-          
-          const { error: updateErr } = await supabase
-            .from('messages')
-            .update({ content: newContent })
-            .eq('id', msg.id);
-
-          if (updateErr) {
-            result.errors++;
-            result.errorDetails.push({ messageId: msg.id, error: updateErr.message });
-          } else {
-            updatedCount++;
-            result.processedIds.push(msg.id);
-          }
-        } else {
-          result.skipped++;
-        }
-      }
-      result.processed += updatedCount;
-      console.log(`[Cleanup Media Service] Mensajes actualizados en DB: ${updatedCount}`);
-    }
-  } catch (err: any) {
-    result.errors++;
-    result.errorDetails.push({ error: err.message || err });
-    console.error('[Cleanup Media Service] Error crítico:', err);
   }
 
   return result;

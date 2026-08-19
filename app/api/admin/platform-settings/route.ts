@@ -1,19 +1,28 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { verifyToken } from '@/lib/auth';
+import { requireAdminPermission } from '@/lib/admin-rbac';
+import { enforceTenantRateLimit, readLimitedJsonObject } from '@/lib/request-guards';
 
-export async function GET(request: Request) {
+export const dynamic = 'force-dynamic';
+
+const MAX_PLATFORM_NAME_LENGTH = 100;
+const MAX_SIDEBAR_ITEMS = 30;
+
+export async function GET(request: NextRequest) {
   try {
+    const authorization = await requireAdminPermission(request, 'platform_settings.read');
+    if (!authorization.ok) return authorization.response;
+
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from('platform_settings')
-      .select('*')
+      .select('id,platform_name,platform_logo,sidebar_order,plan_permissions,updated_at')
       .limit(1)
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching platform settings:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Platform settings lookup failed:', error.code || 'database_error');
+      return NextResponse.json({ error: 'No se pudo cargar la configuracion' }, { status: 500 });
     }
 
     if (!data) {
@@ -25,33 +34,40 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'No se pudo cargar la configuracion' }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const userPayload = await verifyToken(token);
-
-    if (!userPayload || !userPayload.isAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    const role = userPayload.adminRole || 'full';
-    if (role !== 'full') {
-      return NextResponse.json({ error: 'Permisos insuficientes' }, { status: 403 });
-    }
+    const authorization = await requireAdminPermission(request, 'platform_settings.update');
+    if (!authorization.ok) return authorization.response;
+    const rateDenied = await enforceTenantRateLimit(
+      'admin-platform-settings',
+      authorization.admin.tenantId,
+      20,
+      60_000,
+    );
+    if (rateDenied) return rateDenied;
 
     const supabase = createSupabaseAdmin();
-    const body = await request.json();
+    const parsedBody = await readLimitedJsonObject(request, 64 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
     const { platform_name, platform_logo, sidebar_order } = body;
+
+    if (
+      typeof platform_name !== 'string'
+      || !platform_name.trim()
+      || platform_name.length > MAX_PLATFORM_NAME_LENGTH
+      || (platform_logo !== null && platform_logo !== undefined && typeof platform_logo !== 'string')
+      || !Array.isArray(sidebar_order)
+      || sidebar_order.length > MAX_SIDEBAR_ITEMS
+      || sidebar_order.some(item => typeof item !== 'string' || !/^[a-z0-9_-]{1,64}$/i.test(item))
+    ) {
+      return NextResponse.json({ error: 'Configuracion invalida' }, { status: 400 });
+    }
 
     // Check if a row exists
     const { data: existing } = await supabase
@@ -75,11 +91,11 @@ export async function POST(request: Request) {
     }
 
     if (result.error) {
-      return NextResponse.json({ error: result.error.message }, { status: 500 });
+      return NextResponse.json({ error: 'No se pudo guardar la configuracion' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data: result.data[0] });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'No se pudo guardar la configuracion' }, { status: 500 });
   }
 }

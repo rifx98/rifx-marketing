@@ -1,34 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { signToken, PLAN_LIMITS } from '@/lib/auth';
+import { attachSessionCookie, signToken, PLAN_LIMITS } from '@/lib/auth';
 import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
+import { getClientIp, normalizeEmail, rateLimitKey, validatePassword } from '@/lib/security';
+import { readLimitedJsonObject } from '@/lib/request-guards';
 import bcrypt from 'bcryptjs';
 
 // POST: Registrar nuevo tenant
 export async function POST(req: NextRequest) {
   try {
-    // VULN-09 fix: Rate limiting
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    const { allowed, retryAfterMs } = await checkRateLimit(
-      `register:${clientIp}`,
+    const clientIp = getClientIp(req.headers);
+    const ipLimit = await checkRateLimit(
+      rateLimitKey('register-ip', clientIp),
       AUTH_RATE_LIMITS.register.maxAttempts,
       AUTH_RATE_LIMITS.register.windowMs
     );
-    if (!allowed) {
+    if (ipLimit.unavailable) {
+      return NextResponse.json({ error: 'Servicio de registro temporalmente no disponible' }, { status: 503 });
+    }
+    if (!ipLimit.allowed) {
       return NextResponse.json(
-        { error: `Demasiados intentos de registro. Intenta de nuevo en ${Math.ceil(retryAfterMs / 1000)} segundos.` },
-        { status: 429 }
+        { error: `Demasiados intentos de registro. Intenta de nuevo en ${Math.ceil(ipLimit.retryAfterMs / 1000)} segundos.` },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(ipLimit.retryAfterMs / 1000)) } }
       );
     }
 
-    const { email, password, companyName, ownerName } = await req.json();
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const { email, password, companyName, ownerName, acceptedTerms } = parsedBody.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!email || !password) {
+    if (!normalizedEmail || typeof password !== 'string' || !password) {
       return NextResponse.json({ error: 'Email y contraseña son requeridos' }, { status: 400 });
     }
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 });
+    const passwordError = validatePassword(password, normalizedEmail);
+    if (passwordError) return NextResponse.json({ error: passwordError }, { status: 400 });
+
+    if (acceptedTerms !== true) {
+      return NextResponse.json({ error: 'Debes aceptar el Aviso Legal y la Política de Privacidad para crear una cuenta.' }, { status: 400 });
+    }
+
+    const emailLimit = await checkRateLimit(
+      rateLimitKey('register-account', normalizedEmail),
+      AUTH_RATE_LIMITS.register.maxAttempts,
+      AUTH_RATE_LIMITS.register.windowMs
+    );
+    if (emailLimit.unavailable) {
+      return NextResponse.json({ error: 'Servicio de registro temporalmente no disponible' }, { status: 503 });
+    }
+    if (!emailLimit.allowed) {
+      return NextResponse.json({ error: 'No se pudo crear la cuenta' }, { status: 429 });
     }
 
     const supabase = createSupabaseAdmin();
@@ -37,8 +59,8 @@ export async function POST(req: NextRequest) {
     const { data: existing } = await supabase
       .from('tenants')
       .select('id')
-      .eq('email', email.toLowerCase().trim())
-      .single();
+      .eq('email', normalizedEmail)
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json({ error: 'Este email ya está registrado' }, { status: 409 });
@@ -52,23 +74,24 @@ export async function POST(req: NextRequest) {
     const { data: tenant, error: insertError } = await supabase
       .from('tenants')
       .insert({
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         password_hash: passwordHash,
-        company_name: companyName || 'Mi Empresa',
-        owner_name: ownerName || '',
+        company_name: typeof companyName === 'string' ? companyName.trim().slice(0, 160) : 'Mi Empresa',
+        owner_name: typeof ownerName === 'string' ? ownerName.trim().slice(0, 160) : '',
         plan: 'trial',
         plan_status: 'active',
         plan_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days trial
         storage_limit_bytes: trialLimits.storage,
         contact_limit: trialLimits.contacts,
         is_admin: false,
+        terms_accepted_at: new Date().toISOString(),
       })
       .select()
       .single();
 
     if (insertError) {
-      console.error('❌ Error creando tenant:', insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+      console.error('Tenant registration insert failed:', insertError.code || 'database_error');
+      return NextResponse.json({ error: 'No se pudo crear la cuenta' }, { status: 500 });
     }
 
     // Create default config for this tenant
@@ -85,13 +108,11 @@ export async function POST(req: NextRequest) {
       isAdmin: tenant.is_admin,
       adminRole: 'full',
       adminCanEditPlans: true,
+      sessionVersion: Number(tenant.session_version || 0),
     });
 
-    console.log('✅ Nuevo tenant registrado:', tenant.email);
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
-      token,
       tenant: {
         id: tenant.id,
         email: tenant.email,
@@ -102,8 +123,9 @@ export async function POST(req: NextRequest) {
         isAdmin: tenant.is_admin,
       },
     });
-  } catch (error: any) {
-    console.error('❌ Error en registro:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+    return attachSessionCookie(response, token);
+  } catch (error) {
+    console.error('Registration failed:', error instanceof Error ? error.message : 'unknown_error');
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
   }
 }

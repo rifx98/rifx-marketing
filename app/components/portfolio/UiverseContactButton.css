@@ -153,6 +153,12 @@
     rotate(0deg);
 }
 
+/* El efecto de "cajones" (drawer) que aparecen arriba/abajo del botón está
+   pensado para el hover del mouse. En touch (celular) no hay hover real, y el
+   estado :active se queda "pegado" visible después de tocar — se ve como un
+   recuadro suelto. Por eso este efecto elaborado solo se activa en
+   dispositivos con mouse de verdad; en touch el botón se queda simple y limpio. */
+@media (hover: hover) and (pointer: fine) {
 .btn-container:has(.btn:hover),
 .btn-container:has(.btn:focus-visible) {
   .btn {
@@ -309,6 +315,7 @@
       drop-shadow(-20px 20px 3px var(--corner-color));
   }
 }
+} /* fin @media (hover: hover) and (pointer: fine) */
 
 @keyframes hue-anim {
   0%,

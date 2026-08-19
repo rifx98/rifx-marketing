@@ -43,6 +43,7 @@ import PublicationTracker from '@/components/social/PublicationTracker';
 
 // Auth UI
 import { AuthComponent } from '@/components/ui/sign-up';
+import AuthSelector from '@/components/AuthSelector';
 
 // Ad Performance Chart (area, adapted from ApexCharts stock-movement pattern)
 type AdMetricKey = 'impressions' | 'clicks' | 'conversions';
@@ -794,7 +795,7 @@ export default function PanelClient() {
         const res = await fetch('/api/auth/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken: response.credential }),
+          body: JSON.stringify({ idToken: response.credential, acceptedTerms: isRegistering }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -802,8 +803,7 @@ export default function PanelClient() {
           setIsLoggingIn(false);
           return;
         }
-        localStorage.setItem('rifx_token', data.token);
-        setAuthToken(data.token);
+        setAuthToken('cookie-session');
         setTenantData(data.tenant);
         setCurrentPlan(data.tenant.plan || 'trial');
         setIsLoggedIn(true);
@@ -817,7 +817,7 @@ export default function PanelClient() {
     return () => {
       delete (window as any).onGoogleSignIn;
     };
-  }, [language]);
+  }, [language, isRegistering]);
 
   // Handle OAuth Redirect Query Parameters
   useEffect(() => {
@@ -890,20 +890,26 @@ export default function PanelClient() {
       const container = document.getElementById("google-signin-button");
       if (!container) return;
 
+      const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (!googleClientId) {
+        setGsiLoaded(false);
+        return;
+      }
+
       try {
         const google = (window as any).google;
         google.accounts.id.initialize({
-          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "671540501780-2r133l4e2an246lta9mtns64um046kcn.apps.googleusercontent.com",
+          client_id: googleClientId,
           callback: (window as any).onGoogleSignIn,
         });
         google.accounts.id.renderButton(container, {
           type: "standard",
-          shape: "rectangular",
-          theme: "filled_blue",
+          shape: "pill",
+          theme: "outline",
           text: "continue_with",
           size: "large",
           logo_alignment: "left",
-          width: 380
+          width: 280
         });
       } catch (err) {
         console.error("Error rendering Google button:", err);
@@ -1020,7 +1026,7 @@ export default function PanelClient() {
       formData.append('file', file);
       const res = await authFetch('/api/panel/knowledge', { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         await fetchKBFiles(); // Reload the list
         console.log(`KB subido: ${file.name} (${data.extractedChars} chars extraídos)`);
       } else {
@@ -1032,24 +1038,36 @@ export default function PanelClient() {
 
   const toggleKBFile = async (id: string, active: boolean) => {
     try {
-      setBotKnowledgeFiles(prev => prev.map(f => f.id === id ? { ...f, active } : f));
-      await authFetch('/api/panel/knowledge', {
+      const res = await authFetch('/api/panel/knowledge', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, active }),
       });
-    } catch (e) { console.error('Error toggling KB file:', e); }
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error('knowledge_update_failed');
+      setBotKnowledgeFiles(prev => prev.map(f => f.id === id ? { ...f, active } : f));
+    } catch (e) {
+      console.error('Error toggling KB file:', e);
+      await fetchKBFiles();
+      setToast({ message: 'No se pudo actualizar el documento', type: 'error' });
+    }
   };
 
   const deleteKBFile = async (id: string) => {
     try {
-      setBotKnowledgeFiles(prev => prev.filter(f => f.id !== id));
-      await authFetch('/api/panel/knowledge', {
+      const res = await authFetch('/api/panel/knowledge', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-    } catch (e) { console.error('Error deleting KB file:', e); }
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error('knowledge_delete_failed');
+      setBotKnowledgeFiles(prev => prev.filter(f => f.id !== id));
+    } catch (e) {
+      console.error('Error deleting KB file:', e);
+      await fetchKBFiles();
+      setToast({ message: 'No se pudo eliminar el documento', type: 'error' });
+    }
   };
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments' | 'conversations' | 'orders' | 'pricing'>('dashboard');
@@ -1155,9 +1173,7 @@ export default function PanelClient() {
   const fetchSocialAccounts = async () => {
     try {
       setSocialAccountsLoading(true);
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/accounts', { headers });
       const data = await res.json();
@@ -1196,9 +1212,7 @@ export default function PanelClient() {
 
   const handleConnectMetaOAuth = async () => {
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/accounts', {
         method: 'POST',
@@ -1218,9 +1232,7 @@ export default function PanelClient() {
 
   const handleConnectTikTokOAuth = async () => {
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/accounts', {
         method: 'POST',
@@ -1240,9 +1252,7 @@ export default function PanelClient() {
 
   const handleConnectYouTubeOAuth = async () => {
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/accounts', {
         method: 'POST',
@@ -1262,9 +1272,7 @@ export default function PanelClient() {
 
   const handleConnectGoogleCalendarOAuth = async () => {
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/accounts', {
         method: 'POST',
@@ -1290,9 +1298,7 @@ export default function PanelClient() {
     }
 
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/accounts', {
         method: 'POST',
@@ -1324,9 +1330,7 @@ export default function PanelClient() {
   const handleDeleteSocialAccount = async (id: string) => {
     if (!confirm('¿Estás seguro de desconectar esta cuenta?')) return;
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(`/api/panel/social/accounts?id=${id}`, {
         method: 'DELETE',
@@ -1354,9 +1358,7 @@ export default function PanelClient() {
     setCurrentPostId(null);
 
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/publish', {
         method: 'POST',
@@ -1379,14 +1381,11 @@ export default function PanelClient() {
 
         // Si no hay QStash configurado en backend, disparamos los workers desde el frontend
         // para asegurar que Vercel no congele la tarea en segundo plano.
-        if (data.publicationIds && data.publicationIds.length > 0) {
+        if (!data.queued && data.publicationIds && data.publicationIds.length > 0) {
           data.publicationIds.forEach((pubId: string) => {
             fetch('/api/panel/social/worker', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Dev-Worker-Signature': 'local_secret_development_bypass'
-              },
+              headers,
               body: JSON.stringify({ publicationId: pubId })
             }).catch(err => console.error('Error triggering worker for', pubId, err));
           });
@@ -1450,9 +1449,7 @@ export default function PanelClient() {
     setTrackingPostIds([]);
     setCurrentPostId(null);
 
-    const token = authToken || localStorage.getItem('rifx_token');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const createdPostIds: string[] = [];
 
@@ -1475,14 +1472,11 @@ export default function PanelClient() {
         if (data.success && data.postId) {
           createdPostIds.push(data.postId);
 
-          if (data.publicationIds && data.publicationIds.length > 0) {
+          if (!data.queued && data.publicationIds && data.publicationIds.length > 0) {
             data.publicationIds.forEach((pubId: string) => {
               fetch('/api/panel/social/worker', {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Dev-Worker-Signature': 'local_secret_development_bypass'
-                },
+                headers,
                 body: JSON.stringify({ publicationId: pubId })
               }).catch(err => console.error('Error triggering worker local:', pubId, err));
             });
@@ -1520,9 +1514,7 @@ export default function PanelClient() {
     setUploadedVideos(prev => prev.map(v => v.id === itemId ? { ...v, generating: true } : v));
 
     try {
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/generate-metadata', {
         method: 'POST',
@@ -1553,9 +1545,7 @@ export default function PanelClient() {
 
   const deleteStorageVideo = async (path: string) => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('rifx_token') : null;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/storage', {
         method: 'DELETE',
@@ -1581,9 +1571,7 @@ export default function PanelClient() {
     const paths = uploadedVideos.map(v => v.path);
     if (paths.length > 0) {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('rifx_token') : null;
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch('/api/panel/social/storage', {
           method: 'DELETE',
@@ -1647,7 +1635,7 @@ export default function PanelClient() {
     if (!text) return null;
     const lines = text.split('\n');
     return lines.map((line, idx) => {
-      let content: React.ReactNode[] = [];
+      const content: React.ReactNode[] = [];
       let currentLine = line;
       let key = 0;
       while (currentLine.length > 0) {
@@ -1871,11 +1859,18 @@ export default function PanelClient() {
             replyText = 'Probando la conexión con la API de WhatsApp en los servidores de Meta...';
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date() }]);
 
-            fetch(`https://graph.facebook.com/v18.0/${configData.whatsapp_phone_id}`, {
-              headers: { 'Authorization': `Bearer ${configData.whatsapp_token}` }
+            authFetch('/api/panel/connections/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                provider: 'whatsapp',
+                credential: configData.whatsapp_token,
+                phoneId: configData.whatsapp_phone_id,
+              }),
             })
-            .then(res => {
-              if (res.ok) {
+            .then(async res => {
+              const verification = await res.json();
+              if (res.ok && verification.valid === true) {
                 setWaStatus('success');
                 setWaStatusMsg('¡Conexión de WhatsApp verificada!');
                 handleSaveSettings({ preventDefault: () => {} } as any);
@@ -2321,7 +2316,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setAgentIsTyping(true);
     
     setTimeout(() => {
-      let nextStep = currentStep + 1;
+      const nextStep = currentStep + 1;
       let nextMsgText = '';
       let options: Array<{ label: string; value: string }> | undefined = undefined;
       let isMapStep = false;
@@ -2657,7 +2652,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const fileName = file instanceof File ? file.name : fallbackName;
     const fileType = file.type || 'application/octet-stream';
 
-    const getUrlRes = await authFetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(fileType)}`);
+    const getUrlRes = await authFetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(fileType)}&size=${file.size}`);
     if (!getUrlRes.ok) {
       const errData = await getUrlRes.json();
       throw new Error(errData.error || 'Error al obtener URL de subida de almacenamiento.');
@@ -2739,7 +2734,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         }
 
         // 1. Obtener URL firmada de subida de R2
-        const getUrlRes = await authFetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(fileType)}`);
+        const getUrlRes = await authFetch(`/api/panel/social/storage?action=upload&filename=${encodeURIComponent(fileName)}&contentType=${encodeURIComponent(fileType)}&size=${fileToUpload.size}`);
         if (!getUrlRes.ok) {
           const errData = await getUrlRes.json();
           throw new Error(errData.error || 'Error al obtener URL de subida de almacenamiento.');
@@ -3063,9 +3058,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
       console.log(`  📦 finalProductImageToSend: ${finalProductImageToSend ? `${finalProductImageToSend.substring(0, 50)}... (${finalProductImageToSend.length} chars)` : 'VACÍO'}`);
 
-      const token = authToken || localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       console.log('🔮 [Ecom Magic] Enviando template + imagen de producto para adaptación inteligente...');
       console.log(`🎨 [VISUAL PROVIDER] provider: ${configData.visual_render_provider || 'openai'} | mode: ${configData.visual_render_provider === 'flux' ? 'inpainting' : 'compositing'}`);
@@ -3317,7 +3310,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const safeSetActiveTab = (tab: typeof activeTab) => {
     setActiveTab(tab);
   };
-  const [selectedChat, setSelectedChat] = useState<{id: string, name: string, status: string, phone_number?: string, created_at?: string} | null>(null);
+  const [selectedChat, setSelectedChat] = useState<{id: string, name: string, customer_name?: string, status: string, phone_number?: string, created_at?: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -3369,39 +3362,53 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         body: JSON.stringify({ plan })
       });
       const data = await res.json();
-      if (res.ok && data.checkoutUrl) {
+      if (res.ok && data.accepted && data.pendingWebhook) {
+        setToast({
+          message: language === 'en'
+            ? 'Plan change accepted. Confirming the signed webhook…'
+            : 'Cambio de plan aceptado. Confirmando el webhook firmado…',
+          type: 'info',
+        });
+
+        let confirmed = false;
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await new Promise(resolve => setTimeout(resolve, 1_500));
+          const refresh = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+          if (!refresh.ok) continue;
+          const refreshedTenant = await refresh.json();
+          setTenantData(refreshedTenant);
+          setCurrentPlan(refreshedTenant.plan || 'trial');
+          if (refreshedTenant.plan === plan && refreshedTenant.planStatus === 'active') {
+            confirmed = true;
+            break;
+          }
+        }
+        localStorage.removeItem('rifx_pending_plan');
+        setToast({
+          message: confirmed
+            ? (language === 'en' ? '✅ Plan updated successfully.' : '✅ Plan actualizado correctamente.')
+            : (language === 'en' ? 'The change is still being confirmed. Refresh shortly.' : 'El cambio aún se está confirmando. Actualiza en unos instantes.'),
+          type: confirmed ? 'success' : 'info',
+        });
+      } else if (res.ok && data.checkoutUrl) {
         // Open Lemon Squeezy checkout overlay or redirect
-        if (typeof window !== 'undefined' && (window as any).LemonSqueezy) {
+        if (data.requiresCustomerPortal) {
+          window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
+        } else if (typeof window !== 'undefined' && (window as any).LemonSqueezy) {
           (window as any).LemonSqueezy.Url.Open(data.checkoutUrl);
         } else {
           // Fallback: redirect to checkout page
-          window.open(data.checkoutUrl, '_blank');
+          window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
         }
+      } else if (res.ok && data.alreadyActive) {
+        localStorage.removeItem('rifx_pending_plan');
+        setToast({
+          message: language === 'en' ? 'This plan is already active.' : 'Este plan ya está activo.',
+          type: 'info',
+        });
       } else {
-        // If checkout gateway is not configured (or in localhost testing), activate plan directly
-        if (data.error?.includes('configurada') || data.error?.includes('configurado') || typeof window !== 'undefined' && window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          setToast({ message: language === 'en' ? '🔧 Sandbox Mode: Activating plan directly...' : '🔧 Modo de Pruebas: Activando plan directamente...', type: 'info' });
-          const actRes = await authFetch('/api/panel/activate-plan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan })
-          });
-          const actData = await actRes.json();
-          if (actRes.ok && actData.success) {
-            setTenantData(actData.tenant);
-            setCurrentPlan(actData.tenant.plan);
-            if (actData.token) {
-              localStorage.setItem('rifx_token', actData.token);
-              setAuthToken(actData.token);
-            }
-            setToast({ message: language === 'en' ? '✅ Plan updated successfully!' : '✅ ¡Plan actualizado con éxito!', type: 'success' });
-          } else {
-            setToast({ message: 'Error: ' + (actData.error || 'Unknown'), type: 'error' });
-          }
-        } else {
-          localStorage.removeItem('rifx_pending_plan');
-          setToast({ message: language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'), type: 'error' });
-        }
+        localStorage.removeItem('rifx_pending_plan');
+        setToast({ message: language === 'en' ? 'Error creating payment: ' + (data.error || 'Unknown') : 'Error al crear el pago: ' + (data.error || 'Desconocido'), type: 'error' });
       }
     } catch (e) {
       console.error(e);
@@ -3419,23 +3426,32 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         body: JSON.stringify({ action: 'cancel_subscription' }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        setTenantData((prev: any) => prev ? { 
-          ...prev, 
-          planStatus: 'cancelled',
-        } : prev);
+      if (res.ok && data.accepted && data.pendingWebhook) {
         setShowCancelPlanConfirm(false);
-
-        const expiresAtFormatted = data.planExpiresAt
-          ? new Date(data.planExpiresAt).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
-          : 'su fecha de vencimiento';
-
         setToast({ 
           message: language === 'en' 
-            ? `✅ Auto-renewal cancelled. Your plan remains active until ${expiresAtFormatted}.` 
-            : `✅ Renovación automática cancelada. Tu plan sigue activo hasta el ${expiresAtFormatted}.`, 
+            ? 'Cancellation accepted by the payment provider. Confirming the signed webhook…'
+            : 'Cancelación aceptada por el proveedor. Confirmando el webhook firmado…',
           type: 'success' 
         });
+
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          const refresh = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+          if (!refresh.ok) continue;
+          const refreshedTenant = await refresh.json();
+          setTenantData(refreshedTenant);
+          setCurrentPlan(refreshedTenant.plan || 'trial');
+          if (refreshedTenant.planStatus === 'cancelled') {
+            setToast({
+              message: language === 'en'
+                ? '✅ Auto-renewal cancelled. Access remains available through the paid period.'
+                : '✅ Renovación cancelada. El acceso continúa durante el periodo ya pagado.',
+              type: 'success',
+            });
+            break;
+          }
+        }
       } else {
         setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });
       }
@@ -3456,17 +3472,31 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         body: JSON.stringify({ action: 'reactivate_subscription' }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        setTenantData((prev: any) => prev ? { 
-          ...prev, 
-          planStatus: 'active',
-        } : prev);
+      if (res.ok && data.accepted && data.pendingWebhook) {
         setToast({ 
           message: language === 'en' 
-            ? '✅ Auto-renewal reactivated successfully!' 
-            : '✅ ¡Renovación automática reactivada con éxito!', 
+            ? 'Reactivation accepted by the payment provider. Confirming the signed webhook…'
+            : 'Reactivación aceptada por el proveedor. Confirmando el webhook firmado…',
           type: 'success' 
         });
+
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          const refresh = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+          if (!refresh.ok) continue;
+          const refreshedTenant = await refresh.json();
+          setTenantData(refreshedTenant);
+          setCurrentPlan(refreshedTenant.plan || 'trial');
+          if (refreshedTenant.planStatus === 'active') {
+            setToast({
+              message: language === 'en'
+                ? '✅ Auto-renewal reactivated successfully!'
+                : '✅ ¡Renovación automática reactivada con éxito!',
+              type: 'success',
+            });
+            break;
+          }
+        }
       } else {
         setToast({ message: language === 'en' ? 'Error reactivating subscription: ' + (data.error || 'Unknown') : 'Error al reactivar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });
       }
@@ -3479,7 +3509,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   // === PAYMENT SUCCESS HANDLER ===
-  // Detect ?payment=success and activate the plan
+  // Detect ?payment=success and wait for the signature-verified webhook to
+  // activate the plan. The browser is never a source of truth for billing.
   const paymentHandledRef = React.useRef(false);
   React.useEffect(() => {
     if (paymentHandledRef.current || !isLoggedIn) return;
@@ -3488,65 +3519,37 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     paymentHandledRef.current = true;
 
     const pendingPlan = localStorage.getItem('rifx_pending_plan');
-    if (!pendingPlan) {
-      // No pending plan — just refresh tenant data
-      const token = authToken || localStorage.getItem('rifx_token');
-      if (token) {
-        fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(r => r.ok ? r.json() : null)
-          .then(data => {
-            if (data) {
-              setTenantData(data);
-              setCurrentPlan(data.plan || 'trial');
-              setActiveTab('dashboard');
-              setToast({ message: language === 'en' ? '✅ Payment received! Your plan is now active.' : '✅ ¡Pago recibido! Tu plan está activo.', type: 'success' });
-            }
-          });
-      }
-      // Clean URL
-      window.history.replaceState({}, '', '/panel');
-      return;
-    }
-
-    // Activate the plan via API
-    const activatePlan = async () => {
+    const refreshAfterPayment = async () => {
       try {
-        const res = await authFetch('/api/panel/activate-plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: pendingPlan })
-        });
-        const data = await res.json();
-        if (data.success) {
-          // Update token if we got a new one
-          if (data.token) {
-            localStorage.setItem('rifx_token', data.token);
-            setAuthToken(data.token);
+        let refreshed: any = null;
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' });
+          if (res.ok) {
+            const candidate = await res.json();
+            refreshed = candidate;
+            if (!pendingPlan || (candidate.plan === pendingPlan && candidate.planStatus === 'active')) break;
           }
-          // Update tenant data
-          setTenantData(data.tenant);
-          setCurrentPlan(data.tenant.plan || pendingPlan);
+          await new Promise(resolve => setTimeout(resolve, 2_000));
+        }
+        if (refreshed) {
+          setTenantData(refreshed);
+          setCurrentPlan(refreshed.plan || 'trial');
           setActiveTab('dashboard');
-          setToast({
-            message: language === 'en'
-              ? `✅ Plan ${pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)} activated! All features are unlocked.`
-              : `✅ ¡Plan ${pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)} activado! Todas las funciones desbloqueadas.`,
-            type: 'success'
-          });
-        } else {
-          setToast({ message: data.error || 'Error activating plan', type: 'error' });
+          const confirmed = !pendingPlan || (refreshed.plan === pendingPlan && refreshed.planStatus === 'active');
+          setToast({ message: confirmed
+            ? (language === 'en' ? '✅ Payment confirmed. Your plan is active.' : '✅ Pago confirmado. Tu plan está activo.')
+            : (language === 'en' ? 'Payment is still being confirmed. Refresh shortly.' : 'El pago aún se está confirmando. Actualiza en unos instantes.'), type: confirmed ? 'success' : 'info' });
         }
       } catch (e) {
-        console.error('Error activating plan after payment:', e);
-        setToast({ message: language === 'en' ? 'Error activating plan. Please contact support.' : 'Error al activar el plan. Contacta soporte.', type: 'error' });
+        console.error('Error refreshing plan after payment:', e);
+        setToast({ message: language === 'en' ? 'Payment is being confirmed. Refresh shortly.' : 'El pago se está confirmando. Actualiza en unos instantes.', type: 'info' });
       } finally {
         localStorage.removeItem('rifx_pending_plan');
-        // Clean URL
         window.history.replaceState({}, '', '/panel');
       }
     };
 
-    activatePlan();
+    refreshAfterPayment();
   }, [isLoggedIn]);
 
   const [isHumanMode, setIsHumanMode] = useState(false);
@@ -3723,16 +3726,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     meta_ad_account_name: '',
     meta_page_name: '',
     ai_prompt: '',
-    panel_password: '',
     media_retention_days: 0,
     admin_name: 'Alexander Thorne',
     admin_email: 'a.thorne@rifx-sovereign.io',
     confidence_threshold: 0.85,
     model_selection: 'gpt-4o',
     auto_classification: true,
-    email_alerts: true,
+    email_alerts: false,
     push_notifications: false,
-    daily_briefing: true,
+    monthly_briefing: false,
     dropi_enabled: false,
     dropi_token: '',
     dropi_default_product_id: '',
@@ -3801,7 +3803,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }, 800);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [showMarketingAgent, agentMessages.length, language, configReady, configData.facebook_access_token, configData.facebook_ad_account_id, configData.meta_page_name, configData.meta_ad_account_name]);
 
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
@@ -4001,50 +4003,110 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // Conexion Meta Ads (hoisteado para poder usarse tanto en Configuracion
   // como en el acceso rapido dentro de Pautas Publicitarias)
-  const handleMetaFacebookLogin = () => {
-    const fbAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '814217575104750';
-    const redirectUri = `${window.location.origin}/panel`;
-    const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
-    const state = btoa(JSON.stringify({ action: 'meta_connect', ts: Date.now() }));
-    const configId = process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '1718329089178291';
-    // auth_type=rerequest fuerza a que Facebook vuelva a mostrar el dialogo de
-    // seleccion de paginas/cuentas (asset picker), incluso si el usuario ya
-    // habia conectado antes. Sin esto, Facebook a veces salta directo al
-    // permiso ya otorgado (solo 1 pagina) sin dejar elegir mas.
-    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}&auth_type=rerequest`;
+  const handleMetaFacebookLogin = async () => {
     const w = 600, h = 700;
     const left = (window.screen.width - w) / 2;
     const top = (window.screen.height - h) / 2;
-    const popup = window.open(fbUrl, 'fb_meta_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+    // Open synchronously so browser popup protection remains satisfied while
+    // the authenticated state is requested from the server.
+    const popup = window.open('about:blank', 'fb_meta_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+    if (!popup) {
+      setToast({ message: language === 'en' ? 'Enable popups to connect Meta.' : 'Habilita las ventanas emergentes para conectar Meta.', type: 'error' });
+      return;
+    }
+
+    let state = '';
+    try {
+      const stateResponse = await authFetch('/api/panel/meta/facebook-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request_state' }),
+      });
+      const oauth = await stateResponse.json();
+      const redirectUrl = new URL(String(oauth.redirectUri || ''));
+      if (
+        !stateResponse.ok ||
+        typeof oauth.state !== 'string' ||
+        oauth.state.length === 0 ||
+        oauth.state.length > 4096 ||
+        !/^\d+$/.test(String(oauth.appId || '')) ||
+        redirectUrl.origin !== window.location.origin ||
+        redirectUrl.pathname !== '/panel'
+      ) {
+        throw new Error(oauth.error || (language === 'en' ? 'Invalid OAuth configuration.' : 'Configuracion OAuth invalida.'));
+      }
+      state = oauth.state;
+      const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
+      const fbUrl = new URL('https://www.facebook.com/v24.0/dialog/oauth');
+      fbUrl.searchParams.set('client_id', String(oauth.appId));
+      fbUrl.searchParams.set('redirect_uri', redirectUrl.toString());
+      fbUrl.searchParams.set('scope', scope);
+      fbUrl.searchParams.set('state', state);
+      fbUrl.searchParams.set('response_type', 'code');
+      fbUrl.searchParams.set('auth_type', 'rerequest');
+      if (/^\d+$/.test(String(oauth.configId || ''))) {
+        fbUrl.searchParams.set('config_id', String(oauth.configId));
+      }
+      popup.location.href = fbUrl.toString();
+    } catch (error) {
+      popup.close();
+      setToast({
+        message: error instanceof Error ? error.message : (language === 'en' ? 'Could not start Meta OAuth.' : 'No se pudo iniciar OAuth de Meta.'),
+        type: 'error',
+      });
+      return;
+    }
+
+    const expiresAt = Date.now() + 5 * 60 * 1000;
     const poll = setInterval(async () => {
       try {
-        if (!popup || popup.closed) { clearInterval(poll); return; }
+        if (popup.closed || Date.now() > expiresAt) {
+          clearInterval(poll);
+          if (!popup.closed) popup.close();
+          return;
+        }
         const popupUrl = popup.location.href;
+        if (popupUrl.includes('error=')) {
+          clearInterval(poll);
+          popup.close();
+          setToast({ message: language === 'en' ? 'Meta authorization was cancelled.' : 'La autorizacion de Meta fue cancelada.', type: 'error' });
+          return;
+        }
         if (popupUrl.includes('code=')) {
           clearInterval(poll);
           popup.close();
           const url = new URL(popupUrl);
           const code = url.searchParams.get('code');
-          if (!code) return;
+          const returnedState = url.searchParams.get('state');
+          if (!code || !returnedState || returnedState !== state) {
+            setToast({ message: language === 'en' ? 'Invalid OAuth response.' : 'Respuesta OAuth invalida.', type: 'error' });
+            return;
+          }
           setToast({ message: language === 'en' ? 'Connecting to Meta...' : 'Conectando con Meta...', type: 'info' });
-          const res = await authFetch('/api/panel/meta/facebook-connect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri: `${window.location.origin}/panel` }),
-          });
-          const data = await res.json();
-          if (data.error) { setToast({ message: data.error, type: 'error' }); return; }
-          if (data.adAccounts && data.adAccounts.length > 0) {
-            setMetaFbToken(data.accessToken);
-            setMetaAdAccounts(data.adAccounts);
-            setMetaPages(data.pages || []);
-            setMetaShowPicker(true);
-          } else {
-            setConfigData((prev: any) => ({ ...prev, facebook_access_token: data.accessToken }));
-            setToast({ message: language === 'en' ? 'Token saved. Enter your Ad Account ID manually.' : 'Token guardado. Ingresa tu Ad Account ID.', type: 'info' });
+          try {
+            const res = await authFetch('/api/panel/meta/facebook-connect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code, state: returnedState }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) { setToast({ message: data.error || 'OAuth error', type: 'error' }); return; }
+            if (data.adAccounts && data.adAccounts.length > 0) {
+              setMetaFbToken(data.accessToken);
+              setMetaAdAccounts(data.adAccounts);
+              setMetaPages(data.pages || []);
+              setMetaShowPicker(true);
+            } else {
+              setConfigData((prev: any) => ({ ...prev, facebook_access_token: data.accessToken }));
+              setToast({ message: language === 'en' ? 'Token saved. Enter your Ad Account ID manually.' : 'Token guardado. Ingresa tu Ad Account ID.', type: 'info' });
+            }
+          } catch {
+            setToast({ message: language === 'en' ? 'Network error connecting Meta.' : 'Error de red conectando Meta.', type: 'error' });
           }
         }
-      } catch {}
+      } catch {
+        // Cross-origin popup reads fail until Meta redirects back to /panel.
+      }
     }, 500);
   };
 
@@ -4182,10 +4244,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
     if (!silent) setWaVerifying(true);
     try {
-      const res = await fetch(`https://graph.facebook.com/v18.0/${configData.whatsapp_phone_id}`, {
-        headers: { 'Authorization': `Bearer ${configData.whatsapp_token}` }
+      const res = await authFetch('/api/panel/connections/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'whatsapp',
+          credential: configData.whatsapp_token,
+          phoneId: configData.whatsapp_phone_id,
+        }),
       });
-      const valid = res.ok;
+      const verification = await res.json();
+      const valid = res.ok && verification.valid === true;
       setWaStatus(valid ? 'success' : 'error');
       setWaStatusMsg(valid 
         ? (language === 'en' ? 'WhatsApp connection verified!' : '\u00A1Conexi\u00F3n de WhatsApp verificada!') 
@@ -4205,7 +4274,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setMemoryClearing(true);
     setMemoryClearSuccess(false);
     try {
-      const res = await authFetch('/api/panel/memory', { method: 'DELETE' });
+      const res = await authFetch('/api/panel/memory', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DELETE_ALL_MEMORY' }),
+      });
       const data = await res.json();
       if (data.success) {
         setConversationsData(null);
@@ -4263,76 +4336,38 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
     if (!silent) { setAiKeyVerifying(true); setAiKeyStatus('idle'); }
     try {
-      let valid = false;
-      let creditsOk = true;
-      let creditsMessage = '';
-      let isLow = false;
-      
-      if (currentProvider === 'openai') {
-        const res = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': `Bearer ${key}` } });
-        valid = res.ok;
-        if (res.status === 429) { creditsOk = false; creditsMessage = language === 'en' ? 'Rate limit reached or credits exhausted' : 'L\u00EDmite alcanzado o cr\u00E9ditos agotados'; }
-        else if (valid) {
-          // OpenAI doesn't expose credits in headers for /models, show active status
-          creditsMessage = language === 'en' ? 'API active \u2022 Key valid \u2022 Pay-as-you-go' : 'API activa \u2022 Llave v\u00E1lida \u2022 Pago por uso';
-        }
-      } else if (currentProvider === 'gemini') {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-        valid = res.ok;
-        if (res.status === 429) { creditsOk = false; creditsMessage = language === 'en' ? 'Quota exceeded' : 'Cuota excedida'; }
-        else if (valid) {
-          creditsMessage = language === 'en' ? 'API active \u2022 Free tier / Billing active' : 'API activa \u2022 Tier gratuito / Facturaci\u00F3n activa';
-        }
-      } else if (currentProvider === 'groq') {
-        const res = await fetch('https://api.groq.com/openai/v1/models', { headers: { 'Authorization': `Bearer ${key}` } });
-        valid = res.ok;
-        if (res.status === 429) { creditsOk = false; creditsMessage = language === 'en' ? 'Rate limit reached' : 'L\u00EDmite de uso alcanzado'; }
-        else if (valid) {
-          // Groq exposes rate limit info in headers
-          const remaining = res.headers.get('x-ratelimit-remaining-requests');
-          const limit = res.headers.get('x-ratelimit-limit-requests');
-          const tokensRemaining = res.headers.get('x-ratelimit-remaining-tokens');
-          if (remaining && limit) {
-            const pct = Math.round((parseInt(remaining) / parseInt(limit)) * 100);
-            creditsMessage = language === 'en' 
-              ? `${remaining}/${limit} requests remaining (${pct}%)${tokensRemaining ? ` \u2022 ${parseInt(tokensRemaining).toLocaleString()} tokens left` : ''}`
-              : `${remaining}/${limit} solicitudes restantes (${pct}%)${tokensRemaining ? ` \u2022 ${parseInt(tokensRemaining).toLocaleString()} tokens disponibles` : ''}`;
-            if (pct < 20) { isLow = true; }
-          } else {
-            creditsMessage = language === 'en' ? 'API active \u2022 Free tier' : 'API activa \u2022 Tier gratuito';
-          }
-        }
-      }
-      
-      const newStatus = valid ? 'success' : 'error';
-      const newStatusMsg = valid 
-        ? (language === 'en' ? 'Connection verified successfully!' : '\u00A1Conexi\u00F3n verificada con \u00E9xito!') 
-        : (language === 'en' ? 'Invalid key or connection failed' : 'Llave inv\u00E1lida o conexi\u00F3n fallida');
-      
-      setAiKeyStatus(newStatus);
-      setAiKeyStatusMsg(newStatusMsg);
-      
-      let newCreditsStatus: 'idle' | 'active' | 'low' | 'exhausted' | 'error' = 'idle';
-      let finalCreditsMsg = '';
-      if (!creditsOk) {
-        newCreditsStatus = 'exhausted';
-        finalCreditsMsg = creditsMessage;
-      } else if (valid) {
-        newCreditsStatus = isLow ? 'low' : 'active';
-        finalCreditsMsg = creditsMessage;
-      } else {
-        newCreditsStatus = 'error';
-        finalCreditsMsg = language === 'en' ? 'Unable to check credits' : 'No se pudo verificar cr\u00E9ditos';
-      }
-      
-      setAiCreditsStatus(newCreditsStatus);
-      setAiCreditsMsg(finalCreditsMsg);
-      
+      // Stored credentials are intentionally masked by /api/panel/config. Test
+      // them server-side so a previously saved key never returns to the browser.
+      const verifyResponse = await authFetch('/api/panel/connections/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: currentProvider, credential: key }),
+      });
+      const verifyResult = await verifyResponse.json();
+      const serverValid = verifyResponse.ok && verifyResult.valid === true;
+      const serverQuotaLimited = verifyResult.reason === 'quota';
+      const serverStatus = serverValid ? 'success' : 'error';
+      const serverStatusMessage = serverValid
+        ? (language === 'en' ? 'Connection verified successfully!' : '¡Conexión verificada con éxito!')
+        : (language === 'en' ? 'Invalid key or connection failed' : 'Llave inválida o conexión fallida');
+      const serverCreditStatus: 'active' | 'exhausted' | 'error' = serverValid
+        ? 'active'
+        : serverQuotaLimited ? 'exhausted' : 'error';
+      const serverCreditMessage = serverValid
+        ? (language === 'en' ? 'API active • Key valid' : 'API activa • Llave válida')
+        : serverQuotaLimited
+          ? (language === 'en' ? 'Quota or rate limit reached' : 'Cuota o límite de uso alcanzado')
+          : (language === 'en' ? 'Unable to check credits' : 'No se pudo verificar créditos');
+
+      setAiKeyStatus(serverStatus);
+      setAiKeyStatusMsg(serverStatusMessage);
+      setAiCreditsStatus(serverCreditStatus);
+      setAiCreditsMsg(serverCreditMessage);
       if (typeof window !== 'undefined') {
-        localStorage.setItem(`rifx_ai_key_status_${currentProvider}`, newStatus);
-        localStorage.setItem(`rifx_ai_key_status_msg_${currentProvider}`, newStatusMsg);
-        localStorage.setItem(`rifx_ai_credits_status_${currentProvider}`, newCreditsStatus);
-        localStorage.setItem(`rifx_ai_credits_msg_${currentProvider}`, finalCreditsMsg);
+        localStorage.setItem(`rifx_ai_key_status_${currentProvider}`, serverStatus);
+        localStorage.setItem(`rifx_ai_key_status_msg_${currentProvider}`, serverStatusMessage);
+        localStorage.setItem(`rifx_ai_credits_status_${currentProvider}`, serverCreditStatus);
+        localStorage.setItem(`rifx_ai_credits_msg_${currentProvider}`, serverCreditMessage);
       }
     } catch {
       const errStatus = 'error';
@@ -4356,10 +4391,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
   // Helper: fetch with auth token
   const authFetch = (url: string, options: RequestInit = {}) => {
-    const token = authToken || localStorage.getItem('rifx_token');
     const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return fetch(url, { ...options, headers });
+    return fetch(url, { ...options, headers, credentials: 'same-origin' });
   };
 
   const handleTogglePush = async (enabled: boolean) => {
@@ -4462,7 +4495,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              payphone_token: data.payphone_token || '',
              payphone_store_id: data.payphone_store_id || '',
              ai_prompt: data.ai_prompt || '',
-             panel_password: data.panel_password || '',
              media_retention_days: data.media_retention_days || 0,
              alert_email: data.alert_email || '',
              admin_name: data.admin_name || 'Alexander Thorne',
@@ -4470,9 +4502,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              confidence_threshold: data.confidence_threshold ?? 0.85,
              model_selection: data.model_selection || 'gpt-4o',
              auto_classification: data.auto_classification !== undefined ? data.auto_classification : true,
-             email_alerts: data.email_alerts !== undefined ? data.email_alerts : true,
+             email_alerts: data.email_alerts !== undefined ? data.email_alerts : false,
              push_notifications: data.push_notifications !== undefined ? data.push_notifications : false,
-             daily_briefing: data.daily_briefing !== undefined ? data.daily_briefing : true,
+             monthly_briefing: data.monthly_briefing !== undefined ? data.monthly_briefing : false,
              facebook_access_token: data.facebook_access_token || '',
              facebook_ad_account_id: data.facebook_ad_account_id || '',
              facebook_page_id: data.facebook_page_id || '',
@@ -4557,8 +4589,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   React.useEffect(() => {
     if (isLoggedIn) {
       // Trigger limpieza silenciosa en background
-      fetch('/api/cron/cleanup-media').catch(console.error);
-
       // Cargar CRM
       fetchConversations();
       
@@ -4573,30 +4603,48 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
       // Cargar Plantillas de Base de Datos
       loadDbTemplates();
-
-      // Refrescar cada 10 segundos, solo mientras la pestaña esta visible
-      // (se pausa en segundo plano para no gastar requests sin necesidad)
-      // y se refresca de inmediato al volver a la pestaña.
-      const refreshCrmAndStats = () => {
-        authFetch('/api/panel/conversations').then(res => res.json()).then(data => {
-          setConversationsData(data);
-          checkHumanAlerts(data);
-        });
-        authFetch('/api/panel/stats').then(res => res.json()).then(data => setStatsData(data));
-      };
-      const interval = setInterval(() => {
-        if (document.visibilityState === 'visible') refreshCrmAndStats();
-      }, 10000);
-      const onVisibilityChange = () => {
-        if (document.visibilityState === 'visible') refreshCrmAndStats();
-      };
-      document.addEventListener('visibilitychange', onVisibilityChange);
-      return () => {
-        clearInterval(interval);
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-      };
     }
   }, [isLoggedIn]);
+
+  // El polling pesado solo corre en vistas que consumen esos datos. Un
+  // intervalo de 60s evita multiplicar consultas completas por cada sesión.
+  React.useEffect(() => {
+    if (!isLoggedIn || !['dashboard', 'crm'].includes(activeTab)) return;
+    let cancelled = false;
+    const refreshCrmAndStats = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const [conversationsResponse, statsResponse] = await Promise.all([
+          authFetch('/api/panel/conversations'),
+          authFetch('/api/panel/stats'),
+        ]);
+        if (cancelled) return;
+        if (conversationsResponse.ok) {
+          const data = await conversationsResponse.json();
+          if (!cancelled) {
+            setConversationsData(data);
+            checkHumanAlerts(data);
+          }
+        }
+        if (statsResponse.ok) {
+          const data = await statsResponse.json();
+          if (!cancelled) setStatsData(data);
+        }
+      } catch {
+        // La siguiente iteración reintentará sin reemplazar datos válidos.
+      }
+    };
+    const interval = window.setInterval(refreshCrmAndStats, 60_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshCrmAndStats();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [activeTab, isLoggedIn]);
 
   // Auto-verify AI key whenever config loads or provider changes (works like WhatsApp - always shows status)
   const aiAutoVerifyKeyRef = React.useRef('');
@@ -4822,8 +4870,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setIsLoggingIn(false);
           return;
         }
-        localStorage.setItem('rifx_token', data.token);
-        setAuthToken(data.token);
+        setAuthToken('cookie-session');
         setTenantData(data.tenant);
         setIsLoggedIn(true);
         setIsRegistering(false);
@@ -4840,8 +4887,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setIsLoggingIn(false);
           return;
         }
-        localStorage.setItem('rifx_token', data.token);
-        setAuthToken(data.token);
+        setAuthToken('cookie-session');
         setTenantData(data.tenant);
         setCurrentPlan(data.tenant.plan || 'trial');
         setIsLoggedIn(true);
@@ -4860,14 +4906,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Email o contraseña incorrectos');
-    localStorage.setItem('rifx_token', data.token);
-    setAuthToken(data.token);
+    setAuthToken('cookie-session');
     setTenantData(data.tenant);
     setCurrentPlan(data.tenant.plan || 'trial');
     setIsLoggedIn(true);
   };
 
-  const handleRegisterViaAuthComponent = async (email: string, password: string) => {
+  const handleRegisterViaAuthComponent = async (email: string, password: string, acceptedTerms: boolean) => {
     setRegisterError('');
     const res = await fetch('/api/auth/register', {
       method: 'POST',
@@ -4877,6 +4922,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         password,
         companyName: registerCompany || 'Mi Empresa',
         ownerName: registerOwner || '',
+        acceptedTerms,
       }),
     });
     const data = await res.json();
@@ -4885,8 +4931,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setRegisterError(msg);
       throw new Error(msg);
     }
-    localStorage.setItem('rifx_token', data.token);
-    setAuthToken(data.token);
+    setAuthToken('cookie-session');
     setTenantData(data.tenant);
     setIsLoggedIn(true);
     setIsRegistering(false);
@@ -4929,53 +4974,32 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       isStateLoadedRef.current = true;
     }
 
-    // 2. Perform authentication login check
-    const token = localStorage.getItem('rifx_token');
-    if (token) {
-      setAuthToken(token);
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp * 1000 > Date.now()) {
-          // Quick login from token
-          setTenantData({ id: payload.tenantId, email: payload.email, plan: payload.plan, isAdmin: payload.isAdmin });
-          setCurrentPlan(payload.plan || 'trial');
+    // 2. Restore only from the HttpOnly session cookie. No JWT is exposed to
+    // JavaScript or persisted in localStorage.
+    fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => {
+        if (data) {
+          setAuthToken('cookie-session');
+          setTenantData(data);
+          setCurrentPlan(data.plan || 'trial');
           setIsLoggedIn(true);
-          setIsCheckingAuth(false);
-          // Then fetch fresh data from DB
-          fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
-            .then(r => {
-              if (!r.ok) {
-                localStorage.removeItem('rifx_token');
-                setAuthToken(null);
-                setTenantData(null);
-                setIsLoggedIn(false);
-                return null;
-              }
-              return r.json();
-            })
-            .then(data => {
-              if (data) {
-                setTenantData(data);
-                setCurrentPlan(data.plan || 'trial');
-              }
-            })
-            .catch(() => {
-              localStorage.removeItem('rifx_token');
-              setAuthToken(null);
-              setTenantData(null);
-              setIsLoggedIn(false);
-            });
-          return;
         } else {
-          localStorage.removeItem('rifx_token');
+          setAuthToken(null);
+          setTenantData(null);
+          setIsLoggedIn(false);
         }
-      } catch { localStorage.removeItem('rifx_token'); }
-    }
-    setIsCheckingAuth(false);
+      })
+      .catch(() => {
+        setAuthToken(null);
+        setTenantData(null);
+        setIsLoggedIn(false);
+      })
+      .finally(() => setIsCheckingAuth(false));
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('rifx_token');
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
     setAuthToken(null);
     setTenantData(null);
     setIsLoggedIn(false);
@@ -5797,7 +5821,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? '✅ User deleted successfully!' : '✅ ¡Usuario eliminado correctamente!',
+          message: language === 'en' ? '✅ User deactivated successfully!' : '✅ ¡Usuario desactivado correctamente!',
           type: 'success'
         });
         setTenantToDelete(null);
@@ -5820,12 +5844,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setAdminActionLoading(true);
       const res = await authFetch('/api/panel/profile/delete', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmationEmail: selfDeleteConfirmEmail }),
       });
       if (res.ok) {
         setShowSelfDeleteModal(false);
         setSelfDeleteConfirmEmail('');
         setToast({
-          message: language === 'en' ? '✅ Account deleted successfully.' : '✅ Tu cuenta ha sido eliminada.',
+          message: language === 'en' ? '✅ Account deactivated successfully.' : '✅ Tu cuenta ha sido desactivada.',
           type: 'success'
         });
         handleLogout();
@@ -6224,7 +6250,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     for (let i = 0; i < contacts.length; i++) {
       const contact = contacts[i];
       // Replace variables
-      let msg = bulkMessage
+      const msg = bulkMessage
         .replace(/\{Nombre\}/g, contact.customer_name?.split(' ')[0] || 'Cliente')
         .replace(/\{Apellido\}/g, contact.customer_name?.split(' ').slice(1).join(' ') || '')
         .replace(/\{Empresa\}/g, 'RIFX');
@@ -6269,14 +6295,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setPasswordError('');
     setPasswordSuccess(false);
 
-    // Validaciones
-    const storedPassword = configData.panel_password || 'rifx2026';
-    if (currentPassword !== storedPassword) {
-      setPasswordError('La contraseña actual no es correcta');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setPasswordError('La nueva contraseña debe tener al menos 6 caracteres');
+    if (newPassword.length < 12) {
+      setPasswordError('La nueva contraseña debe tener al menos 12 caracteres');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -6286,15 +6306,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
     setChangingPassword(true);
     try {
-      const res = await authFetch('/api/panel/config', {
+      const res = await authFetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ panel_password: newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
       const result = await res.json();
       if (res.ok && result.success) {
         setPasswordSuccess(true);
-        setConfigData({ ...configData, panel_password: newPassword });
+        setAuthToken('cookie-session');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -6331,6 +6351,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         ai_prompt: configData.ai_prompt,
         media_retention_days: Number(configData.media_retention_days) || 0,
         alert_email: configData.alert_email,
+        email_alerts: !!configData.email_alerts,
+        push_notifications: !!configData.push_notifications,
+        monthly_briefing: !!configData.monthly_briefing,
         model_selection: configData.model_selection,
         confidence_threshold: configData.confidence_threshold,
         auto_classification: configData.auto_classification,
@@ -6387,42 +6410,47 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     );
   }
 
+  // ========== GOOGLE SIGN-IN (compartido entre registro e inicio de sesión) ==========
+  const handleGoogleBtnClick = () => {
+    try {
+      const btn = document.querySelector<HTMLElement>('#google-signin-button div[role="button"]');
+      if (btn) { btn.click(); return; }
+      (window as any).google?.accounts?.id?.prompt?.();
+    } catch (_) {}
+  };
+
+  const GoogleInitNode = (
+    <>
+      <div id="google-signin-button" />
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={() => { window.dispatchEvent(new Event('google-gsi-loaded')); }}
+      />
+    </>
+  );
+
   // ========== REGISTER SCREEN ==========
   if (!isLoggedIn && isRegistering) {
     return (
-      <AuthComponent
+      <AuthSelector
         mode="register"
+        logo={<img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-9 h-9 object-contain" />}
         onRegister={handleRegisterViaAuthComponent}
         onSwitchToLogin={() => { setIsRegistering(false); setRegisterError(''); }}
         externalError={registerError}
+        onGoogleClick={handleGoogleBtnClick}
+        googleInitNode={GoogleInitNode}
       />
     );
   }
 
   // ========== LOGIN SCREEN ==========
   if (!isLoggedIn) {
-    const handleGoogleBtnClick = () => {
-      try {
-        const btn = document.querySelector<HTMLElement>('#google-signin-button div[role="button"]');
-        if (btn) { btn.click(); return; }
-        (window as any).google?.accounts?.id?.prompt?.();
-      } catch (_) {}
-    };
-
-    const GoogleInitNode = (
-      <>
-        <div id="google-signin-button" />
-        <Script
-          src="https://accounts.google.com/gsi/client"
-          strategy="afterInteractive"
-          onLoad={() => { window.dispatchEvent(new Event('google-gsi-loaded')); }}
-        />
-      </>
-    );
-
     return (
-      <AuthComponent
+      <AuthSelector
         mode="login"
+        logo={<img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-9 h-9 object-contain" />}
         onLogin={handleLoginViaAuthComponent}
         onSwitchToRegister={() => { setLoginError(''); setIsRegistering(true); }}
         externalError={loginError}
@@ -8331,13 +8359,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <div className="px-6 -mt-8 relative z-10 flex flex-col items-center text-center">
                         <div className="relative mb-3">
                           <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center text-primary font-black text-xl shadow-xl border-4 border-white">
-                            {selectedChat.name?.substring(0, 2).toUpperCase() || 'U'}
+                            {(selectedChat.customer_name || selectedChat.name)?.substring(0, 2).toUpperCase() || 'U'}
                           </div>
                           <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-lg shadow-md">
                             <span className="material-symbols-outlined text-xs" style={{fontVariationSettings: "'FILL' 1"}}>check_circle</span>
                           </div>
                         </div>
-                        <h3 className="text-base font-extrabold text-primary truncate max-w-full">{selectedChat.name || 'Usuario'}</h3>
+                        <h3 className="text-base font-extrabold text-primary truncate max-w-full">{selectedChat.customer_name || selectedChat.name || 'Usuario'}</h3>
                         <p className="text-xs text-slate-400 font-mono font-bold">{selectedChat.phone_number}</p>
                       </div>
 
@@ -8976,49 +9004,110 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                 {/* ════ WHATSAPP ════ */}
                 {settingsSection === 'whatsapp' && (() => {
-                  const fbAppId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '814217575104750';
                   const isWaConnected = !!(configData.whatsapp_token && configData.whatsapp_phone_id);
 
-                  const handleFacebookLogin = () => {
-                    const redirectUri = `${window.location.origin}/panel`;
-                    const scope = 'whatsapp_business_messaging,whatsapp_business_management,business_management';
-                    const state = btoa(JSON.stringify({ action: 'wa_connect', ts: Date.now() }));
-                    const configId = process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID || '966293476243422';
-                    const fbUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}&response_type=code&config_id=${configId}`;
+                  const handleFacebookLogin = async () => {
                     const w = 600, h = 700;
                     const left = (window.screen.width - w) / 2;
                     const top = (window.screen.height - h) / 2;
-                    const popup = window.open(fbUrl, 'fb_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+                    const popup = window.open('about:blank', 'fb_oauth', `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+                    if (!popup) {
+                      setToast({ type: 'error', message: language === 'en' ? 'Enable popups to connect WhatsApp.' : 'Habilita las ventanas emergentes para conectar WhatsApp.' });
+                      return;
+                    }
+
+                    let state = '';
+                    try {
+                      const stateResponse = await authFetch('/api/panel/whatsapp/facebook-connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'request_state' }),
+                      });
+                      const oauth = await stateResponse.json();
+                      const redirectUrl = new URL(String(oauth.redirectUri || ''));
+                      if (
+                        !stateResponse.ok ||
+                        typeof oauth.state !== 'string' ||
+                        oauth.state.length === 0 ||
+                        oauth.state.length > 4096 ||
+                        !/^\d+$/.test(String(oauth.appId || '')) ||
+                        redirectUrl.origin !== window.location.origin ||
+                        redirectUrl.pathname !== '/panel'
+                      ) {
+                        throw new Error(oauth.error || (language === 'en' ? 'Invalid OAuth configuration.' : 'Configuracion OAuth invalida.'));
+                      }
+                      state = oauth.state;
+                      const scope = 'whatsapp_business_messaging,whatsapp_business_management,business_management';
+                      const fbUrl = new URL('https://www.facebook.com/v24.0/dialog/oauth');
+                      fbUrl.searchParams.set('client_id', String(oauth.appId));
+                      fbUrl.searchParams.set('redirect_uri', redirectUrl.toString());
+                      fbUrl.searchParams.set('scope', scope);
+                      fbUrl.searchParams.set('state', state);
+                      fbUrl.searchParams.set('response_type', 'code');
+                      if (/^\d+$/.test(String(oauth.configId || ''))) {
+                        fbUrl.searchParams.set('config_id', String(oauth.configId));
+                      }
+                      popup.location.href = fbUrl.toString();
+                    } catch (error) {
+                      popup.close();
+                      setToast({
+                        type: 'error',
+                        message: error instanceof Error ? error.message : (language === 'en' ? 'Could not start WhatsApp OAuth.' : 'No se pudo iniciar OAuth de WhatsApp.'),
+                      });
+                      return;
+                    }
+
+                    const expiresAt = Date.now() + 5 * 60 * 1000;
                     const poll = setInterval(async () => {
                       try {
-                        if (!popup || popup.closed) { clearInterval(poll); return; }
+                        if (popup.closed || Date.now() > expiresAt) {
+                          clearInterval(poll);
+                          if (!popup.closed) popup.close();
+                          return;
+                        }
                         const popupUrl = popup.location.href;
+                        if (popupUrl.includes('error=')) {
+                          clearInterval(poll);
+                          popup.close();
+                          setToast({ type: 'error', message: language === 'en' ? 'WhatsApp authorization was cancelled.' : 'La autorizacion de WhatsApp fue cancelada.' });
+                          return;
+                        }
                         if (popupUrl.includes('code=')) {
                           clearInterval(poll);
                           popup.close();
                           const url = new URL(popupUrl);
                           const code = url.searchParams.get('code');
-                          if (!code) return;
+                          const returnedState = url.searchParams.get('state');
+                          if (!code || !returnedState || returnedState !== state) {
+                            setToast({ type: 'error', message: language === 'en' ? 'Invalid OAuth response.' : 'Respuesta OAuth invalida.' });
+                            return;
+                          }
                           setToast({ type: 'info', message: language === 'en' ? 'Connecting to Facebook...' : 'Conectando con Facebook...' });
-                          const res = await authFetch('/api/panel/whatsapp/facebook-connect', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ code, redirectUri: `${window.location.origin}/panel` }),
-                          });
-                          const data = await res.json();
-                          if (data.error) { setToast({ type: 'error', message: data.error }); return; }
-                          if (data.phoneOptions && data.phoneOptions.length > 0) {
-                            setWaFbToken(data.accessToken);
-                            setWaPhoneOptions(data.phoneOptions);
-                            setWaShowPhonePicker(true);
-                          } else {
-                            setWaFbToken(data.accessToken);
-                            setConfigData((prev: any) => ({ ...prev, whatsapp_token: data.accessToken }));
-                            setWaShowPhonePicker(false);
-                            setToast({ type: 'info', message: language === 'en' ? 'Token saved. Enter your Phone Number ID below.' : 'Token guardado. Ingresa tu Phone Number ID abajo.' });
+                          try {
+                            const res = await authFetch('/api/panel/whatsapp/facebook-connect', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ code, state: returnedState }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok || data.error) { setToast({ type: 'error', message: data.error || 'OAuth error' }); return; }
+                            if (data.phoneOptions && data.phoneOptions.length > 0) {
+                              setWaFbToken(data.accessToken);
+                              setWaPhoneOptions(data.phoneOptions);
+                              setWaShowPhonePicker(true);
+                            } else {
+                              setWaFbToken(data.accessToken);
+                              setConfigData((prev: any) => ({ ...prev, whatsapp_token: data.accessToken }));
+                              setWaShowPhonePicker(false);
+                              setToast({ type: 'info', message: language === 'en' ? 'Token saved. Enter your Phone Number ID below.' : 'Token guardado. Ingresa tu Phone Number ID abajo.' });
+                            }
+                          } catch {
+                            setToast({ type: 'error', message: language === 'en' ? 'Network error connecting WhatsApp.' : 'Error de red conectando WhatsApp.' });
                           }
                         }
-                      } catch {}
+                      } catch {
+                        // Cross-origin popup reads fail until Meta redirects back to /panel.
+                      }
                     }, 500);
                   };
 
@@ -13699,7 +13788,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       });
                       
                       const data = await res.json();
-                      if (data.success) {
+                      if (res.ok && data.success) {
                         setToast({
                           message: language === 'en' ? '✅ Source updated successfully!' : '✅ ¡Fuente actualizada exitosamente!',
                           type: 'success'
@@ -17272,7 +17361,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="absolute top-0 right-0 w-32 h-32 bg-primary-container/5 rounded-full -mr-16 -mt-16"></div>
                   <div className="relative z-10 flex flex-col items-center text-center">
                     <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-crm-surface-container mb-4 bg-primary-container flex items-center justify-center text-white text-3xl font-bold">
-                      {selectedChat.name?.substring(0, 2).toUpperCase() || 'U'}
+                      {(selectedChat.customer_name || selectedChat.name)?.substring(0, 2).toUpperCase() || 'U'}
                     </div>
                     {isEditingContact ? (
                       <div className="flex flex-col gap-2 w-full px-4 mt-2">
@@ -17293,7 +17382,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                     ) : (
                       <>
-                        <h3 className="font-display text-2xl font-extrabold text-on-surface tracking-tight">{selectedChat.name || 'Usuario'}</h3>
+                        <h3 className="font-display text-2xl font-extrabold text-on-surface tracking-tight">{selectedChat.customer_name || selectedChat.name || 'Usuario'}</h3>
                         <p className="text-secondary font-medium mt-1 font-body">{selectedChat.phone_number || '+52 55 1234 5678'}</p>
                       </>
                     )}
@@ -17349,7 +17438,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               body: JSON.stringify({ id: selectedChat.id, name: editName, phone_number: editPhone }),
                             });
                             if (res.ok) {
-                              setSelectedChat({ ...selectedChat, name: editName, phone_number: editPhone });
+                              setSelectedChat({ ...selectedChat, name: editName, customer_name: editName, phone_number: editPhone });
                             } else {
                               setToast({ message: 'Error al guardar contacto', type: 'error' });
                             }
@@ -17357,7 +17446,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             setIsEditingContact(false);
                           } else {
                             // Enter edit mode
-                            setEditName(selectedChat.name || '');
+                            setEditName(selectedChat.customer_name || selectedChat.name || '');
                             setEditPhone(selectedChat.phone_number || '+52 55 1234 5678');
                             setIsEditingContact(true);
                           }
@@ -17568,7 +17657,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   {renderContent()}
                                 </div>
                                 <div className="flex items-center gap-2 mt-2">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase">{selectedChat.name} u{2022} {time}</span>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase">{selectedChat.customer_name || selectedChat.name} u{2022} {time}</span>
                                 </div>
                               </div>
                             ) : (
@@ -17881,7 +17970,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 throw new Error('No body');
                               }
                             } catch { 
-                              setEmailBody(language === 'es' ? `Hola ${selectedChat.name?.split(' ')[0] || ''},\n\nGracias por tu interés en nuestros servicios. Quería dar seguimiento a nuestra conversación reciente.\n\nQuedo atento a tus comentarios.\n\nSaludos cordiales,\nEquipo RIFX` : `Hi ${selectedChat.name?.split(' ')[0] || ''},\n\nThank you for your interest in our services. I wanted to follow up on our recent conversation.\n\nI look forward to hearing from you.\n\nBest regards,\nRIFX Team`);
+                              const contactName = selectedChat.customer_name || selectedChat.name || '';
+                              setEmailBody(language === 'es' ? `Hola ${contactName.split(' ')[0] || ''},\n\nGracias por tu interés en nuestros servicios. Quería dar seguimiento a nuestra conversación reciente.\n\nQuedo atento a tus comentarios.\n\nSaludos cordiales,\nEquipo RIFX` : `Hi ${contactName.split(' ')[0] || ''},\n\nThank you for your interest in our services. I wanted to follow up on our recent conversation.\n\nI look forward to hearing from you.\n\nBest regards,\nRIFX Team`);
                             }
                             setIsGeneratingEmail(false);
                           }}
@@ -17906,7 +17996,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <button
                       onClick={() => {
                         // Open mailto link
-                        const subject = encodeURIComponent(emailSubject || `Seguimiento - ${selectedChat.name}`);
+                        const subject = encodeURIComponent(emailSubject || `Seguimiento - ${selectedChat.customer_name || selectedChat.name || ''}`);
                         const body = encodeURIComponent(emailBody);
                         window.open(`mailto:${detectedEmail}?subject=${subject}&body=${body}`, '_blank');
                         setShowEmailComposer(false);
@@ -18104,26 +18194,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <span className="material-symbols-outlined text-xl">delete_forever</span>
             </div>
             <h3 className="text-lg font-extrabold text-slate-900">
-              {language === 'en' ? 'Delete your account' : 'Eliminar tu cuenta'}
+              {language === 'en' ? 'Deactivate your account' : 'Desactivar tu cuenta'}
             </h3>
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed mb-4">
             {language === 'en'
-              ? 'Warning: This action is permanent and cannot be undone. All your configurations, conversations, chat messages, and sales records will be immediately and irreversibly deleted.'
-              : 'Atención: Esta acción es permanente y no se puede deshacer. Se borrarán de inmediato y de forma irreversible todas tus configuraciones, conversaciones, mensajes de chat y registros de ventas.'}
+              ? 'Your access and sessions will be disabled immediately. Business records enter the controlled retention process; an active paid subscription must be cancelled first. Sign in again if your session is older than 10 minutes.'
+              : 'Tu acceso y sesiones se desactivarán de inmediato. Los registros entrarán al proceso controlado de retención; primero debes cancelar una suscripción pagada activa. Vuelve a iniciar sesión si tu sesión tiene más de 10 minutos.'}
           </p>
 
           <div className="space-y-3 mb-6">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
               {language === 'en'
-                ? `Type your email to confirm (${configData.admin_email || ''})`
-                : `Escribe tu correo para confirmar (${configData.admin_email || ''})`}
+                ? `Type your email to confirm (${tenantData?.email || ''})`
+                : `Escribe tu correo para confirmar (${tenantData?.email || ''})`}
             </label>
             <input
               type="text"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-semibold outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/20"
-              placeholder={configData.admin_email || 'correo@ejemplo.com'}
+              placeholder={tenantData?.email || 'correo@ejemplo.com'}
               value={selfDeleteConfirmEmail}
               onChange={e => setSelfDeleteConfirmEmail(e.target.value)}
             />
@@ -18132,7 +18222,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           <div className="flex gap-2">
             <button
               onClick={handleSelfDeleteAccount}
-              disabled={selfDeleteConfirmEmail !== configData.admin_email || adminActionLoading}
+              disabled={selfDeleteConfirmEmail.trim().toLowerCase() !== String(tenantData?.email || '').trim().toLowerCase() || adminActionLoading}
               className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {adminActionLoading ? (
@@ -18140,7 +18230,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               ) : (
                 <span className="material-symbols-outlined text-xs">delete_forever</span>
               )}
-              {language === 'en' ? 'Delete Permanently' : 'Eliminar Permanentemente'}
+              {language === 'en' ? 'Deactivate account' : 'Desactivar cuenta'}
             </button>
             <button
               onClick={() => setShowSelfDeleteModal(false)}
@@ -18219,4 +18309,3 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     </ThemeProvider>
   );
 }
-

@@ -1,6 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
+
+const COLOR_KEYS = [
+  'primary', 'secondary', 'accent', 'link', 'cardBg', 'sidebarBg', 'bg',
+  'text', 'textSecondary', 'border', 'hover', 'success', 'warning', 'danger',
+] as const;
+const VALID_FONTS = new Set(['Inter', 'Poppins', 'Montserrat']);
+const VALID_RADII = new Set(['square', 'semi', 'rounded']);
+const VALID_MODES = new Set(['light', 'dark', 'auto']);
+
+function normalizeTheme(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const theme = value as Record<string, unknown>;
+  const colors = theme.colors;
+  if (!colors || typeof colors !== 'object' || Array.isArray(colors)) return null;
+  const rawColors = colors as Record<string, unknown>;
+  const normalizedColors: Record<string, string> = {};
+  for (const key of COLOR_KEYS) {
+    const color = rawColors[key];
+    if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color)) return null;
+    normalizedColors[key] = color.toUpperCase();
+  }
+  if (
+    typeof theme.preset !== 'string'
+    || !/^[a-z0-9_-]{1,64}$/i.test(theme.preset)
+    || typeof theme.font !== 'string'
+    || !VALID_FONTS.has(theme.font)
+    || typeof theme.borderRadius !== 'string'
+    || !VALID_RADII.has(theme.borderRadius)
+    || typeof theme.mode !== 'string'
+    || !VALID_MODES.has(theme.mode)
+    || typeof theme.dynamicSidebar !== 'boolean'
+  ) return null;
+  return {
+    preset: theme.preset,
+    colors: normalizedColors,
+    font: theme.font,
+    borderRadius: theme.borderRadius,
+    mode: theme.mode,
+    dynamicSidebar: theme.dynamicSidebar,
+  };
+}
 
 // GET: Obtener configuración de tema
 export async function GET(req: NextRequest) {
@@ -9,6 +55,8 @@ export async function GET(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
+    const rateDenied = await enforceTenantRateLimit('theme-read', tenant.tenantId, 120, 60_000);
+    if (rateDenied) return rateDenied;
 
     const supabase = createSupabaseAdmin();
 
@@ -24,8 +72,8 @@ export async function GET(req: NextRequest) {
       if (error.message?.includes('theme_config') || error.code === '42703') {
         return NextResponse.json({});
       }
-      console.error('Error obteniendo theme:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Theme lookup failed:', error.code || 'database_error');
+      return internalApiError();
     }
 
     if (!config || !config.theme_config) {
@@ -33,16 +81,16 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-      const themeData = typeof config.theme_config === 'string'
+      const themeData: unknown = typeof config.theme_config === 'string'
         ? JSON.parse(config.theme_config)
         : config.theme_config;
-      return NextResponse.json(themeData);
+      return NextResponse.json(normalizeTheme(themeData) || {});
     } catch {
       return NextResponse.json({});
     }
-  } catch (error: any) {
-    console.error('Error en theme GET:', error);
-    return NextResponse.json({ error: error?.message || 'Internal error' }, { status: 500 });
+  } catch {
+    console.error('Theme request failed');
+    return internalApiError();
   }
 }
 
@@ -53,8 +101,13 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
+    const rateDenied = await enforceTenantRateLimit('theme-write', tenant.tenantId, 20, 60_000);
+    if (rateDenied) return rateDenied;
 
-    const body = await req.json();
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = normalizeTheme(parsedBody.body);
+    if (!body) return NextResponse.json({ error: 'Configuracion de tema invalida' }, { status: 400 });
     const supabase = createSupabaseAdmin();
 
     // Serialize theme config as JSON string
@@ -69,8 +122,8 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('Error consultando config:', fetchError.message);
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+      console.error('Theme configuration lookup failed:', fetchError.code || 'database_error');
+      return internalApiError();
     }
 
     if (existing) {
@@ -86,8 +139,8 @@ export async function POST(req: NextRequest) {
           console.warn('⚠️ theme_config column not found in DB, theme saved only in localStorage');
           return NextResponse.json({ success: true, storage: 'localStorage' });
         }
-        console.error('Error actualizando theme:', updateError.message);
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
+        console.error('Theme update failed:', updateError.code || 'database_error');
+        return internalApiError();
       }
     } else {
       const { error: insertError } = await supabase
@@ -103,15 +156,14 @@ export async function POST(req: NextRequest) {
           console.warn('⚠️ theme_config column not found in DB, theme saved only in localStorage');
           return NextResponse.json({ success: true, storage: 'localStorage' });
         }
-        console.error('Error insertando theme:', insertError.message);
-        return NextResponse.json({ error: insertError.message }, { status: 500 });
+        console.error('Theme insert failed:', insertError.code || 'database_error');
+        return internalApiError();
       }
     }
 
-    console.log(`✅ Theme config saved for tenant ${tenant.tenantId} (preset: ${body.preset || 'custom'})`);
     return NextResponse.json({ success: true, storage: 'database' });
-  } catch (error: any) {
-    console.error('Error en theme POST:', error);
-    return NextResponse.json({ error: error?.message || 'Internal error' }, { status: 500 });
+  } catch {
+    console.error('Theme mutation failed');
+    return internalApiError();
   }
 }

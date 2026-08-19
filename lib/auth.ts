@@ -1,5 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createSupabaseAdmin } from '@/lib/supabase';
+
+const JWT_ISSUER = 'rifx-marketing';
+const ACCESS_AUDIENCE = 'rifx-panel';
+const OAUTH_STATE_AUDIENCE = 'rifx-oauth-state';
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -9,32 +15,94 @@ function getJwtSecret(): Uint8Array {
     }
     throw new Error('FATAL: JWT_SECRET environment variable is not set. Add it to .env.local');
   }
+  if (process.env.NODE_ENV === 'production' && Buffer.byteLength(secret, 'utf8') < 32) {
+    throw new Error('FATAL: JWT_SECRET must contain at least 32 bytes in production');
+  }
   return new TextEncoder().encode(secret);
 }
+
+export type OAuthAction = 'meta_ads_connect' | 'whatsapp_connect' | 'social_connect';
 
 export interface TenantPayload {
   tenantId: string;
   email?: string;
   plan?: string;
+  planStatus?: string;
+  planExpiresAt?: string | null;
+  permissionOverrides?: Record<string, string | null>;
+  storageLimitBytes?: number;
+  storageUsedBytes?: number;
+  contactLimit?: number;
   isAdmin?: boolean;
   adminRole?: string;
   adminCanEditPlans?: boolean;
   purpose?: string;
+  sessionVersion?: number;
+  iat?: number;
+  tokenUse?: 'access' | 'oauth_state';
+  oauthAction?: OAuthAction;
 }
 
-// Sign a JWT token for a tenant
+// Sign a short-lived access token for a tenant.
 export async function signToken(payload: TenantPayload): Promise<string> {
-  return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
+  const { purpose: _purpose, tokenUse: _tokenUse, ...safePayload } = payload;
+  return new SignJWT({ ...safePayload, tokenUse: 'access' })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
-    .setExpirationTime('30d') // 30 days
+    .setIssuer(JWT_ISSUER)
+    .setAudience(ACCESS_AUDIENCE)
+    .setJti(randomUUID())
+    .setExpirationTime('8h')
     .sign(getJwtSecret());
 }
 
-// Verify and decode a JWT token
+export async function signOAuthState(
+  payload: { tenantId: string; oauthAction?: OAuthAction },
+): Promise<string> {
+  return new SignJWT({
+    tenantId: payload.tenantId,
+    oauthAction: payload.oauthAction,
+    purpose: 'oauth_state',
+    tokenUse: 'oauth_state',
+  })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setIssuedAt()
+    .setIssuer(JWT_ISSUER)
+    .setAudience(OAUTH_STATE_AUDIENCE)
+    .setJti(randomUUID())
+    .setExpirationTime('5m')
+    .sign(getJwtSecret());
+}
+
+// Verify and decode an access token. OAuth state tokens are deliberately rejected.
 export async function verifyToken(token: string): Promise<TenantPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret());
+    const { payload } = await jwtVerify(token, getJwtSecret(), {
+      algorithms: ['HS256'],
+      issuer: JWT_ISSUER,
+      audience: ACCESS_AUDIENCE,
+      clockTolerance: 5,
+    });
+    if (payload.tokenUse !== 'access' || typeof payload.tenantId !== 'string') return null;
+    return payload as unknown as TenantPayload;
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyOAuthState(token: string): Promise<TenantPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecret(), {
+      algorithms: ['HS256'],
+      issuer: JWT_ISSUER,
+      audience: OAUTH_STATE_AUDIENCE,
+      clockTolerance: 5,
+    });
+    if (
+      payload.tokenUse !== 'oauth_state' ||
+      payload.purpose !== 'oauth_state' ||
+      typeof payload.tenantId !== 'string'
+    ) return null;
     return payload as unknown as TenantPayload;
   } catch {
     return null;
@@ -44,11 +112,58 @@ export async function verifyToken(token: string): Promise<TenantPayload | null> 
 // Extract tenant from request headers (Authorization: Bearer <token>)
 export async function getTenantFromRequest(req: NextRequest): Promise<TenantPayload | null> {
   const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  const token = authHeader.replace('Bearer ', '');
-  return verifyToken(token);
+  const bearerToken = authHeader?.match(/^Bearer\s+([^\s]+)$/i)?.[1];
+  const cookieToken = req.cookies.get('rifx_session')?.value;
+  // Browser sessions use the HttpOnly cookie. Bearer auth remains available
+  // for non-browser callers, but an invalid header must not shadow a valid
+  // protected cookie.
+  const decoded = await verifyToken(cookieToken || '') || await verifyToken(bearerToken || '');
+  if (!decoded?.tenantId) return null;
+
+  // Rehydrate authorization data so deletion, demotion and password rotation
+  // take effect without waiting for the access token to expire.
+  const supabase = createSupabaseAdmin();
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('*')
+    .eq('id', decoded.tenantId)
+    .maybeSingle();
+
+  if (error || !tenant || tenant.deleted_at || tenant.is_active === false) return null;
+  const currentSessionVersion = Number(tenant.session_version || 0);
+  if (Number(decoded.sessionVersion || 0) !== currentSessionVersion) return null;
+
+  return {
+    tenantId: tenant.id,
+    email: tenant.email,
+    plan: tenant.plan,
+    planStatus: tenant.plan_status || undefined,
+    planExpiresAt: tenant.plan_expires_at || null,
+    permissionOverrides: tenant.permission_overrides && typeof tenant.permission_overrides === 'object'
+      ? tenant.permission_overrides
+      : {},
+    storageLimitBytes: Number(tenant.storage_limit_bytes || 0),
+    storageUsedBytes: Number(tenant.storage_used_bytes || 0),
+    contactLimit: Number(tenant.contact_limit || 0),
+    isAdmin: tenant.is_admin === true,
+    adminRole: tenant.admin_role || 'full',
+    adminCanEditPlans: tenant.admin_can_edit_plans !== false,
+    sessionVersion: currentSessionVersion,
+    iat: typeof decoded.iat === 'number' ? decoded.iat : undefined,
+    tokenUse: 'access',
+  };
+}
+
+export function attachSessionCookie(response: NextResponse, token: string): NextResponse {
+  response.cookies.set('rifx_session', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 8 * 60 * 60,
+  });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
 }
 
 // Plan limits

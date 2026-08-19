@@ -42,7 +42,7 @@ const bubbleMenuItems = [
 
 export default function HeroSection() {
   return (
-    <section className="relative w-full h-screen flex flex-col justify-between overflow-x-clip px-6 md:px-10">
+    <section className="relative w-full h-[88svh] md:h-screen flex flex-col justify-between overflow-x-clip px-6 md:px-10">
       
       {/* Mobile-only LiquidEther Background */}
       <div className="absolute inset-0 z-0 pointer-events-none md:hidden">
@@ -64,7 +64,7 @@ export default function HeroSection() {
           autoRampDuration={0.6}
         />
       </div>
-      
+
       {/* Desktop Navbar */}
       <FadeIn delay={0} y={-20} as="nav" className="hidden md:flex w-full justify-between items-center pt-6 md:pt-8 z-30 relative">
         {["Nosotros", "Servicios", "CRM", "Contacto"].map((item) => {

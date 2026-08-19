@@ -2,8 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { rateLimitKey } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
+
+const MAX_REQUEST_BYTES = 32 * 1024;
+
+async function readRequestObject(req: NextRequest): Promise<Record<string, unknown> | null> {
+  const declaredLength = Number(req.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) return null;
+  if (!req.body) return null;
+  const reader = req.body.getReader();
+  const decoder = new TextDecoder();
+  let total = 0;
+  let raw = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_REQUEST_BYTES) return null;
+      raw += decoder.decode(value, { stream: true });
+    }
+    raw += decoder.decode();
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 const MARKETING_SYSTEM_PROMPT = `Eres "RIFX AdGenius" — un director creativo de agencia de publicidad digital de clase mundial con 15+ años de experiencia en Meta Ads, Google Ads, y campañas virales.
 
@@ -70,10 +103,39 @@ export async function POST(req: NextRequest) {
     if (!tenant) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+    if (featureDenied) return featureDenied;
 
-    const { description, title, daily_budget, has_reference_image, has_product_image } = await req.json();
-    if ((!description || description.trim().length === 0) && (!title || title.trim().length === 0)) {
+    const limit = await checkRateLimit(
+      rateLimitKey('campaign-generate', tenant.tenantId),
+      10,
+      60_000,
+    );
+    if (limit.unavailable) {
+      return NextResponse.json({ error: 'Generación temporalmente no disponible' }, { status: 503 });
+    }
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes de generación' },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(Math.max(1, Math.ceil(limit.retryAfterMs / 1_000))) },
+        },
+      );
+    }
+
+    const body = await readRequestObject(req);
+    if (!body) return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
+    const description = typeof body.description === 'string' ? body.description.trim().slice(0, 4_000) : '';
+    const title = typeof body.title === 'string' ? body.title.trim().slice(0, 200) : '';
+    const dailyBudget = Number(body.daily_budget);
+    const hasReferenceImage = body.has_reference_image === true;
+    const hasProductImage = body.has_product_image === true;
+    if (!description && !title) {
       return NextResponse.json({ error: 'Titulo o descripcion requerida' }, { status: 400 });
+    }
+    if (body.daily_budget !== undefined && (!Number.isFinite(dailyBudget) || dailyBudget < 1 || dailyBudget > 1_000_000)) {
+      return NextResponse.json({ error: 'Presupuesto diario inválido' }, { status: 400 });
     }
 
     // Obtener la API Key del tenant o del sistema
@@ -81,17 +143,20 @@ export async function POST(req: NextRequest) {
     
     if (!aiKey) {
       const supabase = createSupabaseAdmin();
-      const { data: config } = await supabase
-        .from('tenant_configs')
+      const { data: config, error: configError } = await supabase
+        .from('config')
         .select('openai_key')
         .eq('tenant_id', tenant.tenantId)
-        .single();
+        .maybeSingle();
+      if (configError) {
+        return NextResponse.json({ error: 'No se pudo cargar la configuración de IA' }, { status: 500 });
+      }
 
       try {
         const parsed = JSON.parse(config?.openai_key || '{}');
-        aiKey = parsed.groq_key || parsed.openai_key || parsed.gemini_key || '';
+        aiKey = typeof parsed.groq_key === 'string' ? parsed.groq_key : '';
       } catch {
-        aiKey = config?.openai_key || '';
+        aiKey = '';
       }
     }
 
@@ -103,16 +168,16 @@ export async function POST(req: NextRequest) {
     const groq = new OpenAI({
       apiKey: aiKey,
       baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 30_000,
+      maxRetries: 1,
     });
-
-    console.log(`🚀 RIFX AdGenius generando campaña profesional para: ${(title || description || '').substring(0, 80)}...`);
 
     const userContext = [
       title ? `TITULO del anuncio: "${title}"` : '',
       description ? `DESCRIPCION del producto/servicio: "${description}"` : '',
-      daily_budget ? `PRESUPUESTO del usuario: $${daily_budget}/dia` : '',
-      has_reference_image ? 'El usuario subió una PANCARTA DE REFERENCIA - genera recomendaciones de diseño basadas en banners profesionales similares.' : '',
-      has_product_image ? 'El usuario subió una FOTO DEL PRODUCTO - incorpora eso en las sugerencias de creative y recomienda composición visual.' : '',
+      Number.isFinite(dailyBudget) ? `PRESUPUESTO del usuario: $${dailyBudget}/dia` : '',
+      hasReferenceImage ? 'El usuario subió una PANCARTA DE REFERENCIA - genera recomendaciones de diseño basadas en banners profesionales similares.' : '',
+      hasProductImage ? 'El usuario subió una FOTO DEL PRODUCTO - incorpora eso en las sugerencias de creative y recomienda composición visual.' : '',
     ].filter(Boolean).join('\n');
 
     const completion = await groq.chat.completions.create({
@@ -141,7 +206,7 @@ Aplica el framework de copywriting más efectivo. Usa el titulo como base para e
     let campaign = null;
     try {
       campaign = JSON.parse(rawResponse);
-    } catch (e) {
+    } catch {
       console.warn("Error parseando JSON directo, intentando extraer bloque JSON");
       const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -167,8 +232,8 @@ Aplica el framework de copywriting más efectivo. Usa el titulo como base para e
 
     return NextResponse.json({ success: true, campaign });
 
-  } catch (error: any) {
-    console.error('❌ Error generando campaña:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno al generar pauta' }, { status: 500 });
+  } catch {
+    console.error('Campaign generation failed');
+    return NextResponse.json({ error: 'No se pudo generar la campaña' }, { status: 502 });
   }
 }

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -79,10 +85,20 @@ export async function POST(req: NextRequest) {
     if (!tenant) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('campaign-creatives', tenant.tenantId, 8, 60_000);
+    if (rateDenied) return rateDenied;
 
-    const { productDescription, context, productImageBase64 } = await req.json();
+    const bodyResult = await readLimitedJsonObject(req, 32 * 1024);
+    if (!bodyResult.ok) return bodyResult.response;
+    const productDescription = typeof bodyResult.body.productDescription === 'string'
+      ? bodyResult.body.productDescription.trim()
+      : '';
+    const context = typeof bodyResult.body.context === 'string' ? bodyResult.body.context.trim() : '';
+    const hasProductImage = bodyResult.body.hasProductImage === true;
     
-    if (!productDescription && !context) {
+    if ((!productDescription && !context) || productDescription.length > 8_000 || context.length > 8_000) {
       return NextResponse.json({ error: 'Describe el producto o proporciona contexto' }, { status: 400 });
     }
 
@@ -90,12 +106,13 @@ export async function POST(req: NextRequest) {
     let aiKey = process.env.GROQ_API_KEY || '';
     if (!aiKey) {
       const supabase = createSupabaseAdmin();
-      const { data: config } = await supabase
+      const { data: config, error: configError } = await supabase
         .from('config')
         .select('openai_key')
         .eq('tenant_id', tenant.tenantId)
         .limit(1)
         .single();
+      if (configError) return internalApiError();
       try {
         const parsed = JSON.parse(config?.openai_key || '{}');
         aiKey = parsed.groq_key || parsed.openai_key || '';
@@ -111,14 +128,14 @@ export async function POST(req: NextRequest) {
     const groq = new OpenAI({
       apiKey: aiKey,
       baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 30_000,
+      maxRetries: 1,
     });
-
-    console.log(`🎨 Generando 6 creativos publicitarios para: ${(productDescription || context || '').substring(0, 80)}...`);
 
     const userMessage = [
       productDescription ? `PRODUCTO: ${productDescription}` : '',
       context ? `CONTEXTO ADICIONAL: ${context}` : '',
-      productImageBase64 ? 'El usuario subió una imagen del producto. Úsala como referencia para los escenarios y composiciones.' : '',
+      hasProductImage ? 'El usuario subió una imagen del producto. Úsala como referencia conceptual.' : '',
       'Genera los 6 creativos publicitarios con enfoques estratégicos diferenciados. Cada uno debe ser único y profesional.',
     ].filter(Boolean).join('\n\n');
 
@@ -152,12 +169,11 @@ export async function POST(req: NextRequest) {
       throw new Error('La IA no generó los creativos correctamente');
     }
 
-    console.log(`✅ ${result.creatives.length} creativos generados exitosamente`);
-
+    result.creatives = result.creatives.slice(0, 6);
     return NextResponse.json({ success: true, data: result });
 
-  } catch (error: any) {
-    console.error('❌ Error generando creativos:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+  } catch {
+    console.error('Campaign creative generation failed');
+    return internalApiError();
   }
 }

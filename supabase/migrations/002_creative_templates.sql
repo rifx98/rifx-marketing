@@ -7,7 +7,7 @@
 -- 1. Tabla de plantillas
 CREATE TABLE IF NOT EXISTS templates (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id TEXT, -- NULL para plantillas públicas globales creadas por el admin
+  tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE, -- NULL para plantillas públicas globales creadas por el admin
   name TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'general',
   preview_image_url TEXT,
@@ -29,6 +29,4 @@ CREATE INDEX IF NOT EXISTS idx_templates_created ON templates(created_at DESC);
 -- ============================================
 ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
 
--- Permitir acceso total al service_role (backend)
-CREATE POLICY "Service role full access on templates" ON templates TO service_role
-  FOR ALL USING (true) WITH CHECK (true);
+-- Sin políticas abiertas; 012 aplica FORCE RLS y los grants explícitos.

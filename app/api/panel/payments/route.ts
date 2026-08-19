@@ -14,20 +14,28 @@ export async function GET(req: NextRequest) {
     // Try to fetch from payments table
     const { data, error } = await supabase
       .from('payments')
-      .select('*')
+      .select('id, amount, currency, status, provider, plan, created_at')
       .eq('tenant_id', tenant.tenantId)
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) {
-      // Table may not exist yet
-      console.log('⚠️ payments table error:', error.message);
-      return NextResponse.json({ payments: [] });
+      console.error('Payment history lookup failed:', error.code || 'database_error');
+      return NextResponse.json(
+        { error: 'No se pudo consultar el historial de pagos' },
+        { status: 500, headers: { 'Cache-Control': 'no-store' } },
+      );
     }
 
-    return NextResponse.json({ payments: data || [] });
-  } catch (err: any) {
-    console.error('❌ Error fetching payments:', err);
-    return NextResponse.json({ payments: [] });
+    return NextResponse.json(
+      { payments: data || [] },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch {
+    console.error('Payment history request failed');
+    return NextResponse.json(
+      { error: 'No se pudo consultar el historial de pagos' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 }

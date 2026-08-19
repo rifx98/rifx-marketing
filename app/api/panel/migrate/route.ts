@@ -2,149 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 
-// POST /api/panel/migrate - Ejecutar migraciones de base de datos
+// Runtime DDL and generic exec_sql are intentionally disabled. Schema changes
+// must pass review, backup/restore checks and the versioned migration pipeline.
 export async function POST(req: NextRequest) {
-  try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant || !tenant.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const supabase = createSupabaseAdmin();
-
-    // Crear tabla ad_campaigns
-    const { error: err1 } = await supabase.rpc('exec_sql', {
-      query: `
-        CREATE TABLE IF NOT EXISTS ad_campaigns (
-          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-          tenant_id TEXT NOT NULL,
-          title TEXT,
-          description TEXT,
-          hook TEXT,
-          caption TEXT,
-          hashtags TEXT,
-          daily_budget DECIMAL(10,2) DEFAULT 5.00,
-          total_spent DECIMAL(10,2) DEFAULT 0.00,
-          target_audience JSONB DEFAULT '{}',
-          copy_framework TEXT,
-          hook_variants JSONB DEFAULT '[]',
-          campaign_config JSONB DEFAULT '{}',
-          status TEXT DEFAULT 'draft',
-          facebook_campaign_id TEXT,
-          facebook_adset_id TEXT,
-          facebook_ad_id TEXT,
-          published_at TIMESTAMPTZ,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
-        );
-      `
-    });
-
-    // Crear tabla templates para las Plantillas Dinámicas
-    const { error: errTemplates } = await supabase.rpc('exec_sql', {
-      query: `
-        CREATE TABLE IF NOT EXISTS templates (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          tenant_id TEXT,
-          name TEXT NOT NULL,
-          category TEXT NOT NULL DEFAULT 'general',
-          preview_image_url TEXT,
-          config_json JSONB NOT NULL,
-          is_active BOOLEAN DEFAULT true,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
-        );
-
-        -- Habilitar RLS
-        ALTER TABLE templates ENABLE ROW LEVEL SECURITY;
-
-        -- Crear política de acceso para service_role si no existe
-        DO $$
-        BEGIN
-          IF NOT EXISTS (
-            SELECT 1 FROM pg_policies 
-            WHERE tablename = 'templates' AND policyname = 'Service role full access on templates'
-          ) THEN
-            CREATE POLICY "Service role full access on templates" ON templates
-              FOR ALL USING (true) WITH CHECK (true);
-          END IF;
-        END
-        $$;
-      `
-    });
-
-    // Verificar si las tablas ya existen intentando hacer un select
-    const { error: checkErr } = await supabase.from('ad_campaigns').select('id').limit(1);
-    
-    if (checkErr && checkErr.code === '42P01') {
-      // La tabla no existe - el usuario necesita ejecutar el SQL manualmente
-      return NextResponse.json({
-        success: false,
-        message: 'Las tablas no existen aún. Por favor ejecuta el SQL de migración en Supabase Dashboard.',
-        instructions: [
-          '1. Ve a https://supabase.com/dashboard',
-          '2. Selecciona tu proyecto',
-          '3. Ve a SQL Editor',
-          '4. Copia y pega el contenido del archivo: supabase/migrations/001_ad_campaigns.sql',
-          '5. Haz clic en "Run"',
-          '6. Vuelve a intentar'
-        ],
-        sqlFile: 'supabase/migrations/001_ad_campaigns.sql'
-      });
-    }
-
-    // Las tablas existen, verificar las otras
-    const { error: checkErr2 } = await supabase.from('ad_creatives').select('id').limit(1);
-    const { error: checkErr3 } = await supabase.from('ad_analytics').select('id').limit(1);
-    const { error: checkErrTemplates } = await supabase.from('templates').select('id').limit(1);
-
-    const tablesStatus = {
-      ad_campaigns: !checkErr ? '✅ Lista' : '❌ Falta',
-      ad_creatives: !checkErr2 ? '✅ Lista' : '❌ Falta',
-      ad_analytics: !checkErr3 ? '✅ Lista' : '❌ Falta',
-      templates: !checkErrTemplates ? '✅ Lista' : '❌ Falta',
-    };
-
-    const allReady = !checkErr && !checkErr2 && !checkErr3 && !checkErrTemplates;
-
-    return NextResponse.json({
-      success: allReady,
-      message: allReady ? 'Todas las tablas están listas' : 'Algunas tablas faltan',
-      tables: tablesStatus,
-    });
-
-  } catch (error: any) {
-    console.error('Migration error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
+  const tenant = await getTenantFromRequest(req);
+  if (!tenant?.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  return NextResponse.json({
+    error: 'Las migraciones en runtime están deshabilitadas. Usa las migraciones versionadas y el runbook SECURITY_OPERATIONS.md.',
+  }, { status: 410 });
 }
 
-// GET /api/panel/migrate - Verificar estado de las tablas
+// Read-only readiness check retained for administrators. Provider/SQL errors
+// are deliberately not returned to the browser.
 export async function GET(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant || !tenant.isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (!tenant?.isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const supabase = createSupabaseAdmin();
-
     const tables = ['ad_campaigns', 'ad_creatives', 'ad_analytics', 'templates'];
-    const status: Record<string, string> = {};
-
-    for (const table of tables) {
+    const entries = await Promise.all(tables.map(async table => {
       const { error } = await supabase.from(table).select('id').limit(1);
-      status[table] = !error ? '✅ Lista' : `❌ ${error.code === '42P01' ? 'No existe' : error.message}`;
-    }
-
-    const allReady = Object.values(status).every(s => s.includes('✅'));
-
-    return NextResponse.json({
-      success: allReady,
-      message: allReady ? 'Base de datos lista para pautas publicitarias' : 'Tablas pendientes de crear',
-      tables: status,
-    });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      return [table, !error] as const;
+    }));
+    const status = Object.fromEntries(entries);
+    const response = NextResponse.json({ ready: Object.values(status).every(Boolean), tables: status });
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
+  } catch {
+    return NextResponse.json({ error: 'No se pudo verificar el esquema' }, { status: 500 });
   }
 }

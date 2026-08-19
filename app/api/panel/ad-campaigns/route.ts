@@ -1,149 +1,278 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
 
-// GET /api/panel/ad-campaigns - Obtener campañas del tenant
-export async function GET(req: NextRequest) {
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const READ_STATUSES = new Set(['draft', 'published', 'paused', 'completed', 'archived']);
+const MUTABLE_STATUSES = new Set(['draft', 'paused', 'completed', 'archived']);
+const PROVIDER_ID_PATTERN = /^\d{1,64}$/;
+const CAMPAIGN_SELECT = 'id,title,description,hook,caption,hashtags,daily_budget,total_spent,target_audience,copy_framework,hook_variants,campaign_config,status,facebook_campaign_id,facebook_adset_id,facebook_ad_id,published_at,created_at,updated_at';
+
+async function authorize(req: NextRequest, namespace: string, attempts: number) {
+  const tenant = await getTenantFromRequest(req);
+  if (!tenant?.tenantId) {
+    return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) } as const;
+  }
+  const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+  if (featureDenied) return { response: featureDenied } as const;
+  const rateDenied = await enforceTenantRateLimit(namespace, tenant.tenantId, attempts, 60_000);
+  if (rateDenied) return { response: rateDenied } as const;
+  return { tenant } as const;
+}
+
+function optionalText(value: unknown, maxLength: number): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > maxLength) return normalized ? undefined : null;
+  return normalized;
+}
+
+function providerId(value: unknown): string | null | undefined {
+  const normalized = optionalText(value, 64);
+  if (normalized === undefined || normalized === null) return normalized;
+  return PROVIDER_ID_PATTERN.test(normalized) ? normalized : undefined;
+}
+
+function httpsUrl(value: unknown): string | null | undefined {
+  const normalized = optionalText(value, 2_048);
+  if (normalized === undefined || normalized === null) return normalized;
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const supabase = createSupabaseAdmin();
-    const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '20');
-
-    let query = supabase
-      .from('ad_campaigns')
-      .select(`
-        *,
-        ad_creatives (id, banner_url, product_image_url, reference_image_url, ai_score),
-        ad_analytics (impressions, clicks, spend, conversions, ctr, date)
-      `)
-      .eq('tenant_id', tenant.tenantId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (status) {
-      query = query.eq('status', status);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching campaigns:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, campaigns: data || [] });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const url = new URL(normalized);
+    if (url.protocol !== 'https:' || url.username || url.password || !url.hostname) return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
   }
 }
 
-// POST /api/panel/ad-campaigns - Crear nueva campaña
-export async function POST(req: NextRequest) {
+function plainObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function hookVariants(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const variants: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || !item.trim() || item.trim().length > 500) return null;
+    variants.push(item.trim());
+  }
+  return variants;
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authorization = await authorize(req, 'ad-campaigns-read', 90);
+    if ('response' in authorization) return authorization.response;
+    const status = req.nextUrl.searchParams.get('status');
+    if (status && !READ_STATUSES.has(status)) {
+      return NextResponse.json({ error: 'Estado invalido' }, { status: 400 });
+    }
+    const limit = Number(req.nextUrl.searchParams.get('limit') || 20);
+    const offset = Number(req.nextUrl.searchParams.get('offset') || 0);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100
+        || !Number.isSafeInteger(offset) || offset < 0 || offset > 10_000) {
+      return NextResponse.json({ error: 'Paginacion invalida' }, { status: 400 });
     }
 
-    const body = await req.json();
-    const supabase = createSupabaseAdmin();
+    let query = createSupabaseAdmin()
+      .from('ad_campaigns')
+      .select(`${CAMPAIGN_SELECT},ad_creatives(id,banner_url,product_image_url,reference_image_url,ai_score),ad_analytics(impressions,clicks,spend,conversions,ctr,date)`)
+      .eq('tenant_id', authorization.tenant.tenantId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) {
+      console.error('Ad campaign lookup failed:', error.code || 'database_error');
+      return internalApiError();
+    }
+    return NextResponse.json(
+      { success: true, campaigns: data || [] },
+      { headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  } catch {
+    console.error('Ad campaign request failed');
+    return internalApiError();
+  }
+}
 
-    // Insertar campaña
+export async function POST(req: NextRequest) {
+  try {
+    const authorization = await authorize(req, 'ad-campaigns-write', 20);
+    if ('response' in authorization) return authorization.response;
+    const parsed = await readLimitedJsonObject(req, 64 * 1024);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body;
+
+    const title = optionalText(body.title, 200);
+    const description = optionalText(body.description, 4_000);
+    const hook = optionalText(body.hook, 1_000);
+    const caption = optionalText(body.caption, 4_000);
+    const hashtags = optionalText(body.hashtags, 1_000);
+    const copyFramework = optionalText(body.copy_framework, 100);
+    const targetAudience = body.target_audience === undefined ? {} : plainObject(body.target_audience);
+    const campaignConfig = body.campaign_config === undefined ? {} : plainObject(body.campaign_config);
+    const variants = hookVariants(body.hook_variants);
+    const dailyBudget = body.daily_budget === undefined ? 5 : body.daily_budget;
+    if (
+      [title, description, hook, caption, hashtags, copyFramework].some((value) => value === undefined)
+      || targetAudience === null
+      || campaignConfig === null
+      || variants === null
+      || typeof dailyBudget !== 'number'
+      || !Number.isFinite(dailyBudget)
+      || dailyBudget < 0
+      || dailyBudget > 99_999_999.99
+      || (body.status !== undefined && body.status !== 'draft')
+    ) {
+      return NextResponse.json({ error: 'Datos de campana invalidos' }, { status: 400 });
+    }
+
+    const facebookCampaignId = providerId(body.facebook_campaign_id);
+    const facebookAdsetId = providerId(body.facebook_adset_id);
+    const facebookAdId = providerId(body.facebook_ad_id);
+    if ([facebookCampaignId, facebookAdsetId, facebookAdId].some((value) => value === undefined)) {
+      return NextResponse.json({ error: 'ID de proveedor invalido' }, { status: 400 });
+    }
+
+    const bannerUrl = httpsUrl(body.banner_url);
+    const productImageUrl = httpsUrl(body.product_image_url);
+    const referenceImageUrl = httpsUrl(body.reference_image_url);
+    const aiPrompt = optionalText(body.ai_prompt, 10_000);
+    const aiFeedback = optionalText(body.ai_feedback, 4_000);
+    const aiScore = body.ai_score === undefined || body.ai_score === null ? null : body.ai_score;
+    if (
+      [bannerUrl, productImageUrl, referenceImageUrl, aiPrompt, aiFeedback].some((value) => value === undefined)
+      || (aiScore !== null && (typeof aiScore !== 'number' || !Number.isFinite(aiScore) || aiScore < 0 || aiScore > 10))
+    ) {
+      return NextResponse.json({ error: 'Datos creativos invalidos' }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdmin();
     const { data: campaign, error: campaignError } = await supabase
       .from('ad_campaigns')
       .insert({
-        tenant_id: tenant.tenantId,
-        title: body.title || null,
-        description: body.description || null,
-        hook: body.hook || null,
-        caption: body.caption || null,
-        hashtags: body.hashtags || null,
-        daily_budget: body.daily_budget || 5.00,
-        target_audience: body.target_audience || {},
-        copy_framework: body.copy_framework || null,
-        hook_variants: body.hook_variants || [],
-        campaign_config: body.campaign_config || {},
-        status: body.status || 'draft',
-        facebook_campaign_id: body.facebook_campaign_id || null,
-        facebook_adset_id: body.facebook_adset_id || null,
-        facebook_ad_id: body.facebook_ad_id || null,
-        published_at: body.status === 'published' ? new Date().toISOString() : null,
+        tenant_id: authorization.tenant.tenantId,
+        title,
+        description,
+        hook,
+        caption,
+        hashtags,
+        daily_budget: Math.round(dailyBudget * 100) / 100,
+        target_audience: targetAudience,
+        copy_framework: copyFramework,
+        hook_variants: variants,
+        campaign_config: campaignConfig,
+        status: 'draft',
+        facebook_campaign_id: facebookCampaignId,
+        facebook_adset_id: facebookAdsetId,
+        facebook_ad_id: facebookAdId,
       })
-      .select()
+      .select(CAMPAIGN_SELECT)
       .single();
-
-    if (campaignError) {
-      console.error('Error creating campaign:', campaignError);
-      return NextResponse.json({ error: campaignError.message }, { status: 500 });
+    if (campaignError || !campaign) {
+      console.error('Ad campaign creation failed:', campaignError?.code || 'invalid_result');
+      return internalApiError();
     }
 
-    // Insertar creative si hay banner
-    if (body.banner_url || body.product_image_url || body.reference_image_url) {
-      await supabase.from('ad_creatives').insert({
+    if (bannerUrl || productImageUrl || referenceImageUrl) {
+      const { error: creativeError } = await supabase.from('ad_creatives').insert({
         campaign_id: campaign.id,
-        tenant_id: tenant.tenantId,
-        banner_url: body.banner_url || null,
-        product_image_url: body.product_image_url || null,
-        reference_image_url: body.reference_image_url || null,
-        ai_prompt: body.ai_prompt || null,
-        ai_score: body.ai_score || null,
-        ai_feedback: body.ai_feedback || null,
+        tenant_id: authorization.tenant.tenantId,
+        banner_url: bannerUrl,
+        product_image_url: productImageUrl,
+        reference_image_url: referenceImageUrl,
+        ai_prompt: aiPrompt,
+        ai_score: aiScore,
+        ai_feedback: aiFeedback,
       });
+      if (creativeError) {
+        const { error: rollbackError } = await supabase
+          .from('ad_campaigns')
+          .delete()
+          .eq('id', campaign.id)
+          .eq('tenant_id', authorization.tenant.tenantId);
+        console.error('Ad creative creation failed:', creativeError.code || 'database_error');
+        if (rollbackError) console.error('Ad campaign compensation failed:', rollbackError.code || 'database_error');
+        return internalApiError();
+      }
     }
-
-    return NextResponse.json({ success: true, campaign });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, campaign }, { status: 201 });
+  } catch {
+    console.error('Ad campaign creation failed');
+    return internalApiError();
   }
 }
 
-// PATCH /api/panel/ad-campaigns - Actualizar campaña
 export async function PATCH(req: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authorization = await authorize(req, 'ad-campaigns-write', 30);
+    if ('response' in authorization) return authorization.response;
+    const parsed = await readLimitedJsonObject(req, 32 * 1024);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body;
+    if (typeof body.id !== 'string' || !UUID_PATTERN.test(body.id)) {
+      return NextResponse.json({ error: 'ID de campana invalido' }, { status: 400 });
     }
 
-    const body = await req.json();
-    if (!body.id) {
-      return NextResponse.json({ error: 'Campaign ID required' }, { status: 400 });
+    const updateData: Record<string, unknown> = {};
+    for (const [field, maxLength] of [['title', 200], ['description', 4_000]] as const) {
+      if (body[field] !== undefined) {
+        const value = optionalText(body[field], maxLength);
+        if (value === undefined) return NextResponse.json({ error: 'Texto invalido' }, { status: 400 });
+        updateData[field] = value;
+      }
     }
-
-    const supabase = createSupabaseAdmin();
-
-    const updateData: any = {};
-    if (body.title !== undefined) updateData.title = body.title;
-    if (body.description !== undefined) updateData.description = body.description;
     if (body.status !== undefined) {
+      if (typeof body.status !== 'string' || !MUTABLE_STATUSES.has(body.status)) {
+        return NextResponse.json({ error: 'Estado invalido' }, { status: 400 });
+      }
       updateData.status = body.status;
-      if (body.status === 'published') updateData.published_at = new Date().toISOString();
     }
-    if (body.daily_budget !== undefined) updateData.daily_budget = body.daily_budget;
-    if (body.facebook_campaign_id !== undefined) updateData.facebook_campaign_id = body.facebook_campaign_id;
-    if (body.facebook_adset_id !== undefined) updateData.facebook_adset_id = body.facebook_adset_id;
-    if (body.facebook_ad_id !== undefined) updateData.facebook_ad_id = body.facebook_ad_id;
+    if (body.daily_budget !== undefined) {
+      if (typeof body.daily_budget !== 'number' || !Number.isFinite(body.daily_budget)
+          || body.daily_budget < 0 || body.daily_budget > 99_999_999.99) {
+        return NextResponse.json({ error: 'Presupuesto invalido' }, { status: 400 });
+      }
+      updateData.daily_budget = Math.round(body.daily_budget * 100) / 100;
+    }
+    for (const field of ['facebook_campaign_id', 'facebook_adset_id', 'facebook_ad_id'] as const) {
+      if (body[field] !== undefined) {
+        const value = providerId(body[field]);
+        if (value === undefined) return NextResponse.json({ error: 'ID de proveedor invalido' }, { status: 400 });
+        updateData[field] = value;
+      }
+    }
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 });
+    }
 
-    const { data, error } = await supabase
+    const { data, error } = await createSupabaseAdmin()
       .from('ad_campaigns')
       .update(updateData)
       .eq('id', body.id)
-      .eq('tenant_id', tenant.tenantId)
-      .select()
-      .single();
-
+      .eq('tenant_id', authorization.tenant.tenantId)
+      .select(CAMPAIGN_SELECT)
+      .maybeSingle();
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Ad campaign update failed:', error.code || 'database_error');
+      return internalApiError();
     }
-
+    if (!data) return NextResponse.json({ error: 'Campana no encontrada' }, { status: 404 });
     return NextResponse.json({ success: true, campaign: data });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    console.error('Ad campaign update failed');
+    return internalApiError();
   }
 }

@@ -9,7 +9,7 @@
 -- 1. Nuevos campos en conversations (pipeline de ventas interno)
 ALTER TABLE conversations 
   ADD COLUMN IF NOT EXISTS intent TEXT DEFAULT 'general_chat',
-  ADD COLUMN IF NOT EXISTS sales_stage TEXT DEFAULT 'new_lead',
+  ADD COLUMN IF NOT EXISTS sales_stage TEXT,
   ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0,
   ADD COLUMN IF NOT EXISTS last_objection TEXT,
   ADD COLUMN IF NOT EXISTS next_action TEXT,
@@ -29,7 +29,7 @@ BEGIN
     ALTER TABLE conversations ADD CONSTRAINT conversations_sales_stage_check
       CHECK (sales_stage IN (
         'new_lead', 'discovery', 'qualified', 'proposal',
-        'objection', 'closing', 'won', 'lost'
+        'objection', 'closing', 'appointment_booked', 'won', 'lost'
       ));
   END IF;
 END $$;
@@ -43,3 +43,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_intent ON conversations(intent);
 UPDATE conversations SET sales_stage = 'new_lead'  WHERE sales_stage IS NULL AND status = 'chatting';
 UPDATE conversations SET sales_stage = 'qualified' WHERE sales_stage IS NULL AND status = 'interested';
 UPDATE conversations SET sales_stage = 'won'       WHERE sales_stage IS NULL AND status = 'bought';
+
+ALTER TABLE conversations
+  ALTER COLUMN sales_stage SET DEFAULT 'new_lead',
+  ALTER COLUMN sales_stage SET NOT NULL;

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import { enforceTenantRateLimit, internalApiError } from '@/lib/request-guards';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,16 +11,21 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'analytics');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('predictions', tenant.tenantId, 6, 60_000);
+    if (rateDenied) return rateDenied;
 
     const supabase = createSupabaseAdmin();
 
     // 1. Get all conversations with their recent messages for the authenticated tenant
-    const { data: conversations } = await supabase
+    const { data: conversations, error: conversationsError } = await supabase
       .from('conversations')
       .select('id, customer_name, phone_number, status, created_at, updated_at')
       .eq('tenant_id', tenant.tenantId)
       .order('updated_at', { ascending: false })
       .limit(30);
+    if (conversationsError) return internalApiError();
 
     if (!conversations || conversations.length === 0) {
       return NextResponse.json({ predictions: [] });
@@ -34,18 +41,29 @@ export async function POST(req: NextRequest) {
       messageCount: number;
       lastMessages: string;
     }
+    const conversationIds = conversations.map(conversation => conversation.id);
+    const { data: messages, error: messagesError } = await supabase
+      .from('messages')
+      .select('conversation_id, role, content, created_at')
+      .in('conversation_id', conversationIds)
+      .not('content', 'in', '("__SYSTEM_PAUSE__","__SYSTEM_RESUME__","__HUMAN_ASK__","__HUMAN_REQUEST__")')
+      .order('created_at', { ascending: false })
+      .limit(150);
+    if (messagesError) return internalApiError();
+
+    const messagesByConversation = new Map<string, any[]>();
+    for (const message of messages || []) {
+      const current = messagesByConversation.get(message.conversation_id) || [];
+      if (current.length < 5) current.push(message);
+      messagesByConversation.set(message.conversation_id, current);
+    }
+
     const conversationSummaries: ConversationSummary[] = [];
     for (const conv of conversations) {
-      const { data: messages } = await supabase
-        .from('messages')
-        .select('role, content, created_at')
-        .eq('conversation_id', conv.id)
-        .not('content', 'in', '("__SYSTEM_PAUSE__","__SYSTEM_RESUME__","__HUMAN_ASK__","__HUMAN_REQUEST__")')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      const lastMessages = (messages || []).reverse();
-      const msgSummary = lastMessages.map(m => `${m.role}: ${m.content.substring(0, 100)}`).join('\n');
+      const lastMessages = (messagesByConversation.get(conv.id) || []).reverse();
+      const msgSummary = lastMessages
+        .map(m => `${String(m.role).slice(0, 20)}: ${String(m.content).slice(0, 100)}`)
+        .join('\n');
       
       const now = new Date();
       const lastActivity = conv.updated_at ? new Date(conv.updated_at) : new Date(conv.created_at);
@@ -63,12 +81,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Get AI config for the authenticated tenant
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .single();
+    if (configError) return internalApiError();
     let groqKey = '';
     try { const p = JSON.parse(config?.openai_key || '{}'); groqKey = p.groq_key || p.openai_key || ''; } catch { groqKey = config?.openai_key || ''; }
     if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';
@@ -108,9 +127,13 @@ export async function POST(req: NextRequest) {
     const groq = new OpenAI({
       apiKey: groqKey,
       baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 20_000,
+      maxRetries: 1,
     });
 
-    const contactList = conversationSummaries.map((c, i) => 
+    // Phone numbers are needed by the authenticated UI, not by the AI provider.
+    const providerSummaries = conversationSummaries.map(c => ({ ...c, phone: '[redacted]' }));
+    const contactList = providerSummaries.map((c, i) => 
       `[${i + 1}] "${c.name}" (${c.phone}) | Status: ${c.status} | Última actividad: hace ${c.hoursSinceActivity}h | Msgs: ${c.messageCount}\nÚltimos mensajes:\n${c.lastMessages || '(sin mensajes)'}`
     ).join('\n\n');
 
@@ -172,9 +195,8 @@ El "index" corresponde al número del contacto en la lista. El "score" es de 0 a
 
     return NextResponse.json({ predictions, source: 'ai' });
 
-  } catch (error) {
-    console.error('Predictions Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal error';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } catch {
+    console.error('Predictions request failed');
+    return internalApiError();
   }
 }

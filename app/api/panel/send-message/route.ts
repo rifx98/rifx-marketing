@@ -1,13 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+  readLimitedResponseJson,
+} from '@/lib/request-guards';
+
+const MAX_MULTIPART_BYTES = 17 * 1024 * 1024;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PHONE_PATTERN = /^[1-9][0-9]{6,14}$/;
+
+function hasAllowedFileSignature(extension: string, buffer: Buffer): boolean {
+  if (buffer.length === 0) return false;
+  if (['txt', 'csv'].includes(extension)) {
+    if (buffer.includes(0)) return false;
+    try {
+      new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  if (['jpg', 'jpeg'].includes(extension)) {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (extension === 'png') return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (extension === 'webp') return buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (extension === 'gif') return ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('ascii'));
+  if (extension === 'pdf') return buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+  if (['doc', 'xls'].includes(extension)) return buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+  if (['docx', 'xlsx'].includes(extension)) return buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  if (extension === 'mp3') {
+    return buffer.subarray(0, 3).toString('ascii') === 'ID3' || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0);
+  }
+  if (extension === 'mp4') return buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp';
+  return false;
+}
 
 // Helper: Send a WhatsApp template message when the 24h window is closed
 async function sendTemplateMessage(
   phoneId: string, 
   token: string, 
-  to: string, 
-  textBody: string
+  to: string,
 ): Promise<{ ok: boolean; data: any }> {
   // Try with hello_world template first (available by default in all WhatsApp Business accounts)
   // Then fallback to a custom template approach
@@ -28,9 +65,12 @@ async function sendTemplateMessage(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(templatePayload),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(15_000),
   });
 
-  const data = await res.json();
+  const data = await readLimitedResponseJson(res, 256 * 1024);
   return { ok: res.ok, data };
 }
 
@@ -65,6 +105,10 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'crm');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('send-message', tenant.tenantId, 40, 60_000);
+    if (rateDenied) return rateDenied;
 
     const supabase = createSupabaseAdmin();
     
@@ -72,13 +116,22 @@ export async function POST(req: NextRequest) {
     let conversationId: string | null = null;
     let message: string | null = null;
     let file: File | null = null;
+    let fileBuffer: Buffer | null = null;
     let isBulkSend = false;
+    let directPhone: string | null = null;
 
     if (contentType.includes('multipart/form-data')) {
+      const declaredLength = Number(req.headers.get('content-length'));
+      if (!Number.isFinite(declaredLength) || declaredLength <= 0 || declaredLength > MAX_MULTIPART_BYTES) {
+        return NextResponse.json({ error: 'Carga multipart inválida o demasiado grande' }, { status: 413 });
+      }
       const formData = await req.formData();
-      conversationId = formData.get('conversationId') as string;
-      message = formData.get('message') as string;
-      file = formData.get('file') as File | null;
+      const conversationValue = formData.get('conversationId');
+      const messageValue = formData.get('message');
+      const fileValue = formData.get('file');
+      conversationId = typeof conversationValue === 'string' ? conversationValue.trim() : null;
+      message = typeof messageValue === 'string' ? messageValue.trim() : null;
+      file = fileValue instanceof File ? fileValue : null;
 
       if (file) {
         // Enforce max size: 16MB
@@ -86,45 +139,65 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'El archivo excede el tamaño máximo de 16MB.' }, { status: 400 });
         }
 
-        // Validate extension
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'mp3', 'mp4', 'pdf', 'csv', 'txt', 'doc', 'docx', 'xls', 'xlsx'];
-        if (!allowedExtensions.includes(ext)) {
-          return NextResponse.json({ error: 'Extensión de archivo no permitida.' }, { status: 400 });
+        const allowedMimeByExtension: Record<string, readonly string[]> = {
+          jpg: ['image/jpeg', 'image/jpg'],
+          jpeg: ['image/jpeg', 'image/jpg'],
+          png: ['image/png'],
+          webp: ['image/webp'],
+          gif: ['image/gif'],
+          mp3: ['audio/mpeg', 'audio/mp3'],
+          mp4: ['audio/mp4', 'video/mp4'],
+          pdf: ['application/pdf'],
+          csv: ['text/csv'],
+          txt: ['text/plain'],
+          doc: ['application/msword'],
+          docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+          xls: ['application/vnd.ms-excel'],
+          xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        };
+        if (!file.type || !allowedMimeByExtension[ext]?.includes(file.type)) {
+          return NextResponse.json({ error: 'Extensión o tipo de archivo no permitido.' }, { status: 400 });
         }
-
-        // Validate MIME type
-        const allowedMimes = [
-          'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/jpg',
-          'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/aac', 'audio/mp4', 'audio/amr',
-          'video/mp4', 'video/3gpp', 'video/webm', 'video/quicktime',
-          'application/pdf', 'text/plain', 'text/csv',
-          'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/octet-stream'
-        ];
-        if (file.type && !allowedMimes.includes(file.type)) {
-          return NextResponse.json({ error: 'Tipo de archivo (MIME) no permitido.' }, { status: 400 });
+        fileBuffer = Buffer.from(await file.arrayBuffer());
+        if (!hasAllowedFileSignature(ext, fileBuffer)) {
+          return NextResponse.json({ error: 'El contenido del archivo no coincide con su tipo.' }, { status: 400 });
         }
       }
     } else {
-      const json = await req.json();
-      conversationId = json.conversationId;
-      message = json.message;
-      isBulkSend = !!json.bulk;
+      const bodyResult = await readLimitedJsonObject(req, 32 * 1024);
+      if (!bodyResult.ok) return bodyResult.response;
+      const json = bodyResult.body;
+      conversationId = typeof json.conversationId === 'string' ? json.conversationId.trim() : null;
+      message = typeof json.message === 'string' ? json.message.trim() : null;
+      isBulkSend = json.bulk === true;
+      directPhone = typeof json.phone === 'string' ? json.phone.trim().replace(/^\+/, '') : null;
+      if (!message || message.length > 4_096) {
+        return NextResponse.json({ error: 'Mensaje inválido o demasiado largo' }, { status: 400 });
+      }
       // Support direct phone sending for bulk messages
-      if (!conversationId && json.phone) {
-        const { data: conv } = await supabase
+      if (!conversationId && directPhone) {
+        if (!PHONE_PATTERN.test(directPhone)) {
+          return NextResponse.json({ error: 'Número de teléfono inválido' }, { status: 400 });
+        }
+        const { data: conv, error: convLookupError } = await supabase
           .from('conversations')
           .select('id')
-          .eq('phone_number', json.phone)
+          .eq('phone_number', directPhone)
           .eq('tenant_id', tenant.tenantId)
-          .single();
+          .maybeSingle();
+        if (convLookupError) return internalApiError();
         if (conv) {
           conversationId = conv.id;
         } else {
           // Send directly via WhatsApp API without a conversation record
-          const { data: config } = await supabase.from('config').select('*').eq('tenant_id', tenant.tenantId).limit(1).single();
+          const { data: config, error: configError } = await supabase
+            .from('config')
+            .select('openai_key, whatsapp_token, whatsapp_phone_id')
+            .eq('tenant_id', tenant.tenantId)
+            .limit(1)
+            .single();
+          if (configError) return internalApiError();
           
           // Decode bulk WA credentials from JSON-encoded openai_key column
           let bulkToken = '';
@@ -136,16 +209,12 @@ export async function POST(req: NextRequest) {
           } catch {}
           
           // Use bulk credentials if available, otherwise fall back to main
-          const token = bulkToken || config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-          const phoneId = bulkPhoneId || config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-          const usingBulkNumber = !!(bulkToken && bulkPhoneId);
-          
+          const token = bulkToken || config?.whatsapp_token;
+          const phoneId = bulkPhoneId || config?.whatsapp_phone_id;
           if (!token || !phoneId) {
             return NextResponse.json({ error: 'Faltan credenciales de WhatsApp' }, { status: 500 });
           }
           
-          console.log(`📡 Enviando masivo a ${json.phone} ${usingBulkNumber ? '[NÚMERO MASIVO]' : '[NÚMERO PRINCIPAL]'}`);
-
           // First try regular text message
           const waResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
             method: 'POST',
@@ -155,40 +224,45 @@ export async function POST(req: NextRequest) {
             },
             body: JSON.stringify({
               messaging_product: 'whatsapp',
-              to: json.phone,
+              to: directPhone,
               type: 'text',
               text: { body: message },
             }),
+            cache: 'no-store',
+            redirect: 'error',
+            signal: AbortSignal.timeout(15_000),
           });
-          const waResult = await waResponse.json();
+          const waResult = await readLimitedResponseJson(waResponse, 256 * 1024);
 
           if (!waResponse.ok) {
             // Check if it's a 24h window error - try template fallback
             if (is24hWindowError(waResult)) {
-              console.log(`⏳ Ventana 24h cerrada para ${json.phone}, intentando con template...`);
-              const templateResult = await sendTemplateMessage(phoneId, token, json.phone, message || '');
+              const templateResult = await sendTemplateMessage(phoneId, token, directPhone);
               if (templateResult.ok) {
-                console.log(`📤 Template enviado a ${json.phone} (ventana 24h cerrada)`);
                 return NextResponse.json({ 
                   success: true, 
                   method: 'template',
                   note: 'Mensaje enviado como template porque la ventana de 24h estaba cerrada'
                 });
               } else {
-                console.error('❌ Error enviando template:', JSON.stringify(templateResult.data));
                 return NextResponse.json({ 
-                  error: 'La ventana de 24h está cerrada y no se pudo enviar template. El contacto debe escribir primero.',
-                  details: templateResult.data 
-                }, { status: 500 });
+                  error: 'La ventana de 24h está cerrada y el contacto debe escribir primero.'
+                }, { status: 502 });
               }
             }
-            console.error('❌ Error envío directo:', JSON.stringify(waResult));
-            return NextResponse.json({ error: 'Error de WhatsApp API', details: waResult }, { status: 500 });
+            console.error('Direct WhatsApp send failed');
+            return NextResponse.json({ error: 'No se pudo enviar el mensaje' }, { status: 502 });
           }
-          console.log(`📤 Mensaje masivo enviado a ${json.phone}`);
           return NextResponse.json({ success: true, method: 'text' });
         }
       }
+    }
+
+    if (conversationId && !UUID_PATTERN.test(conversationId)) {
+      return NextResponse.json({ error: 'conversationId inválido' }, { status: 400 });
+    }
+    if (message && message.length > (file ? 1_024 : 4_096)) {
+      return NextResponse.json({ error: 'El mensaje excede el tamaño permitido' }, { status: 400 });
     }
 
     if (!conversationId) {
@@ -196,19 +270,26 @@ export async function POST(req: NextRequest) {
     }
 
     // Obtener la conversación (VULN fix: solo del tenant autenticado, evita IDOR entre tenants)
-    const { data: conversation } = await supabase
+    const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
-      .select('*')
+      .select('id, phone_number')
       .eq('id', conversationId)
       .eq('tenant_id', tenant.tenantId)
-      .single();
+      .maybeSingle();
 
+    if (conversationError) return internalApiError();
     if (!conversation) {
       return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 });
     }
 
     // Obtener config para credenciales de WhatsApp
-    const { data: config } = await supabase.from('config').select('*').eq('tenant_id', tenant.tenantId).limit(1).single();
+    const { data: config, error: configError } = await supabase
+      .from('config')
+      .select('openai_key, whatsapp_token, whatsapp_phone_id')
+      .eq('tenant_id', tenant.tenantId)
+      .limit(1)
+      .single();
+    if (configError) return internalApiError();
     
     // For bulk sends, prefer bulk WA credentials
     let bulkToken = '';
@@ -220,15 +301,15 @@ export async function POST(req: NextRequest) {
         bulkPhoneId = parsed.bulk_wa_phone_id || '';
       } catch {}
     }
-    const token = (isBulkSend && bulkToken) ? bulkToken : (config?.whatsapp_token || process.env.WHATSAPP_TOKEN);
-    const phoneId = (isBulkSend && bulkPhoneId) ? bulkPhoneId : (config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID);
+    const token = (isBulkSend && bulkToken) ? bulkToken : config?.whatsapp_token;
+    const phoneId = (isBulkSend && bulkPhoneId) ? bulkPhoneId : config?.whatsapp_phone_id;
 
     if (!token || !phoneId) {
       return NextResponse.json({ error: 'Faltan credenciales de WhatsApp' }, { status: 500 });
     }
 
     let mediaId = null;
-    let publicUrl = '';
+    let panelMediaUrl = '';
 
     // Subir archivo a WhatsApp y a Supabase Storage si existe
     if (file) {
@@ -242,36 +323,44 @@ export async function POST(req: NextRequest) {
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        body: mediaFormData
+        body: mediaFormData,
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(30_000),
       });
 
-      const uploadData = await uploadRes.json();
+      const uploadData = await readLimitedResponseJson(uploadRes, 256 * 1024) as Record<string, unknown>;
       if (!uploadRes.ok) {
-        console.error('❌ Error subiendo media a WhatsApp:', JSON.stringify(uploadData));
-        return NextResponse.json({ error: 'Error subiendo media', details: uploadData }, { status: 500 });
+        console.error('WhatsApp media upload failed');
+        return NextResponse.json({ error: 'No se pudo subir el archivo' }, { status: 502 });
       }
-      mediaId = uploadData.id;
+      mediaId = typeof uploadData.id === 'string' ? uploadData.id : null;
+      if (!mediaId) return NextResponse.json({ error: 'Respuesta inválida del proveedor' }, { status: 502 });
 
       // Subir a Supabase Storage para visualizar en el panel
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '')}`;
+      const buffer = fileBuffer || Buffer.from(await file.arrayBuffer());
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '').slice(-120) || 'attachment';
+      const fileName = `${tenant.tenantId}/${Date.now()}_${safeName}`;
+      const storageContentType = file.type || 'application/octet-stream';
       
       const { error: uploadError } = await supabase.storage.from('chat_media').upload(fileName, buffer, {
-        contentType: file.type,
+        contentType: storageContentType,
+        upsert: false,
       });
 
-      if (uploadError && uploadError.message.includes('Bucket not found')) {
-        await supabase.storage.createBucket('chat_media', { public: false });
-        await supabase.storage.from('chat_media').upload(fileName, buffer, { contentType: file.type });
+      if (uploadError) {
+        console.error('Chat media storage upload failed:', uploadError.name || 'storage_error');
+        return NextResponse.json(
+          { error: 'El almacenamiento de archivos no está disponible' },
+          { status: 503, headers: { 'Cache-Control': 'no-store' } },
+        );
       }
       
-      const { data: signedData } = await supabase.storage.from('chat_media').createSignedUrl(fileName, 86400); // 24 hours
-      publicUrl = signedData?.signedUrl || '';
+      panelMediaUrl = `/api/panel/media/${fileName.split('/').map(encodeURIComponent).join('/')}`;
     }
 
     // Preparar payload del mensaje
-    let messagePayload: any = {
+    const messagePayload: any = {
       messaging_product: 'whatsapp',
       to: conversation.phone_number,
     };
@@ -297,68 +386,79 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(messagePayload),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
     });
 
-    const waResult = await waResponse.json();
+    const waResult = await readLimitedResponseJson(waResponse, 256 * 1024);
 
     if (!waResponse.ok) {
       // Check if it's a 24h window error - try template fallback
       if (is24hWindowError(waResult)) {
-        console.log(`⏳ Ventana 24h cerrada para ${conversation.phone_number}, intentando con template...`);
-        const templateResult = await sendTemplateMessage(phoneId, token, conversation.phone_number, message || '');
+        const templateResult = await sendTemplateMessage(phoneId, token, conversation.phone_number);
         if (templateResult.ok) {
           // Save template note in history
-          await supabase.from('messages').insert({
-            conversation_id: conversationId,
-            role: 'assistant',
-            content: `[Template enviado - ventana 24h cerrada]\n${message || ''}`,
-          });
-          await supabase
-            .from('conversations')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', conversationId);
-
-          console.log(`📤 Template enviado a ${conversation.customer_name} (ventana 24h cerrada)`);
+          const [{ error: historyError }, { error: updateError }] = await Promise.all([
+            supabase.from('messages').insert({
+              conversation_id: conversationId,
+              role: 'assistant',
+              content: `[Template enviado - ventana 24h cerrada]\n${message || ''}`,
+            }),
+            supabase
+              .from('conversations')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', conversationId)
+              .eq('tenant_id', tenant.tenantId),
+          ]);
+          if (historyError || updateError) {
+            console.error('WhatsApp template sent but local history update failed');
+            return NextResponse.json({ success: true, method: 'template', historySaved: false }, { status: 202 });
+          }
           return NextResponse.json({ 
             success: true, 
             method: 'template',
             note: 'Mensaje enviado como template porque la ventana de 24h estaba cerrada' 
           });
         } else {
-          console.error('❌ Error enviando template:', JSON.stringify(templateResult.data));
           return NextResponse.json({ 
-            error: 'La ventana de 24h está cerrada. El contacto debe enviar un mensaje primero para poder responderle.',
-            details: templateResult.data 
-          }, { status: 500 });
+            error: 'La ventana de 24h está cerrada. El contacto debe enviar un mensaje primero para poder responderle.'
+          }, { status: 502 });
         }
       }
 
-      console.error('❌ Error enviando desde panel:', JSON.stringify(waResult));
-      return NextResponse.json({ error: 'Error de WhatsApp API', details: waResult }, { status: 500 });
+      console.error('Panel WhatsApp send failed');
+      return NextResponse.json({ error: 'No se pudo enviar el mensaje' }, { status: 502 });
     }
 
     // Guardar en historial
+    const attachmentMarkup = file?.type.startsWith('image/')
+      ? `![Imagen adjunta](${panelMediaUrl})`
+      : `[Archivo adjunto](${panelMediaUrl})`;
     const historyContent = mediaId 
-      ? `![Imagen adjunta](${publicUrl})\n${message || ''}`.trim()
+      ? `${attachmentMarkup}\n${message || ''}`.trim()
       : message;
 
-    await supabase.from('messages').insert({
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: historyContent,
-    });
-
-    // Actualizar timestamp
-    await supabase
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', conversationId);
-
-    console.log(`👤 Mensaje manual enviado a ${conversation.customer_name}`);
+    const [{ error: historyError }, { error: updateError }] = await Promise.all([
+      supabase.from('messages').insert({
+        conversation_id: conversationId,
+        role: 'assistant',
+        content: historyContent,
+      }),
+      supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('tenant_id', tenant.tenantId),
+    ]);
+    if (historyError || updateError) {
+      console.error('WhatsApp message sent but local history update failed');
+      return NextResponse.json({ success: true, method: 'text', historySaved: false }, { status: 202 });
+    }
 
     return NextResponse.json({ success: true, method: 'text' });
-  } catch (error) {
-    console.error('❌ Error en send-message:', error);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  } catch {
+    console.error('Send-message request failed');
+    return internalApiError();
   }
 }

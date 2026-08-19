@@ -5,8 +5,8 @@
 
 CREATE TABLE IF NOT EXISTS appointments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
-  conversation_id UUID REFERENCES conversations(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
   event_id TEXT NOT NULL,            -- Google Calendar event ID
   customer_name TEXT,
   phone_number TEXT NOT NULL,
@@ -15,22 +15,16 @@ CREATE TABLE IF NOT EXISTS appointments (
   reminder_sent BOOLEAN DEFAULT false,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'rescheduled')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT appointments_tenant_conversation_fkey
+    FOREIGN KEY (tenant_id, conversation_id)
+    REFERENCES public.conversations(tenant_id, id)
 );
 
 ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments FORCE ROW LEVEL SECURITY;
 
--- Create policy of service_role access if not exists
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'appointments' AND policyname = 'Service role full access on appointments'
-  ) THEN
-    CREATE POLICY "Service role full access on appointments" ON appointments FOR ALL TO service_role USING (true) WITH CHECK (true);
-  END IF;
-END
-$$;
+-- Sin políticas USING (true); 012 aplica los privilegios de service_role.
 
 CREATE INDEX IF NOT EXISTS idx_appointments_tenant ON appointments(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_conversation ON appointments(conversation_id);

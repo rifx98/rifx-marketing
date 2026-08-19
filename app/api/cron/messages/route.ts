@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { validateCronAuth, cronUnauthorizedResponse, cronSuccessResponse, cronErrorResponse } from '../auth';
-import { acquireLock, releaseLock, startRunLog, updateRunLog } from '@/services/cron/lock';
+import { acquireLock, releaseLock, startRunLog, updateRunLog, type CronLockHandle } from '@/services/cron/lock';
 import { runSocialPublications } from '@/services/cron/social-publication';
 
 export const dynamic = 'force-dynamic';
@@ -18,11 +18,12 @@ export async function POST(req: NextRequest) {
 
   const cronName = 'messages';
   let runId = '';
+  let lock: CronLockHandle | null = null;
 
   try {
     // 2. Adquirir lock distribuido (5 minutos de expiración)
-    const hasLock = await acquireLock(cronName, 5);
-    if (!hasLock) {
+    lock = await acquireLock(cronName, 5);
+    if (!lock) {
       console.log('[Messages Cron] Omitiendo ejecución por bloqueo activo.');
       return cronSuccessResponse({
         processed: 0,
@@ -60,7 +61,8 @@ export async function POST(req: NextRequest) {
     });
 
     // 6. Liberar el lock
-    await releaseLock(cronName);
+    await releaseLock(lock);
+    lock = null;
 
     // 7. Devolver respuesta estandarizada
     return cronSuccessResponse({
@@ -87,7 +89,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await releaseLock(cronName);
+    if (lock) {
+      await releaseLock(lock);
+      lock = null;
+    }
 
     return cronErrorResponse(err.message || 'Error en el controlador de publicaciones', executionTimeStr);
   }

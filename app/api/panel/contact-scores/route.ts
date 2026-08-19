@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,19 +17,31 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'analytics');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('contact-scores', tenant.tenantId, 8, 60_000);
+    if (rateDenied) return rateDenied;
 
-    const { contactIds } = await req.json();
-    if (!contactIds || !Array.isArray(contactIds) || contactIds.length === 0) {
-      return NextResponse.json({ error: 'contactIds required' }, { status: 400 });
+    const bodyResult = await readLimitedJsonObject(req, 8 * 1024);
+    if (!bodyResult.ok) return bodyResult.response;
+    const rawContactIds = bodyResult.body.contactIds;
+    if (!Array.isArray(rawContactIds) || rawContactIds.length === 0 || rawContactIds.length > 15) {
+      return NextResponse.json({ error: 'contactIds inválidos' }, { status: 400 });
+    }
+    const contactIds = [...new Set(rawContactIds)]
+      .filter((value): value is string => typeof value === 'string' && UUID_PATTERN.test(value));
+    if (contactIds.length !== rawContactIds.length) {
+      return NextResponse.json({ error: 'contactIds inválidos' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .single();
+    if (configError) return internalApiError();
     // Decode AI keys from JSON-encoded openai_key column
     let groqKey = '';
     try {
@@ -32,26 +52,36 @@ export async function POST(req: NextRequest) {
     }
     if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';
 
-    // Get last messages for each contact
-    const contactSummaries: any[] = [];
-    for (const id of contactIds.slice(0, 15)) {
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('id, customer_name, phone_number, status, updated_at, created_at')
-        .eq('id', id)
-        .eq('tenant_id', tenant.tenantId)
-        .single();
-      if (!conv) continue;
+    // Batch both tables to avoid the previous 2N query pattern.
+    const { data: conversations, error: conversationsError } = await supabase
+      .from('conversations')
+      .select('id, customer_name, status, updated_at')
+      .eq('tenant_id', tenant.tenantId)
+      .in('id', contactIds);
+    if (conversationsError) return internalApiError();
 
-      const { data: msgs } = await supabase
+    const ownedIds = (conversations || []).map(conversation => conversation.id);
+    const { data: messages, error: messagesError } = ownedIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
         .from('messages')
-        .select('role, content, created_at')
-        .eq('conversation_id', id)
+        .select('conversation_id, role, content, created_at')
+        .in('conversation_id', ownedIds)
         .not('content', 'in', '("__SYSTEM_PAUSE__","__SYSTEM_RESUME__","__HUMAN_ASK__","__HUMAN_REQUEST__")')
         .order('created_at', { ascending: false })
-        .limit(6);
+        .limit(90);
+    if (messagesError) return internalApiError();
 
-      const lastMsgs = (msgs || []).reverse();
+    const messagesByConversation = new Map<string, any[]>();
+    for (const message of messages || []) {
+      const current = messagesByConversation.get(message.conversation_id) || [];
+      if (current.length < 6) current.push(message);
+      messagesByConversation.set(message.conversation_id, current);
+    }
+
+    const contactSummaries: any[] = [];
+    for (const conv of conversations || []) {
+      const lastMsgs = (messagesByConversation.get(conv.id) || []).reverse();
       const msgPreview = lastMsgs.map(m => `${m.role}: ${(m.content || '').substring(0, 80)}`).join('\n');
 
       contactSummaries.push({
@@ -89,6 +119,8 @@ export async function POST(req: NextRequest) {
     const groq = new OpenAI({
       apiKey: groqKey,
       baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 20_000,
+      maxRetries: 1,
     });
 
     const contactList = contactSummaries.map((c, i) =>
@@ -124,7 +156,7 @@ Responde SOLO con JSON así:
     let parsed: any[] = [];
     const match = content.match(/\[[\s\S]*\]/);
     if (match) {
-      try { parsed = JSON.parse(match[0]); } catch (e) { console.error('Parse error:', e); }
+      try { parsed = JSON.parse(match[0]); } catch { parsed = []; }
     }
 
     const scores: Record<string, { score: number; reason: string }> = {};
@@ -146,8 +178,8 @@ Responde SOLO con JSON así:
     }
 
     return NextResponse.json({ scores, source: 'ai' });
-  } catch (error: any) {
-    console.error('Contact scores error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    console.error('Contact scores request failed');
+    return internalApiError();
   }
 }

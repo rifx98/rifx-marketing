@@ -19,8 +19,28 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ;
 
--- 3. Eliminar la columna simplificada anterior (si existe)
-ALTER TABLE appointments DROP COLUMN IF EXISTS reminder_sent;
+-- 3. Conservar y trasladar el indicador legado. El campo anterior no permite
+-- saber qué ventana disparó el aviso; asumir 24h evita reenviar el mismo aviso
+-- y mantener la columna preserva evidencia para una reconciliación posterior.
+DO $preserve_legacy_reminder$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'appointments'
+      AND column_name = 'reminder_sent'
+  ) THEN
+    UPDATE public.appointments
+    SET reminder_24h_sent = true
+    WHERE reminder_sent IS TRUE
+      AND reminder_24h_sent IS DISTINCT FROM true;
+
+    COMMENT ON COLUMN public.appointments.reminder_sent IS
+      'Legacy reminder marker retained for audit; new workers use the 24h/2h/30m fields.';
+  END IF;
+END
+$preserve_legacy_reminder$;
 
 -- 4. Agregar restricción de clave única compuesta para evitar colisiones entre tenants
 ALTER TABLE appointments DROP CONSTRAINT IF EXISTS appointments_tenant_event_unique;

@@ -7,7 +7,7 @@
 -- 1. Campañas publicitarias
 CREATE TABLE IF NOT EXISTS ad_campaigns (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  tenant_id TEXT NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   title TEXT,
   description TEXT,
   hook TEXT,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS ad_campaigns (
 CREATE TABLE IF NOT EXISTS ad_creatives (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   campaign_id UUID REFERENCES ad_campaigns(id) ON DELETE CASCADE,
-  tenant_id TEXT NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   banner_url TEXT,
   reference_image_url TEXT,
   product_image_url TEXT,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS ad_creatives (
 CREATE TABLE IF NOT EXISTS ad_analytics (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   campaign_id UUID REFERENCES ad_campaigns(id) ON DELETE CASCADE,
-  tenant_id TEXT NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   date DATE DEFAULT CURRENT_DATE,
   impressions INT DEFAULT 0,
   reach INT DEFAULT 0,
@@ -85,15 +85,8 @@ ALTER TABLE ad_campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ad_creatives ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ad_analytics ENABLE ROW LEVEL SECURITY;
 
--- Permitir acceso total al service_role (backend)
-CREATE POLICY "Service role full access on ad_campaigns" ON ad_campaigns TO service_role
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Service role full access on ad_creatives" ON ad_creatives TO service_role
-  FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Service role full access on ad_analytics" ON ad_analytics TO service_role
-  FOR ALL USING (true) WITH CHECK (true);
+-- No se crean políticas USING (true). La migración 012 revoca los roles
+-- directos y concede privilegios de tabla solamente a service_role.
 
 -- ============================================
 -- FUNCIÓN para actualizar updated_at automáticamente

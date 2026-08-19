@@ -1,17 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { requireAdminPermission } from '@/lib/admin-rbac';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
+import { decodeImageDataUri, fetchRemoteImage } from '@/lib/safe-fetch';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
+const MAX_REMOTE_URL_LENGTH = 2_048;
+const MAX_MODEL_OUTPUT_LENGTH = 32 * 1024;
 
 const ZONE_DETECTOR_SYSTEM_PROMPT = `You are a LAYOUT ZONE DETECTOR for visual compositions.
 You analyze images to detect the POSITION and SIZE of distinct visual regions.
 
-🚫 YOU MUST NOT:
+YOU MUST NOT:
 - Read or return any text content visible in the image
 - Identify what product is shown
 - Infer the product category or marketing intent
 - Describe what the image is advertising
 
-✅ YOU MUST ONLY:
+YOU MUST ONLY:
 - Detect the POSITION and SIZE of each distinct visual region
 - Identify which region contains the main product/object
 - Identify which regions contain text blocks
@@ -46,33 +61,76 @@ Return this JSON:
 Coordinate system: (0,0) = top-left, (1,1) = bottom-right.
 x,y = CENTER of zone. width,height = size as fraction of canvas.`;
 
+function jsonError(error: string, status: number): NextResponse {
+  return NextResponse.json(
+    { error },
+    { status, headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
+async function normalizeVisionImage(imageUrl: string): Promise<string> {
+  if (imageUrl.startsWith('data:')) {
+    const image = decodeImageDataUri(imageUrl, MAX_IMAGE_BYTES);
+    return `data:${image.contentType};base64,${image.buffer.toString('base64')}`;
+  }
+
+  if (imageUrl.length > MAX_REMOTE_URL_LENGTH) throw new Error('invalid_remote_url');
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    throw new Error('invalid_remote_url');
+  }
+  if (parsedUrl.protocol !== 'https:') throw new Error('invalid_remote_url');
+
+  // Fetch and validate the bytes ourselves. The model never receives a
+  // user-controlled remote URL, preventing it from becoming an SSRF proxy.
+  const image = await fetchRemoteImage(parsedUrl.toString(), {
+    maxBytes: MAX_IMAGE_BYTES,
+    timeoutMs: 10_000,
+    maxRedirects: 2,
+  });
+  return `data:${image.contentType};base64,${image.buffer.toString('base64')}`;
+}
+
 // POST /api/admin/templates/detect-zones
 export async function POST(req: NextRequest) {
   try {
-    // Auth check — admin only
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.isAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    const authorization = await requireAdminPermission(req, 'templates.detect');
+    if (!authorization.ok) return authorization.response;
+
+    const rateDenied = await enforceTenantRateLimit(
+      'admin-template-detect-zones',
+      authorization.admin.tenantId,
+      6,
+      60_000,
+    );
+    if (rateDenied) return rateDenied;
+
+    const bodyResult = await readLimitedJsonObject(req, MAX_REQUEST_BYTES);
+    if (!bodyResult.ok) return bodyResult.response;
+    const imageUrl = bodyResult.body.image_url;
+    if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
+      return jsonError('El campo "image_url" es obligatorio y debe ser un string.', 400);
     }
 
-    // Validate API key
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OPENAI_API_KEY no configurado' }, { status: 500 });
+    let normalizedImage: string;
+    try {
+      normalizedImage = await normalizeVisionImage(imageUrl.trim());
+    } catch {
+      return jsonError('La imagen no es válida o no está permitida', 400);
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    // Parse body
-    const body = await req.json();
-    const { image_url } = body;
-
-    if (!image_url || typeof image_url !== 'string') {
-      return NextResponse.json({ error: 'El campo "image_url" es obligatorio y debe ser un string.' }, { status: 400 });
+    const apiKey = (process.env.OPENAI_API_KEY || '').trim();
+    if (apiKey.length < 10 || apiKey.length > 2_048) {
+      return jsonError('Servicio de análisis no configurado', 503);
     }
 
-    console.log(`🔍 [detect-zones] Analizando imagen para detección de zonas: ${image_url.substring(0, 80)}...`);
-
-    // Call GPT-4o Vision
+    const openai = new OpenAI({
+      apiKey,
+      timeout: 30_000,
+      maxRetries: 1,
+    });
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       response_format: { type: 'json_object' },
@@ -90,32 +148,35 @@ export async function POST(req: NextRequest) {
             },
             {
               type: 'image_url',
-              image_url: { url: image_url },
+              image_url: { url: normalizedImage, detail: 'low' },
             },
           ],
         },
       ],
       temperature: 0.1,
+      max_tokens: 1_600,
     });
 
-    const resultText = response.choices[0]?.message?.content || '{}';
-    let parsedResult: any;
+    const resultText = response.choices[0]?.message?.content || '';
+    if (!resultText || resultText.length > MAX_MODEL_OUTPUT_LENGTH) return internalApiError();
 
+    let parsedResult: Record<string, unknown>;
     try {
-      parsedResult = JSON.parse(resultText);
-    } catch (parseErr) {
-      console.error('❌ [detect-zones] Falló el parsing del JSON de GPT-4o:', resultText);
-      return NextResponse.json({ error: 'La respuesta del modelo no es un JSON válido.', raw: resultText }, { status: 500 });
+      const candidate: unknown = JSON.parse(resultText);
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        return internalApiError();
+      }
+      parsedResult = candidate as Record<string, unknown>;
+    } catch {
+      return internalApiError();
     }
 
-    console.log(`✅ [detect-zones] Zonas detectadas: ${parsedResult.detected_zones_count || 'N/A'} | Confianza: ${parsedResult.confidence || 'N/A'}`);
-
-    return NextResponse.json({
-      success: true,
-      ...parsedResult,
-    });
-  } catch (error: any) {
-    console.error('❌ [detect-zones] Error interno:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno en detección de zonas' }, { status: 500 });
+    return NextResponse.json(
+      { ...parsedResult, success: true },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch {
+    console.error('Template zone detection request failed');
+    return internalApiError();
   }
 }

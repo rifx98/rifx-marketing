@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 
 interface Publication {
   id: string;
-  status: 'pending' | 'processing' | 'published' | 'failed';
+  status: 'pending' | 'processing' | 'retry' | 'published' | 'failed' | 'dead';
   last_error?: string;
+  requires_reconciliation?: boolean;
   social_account_id: string;
-  platform: 'facebook' | 'instagram';
+  platform: 'facebook' | 'instagram' | 'youtube' | 'tiktok';
   platform_username: string;
 }
 
@@ -15,7 +16,7 @@ interface SocialLog {
   log_level: 'info' | 'warning' | 'error';
   message: string;
   created_at: string;
-  platform?: 'facebook' | 'instagram';
+  platform?: 'facebook' | 'instagram' | 'youtube' | 'tiktok';
 }
 
 interface PublicationTrackerProps {
@@ -37,11 +38,9 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
       try {
         if (showLoading) setLoading(true);
 
-        const token = localStorage.getItem('token');
         const res = await fetch(`/api/panel/social/tracker?postId=${postId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'same-origin',
+          cache: 'no-store',
         });
         const data = await res.json();
 
@@ -74,7 +73,9 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
       // Secure polling every 6 seconds if publications are pending/processing or on start
       pollInterval = setInterval(() => {
         setPublications((currentPubs) => {
-          const hasActive = currentPubs.length === 0 || currentPubs.some(p => p.status === 'pending' || p.status === 'processing');
+          const hasActive = currentPubs.length === 0 || currentPubs.some(
+            p => p.status === 'pending' || p.status === 'processing' || p.status === 'retry',
+          );
           if (hasActive) {
             fetchData(false);
           }
@@ -95,7 +96,9 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
 
     // Verificar si todas las publicaciones han finalizado
     if (publications.length > 0) {
-      const allFinished = publications.every(p => p.status === 'published' || p.status === 'failed');
+      const allFinished = publications.every(
+        p => p.status === 'published' || p.status === 'failed' || p.status === 'dead',
+      );
       if (allFinished) {
         onFinished();
       }
@@ -106,6 +109,8 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
     switch (status) {
       case 'published': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
       case 'failed': return 'text-red-400 bg-red-500/10 border-red-500/20';
+      case 'dead': return 'text-red-400 bg-red-500/10 border-red-500/20';
+      case 'retry': return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
       case 'processing': return 'text-amber-400 bg-amber-500/10 border-amber-500/20 animate-pulse';
       default: return 'text-[#727785] bg-[#1b1c24] border-[#2d3139]';
     }
@@ -115,6 +120,8 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
     switch (status) {
       case 'published': return 'Publicado';
       case 'failed': return 'Fallido';
+      case 'dead': return 'Requiere revisión';
+      case 'retry': return 'Reintentando';
       case 'processing': return 'Procesando';
       default: return 'Pendiente';
     }

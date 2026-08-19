@@ -1,6 +1,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { retryWithBackoff } from '@/app/api/cron/auth';
 import OpenAI from 'openai';
+import { getEligibleTenantIds } from './tenant-eligibility';
 
 export interface LeadFollowUpResult {
   found: number;
@@ -39,17 +40,19 @@ export async function runLeadFollowUps(options: {
   };
 
   try {
+    const eligibleTenantIds = await getEligibleTenantIds(supabase, options.tenantId);
+    if (eligibleTenantIds.length === 0) return result;
+
     // 1. Encontrar conversaciones inactivas (sin cambios en las últimas 24 horas)
     const rangeStart = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-    let query = supabase
+    const query = supabase
       .from('conversations')
       .select('*')
-      .lt('updated_at', rangeStart);
-
-    if (options.tenantId) {
-      query = query.eq('tenant_id', options.tenantId);
-    }
+      .in('tenant_id', eligibleTenantIds)
+      .lt('updated_at', rangeStart)
+      .order('updated_at', { ascending: true })
+      .limit(Math.max(batchSize * 10, 50));
 
     const { data: convs, error } = await query;
 
@@ -131,7 +134,7 @@ export async function runLeadFollowUps(options: {
         if (configErr) throw configErr;
 
         // Desencriptar / Parsear llaves de IA (JSON-encoded en openai_key)
-        let extConfig = { openai_key: '', gemini_key: '', groq_key: '', model_selection: 'gpt-4o-mini' };
+        const extConfig = { openai_key: '', gemini_key: '', groq_key: '', model_selection: 'gpt-4o-mini' };
         if (config?.openai_key) {
           try {
             const p = JSON.parse(config.openai_key);
@@ -258,11 +261,8 @@ NO inventes información. Mantén el mensaje sumamente breve (máximo 2 párrafo
         }, maxRetries);
 
         // Obtener credenciales de WhatsApp
-        let waToken = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-        let phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-        if (waToken && waToken.length < 20) waToken = process.env.WHATSAPP_TOKEN;
-        if (phoneId && phoneId.length < 5) phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+        const waToken = config?.whatsapp_token;
+        const phoneId = config?.whatsapp_phone_id;
 
         if (!waToken || !phoneId) {
           throw new Error(`Credenciales de WhatsApp incompletas para el tenant: ${conv.tenant_id}`);

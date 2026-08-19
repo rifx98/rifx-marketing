@@ -1,93 +1,144 @@
+import { randomUUID } from 'crypto';
 import { createSupabaseAdmin } from '@/lib/supabase';
 
-/**
- * Adquiere un lock distribuido para evitar ejecuciones concurrentes de un mismo cron.
- * Utiliza bloqueo optimista y expiración temporal de seguridad.
- */
-export async function acquireLock(name: string, expireMinutes = 5): Promise<boolean> {
-  const supabase = createSupabaseAdmin();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + expireMinutes * 60 * 1000);
+export interface CronLockHandle {
+  name: string;
+  ownerToken: string;
+}
 
-  try {
-    // 1. Intentar insertar un nuevo lock
-    const { error: insertError } = await supabase
-      .from('cron_locks')
-      .insert({
-        name,
-        locked_at: now.toISOString(),
-        expires_at: expiresAt.toISOString()
-      });
-
-    if (!insertError) {
-      console.log(`[Lock] Lock adquirido exitosamente para: ${name}`);
-      return true;
-    }
-
-    // Si la tabla no existe, continuar sin lock (graceful degradation)
-    if (insertError.code === 'PGRST205' || (insertError.message && (insertError.message.includes('does not exist') || insertError.message.includes('relation')))) {
-      console.warn(`[Lock] Tabla cron_locks no encontrada. Ejecutando sin lock. Ejecuta supabase-cron-schema.sql en Supabase.`);
-      return true;
-    }
-
-    // 2. Si falla (ya existe el lock), verificar si ha expirado
-    const { data: currentLock, error: selectError } = await supabase
-      .from('cron_locks')
-      .select('*')
-      .eq('name', name)
-      .maybeSingle();
-
-    if (selectError || !currentLock) {
-      return false;
-    }
-
-    const lockExpires = new Date(currentLock.expires_at).getTime();
-    if (lockExpires < now.getTime()) {
-      console.warn(`[Lock] Lock de ${name} expirado detectado. Intentando reclamarlo...`);
-      
-      // Reclamación segura con cláusula condicional (optimistic locking)
-      const { data: updatedLock, error: updateError } = await supabase
-        .from('cron_locks')
-        .update({
-          locked_at: now.toISOString(),
-          expires_at: expiresAt.toISOString()
-        })
-        .eq('name', name)
-        .lt('expires_at', now.toISOString()) // Concurrency safe
-        .select();
-
-      if (!updateError && updatedLock && updatedLock.length > 0) {
-        console.log(`[Lock] Lock expirado reclamado con éxito para: ${name}`);
-        return true;
-      }
-    }
-
-    console.warn(`[Lock] No se pudo adquirir el lock de ${name}. Ejecución simultánea omitida.`);
-    return false;
-  } catch (err) {
-    console.error(`[Lock] Error crítico en acquireLock para ${name}:`, err);
-    return false;
+function validateLockInput(name: string, expireMinutes: number): void {
+  if (!/^[a-z0-9:_-]{1,100}$/i.test(name)) {
+    throw new Error('Invalid distributed lock name');
+  }
+  if (!Number.isFinite(expireMinutes) || expireMinutes <= 0 || expireMinutes > 60) {
+    throw new Error('Invalid distributed lock expiration');
   }
 }
 
 /**
- * Libera el lock distribuido para que el cron pueda volver a ejecutarse en la siguiente llamada.
+ * Acquire a distributed lock and return the ownership token needed to release
+ * it. A database/schema/permission error throws and therefore fails closed.
+ * A null result only means another worker currently owns a valid lock.
  */
-export async function releaseLock(name: string): Promise<void> {
+export async function acquireLock(
+  name: string,
+  expireMinutes = 5,
+): Promise<CronLockHandle | null> {
+  validateLockInput(name, expireMinutes);
+
   const supabase = createSupabaseAdmin();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + expireMinutes * 60 * 1000);
+  const ownerToken = randomUUID();
+  const acquiredBy = process.env.VERCEL_REGION || 'cron-worker';
+
   try {
-    const { error } = await supabase
+    const { data: insertedLock, error: insertError } = await supabase
+      .from('cron_locks')
+      .insert({
+        name,
+        locked_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        owner_token: ownerToken,
+        acquired_by: acquiredBy,
+      })
+      .select('name, owner_token')
+      .single();
+
+    if (!insertError && insertedLock?.owner_token === ownerToken) {
+      console.log(`[Lock] Acquired: ${name}`);
+      return { name, ownerToken };
+    }
+
+    // Only a primary-key collision means another worker owns the lock. Missing
+    // migrations, permissions, network failures, and malformed results stop the
+    // cron instead of silently running without mutual exclusion.
+    if (insertError?.code !== '23505') {
+      console.error(`[Lock] Insert failed for ${name}:`, insertError?.code || 'invalid_insert_result');
+      throw new Error('Distributed lock unavailable');
+    }
+
+    const { data: currentLock, error: selectError } = await supabase
+      .from('cron_locks')
+      .select('name, expires_at')
+      .eq('name', name)
+      .maybeSingle();
+
+    if (selectError) {
+      console.error(`[Lock] Read failed for ${name}:`, selectError.code || 'database_error');
+      throw new Error('Distributed lock unavailable');
+    }
+    if (!currentLock) {
+      // The row disappeared between INSERT and SELECT. Do not execute unless
+      // this worker can prove ownership; a later invocation can acquire it.
+      return null;
+    }
+
+    const lockExpires = new Date(currentLock.expires_at).getTime();
+    if (!Number.isFinite(lockExpires)) {
+      console.error(`[Lock] Invalid expiration stored for ${name}`);
+      throw new Error('Distributed lock unavailable');
+    }
+
+    if (lockExpires < now.getTime()) {
+      const { data: reclaimedLock, error: reclaimError } = await supabase
+        .from('cron_locks')
+        .update({
+          locked_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          owner_token: ownerToken,
+          acquired_by: acquiredBy,
+        })
+        .eq('name', name)
+        .lt('expires_at', now.toISOString())
+        .select('name, owner_token')
+        .maybeSingle();
+
+      if (reclaimError) {
+        console.error(`[Lock] Reclaim failed for ${name}:`, reclaimError.code || 'database_error');
+        throw new Error('Distributed lock unavailable');
+      }
+
+      if (reclaimedLock?.owner_token === ownerToken) {
+        console.log(`[Lock] Reclaimed expired lock: ${name}`);
+        return { name, ownerToken };
+      }
+    }
+
+    console.warn(`[Lock] Busy; skipped concurrent execution: ${name}`);
+    return null;
+  } catch (error) {
+    console.error(`[Lock] Acquisition failed for ${name}`);
+    throw error instanceof Error ? error : new Error('Distributed lock unavailable');
+  }
+}
+
+/** Release only the lock still owned by this worker. */
+export async function releaseLock(lock: CronLockHandle): Promise<boolean> {
+  const supabase = createSupabaseAdmin();
+
+  try {
+    const { data, error } = await supabase
       .from('cron_locks')
       .delete()
-      .eq('name', name);
+      .eq('name', lock.name)
+      .eq('owner_token', lock.ownerToken)
+      .select('name');
 
     if (error) {
-      console.error(`[Lock] Error al eliminar lock para ${name}:`, error.message);
-    } else {
-      console.log(`[Lock] Lock liberado exitosamente para: ${name}`);
+      console.error(`[Lock] Release failed for ${lock.name}:`, error.code || 'database_error');
+      return false;
     }
-  } catch (err) {
-    console.error(`[Lock] Error crítico en releaseLock para ${name}:`, err);
+    if (!data || data.length !== 1) {
+      console.warn(`[Lock] Ownership changed; lock not released: ${lock.name}`);
+      return false;
+    }
+
+    console.log(`[Lock] Released: ${lock.name}`);
+    return true;
+  } catch (error) {
+    console.error(`[Lock] Release failed for ${lock.name}:`, error);
+    return false;
   }
 }
 
@@ -98,43 +149,42 @@ export interface CronRunUpdate {
   processed_count: number;
   skipped_count: number;
   error_count: number;
-  error_details: any[];
+  error_details: unknown[];
   processed_ids: string[];
   success: boolean;
 }
 
-/**
- * Inicia la grabación del log de ejecución de una tarea cron.
- */
 export async function startRunLog(cronName: string): Promise<string> {
   const supabase = createSupabaseAdmin();
   const now = new Date();
+
   try {
     const { data, error } = await supabase
       .from('cron_runs')
       .insert({
         cron_name: cronName,
         started_at: now.toISOString(),
-        success: false
+        success: false,
       })
       .select('id')
       .single();
 
     if (error || !data) {
-      throw new Error(error?.message || 'No se obtuvo el ID tras la inserción');
+      throw new Error(error?.message || 'Cron run ID was not returned');
     }
     return data.id;
-  } catch (err) {
-    console.error(`[RunLog] Error al registrar inicio de cron ${cronName}:`, err);
+  } catch (error) {
+    console.error(`[RunLog] Could not record start for ${cronName}:`, error);
     return '';
   }
 }
 
-/**
- * Actualiza el registro de ejecución final con estadísticas y estados.
- */
-export async function updateRunLog(id: string, updates: Partial<CronRunUpdate>): Promise<void> {
-  if (!id) return;
+export async function updateRunLog(
+  id: string,
+  updates: Partial<CronRunUpdate>,
+): Promise<boolean> {
+  if (!id) return false;
+
   const supabase = createSupabaseAdmin();
   try {
     const { error } = await supabase
@@ -143,9 +193,12 @@ export async function updateRunLog(id: string, updates: Partial<CronRunUpdate>):
       .eq('id', id);
 
     if (error) {
-      console.error(`[RunLog] Error al actualizar log de cron ${id}:`, error.message);
+      console.error(`[RunLog] Could not update ${id}:`, error.code || 'database_error');
+      return false;
     }
-  } catch (err) {
-    console.error(`[RunLog] Error crítico en updateRunLog para ${id}:`, err);
+    return true;
+  } catch (error) {
+    console.error(`[RunLog] Could not update ${id}:`, error);
+    return false;
   }
 }

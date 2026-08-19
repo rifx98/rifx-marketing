@@ -1,26 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest } from '@/lib/auth';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 import { CREATIVE_TEMPLATES } from '@/app/panel/templates';
+import { enforceTenantRateLimit, internalApiError } from '@/lib/request-guards';
 
 export async function POST(req: NextRequest) {
   try {
     // 1. Validar autenticación de administrador
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.isAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
+    const authorization = await requireAdminPermission(req, 'templates.seed');
+    if (!authorization.ok) return authorization.response;
+    const rateDenied = await enforceTenantRateLimit(
+      'admin-template-seed',
+      authorization.admin.tenantId,
+      2,
+      5 * 60_000,
+    );
+    if (rateDenied) return rateDenied;
 
     const supabase = createSupabaseAdmin();
 
     // 2. Obtener todas las plantillas existentes en la base de datos
     const { data: existingTemplates, error: fetchError } = await supabase
       .from('templates')
-      .select('*');
+      .select('id,name,config_json');
 
     if (fetchError) {
-      console.error('❌ Error obteniendo plantillas existentes para seeder:', fetchError);
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+      console.error('Template seed lookup failed:', fetchError.code || 'database_error');
+      return internalApiError();
     }
 
     let createdCount = 0;
@@ -75,8 +81,8 @@ export async function POST(req: NextRequest) {
           .eq('id', existing.id);
 
         if (updateError) {
-          console.error(`❌ Error actualizando plantilla ${tpl.name}:`, updateError);
-          return NextResponse.json({ error: `Error actualizando ${tpl.name}: ${updateError.message}` }, { status: 500 });
+          console.error('Template seed update failed:', updateError.code || 'database_error');
+          return internalApiError();
         }
         updatedCount++;
       } else {
@@ -89,8 +95,8 @@ export async function POST(req: NextRequest) {
           }]);
 
         if (insertError) {
-          console.error(`❌ Error insertando plantilla ${tpl.name}:`, insertError);
-          return NextResponse.json({ error: `Error insertando ${tpl.name}: ${insertError.message}` }, { status: 500 });
+          console.error('Template seed insert failed:', insertError.code || 'database_error');
+          return internalApiError();
         }
         createdCount++;
       }
@@ -103,8 +109,8 @@ export async function POST(req: NextRequest) {
       updated: updatedCount,
       message: `Sincronización exitosa: ${createdCount} creadas, ${updatedCount} actualizadas.`
     });
-  } catch (error: any) {
-    console.error('❌ Error interno en seeder de plantillas:', error);
-    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
+  } catch {
+    console.error('Template seed request failed');
+    return internalApiError();
   }
 }

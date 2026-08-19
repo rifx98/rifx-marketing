@@ -2,8 +2,8 @@ import { Metadata } from 'next';
 import TerminosClient from './terminos-client';
 
 export const metadata: Metadata = {
-  title: 'Términos de Servicio | Rifx Marketing',
-  description: 'Términos de Servicio oficiales de Rifx Marketing.',
+  title: 'Aviso Legal | Rifx Marketing',
+  description: 'Aviso Legal de Rifx Marketing: titular del sitio, servicios ofrecidos, condiciones de uso, propiedad intelectual y legislación aplicable.',
 };
 
 export default function TerminosPage() {

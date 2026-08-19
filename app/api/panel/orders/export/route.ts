@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
-import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import { enforceTenantRateLimit, internalApiError } from '@/lib/request-guards';
 
 function escapeCsv(val: any): string {
   if (val === null || val === undefined) return '';
   let str = String(val).trim();
+  // Spreadsheet applications may execute cells beginning with these
+  // characters as formulas. Prefixing an apostrophe keeps exports as data.
+  if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -41,94 +45,131 @@ function getEcuadorDepartment(city: string): string {
   return city.charAt(0).toUpperCase() + city.slice(1);
 }
 
+function boundedText(value: unknown, fallback = '', maxLength = 240): string {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) || fallback : fallback;
+}
+
+function boundedPositiveNumber(value: unknown, fallback: number, max: number): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+}
+
+function parseDateFilter(value: string | null, endOfDay = false): string | null {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('invalid_date_filter');
+  const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error('invalid_date_filter');
+  }
+  return date.toISOString();
+}
+
 export async function GET(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'orders');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('orders-export', tenant.tenantId, 4, 60_000);
+    if (rateDenied) return rateDenied;
+
+    let fromDate: string | null;
+    let toDate: string | null;
+    try {
+      fromDate = parseDateFilter(req.nextUrl.searchParams.get('from'));
+      toDate = parseDateFilter(req.nextUrl.searchParams.get('to'), true);
+    } catch {
+      return NextResponse.json({ error: 'Filtros de fecha inválidos' }, { status: 400 });
+    }
+    if (fromDate && toDate && fromDate > toDate) {
+      return NextResponse.json({ error: 'El rango de fechas es inválido' }, { status: 400 });
+    }
 
     const supabase = createSupabaseAdmin();
 
-    // 1. Fetch tenant config row
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .maybeSingle();
+    if (configError) return internalApiError();
 
-    let extConfig = {
-      openai_key: '', gemini_key: '', groq_key: '',
-      dropi_default_product_id: '', dropi_default_price: 50
-    };
+    let defaultProductId = '';
+    let defaultPrice = 50;
     try {
-      const p = JSON.parse(config?.openai_key || '{}');
-      extConfig = { ...extConfig, ...p };
-    } catch {
-      extConfig.openai_key = config?.openai_key || '';
-    }
-
-    // Resolve API key for LLM fallback
-    let groqKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
-    let openAiKey = extConfig.openai_key || process.env.OPENAI_API_KEY || '';
-
-    // 2. Fetch all conversations for the tenant
-    const { data: conversations } = await supabase
-      .from('conversations')
-      .select('*')
-      .eq('tenant_id', tenant.tenantId);
-
-    if (!conversations || conversations.length === 0) {
-      return new NextResponse('No conversations found', { status: 404 });
-    }
-
-    // 3. Fetch messages for all these conversations
-    const convIds = conversations.map(c => c.id);
-    const { data: allMessages } = await supabase
-      .from('messages')
-      .select('*')
-      .in('conversation_id', convIds)
-      .order('created_at', { ascending: true });
-
-    const messagesByConv: Record<string, any[]> = {};
-    (allMessages || []).forEach(m => {
-      if (!messagesByConv[m.conversation_id]) {
-        messagesByConv[m.conversation_id] = [];
+      const parsed: unknown = JSON.parse(config?.openai_key || '{}');
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const values = parsed as Record<string, unknown>;
+        defaultProductId = boundedText(values.dropi_default_product_id, '', 120);
+        defaultPrice = boundedPositiveNumber(values.dropi_default_price, 50, 1_000_000);
       }
-      messagesByConv[m.conversation_id].push(m);
-    });
+    } catch {}
+
+    const pageSize = 500;
+    const maxOrders = 5_000;
+    const orderMessages: Array<{ conversation_id: string; content: string }> = [];
+    for (let offset = 0; offset <= maxOrders; offset += pageSize) {
+      let query = supabase
+        .from('messages')
+        .select('conversation_id, content')
+        .eq('tenant_id', tenant.tenantId)
+        .like('content', '__ORDER_DATA__:%')
+        .order('created_at', { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (fromDate) query = query.gte('created_at', fromDate);
+      if (toDate) query = query.lte('created_at', toDate);
+      const { data: page, error: pageError } = await query;
+      if (pageError) return internalApiError();
+      orderMessages.push(...(page || []));
+      if ((page || []).length < pageSize) break;
+    }
+    if (orderMessages.length > maxOrders) {
+      return NextResponse.json(
+        { error: 'El resultado supera 5.000 pedidos; usa los filtros from y to (AAAA-MM-DD).' },
+        { status: 413, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
+    const conversationIds = [...new Set(orderMessages.map(message => message.conversation_id))];
+    const conversationsById = new Map<string, { customer_name: string | null; phone_number: string | null }>();
+    for (let index = 0; index < conversationIds.length; index += 200) {
+      const ids = conversationIds.slice(index, index + 200);
+      const { data: conversations, error: conversationsError } = await supabase
+        .from('conversations')
+        .select('id, customer_name, phone_number')
+        .eq('tenant_id', tenant.tenantId)
+        .in('id', ids);
+      if (conversationsError) return internalApiError();
+      for (const conversation of conversations || []) {
+        conversationsById.set(conversation.id, conversation);
+      }
+    }
 
     const orders: any[] = [];
-    const client = (groqKey || openAiKey) ? new OpenAI({
-      apiKey: groqKey || openAiKey,
-      baseURL: groqKey ? 'https://api.groq.com/openai/v1' : undefined
-    }) : null;
-
-    // 4. Process each conversation
-    for (const conv of conversations) {
-      const msgs = messagesByConv[conv.id] || [];
-      
-      // Check if there is an existing __ORDER_DATA__ message (confirmed orders logged by the bot)
-      let orderMsg = msgs.find(m => m.content?.startsWith('__ORDER_DATA__:'));
-      let orderDetails: any = null;
-
-      if (orderMsg) {
-        const jsonStr = orderMsg.content.substring('__ORDER_DATA__:'.length);
-        if (jsonStr !== 'null') {
-          try {
-            orderDetails = JSON.parse(jsonStr);
-          } catch (e) {
-            console.error('Failed to parse order json from message:', e);
-          }
-        }
-      }
-
-      if (orderDetails) {
+    for (const orderMessage of orderMessages) {
+      if (typeof orderMessage.content !== 'string' || orderMessage.content.length > 64 * 1024) continue;
+      const json = orderMessage.content.slice('__ORDER_DATA__:'.length);
+      if (!json || json === 'null') continue;
+      try {
+        const parsed: unknown = JSON.parse(json);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+        const details = parsed as Record<string, unknown>;
+        const conversation = conversationsById.get(orderMessage.conversation_id);
         orders.push({
-          ...orderDetails,
-          customer_name: orderDetails.name || conv.customer_name || 'Cliente',
-          phone_number: orderDetails.phone || conv.phone_number || ''
+          customer_name: boundedText(details.name, conversation?.customer_name || 'Cliente', 160),
+          phone_number: boundedText(details.phone, conversation?.phone_number || '', 32),
+          address: boundedText(details.address, 'Dirección de entrega', 300),
+          city: boundedText(details.city, 'Quito', 120),
+          departamento: boundedText(details.departamento, '', 120),
+          product_id: boundedText(details.product_id, defaultProductId || 'DEFAULT_PRODUCT', 120),
+          quantity: boundedPositiveNumber(details.quantity, 1, 10_000),
+          price: boundedPositiveNumber(details.price, defaultPrice, 1_000_000),
+          payment_type: boundedText(details.payment_type, 'contra_entrega', 40),
         });
+      } catch {
+        // Ignore only the malformed historical row; never include partial data.
       }
     }
 
@@ -171,9 +212,9 @@ export async function GET(req: NextRequest) {
       }
 
       // Default product and pricing
-      const productId = order.product_id || extConfig.dropi_default_product_id || 'DEFAULT_PRODUCT';
+      const productId = order.product_id || defaultProductId || 'DEFAULT_PRODUCT';
       const quantity = order.quantity || 1;
-      const unitPrice = order.price || extConfig.dropi_default_price || 50;
+      const unitPrice = order.price || defaultPrice || 50;
       const totalPrice = quantity * unitPrice;
 
       // Recaudo: cash on delivery (contra_entrega) -> "Si", prepaid -> "No"
@@ -210,12 +251,15 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename=dropi_ecuador_orders_${new Date().toISOString().slice(0, 10)}.csv`
+        'Content-Disposition': `attachment; filename=dropi_ecuador_orders_${new Date().toISOString().slice(0, 10)}.csv`,
+        'Cache-Control': 'private, no-store',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'X-Content-Type-Options': 'nosniff',
       }
     });
 
-  } catch (error: any) {
-    console.error('❌ Error exporting orders:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  } catch {
+    console.error('Order export request failed');
+    return internalApiError();
   }
 }

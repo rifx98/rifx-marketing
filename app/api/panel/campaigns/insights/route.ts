@@ -2,11 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
 
 interface InsightItem {
   message: string;
   metric: string;
   confidence: 'Alta Confianza' | 'Confianza Media' | 'Baja Confianza';
+}
+
+function metric(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? Math.max(-1_000_000_000, Math.min(1_000_000_000, parsed)) : 0;
+}
+
+function shortText(value: unknown, maxLength = 120): string {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
 // Genera recomendaciones deterministas basadas en los numeros reales,
@@ -69,21 +84,60 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'campaigns');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('campaign-insights', tenant.tenantId, 12, 60_000);
+    if (rateDenied) return rateDenied;
 
-    const body = await req.json();
-    const { kpis, platformBreakdown, topCreatives } = body || {};
+    const bodyResult = await readLimitedJsonObject(req, 64 * 1024);
+    if (!bodyResult.ok) return bodyResult.response;
+    const rawKpis = bodyResult.body.kpis;
 
-    if (!kpis) {
+    if (!rawKpis || typeof rawKpis !== 'object' || Array.isArray(rawKpis)) {
       return NextResponse.json({ error: 'Faltan datos de rendimiento (kpis) para analizar.' }, { status: 400 });
     }
+    const sourceKpis = rawKpis as Record<string, unknown>;
+    const kpis = {
+      spend: metric(sourceKpis.spend),
+      impressions: metric(sourceKpis.impressions),
+      clicks: metric(sourceKpis.clicks),
+      ctr: metric(sourceKpis.ctr),
+      cpc: metric(sourceKpis.cpc),
+      cpa: metric(sourceKpis.cpa),
+      roas: metric(sourceKpis.roas),
+      conversions: metric(sourceKpis.conversions),
+    };
+    const platformBreakdown = (Array.isArray(bodyResult.body.platformBreakdown)
+      ? bodyResult.body.platformBreakdown
+      : [])
+      .slice(0, 10)
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+      .map(item => ({
+        platform: shortText(item.platform, 40),
+        percentage: metric(item.percentage),
+        impressions: metric(item.impressions),
+        spend: metric(item.spend),
+      }));
+    const topCreatives = (Array.isArray(bodyResult.body.topCreatives)
+      ? bodyResult.body.topCreatives
+      : [])
+      .slice(0, 10)
+      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item))
+      .map(item => ({
+        name: shortText(item.name, 120),
+        ctr: metric(item.ctr),
+        spend: metric(item.spend),
+        conversions: metric(item.conversions),
+      }));
 
     const supabase = createSupabaseAdmin();
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .single();
+    if (configError) return internalApiError();
 
     let groqKey = '';
     try { const p = JSON.parse(config?.openai_key || '{}'); groqKey = p.groq_key || p.openai_key || ''; } catch { groqKey = config?.openai_key || ''; }
@@ -94,7 +148,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ insights, source: 'heuristic' });
     }
 
-    const groq = new OpenAI({ apiKey: groqKey, baseURL: 'https://api.groq.com/openai/v1' });
+    const groq = new OpenAI({
+      apiKey: groqKey,
+      baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 20_000,
+      maxRetries: 1,
+    });
 
     const dataSummary = `
 KPIs de la cuenta (periodo seleccionado):
@@ -139,7 +198,7 @@ Si los datos son insuficientes o todo esta en cero, dilo honestamente en vez de 
     let insights: InsightItem[] = [];
     const jsonMatch = aiContent.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
-      try { insights = JSON.parse(jsonMatch[0]); } catch (e) { console.error('Error parsing AI insights:', e); }
+      try { insights = JSON.parse(jsonMatch[0]); } catch { insights = []; }
     }
 
     if (!insights.length) {
@@ -147,9 +206,15 @@ Si los datos son insuficientes o todo esta en cero, dilo honestamente en vez de 
       return NextResponse.json({ insights, source: 'heuristic_fallback' });
     }
 
-    return NextResponse.json({ insights, source: 'ai' });
-  } catch (error: any) {
-    console.error('Campaign Insights Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+    const allowedConfidence = new Set<InsightItem['confidence']>(['Alta Confianza', 'Confianza Media', 'Baja Confianza']);
+    const safeInsights = insights.slice(0, 3).map(item => ({
+      message: shortText(item?.message, 300),
+      metric: shortText(item?.metric, 160),
+      confidence: allowedConfidence.has(item?.confidence) ? item.confidence : 'Baja Confianza',
+    }));
+    return NextResponse.json({ insights: safeInsights, source: 'ai' });
+  } catch {
+    console.error('Campaign insights request failed');
+    return internalApiError();
   }
 }

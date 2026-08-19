@@ -63,6 +63,6 @@ ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Service role full access" ON tenants TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON announcements TO service_role FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Service role full access" ON payments TO service_role FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON tenants FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON announcements FOR ALL TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role full access" ON payments FOR ALL TO service_role USING (true) WITH CHECK (true);

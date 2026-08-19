@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+} from '@/lib/request-guards';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,10 +17,17 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'playground');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('generate-email', tenant.tenantId, 12, 60_000);
+    if (rateDenied) return rateDenied;
 
-    const { contactId, prompt } = await req.json();
-    if (!contactId) {
-      return NextResponse.json({ error: 'contactId required' }, { status: 400 });
+    const bodyResult = await readLimitedJsonObject(req, 32 * 1024);
+    if (!bodyResult.ok) return bodyResult.response;
+    const contactId = typeof bodyResult.body.contactId === 'string' ? bodyResult.body.contactId.trim() : '';
+    const prompt = typeof bodyResult.body.prompt === 'string' ? bodyResult.body.prompt.trim() : '';
+    if (!UUID_PATTERN.test(contactId) || prompt.length > 2_000) {
+      return NextResponse.json({ error: 'Solicitud inválida' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
@@ -29,12 +44,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Conversación no encontrada o no autorizada' }, { status: 404 });
     }
 
-    const { data: config } = await supabase
+    const { data: config, error: configError } = await supabase
       .from('config')
-      .select('*')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .single();
+    if (configError) return internalApiError();
     let groqKey = '';
     try { const p = JSON.parse(config?.openai_key || '{}'); groqKey = p.groq_key || p.openai_key || ''; } catch { groqKey = config?.openai_key || ''; }
     if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';
@@ -55,11 +71,17 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    const context = (msgs || []).reverse().map(m => `${m.role}: ${m.content}`).join('\n');
+    const context = (msgs || [])
+      .reverse()
+      .map(m => `${String(m.role).slice(0, 20)}: ${String(m.content).slice(0, 2_000)}`)
+      .join('\n')
+      .slice(0, 12_000);
 
     const groq = new OpenAI({
       apiKey: groqKey,
       baseURL: 'https://api.groq.com/openai/v1',
+      timeout: 20_000,
+      maxRetries: 1,
     });
 
     const completion = await groq.chat.completions.create({
@@ -95,14 +117,15 @@ export async function POST(req: NextRequest) {
     if (match) {
       try {
         result = JSON.parse(match[0]);
-      } catch (e) {
-        console.error('Parse error:', e);
-      }
+      } catch {}
     }
 
-    return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Generate email error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({
+      subject: String(result.subject || '').slice(0, 200),
+      body: String(result.body || '').slice(0, 8_000),
+    });
+  } catch {
+    console.error('Generate email request failed');
+    return internalApiError();
   }
 }

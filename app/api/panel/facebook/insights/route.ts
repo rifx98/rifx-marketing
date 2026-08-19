@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFacebookCredentials } from '@/lib/facebook';
+import {
+  fetchFacebookJson,
+  getFacebookCredentials,
+  getFacebookPublicError,
+} from '@/lib/facebook';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest } from '@/lib/auth';
+import { enforceTenantRateLimit } from '@/lib/request-guards';
 
 const FB_API_VERSION = 'v21.0';
 const FB_BASE = `https://graph.facebook.com/${FB_API_VERSION}`;
@@ -37,9 +41,8 @@ function computePeriodRanges(period: 'week' | 'month') {
 async function fetchKpisForRange(adAccountId: string, token: string, since: string, until: string) {
   const kpiFields = 'impressions,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type,purchase_roas';
   const url = `${FB_BASE}/${adAccountId}/insights?fields=${kpiFields}&time_range={"since":"${since}","until":"${until}"}&access_token=${token}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
+  const data = await fetchFacebookJson(url);
+  if (data.error) throw new Error('meta_insights_rejected');
 
   const kpi = data.data?.[0] || {};
   const roas = kpi.purchase_roas?.[0]?.value ? parseFloat(kpi.purchase_roas[0].value).toFixed(2) : '0.00';
@@ -72,24 +75,28 @@ async function fetchAppointmentsAndRevenue(tenantId: string, since: string, unti
   const sinceIso = `${since}T00:00:00.000Z`;
   const untilIso = `${until}T23:59:59.999Z`;
 
-  const [{ count: appointments }, { data: sales }] = await Promise.all([
+  const [appointmentsResult, salesResult] = await Promise.all([
     supabase
       .from('appointments')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
       .gte('created_at', sinceIso)
       .lte('created_at', untilIso),
     supabase
       .from('sales')
-      .select('amount')
+      .select('amount', { count: 'exact' })
       .eq('tenant_id', tenantId)
       .eq('status', 'completed')
       .gte('created_at', sinceIso)
       .lte('created_at', untilIso),
   ]);
 
-  const revenue = (sales || []).reduce((sum: number, s: any) => sum + (s.amount || 0), 0) / 100;
-  return { appointments: appointments || 0, revenue };
+  if (appointmentsResult.error || salesResult.error) throw new Error('analytics_lookup_failed');
+  const sales = salesResult.data || [];
+  if ((salesResult.count || 0) > sales.length) throw new Error('analytics_window_too_large');
+
+  const revenue = sales.reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0) / 100;
+  return { appointments: appointmentsResult.count || 0, revenue };
 }
 
 function pctChange(current: number, previous: number): number | null {
@@ -145,11 +152,9 @@ function buildAlerts(current: any, previous: any, days: number): Array<{ severit
 // GET - KPIs comparativos (periodo actual vs anterior) + citas + ingresos + alertas
 export async function GET(req: NextRequest) {
   try {
-    const { token, adAccountId } = await getFacebookCredentials(req);
-    const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
+    const { tenantId, token, adAccountId } = await getFacebookCredentials(req);
+    const rateDenied = await enforceTenantRateLimit('facebook-insights', tenantId, 30, 60_000);
+    if (rateDenied) return rateDenied;
 
     const { searchParams } = new URL(req.url);
     const period = searchParams.get('period') === 'month' ? 'month' : 'week';
@@ -158,8 +163,8 @@ export async function GET(req: NextRequest) {
     const [currentKpis, previousKpis, currentExtra, previousExtra] = await Promise.all([
       fetchKpisForRange(adAccountId, token, ranges.current.since, ranges.current.until),
       fetchKpisForRange(adAccountId, token, ranges.previous.since, ranges.previous.until),
-      fetchAppointmentsAndRevenue(tenant.tenantId, ranges.current.since, ranges.current.until),
-      fetchAppointmentsAndRevenue(tenant.tenantId, ranges.previous.since, ranges.previous.until),
+      fetchAppointmentsAndRevenue(tenantId, ranges.current.since, ranges.current.until),
+      fetchAppointmentsAndRevenue(tenantId, ranges.previous.since, ranges.previous.until),
     ]);
 
     const current = { kpis: currentKpis, ...currentExtra };
@@ -167,8 +172,7 @@ export async function GET(req: NextRequest) {
 
     // Desglose por plataforma (periodo actual)
     const breakdownUrl = `${FB_BASE}/${adAccountId}/insights?fields=impressions,clicks,spend&breakdowns=publisher_platform&time_range={"since":"${ranges.current.since}","until":"${ranges.current.until}"}&access_token=${token}`;
-    const breakdownRes = await fetch(breakdownUrl);
-    const breakdownData = await breakdownRes.json();
+    const breakdownData = await fetchFacebookJson(breakdownUrl);
     const platformBreakdownRaw = (breakdownData.data || []).map((item: any) => ({
       platform: item.publisher_platform || 'unknown',
       impressions: item.impressions || '0',
@@ -185,8 +189,7 @@ export async function GET(req: NextRequest) {
 
     // Insights por dia para el grafico de tendencia (7 dias en semanal, 30 en mensual)
     const dailyUrl = `${FB_BASE}/${adAccountId}/insights?fields=impressions,clicks,spend,actions&time_increment=1&time_range={"since":"${ranges.current.since}","until":"${ranges.current.until}"}&access_token=${token}`;
-    const dailyRes = await fetch(dailyUrl);
-    const dailyData = await dailyRes.json();
+    const dailyData = await fetchFacebookJson(dailyUrl);
     const dailyInsights = (dailyData.data || []).map((day: any) => {
       const dayConversions = day.actions?.find(
         (a: any) => a.action_type === 'offsite_conversion' || a.action_type === 'purchase' || a.action_type === 'lead'
@@ -202,8 +205,7 @@ export async function GET(req: NextRequest) {
 
     // Top creatividades (periodo actual)
     const creativesUrl = `${FB_BASE}/${adAccountId}/insights?fields=ad_name,impressions,clicks,ctr,spend,actions&level=ad&sort=impressions_descending&limit=5&time_range={"since":"${ranges.current.since}","until":"${ranges.current.until}"}&access_token=${token}`;
-    const creativesRes = await fetch(creativesUrl);
-    const creativesData = await creativesRes.json();
+    const creativesData = await fetchFacebookJson(creativesUrl);
     const topCreatives = (creativesData.data || []).map((ad: any) => {
       const adConversions = ad.actions?.find(
         (a: any) => a.action_type === 'offsite_conversion' || a.action_type === 'purchase' || a.action_type === 'lead'
@@ -241,6 +243,7 @@ export async function GET(req: NextRequest) {
       kpis: current.kpis,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const failure = getFacebookPublicError(error);
+    return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
 }

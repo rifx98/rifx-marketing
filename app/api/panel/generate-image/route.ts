@@ -4,27 +4,57 @@ import { generateMaskAsFile, generateMultiZoneMaskAsFile, type ProductSlot, type
 import { cleanTemplateTextZones, type TextSlotZone } from './template-text-cleaner';
 import { aiRouter } from '@/providers/ai-router';
 import { renderTextLayersOntoImage } from './flux-text-renderer';
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { assertSupportedImage, decodeImageDataUri, fetchRemoteImage } from '@/lib/safe-fetch';
+import { getAiCredential, runWithAiRequestContext, type AiRequestContext } from '@/lib/ai-request-context';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { rateLimitKey } from '@/lib/security';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import { readLimitedJsonObject } from '@/lib/request-guards';
 
 export const maxDuration = 60; // GPT Image y el pipeline de 6 etapas con GPT-4o Vision AI y reintentos pueden demorar hasta 45s
+
+// Detailed image diagnostics are useful while tuning locally, but they may
+// contain customer prompts and generated copy. Keep production logs generic.
+const runtimeConsole = globalThis.console;
+const diagnosticsEnabled = process.env.NODE_ENV !== 'production'
+  && process.env.AI_DEBUG_ARTIFACTS === '1';
+const console = {
+  log: (...args: unknown[]) => { if (diagnosticsEnabled) runtimeConsole.log(...args); },
+  warn: (...args: unknown[]) => { if (diagnosticsEnabled) runtimeConsole.warn(...args); },
+  error: (...args: unknown[]) => {
+    if (diagnosticsEnabled) runtimeConsole.error(...args);
+    else runtimeConsole.error('[AI image pipeline] Stage failed');
+  },
+};
 
 // Descarga imagen remota a base64 Data URI
 async function fetchAsBase64(url: string): Promise<string> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
-    
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) throw new Error(`Fallo al descargar la imagen (Status ${response.status}): ${response.statusText}`);
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const contentType = response.headers.get('content-type') || 'image/png';
+    const { buffer, contentType } = await fetchRemoteImage(url, { maxBytes: 10 * 1024 * 1024, timeoutMs: 12_000 });
     return `data:${contentType};base64,${buffer.toString('base64')}`;
   } catch (e: any) {
     console.error('⚠️ [fetchAsBase64] Error al convertir imagen externa a base64:', e.message);
     throw e;
   }
+}
+
+async function readPublicImageAsBase64(relativeUrl: string): Promise<string> {
+  const pathname = decodeURIComponent(new URL(relativeUrl, 'https://local.invalid').pathname);
+  const publicRoot = path.resolve(process.cwd(), 'public');
+  const candidate = path.resolve(publicRoot, `.${pathname}`);
+  const rootPrefix = `${publicRoot}${path.sep}`.toLowerCase();
+  if (!candidate.toLowerCase().startsWith(rootPrefix)) throw new Error('Ruta pública inválida');
+  const fileStat = await stat(candidate);
+  if (!fileStat.isFile() || fileStat.size <= 0 || fileStat.size > 10 * 1024 * 1024) {
+    throw new Error('Imagen pública fuera del tamaño permitido');
+  }
+  const buffer = await readFile(candidate);
+  const ext = path.extname(candidate).toLowerCase();
+  const contentType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+  assertSupportedImage(buffer, contentType);
+  return `data:${contentType};base64,${buffer.toString('base64')}`;
 }
 
 // MIME válidos aceptados por OpenAI images.edit
@@ -69,33 +99,13 @@ async function getFileFromInput(input: string, baseFilename: string): Promise<{ 
   let detectedMime: ValidImageMime;
 
   if (input.startsWith('data:image')) {
-    // Detectar MIME del header base64
-    const mime = detectMimeFromBase64(input);
-    if (!mime) {
-      throw new Error(`[getFileFromInput] MIME inválido o no soportado en base64 para "${baseFilename}". Solo se aceptan image/png, image/jpeg, image/webp.`);
-    }
-    detectedMime = mime;
-    const base64Data = input.split(',')[1];
-    buffer = Buffer.from(base64Data, 'base64');
+    const decoded = decodeImageDataUri(input);
+    detectedMime = decoded.contentType as ValidImageMime;
+    buffer = decoded.buffer;
   } else if (input.startsWith('http')) {
-    // Descargar e inferir MIME del header Content-Type o extensión
-    const response = await fetch(input);
-    if (!response.ok) {
-      throw new Error(`[getFileFromInput] Fallo al descargar imagen desde URL (${response.status}): ${input.substring(0, 120)}`);
-    }
-    const contentType = (response.headers.get('content-type') || '').toLowerCase().split(';')[0].trim();
-    // Normalizar image/jpg → image/jpeg
-    const normalizedCt = contentType === 'image/jpg' ? 'image/jpeg' : contentType;
-
-    if (VALID_IMAGE_MIMES.includes(normalizedCt as ValidImageMime)) {
-      detectedMime = normalizedCt as ValidImageMime;
-    } else {
-      // Fallback: inferir por extensión de la URL
-      detectedMime = inferMimeFromUrl(input);
-      console.warn(`⚠️ [getFileFromInput] Content-Type HTTP "${contentType}" no es válido para OpenAI. Inferido por extensión: ${detectedMime}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    buffer = Buffer.from(arrayBuffer);
+    const remote = await fetchRemoteImage(input, { maxBytes: 10 * 1024 * 1024, timeoutMs: 12_000 });
+    detectedMime = remote.contentType as ValidImageMime;
+    buffer = remote.buffer;
   } else {
     throw new Error(`[getFileFromInput] Input para "${baseFilename}" debe ser base64 (data:image/...) o URL (http/https).`);
   }
@@ -133,45 +143,67 @@ export async function POST(req: NextRequest) {
     if (!tenant?.tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
+    const featureDenied = denyUnlessFeature(tenant, 'banners');
+    if (featureDenied) return featureDenied;
 
-    // 2. Cargar configuración desde la BD e inyectar API keys en process.env
-    // Las keys se guardan en Supabase (vía el panel admin), no en .env.local
+    const tenantLimit = await checkRateLimit(
+      rateLimitKey('generate-image', tenant.tenantId),
+      10,
+      60_000,
+    );
+    if (tenantLimit.unavailable) {
+      return NextResponse.json({ error: 'Servicio temporalmente no disponible' }, { status: 503 });
+    }
+    if (!tenantLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Límite de generación alcanzado. Intenta de nuevo más tarde.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(tenantLimit.retryAfterMs / 1000)) } },
+      );
+    }
+
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+
+    // 2. Load tenant credentials into an async request-local context. Never
+    // mutate process.env: server instances handle concurrent tenants.
+    const aiContext: AiRequestContext = {};
     try {
       const { createSupabaseAdmin } = await import('@/lib/supabase');
       const supabase = createSupabaseAdmin();
-      let cfgQuery = supabase.from('config').select('openai_key').eq('tenant_id', tenant.tenantId).limit(1);
-      const { data: cfgRow } = await cfgQuery.single();
+      const cfgQuery = supabase.from('config').select('openai_key').eq('tenant_id', tenant.tenantId).limit(1);
+      const { data: cfgRow, error: cfgError } = await cfgQuery.maybeSingle();
+      if (cfgError) throw new Error('config_lookup_failed');
 
       if (cfgRow?.openai_key) {
         // Decode the stored JSON blob (encodes all AI keys in one column)
         let decoded: any = {};
         try { decoded = JSON.parse(cfgRow.openai_key); } catch { decoded = { openai_key: cfgRow.openai_key }; }
 
-        if (decoded.openai_key && !process.env.OPENAI_API_KEY) {
-          // Validate the key looks real before injecting (reject placeholders like 'admin123')
-          const key = decoded.openai_key;
+        if (typeof decoded.openai_key === 'string') {
+          const key = decoded.openai_key.trim();
           if (key.startsWith('sk-') && key.length > 20) {
-            process.env.OPENAI_API_KEY = key;
-            console.log('🔑 [Config] OPENAI_API_KEY inyectada desde BD');
+            aiContext.openaiKey = key;
           } else {
-            console.warn(`⚠️ [Config] OPENAI_API_KEY en BD parece ser un placeholder ("${key.substring(0, 8)}...") — ignorada`);
+            console.warn('[Config] Stored OpenAI credential has an invalid format');
           }
         }
-        if (decoded.fal_key) {
-          // Always prefer the DB value — overrides any stale env var
-          process.env.FAL_KEY = decoded.fal_key;
-          console.log('🔑 [Config] FAL_KEY inyectada desde BD');
+        if (typeof decoded.fal_key === 'string' && decoded.fal_key.trim().length >= 20) {
+          aiContext.falKey = decoded.fal_key.trim();
         }
-        if (decoded.visual_render_provider) {
-          process.env._VISUAL_RENDER_PROVIDER_DB = decoded.visual_render_provider;
+        if (typeof decoded.groq_key === 'string' && decoded.groq_key.trim().length >= 20) {
+          aiContext.groqKey = decoded.groq_key.trim();
+        }
+        if (['openai', 'flux', 'sharp'].includes(decoded.visual_render_provider)) {
+          aiContext.visualProvider = decoded.visual_render_provider;
         }
       }
     } catch (cfgErr: any) {
       console.warn('⚠️ [Config] No se pudo cargar config desde BD:', cfgErr.message, '— usando variables de entorno');
     }
 
+    return runWithAiRequestContext(aiContext, async () => {
     // 3. Claves API
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const openaiKey = getAiCredential('openai');
     if (!openaiKey) {
       // OpenAI key is optional when using Groq + FLUX/Sharp mode
       console.warn('⚠️ OPENAI_API_KEY no configurado — modo Groq+FLUX activo (sin costos de OpenAI)');
@@ -179,8 +211,27 @@ export async function POST(req: NextRequest) {
 
     // 4. Extracción de Parámetros
 
-    const body = await req.json();
-    const { template_json, product_image, userInstructions, campaignTitle, aspect_ratio, ad_texts_overrides, cost_saver, visual_render_provider } = body;
+    const body = parsedBody.body as Record<string, any>;
+    const { template_json, userInstructions, campaignTitle, aspect_ratio, ad_texts_overrides, cost_saver, visual_render_provider } = body;
+    let product_image = body.product_image;
+
+    if (!template_json || typeof template_json !== 'object') {
+      return NextResponse.json({ error: 'El parámetro "template_json" es obligatorio.' }, { status: 400 });
+    }
+    if (JSON.stringify(template_json).length > 512_000 || String(userInstructions || '').length > 10_000 || String(campaignTitle || '').length > 500) {
+      return NextResponse.json({ error: 'La solicitud supera los límites permitidos.' }, { status: 413 });
+    }
+    if (typeof product_image === 'string') {
+      if (product_image.length > 14 * 1024 * 1024) {
+        return NextResponse.json({ error: 'La imagen del producto supera el límite permitido.' }, { status: 413 });
+      }
+      if (product_image.startsWith('http')) {
+        product_image = await fetchAsBase64(product_image);
+      } else if (product_image.startsWith('data:image')) {
+        const decoded = decodeImageDataUri(product_image);
+        product_image = `data:${decoded.contentType};base64,${decoded.buffer.toString('base64')}`;
+      }
+    }
 
     // ═══ PRODUCT IMAGE SERVER-SIDE DIAGNOSTIC ═══
     console.log('\n' + '═'.repeat(70));
@@ -195,7 +246,6 @@ export async function POST(req: NextRequest) {
         : `UNKNOWN FORMAT (starts with "${product_image.substring(0, 20)}")`;
       console.log(`  ✅ product_image received: ${type}`);
       console.log(`  Length: ${product_image.length} chars`);
-      console.log(`  Preview: ${product_image.substring(0, 80)}...`);
       if (product_image.startsWith('data:image')) {
         const mimeMatch = product_image.match(/data:image\/([a-z]+);/);
         console.log(`  MIME: ${mimeMatch ? mimeMatch[1] : 'unknown'}`);
@@ -213,21 +263,18 @@ export async function POST(req: NextRequest) {
     }
     console.log('═'.repeat(70) + '\n');
 
-    if (!template_json) {
-      return NextResponse.json({ error: 'El parámetro "template_json" es obligatorio.' }, { status: 400 });
-    }
-
     // === VISUAL PROVIDER SELECTION ===
     // Priority: PURE_SHARP_MODE (env) → body param → USE_FLUX (env) → default 'sharp'
     // NEVER default to 'openai' — it requires a valid API key
+    const selectedVisualProvider = aiContext.visualProvider || visual_render_provider;
     let resolvedVisualProvider: 'openai' | 'flux' | 'sharp' = 'sharp';
     if (process.env.PURE_SHARP_MODE === 'true') {
       resolvedVisualProvider = 'sharp';
-    } else if (visual_render_provider === 'flux' || (!visual_render_provider && process.env.USE_FLUX === 'true')) {
+    } else if (selectedVisualProvider === 'flux' || (!selectedVisualProvider && process.env.USE_FLUX === 'true')) {
       resolvedVisualProvider = 'flux';
-    } else if (visual_render_provider === 'openai') {
+    } else if (selectedVisualProvider === 'openai') {
       resolvedVisualProvider = 'openai';
-    } else if (visual_render_provider === 'sharp') {
+    } else if (selectedVisualProvider === 'sharp') {
       resolvedVisualProvider = 'sharp';
     }
 
@@ -242,7 +289,7 @@ export async function POST(req: NextRequest) {
     console.log('\n🎨 [VISUAL PROVIDER]');
     console.log(`  provider: ${resolvedVisualProvider}`);
     console.log(`  mode: ${resolvedVisualProvider === 'openai' ? 'compositing' : 'inpainting'}`);
-    console.log(`  source: ${visual_render_provider ? 'panel_config' : process.env.USE_FLUX ? 'env_USE_FLUX' : 'default'}`);
+    console.log(`  source: ${aiContext.visualProvider ? 'tenant_config' : selectedVisualProvider ? 'request' : process.env.USE_FLUX ? 'env_USE_FLUX' : 'default'}`);
     console.log('');
 
     console.log(`🎨 [AI Engine] Iniciando pipeline para plantilla: ${template_json.name} | Provider: ${resolvedVisualProvider.toUpperCase()}`);
@@ -251,10 +298,14 @@ export async function POST(req: NextRequest) {
 
     // OpenAI client — only created when key is available (not needed in Groq+FLUX mode)
     const OpenAI = (await import('openai')).default;
-    const openai = openaiKey ? new OpenAI({ apiKey: openaiKey }) : null;
+    const openai = openaiKey ? new OpenAI({
+      apiKey: openaiKey,
+      timeout: 30_000,
+      maxRetries: 0,
+    }) : null;
 
     // Descargar/resolver imagen preview de la plantilla original al inicio
-    let templatePreviewUrl = template_json.preview_image_url;
+    const templatePreviewUrl = template_json.preview_image_url;
 
     // VERIFICACIÓN ESTRICTA Y LOG ROBUSTO EN LA ENTRADA
     console.log('======================================================================');
@@ -263,7 +314,7 @@ export async function POST(req: NextRequest) {
     if (!templatePreviewUrl) {
       console.error(`❌ [INPUT AUDIT] ¡ERROR CRÍTICO! selectedTemplate.preview_image_url viene undefined/null!`);
     } else {
-      console.log(`✅ [INPUT AUDIT] template_json.preview_image_url recibido: "${templatePreviewUrl}"`);
+      console.log('✅ [INPUT AUDIT] template_json.preview_image_url recibido');
     }
     
     const hasProductImage = product_image && (product_image.startsWith('http') || product_image.startsWith('data:image'));
@@ -274,26 +325,17 @@ export async function POST(req: NextRequest) {
     }
     console.log('======================================================================\n');
 
-    if (templatePreviewUrl && templatePreviewUrl.startsWith('/')) {
-      const origin = req.nextUrl.origin;
-      templatePreviewUrl = `${origin}${templatePreviewUrl}`;
-      console.log(`🔗 [AI Engine] Resolviendo preview_image_url relativo a absoluto: ${templatePreviewUrl}`);
-    }
-
     let templatePreviewBase64: string | null = null;
 
-    if (templatePreviewUrl && (templatePreviewUrl.startsWith('http') || templatePreviewUrl.startsWith('data:image'))) {
-      if (templatePreviewUrl.startsWith('http')) {
-        try {
-          console.log(`📥 [AI Engine] Descargando imagen preview de la plantilla para referencia y QA: ${templatePreviewUrl}`);
-          templatePreviewBase64 = await fetchAsBase64(templatePreviewUrl);
-          console.log('✅ [AI Engine] Imagen preview de plantilla convertida a base64 exitosamente.');
-        } catch (downloadErr: any) {
-          console.warn(`⚠️ [AI Engine] Falló la conversión a base64 de la plantilla preview, se usará la URL original. Error:`, downloadErr.message);
-        }
-      } else {
-        templatePreviewBase64 = templatePreviewUrl; // Ya es base64
-      }
+    if (typeof templatePreviewUrl === 'string' && templatePreviewUrl.startsWith('/')) {
+      templatePreviewBase64 = await readPublicImageAsBase64(templatePreviewUrl);
+    } else if (typeof templatePreviewUrl === 'string' && templatePreviewUrl.startsWith('http')) {
+      templatePreviewBase64 = await fetchAsBase64(templatePreviewUrl);
+    } else if (typeof templatePreviewUrl === 'string' && templatePreviewUrl.startsWith('data:image')) {
+      const decoded = decodeImageDataUri(templatePreviewUrl);
+      templatePreviewBase64 = `data:${decoded.contentType};base64,${decoded.buffer.toString('base64')}`;
+    } else if (templatePreviewUrl) {
+      return NextResponse.json({ error: 'preview_image_url tiene un formato no permitido' }, { status: 400 });
     }
 
 
@@ -871,7 +913,7 @@ The template NEVER adapts to the product's visual style.`;
       const colorsToUse = injectedColors || adaptedColors;
       const envPalette = injectedEnvironmentPalette || environmentPalette;
       
-      let adaptedColorSection = `\n⚠️ MANDATORY COLOR PALETTE (TEMPLATE DNA DOMINANT):
+      const adaptedColorSection = `\n⚠️ MANDATORY COLOR PALETTE (TEMPLATE DNA DOMINANT):
 The template's visual DNA is the AUTHORITY. Product colors are SECONDARY and LOCAL only.
 
 UI ELEMENT COLORS (from template DNA):
@@ -1633,18 +1675,15 @@ OUTPUT: The SAME image with product inserted and ${hasTextSlots ? 'text replaced
             templateBuf = Buffer.from(cleanB64, 'base64');
           } else if (templatePreviewUrl) {
             try {
-              const resp = await fetch(templatePreviewUrl);
-              if (resp.ok) templateBuf = Buffer.from(await resp.arrayBuffer());
+              const remote = await fetchRemoteImage(templatePreviewUrl, { maxBytes: 10 * 1024 * 1024 });
+              templateBuf = remote.buffer;
             } catch { /* skip */ }
           }
 
           // Resolve product buffer
           let productBuf: Buffer | null = null;
           if (product_image) {
-            const cleanProd = product_image.replace(/^data:image\/[a-z]+;base64,/, '');
-            if (cleanProd.length > 100) {
-              productBuf = Buffer.from(cleanProd, 'base64');
-            }
+            productBuf = decodeImageDataUri(product_image).buffer;
           }
 
           const parsedSize = gptImageSize?.match(/(\d+)x(\d+)/);
@@ -1986,9 +2025,10 @@ The result must be visually indistinguishable from the original template in ALL 
     console.log('═'.repeat(70) + '\n');
 
     return NextResponse.json(responsePayload);
+    });
 
   } catch (error: any) {
-    console.error('❌ Error catastrófico en AI Render Pipeline API:', error);
+    console.error('AI render pipeline failed:', error instanceof Error ? error.name : 'unknown_error');
     
     const msg = (error.message || '').toLowerCase();
     
@@ -2006,6 +2046,6 @@ The result must be visually indistinguishable from the original template in ALL 
       }, { status: 402 });
     }
     
-    return NextResponse.json({ error: error.message || 'Error interno en el servidor de IA' }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno en el servidor de IA' }, { status: 500 });
   }
 }

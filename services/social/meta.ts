@@ -1,219 +1,252 @@
-/**
- * Service to publish Reels to Facebook Pages and Instagram Business Accounts.
- * Uses native fetch (Node 18+) to avoid adding external dependencies.
- */
-export class MetaPublishingService {
-  private static API_VERSION = 'v19.0';
-  private static BASE_URL = 'https://graph.facebook.com';
+import {
+  abortableDelay,
+  assertProviderUploadUrl,
+  providerHttpError,
+  providerInvalidResponse,
+  providerNetworkError,
+  readProviderJson,
+  SocialProviderError,
+  throwIfAborted,
+} from '@/services/social/provider-error';
 
-  /**
-   * Publishes a Reel to a Facebook Page.
-   * @param pageId The Facebook Page ID.
-   * @param pageAccessToken The Page Access Token.
-   * @param videoUrl The signed Supabase Storage video URL.
-   * @param caption The description/caption for the Reel.
-   * @returns The publication ID/URL or throws an error.
-   */
+type SocialLog = (message: string, level?: 'info' | 'warning' | 'error') => Promise<void>;
+
+function graphVersion(): string {
+  const configured = process.env.META_GRAPH_API_VERSION?.trim();
+  return configured && /^v\d{1,2}\.\d$/u.test(configured) ? configured : 'v24.0';
+}
+
+async function graphFormRequest(
+  path: string,
+  accessToken: string,
+  fields: Record<string, string>,
+  signal: AbortSignal | undefined,
+  phase: string,
+  ambiguous = false,
+): Promise<Record<string, any>> {
+  let response: Response;
+  try {
+    response = await fetch(`https://graph.facebook.com/${graphVersion()}/${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      },
+      body: new URLSearchParams(fields),
+      cache: 'no-store',
+      redirect: 'error',
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof SocialProviderError) throw error;
+    throw providerNetworkError('meta', phase, ambiguous);
+  }
+
+  const payload = await readProviderJson(response, 'meta', phase, ambiguous);
+  if (!response.ok || payload.error) {
+    throw providerHttpError('meta', phase, response.status, ambiguous);
+  }
+  return payload;
+}
+
+async function graphGetRequest(
+  path: string,
+  accessToken: string,
+  signal: AbortSignal | undefined,
+  phase: string,
+): Promise<Record<string, any>> {
+  let response: Response;
+  try {
+    response = await fetch(`https://graph.facebook.com/${graphVersion()}/${path}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+      redirect: 'error',
+      signal,
+    });
+  } catch {
+    throw providerNetworkError('meta', phase);
+  }
+  const payload = await readProviderJson(response, 'meta', phase);
+  if (!response.ok || payload.error) throw providerHttpError('meta', phase, response.status);
+  return payload;
+}
+
+export class MetaPublishingService {
   static async publishFacebookReel(
     pageId: string,
     pageAccessToken: string,
     videoUrl: string,
-    caption: string
+    caption: string,
+    signal?: AbortSignal,
   ): Promise<{ id: string }> {
+    throwIfAborted(signal);
+    const initialized = await graphFormRequest(
+      `${encodeURIComponent(pageId)}/video_reels`,
+      pageAccessToken,
+      { upload_phase: 'START' },
+      signal,
+      'facebook_reel_start',
+    );
+    const videoId = typeof initialized.video_id === 'string' ? initialized.video_id : '';
+    const uploadUrl = assertProviderUploadUrl(initialized.upload_url, ['facebook.com', 'fbcdn.net']);
+    if (!videoId || videoId.length > 200) {
+      throw providerInvalidResponse('meta', 'facebook_reel_start');
+    }
+
+    let videoResponse: Response;
     try {
-      console.log(`[FB Reels] Starting publication for page: ${pageId}`);
+      videoResponse = await fetch(videoUrl, {
+        cache: 'no-store',
+        redirect: 'error',
+        signal,
+      });
+    } catch {
+      throw providerNetworkError('storage', 'facebook_reel_download');
+    }
+    if (!videoResponse.ok) {
+      await videoResponse.body?.cancel().catch(() => undefined);
+      throw providerHttpError('storage', 'facebook_reel_download', videoResponse.status);
+    }
+    const videoBuffer = await videoResponse.arrayBuffer().catch(() => {
+      throw providerNetworkError('storage', 'facebook_reel_download');
+    });
 
-      // Step 1: Initialize the upload
-      const initUrl = `${this.BASE_URL}/${this.API_VERSION}/${pageId}/video_reels?upload_phase=START&access_token=${pageAccessToken}`;
-      const initRes = await fetch(initUrl, { method: 'POST' });
-      const initData: any = await initRes.json();
-
-      if (initData.error) {
-        throw new Error(initData.error.message || 'Initialization failed');
-      }
-
-      const { video_id, upload_url } = initData;
-      if (!video_id || !upload_url) {
-        throw new Error('Failed to initialize Facebook Reel upload session. No video_id or upload_url returned.');
-      }
-
-      console.log(`[FB Reels] Session initialized. Video ID: ${video_id}`);
-
-      // Step 2: Download the video from Supabase and upload it to Meta
-      console.log(`[FB Reels] Fetching video from storage...`);
-      const videoResponse = await fetch(videoUrl);
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to fetch video from Storage: ${videoResponse.statusText}`);
-      }
-      const videoBuffer = await videoResponse.arrayBuffer();
-
-      console.log(`[FB Reels] Uploading video binary (${videoBuffer.byteLength} bytes) to Meta...`);
-      const uploadRes = await fetch(upload_url, {
+    let uploadResponse: Response;
+    try {
+      uploadResponse = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `OAuth ${pageAccessToken}`,
+          Authorization: `OAuth ${pageAccessToken}`,
           'Content-Type': 'application/octet-stream',
-          'offset': '0',
-          'file_size': videoBuffer.byteLength.toString()
+          offset: '0',
+          file_size: String(videoBuffer.byteLength),
         },
         body: videoBuffer,
+        cache: 'no-store',
+        redirect: 'error',
+        signal,
       });
-
-      if (!uploadRes.ok) {
-        const uploadErr = await uploadRes.text();
-        throw new Error(`Upload to Meta failed: ${uploadErr}`);
-      }
-
-      console.log(`[FB Reels] Video upload completed. Finalizing publication...`);
-
-      // Step 3: Publish the Reel
-      const finalizeUrl = `${this.BASE_URL}/${this.API_VERSION}/${pageId}/video_reels?upload_phase=FINISH&video_id=${video_id}&video_state=PUBLISHED&description=${encodeURIComponent(caption)}&access_token=${pageAccessToken}`;
-      const finalizeRes = await fetch(finalizeUrl, { method: 'POST' });
-      const finalizeData: any = await finalizeRes.json();
-
-      if (finalizeData.error) {
-        throw new Error(finalizeData.error.message || 'Finalization failed');
-      }
-
-      console.log(`[FB Reels] Facebook Reel finalized:`, finalizeData);
-      return { id: video_id };
-    } catch (error: any) {
-      console.error(`[FB Reels] Error publishing Reel:`, error.message || error);
-      throw new Error(`Facebook Reels API Error: ${error.message || error}`);
+    } catch {
+      // The upload session may have received the binary, but no visible post
+      // exists until FINISH. Starting a fresh session is safe.
+      throw providerNetworkError('meta', 'facebook_reel_upload');
     }
+    if (!uploadResponse.ok) {
+      await uploadResponse.body?.cancel().catch(() => undefined);
+      throw providerHttpError('meta', 'facebook_reel_upload', uploadResponse.status);
+    }
+    await uploadResponse.body?.cancel().catch(() => undefined);
+
+    const finalized = await graphFormRequest(
+      `${encodeURIComponent(pageId)}/video_reels`,
+      pageAccessToken,
+      {
+        upload_phase: 'FINISH',
+        video_id: videoId,
+        video_state: 'PUBLISHED',
+        description: caption,
+      },
+      signal,
+      'facebook_reel_finish',
+      true,
+    );
+    if (finalized.success === false) {
+      throw providerInvalidResponse('meta', 'facebook_reel_finish', true);
+    }
+    return { id: videoId };
   }
 
-  /**
-   * Publishes a standard long video to a Facebook Page.
-   * Uses URL-based publishing directly to Meta's servers to avoid large server-side uploads.
-   * @param pageId The Facebook Page ID.
-   * @param pageAccessToken The Page Access Token.
-   * @param videoUrl The signed Supabase Storage video URL.
-   * @param caption The description/caption for the video.
-   * @param title The title of the video.
-   * @returns The published video ID.
-   */
   static async publishFacebookVideo(
     pageId: string,
     pageAccessToken: string,
     videoUrl: string,
     caption: string,
-    title?: string
+    title?: string,
+    signal?: AbortSignal,
   ): Promise<{ id: string }> {
-    try {
-      console.log(`[FB Video] Starting standard video publication for page: ${pageId}`);
-      const url = `${this.BASE_URL}/${this.API_VERSION}/${pageId}/videos`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          file_url: videoUrl,
-          description: caption,
-          title: title || '',
-          access_token: pageAccessToken
-        })
-      });
-      const data: any = await res.json();
-      if (data.error) {
-        throw new Error(data.error.message || 'Facebook Video upload failed');
-      }
-      console.log(`[FB Video] Facebook standard video published:`, data);
-      return { id: data.id };
-    } catch (error: any) {
-      console.error(`[FB Video] Error publishing Video:`, error.message || error);
-      throw new Error(`Facebook Video API Error: ${error.message || error}`);
+    const payload = await graphFormRequest(
+      `${encodeURIComponent(pageId)}/videos`,
+      pageAccessToken,
+      {
+        file_url: videoUrl,
+        description: caption,
+        title: title || '',
+      },
+      signal,
+      'facebook_video_publish',
+      true,
+    );
+    const id = typeof payload.id === 'string' ? payload.id : '';
+    if (!id || id.length > 200) {
+      throw providerInvalidResponse('meta', 'facebook_video_publish', true);
     }
+    return { id };
   }
 
-  /**
-   * Publishes a Reel to an Instagram Business Account.
-   * @param igUserId The Instagram Business Account ID.
-   * @param userAccessToken Long-lived User/Page Access Token.
-   * @param videoUrl The signed Supabase Storage video URL.
-   * @param caption The description/caption for the Reel.
-   * @param logCallback Callback function to write live logs to database.
-   * @returns The published media ID.
-   */
   static async publishInstagramReel(
     igUserId: string,
     userAccessToken: string,
     videoUrl: string,
     caption: string,
-    logCallback?: (message: string, level?: 'info' | 'warning' | 'error') => Promise<void>
+    logCallback?: SocialLog,
+    signal?: AbortSignal,
   ): Promise<{ id: string }> {
-    try {
-      const log = async (msg: string, lvl: 'info' | 'warning' | 'error' = 'info') => {
-        console.log(`[IG Reels] ${msg}`);
-        if (logCallback) await logCallback(msg, lvl);
-      };
-
-      await log(`Starting media container creation for Instagram account: ${igUserId}`);
-
-      // Step 1: Create the media container
-      const containerUrl = `${this.BASE_URL}/${this.API_VERSION}/${igUserId}/media?media_type=REELS&video_url=${encodeURIComponent(videoUrl)}&caption=${encodeURIComponent(caption)}&share_to_feed=true&access_token=${userAccessToken}`;
-      const containerRes = await fetch(containerUrl, { method: 'POST' });
-      const containerData: any = await containerRes.json();
-
-      if (containerData.error) {
-        throw new Error(containerData.error.message || 'Container creation failed');
-      }
-
-      const containerId = containerData.id;
-      if (!containerId) {
-        throw new Error('Failed to create Instagram media container. No ID returned.');
-      }
-
-      await log(`Media container created successfully. Container ID: ${containerId}. Waiting for Meta transcoding...`);
-
-      // Step 2: Poll status of the container
-      const statusUrl = `${this.BASE_URL}/${this.API_VERSION}/${containerId}?fields=status_code,status&access_token=${userAccessToken}`;
-      let status = 'IN_PROGRESS';
-      let attempts = 0;
-      const maxAttempts = 90; // 90 * 10 seconds = 900 seconds (15 minutes max for longer videos)
-
-      while (status === 'IN_PROGRESS' && attempts < maxAttempts) {
-        attempts++;
-        await new Promise((resolve) => setTimeout(resolve, 10000)); // wait 10 seconds
-
-        const statusRes = await fetch(statusUrl);
-        const statusData: any = await statusRes.json();
-
-        if (statusData.error) {
-          throw new Error(statusData.error.message || 'Status check failed');
-        }
-
-        const code = statusData.status_code;
-        console.log(`[IG Reels] Polling attempt ${attempts}: ${code}`);
-        
-        if (code === 'FINISHED') {
-          status = 'FINISHED';
-        } else if (code === 'ERROR' || code === 'EXPIRED') {
-          status = 'FAILED';
-          throw new Error(`Meta transcoding failed with code: ${code}. Detailed error: ${statusData.status || 'Unknown error'}`);
-        }
-      }
-
-      if (status !== 'FINISHED') {
-        throw new Error('Meta transcoding timed out after 5 minutes.');
-      }
-
-      await log(`Meta transcoding finished successfully. Publishing container...`);
-
-      // Step 3: Publish the container
-      const publishUrl = `${this.BASE_URL}/${this.API_VERSION}/${igUserId}/media_publish?creation_id=${containerId}&access_token=${userAccessToken}`;
-      const publishRes = await fetch(publishUrl, { method: 'POST' });
-      const publishData: any = await publishRes.json();
-
-      if (publishData.error) {
-        throw new Error(publishData.error.message || 'Publishing failed');
-      }
-
-      const mediaId = publishData.id;
-      await log(`Instagram Reel published successfully! Media ID: ${mediaId}`);
-      return { id: mediaId };
-    } catch (error: any) {
-      console.error(`[IG Reels] Error publishing Reel:`, error.message || error);
-      throw new Error(`Instagram Reels API Error: ${error.message || error}`);
+    await logCallback?.('Creando contenedor seguro de Instagram Reel.');
+    const container = await graphFormRequest(
+      `${encodeURIComponent(igUserId)}/media`,
+      userAccessToken,
+      {
+        media_type: 'REELS',
+        video_url: videoUrl,
+        caption,
+        share_to_feed: 'true',
+      },
+      signal,
+      'instagram_container',
+    );
+    const containerId = typeof container.id === 'string' ? container.id : '';
+    if (!containerId || containerId.length > 200) {
+      throw providerInvalidResponse('meta', 'instagram_container');
     }
+
+    // The synchronous Netlify route has a fixed 60-second ceiling. Poll only
+    // while the worker's 45-second provider budget remains; a deadline is
+    // dead-lettered because recreating/publishing blindly risks duplication.
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await abortableDelay(8_000, signal);
+      const statusPayload = await graphGetRequest(
+        `${encodeURIComponent(containerId)}?fields=status_code,status`,
+        userAccessToken,
+        signal,
+        'instagram_status',
+      );
+      const status = typeof statusPayload.status_code === 'string'
+        ? statusPayload.status_code.toUpperCase()
+        : '';
+      if (status === 'FINISHED') {
+        await logCallback?.('Instagram terminó de procesar el contenedor.');
+        const published = await graphFormRequest(
+          `${encodeURIComponent(igUserId)}/media_publish`,
+          userAccessToken,
+          { creation_id: containerId },
+          signal,
+          'instagram_publish',
+          true,
+        );
+        const mediaId = typeof published.id === 'string' ? published.id : '';
+        if (!mediaId || mediaId.length > 200) {
+          throw providerInvalidResponse('meta', 'instagram_publish', true);
+        }
+        return { id: mediaId };
+      }
+      if (status === 'ERROR' || status === 'EXPIRED') {
+        throw new SocialProviderError('meta_instagram_transcode_failed', 'dead');
+      }
+      if (status !== 'IN_PROGRESS') {
+        throw providerInvalidResponse('meta', 'instagram_status');
+      }
+    }
+
+    throw new SocialProviderError('meta_instagram_processing_exceeds_sync_budget', 'ambiguous');
   }
 }

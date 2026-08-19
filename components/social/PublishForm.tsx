@@ -172,13 +172,12 @@ export default function PublishForm({ accounts, onSubmit, isPublishing, videoSto
     setError(null);
 
     try {
-      const token = localStorage.getItem('rifx_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/panel/social/generate-metadata', {
         method: 'POST',
         headers,
+        credentials: 'same-origin',
         body: JSON.stringify({ title, caption })
       });
 

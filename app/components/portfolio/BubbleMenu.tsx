@@ -1,9 +1,43 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { gsap } from 'gsap';
 
 import './BubbleMenu.css';
 
-const DEFAULT_ITEMS = [
+export interface BubbleMenuItem {
+  label: string;
+  href: string;
+  ariaLabel?: string;
+  rotation?: number;
+  hoverStyles?: {
+    bgColor?: string;
+    textColor?: string;
+  };
+}
+
+interface BubbleMenuProps {
+  logo?: ReactNode | string;
+  onMenuClick?: (isOpen: boolean) => void;
+  className?: string;
+  style?: CSSProperties;
+  menuAriaLabel?: string;
+  menuBg?: string;
+  menuContentColor?: string;
+  useFixedPosition?: boolean;
+  items?: BubbleMenuItem[];
+  animationEase?: string;
+  animationDuration?: number;
+  staggerDelay?: number;
+}
+
+type MenuItemStyle = CSSProperties & {
+  '--item-rot': string;
+  '--pill-bg': string;
+  '--pill-color': string;
+  '--hover-bg': string;
+  '--hover-color': string;
+};
+
+const DEFAULT_ITEMS: BubbleMenuItem[] = [
   {
     label: 'home',
     href: '#',
@@ -54,13 +88,13 @@ export default function BubbleMenu({
   animationEase = 'back.out(1.5)',
   animationDuration = 0.5,
   staggerDelay = 0.12
-}) {
+}: BubbleMenuProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
 
-  const overlayRef = useRef(null);
-  const bubblesRef = useRef([]);
-  const labelRefs = useRef([]);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const bubblesRef = useRef<Array<HTMLAnchorElement | null>>([]);
+  const labelRefs = useRef<Array<HTMLSpanElement | null>>([]);
 
   const menuItems = items?.length ? items : DEFAULT_ITEMS;
   const containerClassName = ['bubble-menu', useFixedPosition ? 'fixed' : 'absolute', className]
@@ -76,10 +110,12 @@ export default function BubbleMenu({
 
   useEffect(() => {
     const overlay = overlayRef.current;
-    const bubbles = bubblesRef.current.filter(Boolean);
-    const labels = labelRefs.current.filter(Boolean);
+    const bubbles = bubblesRef.current.filter((bubble): bubble is HTMLAnchorElement => bubble !== null);
+    const labels = labelRefs.current.filter((label): label is HTMLSpanElement => label !== null);
 
     if (!overlay || !bubbles.length) return;
+
+    let cancelled = false;
 
     if (isMenuOpen) {
       gsap.set(overlay, { display: 'flex' });
@@ -122,17 +158,23 @@ export default function BubbleMenu({
         duration: 0.2,
         ease: 'power3.in',
         onComplete: () => {
+          if (cancelled) return;
           gsap.set(overlay, { display: 'none' });
           setShowOverlay(false);
         }
       });
     }
+
+    return () => {
+      cancelled = true;
+      gsap.killTweensOf([overlay, ...bubbles, ...labels]);
+    };
   }, [isMenuOpen, showOverlay, animationEase, animationDuration, staggerDelay]);
 
   useEffect(() => {
     const handleResize = () => {
       if (isMenuOpen) {
-        const bubbles = bubblesRef.current.filter(Boolean);
+        const bubbles = bubblesRef.current.filter((bubble): bubble is HTMLAnchorElement => bubble !== null);
         const isDesktop = window.innerWidth >= 900;
 
         bubbles.forEach((bubble, i) => {
@@ -212,15 +254,15 @@ export default function BubbleMenu({
                     '--pill-color': menuContentColor,
                     '--hover-bg': item.hoverStyles?.bgColor || '#f3f4f6',
                     '--hover-color': item.hoverStyles?.textColor || menuContentColor
-                  }}
+                  } as MenuItemStyle}
                   ref={el => {
-                    if (el) bubblesRef.current[idx] = el;
+                    bubblesRef.current[idx] = el;
                   }}
                 >
                   <span
                     className="pill-label"
                     ref={el => {
-                      if (el) labelRefs.current[idx] = el;
+                      labelRefs.current[idx] = el;
                     }}
                   >
                     {item.label}

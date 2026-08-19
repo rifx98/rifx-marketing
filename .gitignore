@@ -1,14 +1,39 @@
 opencode.json
-.env
-.env.local
+.env*
+!.env.example
 node_modules/
 .next/
 .tina/__generated__/
+tina/__generated__/
 
-.vercel
+.vercel/
+.netlify/
 
 # Scratch/debug workspace — throwaway scripts, screenshots, backups. Never commit new ones.
 scratch/
 *.tsbuildinfo
 *.log
+*.bkp
+*.backup
+*.backup.*
+*.orig
+*.rej
+build_log.txt
+build_output.txt
+coverage/
+.eslintcache
+public/debug/
+
+# Private keys and local signing material.
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
 .claude/settings.local.json
+
+# Security audit and sensitive files
+*.audit
+*.secret
+.DS_Store
+Thumbs.db

@@ -1,98 +1,219 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabase';
-import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
+import { getTenantFromRequest } from '@/lib/auth';
+import { denyUnlessFeature } from '@/lib/feature-access';
+import {
+  enforceTenantRateLimit,
+  internalApiError,
+  readLimitedJsonObject,
+  readLimitedResponseJson,
+} from '@/lib/request-guards';
+import { createSupabaseAdmin } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+
+const MAX_NAME_LENGTH = 160;
+const MAX_MESSAGE_LENGTH = 4_000;
+const MAX_AI_PROMPT_LENGTH = 8_000;
+const MAX_API_KEY_LENGTH = 2_048;
+const MAX_PROVIDER_RESPONSE_BYTES = 64 * 1024;
+const PROVIDER_TIMEOUT_MS = 15_000;
+
+type JsonRecord = Record<string, unknown>;
+
+function jsonResponse(body: JsonRecord, status = 200): NextResponse {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
+function parseConfiguredApiKey(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const raw = value.trim();
+  if (!raw || raw.length > MAX_API_KEY_LENGTH) return '';
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return '';
+    const config = parsed as JsonRecord;
+    const candidate = typeof config.groq_key === 'string'
+      ? config.groq_key.trim()
+      : typeof config.openai_key === 'string'
+        ? config.openai_key.trim()
+        : '';
+    return candidate.length <= MAX_API_KEY_LENGTH ? candidate : '';
+  } catch {
+    return raw;
+  }
+}
+
+function providerError(payload: unknown): { code: number | null; message: string } {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { code: null, message: '' };
+  }
+  const error = (payload as JsonRecord).error;
+  if (!error || typeof error !== 'object' || Array.isArray(error)) {
+    return { code: null, message: '' };
+  }
+  const details = error as JsonRecord;
+  const numericCode = Number(details.code);
+  return {
+    code: Number.isFinite(numericCode) ? numericCode : null,
+    message: typeof details.message === 'string'
+      ? details.message.toLowerCase().slice(0, 1_000)
+      : '',
+  };
+}
+
+async function sendWhatsAppRequest(
+  phoneId: string,
+  token: string,
+  payload: JsonRecord,
+): Promise<{ ok: boolean; payload: unknown }> {
+  const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+  });
+
+  let responsePayload: unknown = {};
+  try {
+    responsePayload = await readLimitedResponseJson(response, MAX_PROVIDER_RESPONSE_BYTES);
+  } catch {
+    if (response.ok) throw new Error('invalid_provider_response');
+  }
+  return { ok: response.ok, payload: responsePayload };
+}
 
 export async function POST(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
-    if (!tenant?.tenantId) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    if (!tenant?.tenantId) return jsonResponse({ error: 'No autorizado' }, 401);
+
+    const featureDenied = denyUnlessFeature(tenant, 'crm');
+    if (featureDenied) return featureDenied;
+    const rateDenied = await enforceTenantRateLimit('add-contact', tenant.tenantId, 12, 60_000);
+    if (rateDenied) return rateDenied;
+
+    const bodyResult = await readLimitedJsonObject(req, 16 * 1024);
+    if (!bodyResult.ok) return bodyResult.response;
+
+    const rawName = bodyResult.body.name;
+    const rawPhone = bodyResult.body.phone;
+    const rawMessage = bodyResult.body.message;
+    const rawTestMode = bodyResult.body.testMode;
+    if (
+      (rawName !== undefined && rawName !== null && typeof rawName !== 'string') ||
+      typeof rawPhone !== 'string' ||
+      (rawMessage !== undefined && rawMessage !== null && typeof rawMessage !== 'string') ||
+      (rawTestMode !== undefined && typeof rawTestMode !== 'boolean')
+    ) {
+      return jsonResponse({ error: 'Solicitud inválida' }, 400);
     }
 
-    const { name, phone, message, testMode } = await req.json();
-    
-    if (!phone) {
-      return NextResponse.json({ error: 'Teléfono es requerido' }, { status: 400 });
+    const safePhone = rawPhone.trim();
+    const safeName = typeof rawName === 'string' ? rawName.trim() : '';
+    const safeMessage = typeof rawMessage === 'string' ? rawMessage.trim() : '';
+    const testMode = rawTestMode === true;
+    if (!/^\+?[0-9]{6,30}$/.test(safePhone)) {
+      return jsonResponse({ error: 'Teléfono inválido' }, 400);
     }
-    if (!testMode && !name) {
-      return NextResponse.json({ error: 'Nombre y teléfono son requeridos' }, { status: 400 });
+    if (
+      safeName.length > MAX_NAME_LENGTH ||
+      safeMessage.length > MAX_MESSAGE_LENGTH ||
+      (typeof rawMessage === 'string' && rawMessage.length > MAX_MESSAGE_LENGTH)
+    ) {
+      return jsonResponse({ error: 'Solicitud inválida' }, 400);
+    }
+    if (!testMode && !safeName) {
+      return jsonResponse({ error: 'Nombre y teléfono son requeridos' }, 400);
     }
 
     const supabase = createSupabaseAdmin();
-
     let convId: string | null = null;
 
-    // In test mode: skip contact creation entirely
+    // In test mode: skip contact creation entirely.
     if (!testMode) {
-      // Check if contact already exists for this tenant
-      const { data: existing } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('phone_number', phone)
-        .eq('tenant_id', tenant.tenantId)
-        .maybeSingle();
-
-      if (existing) {
-        return NextResponse.json({ error: 'Este número ya existe en la base de datos', id: existing.id }, { status: 409 });
-      }
-
-      // Create the conversation
-      const { data: newConv, error: convError } = await supabase
-        .from('conversations')
-        .insert({
-          customer_name: name,
-          phone_number: phone,
-          status: 'chatting',
-          tenant_id: tenant.tenantId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+      const { data: newConversationId, error: convError } = await supabase.rpc(
+        'create_tenant_conversation_with_quota',
+        {
+          p_tenant_id: tenant.tenantId,
+          p_customer_name: safeName,
+          p_phone_number: safePhone,
+        },
+      );
 
       if (convError) {
-        console.error('Error creating conversation:', convError);
-        return NextResponse.json({ error: 'Error al crear el contacto' }, { status: 500 });
+        if (convError.message?.includes('contact_already_exists')) {
+          return jsonResponse({ error: 'Este número ya existe en la base de datos' }, 409);
+        }
+        if (convError.message?.includes('contact_limit_reached')) {
+          return jsonResponse({ error: 'Límite de contactos alcanzado' }, 429);
+        }
+        console.error('Contact quota reservation failed');
+        return internalApiError();
       }
-      convId = newConv.id;
+      convId = typeof newConversationId === 'string' ? newConversationId : null;
+      if (!convId) return internalApiError();
     }
 
-    // If a message description is provided, use AI to craft and send it
-    if (message && message.trim()) {
-      const { data: config } = await supabase.from('config').select('*').eq('tenant_id', tenant.tenantId).maybeSingle();
-      
-      // Decode AI keys from JSON-encoded openai_key column
-      let groqKey = '';
-      try {
-        const parsed = JSON.parse(config?.openai_key || '{}');
-        groqKey = parsed.groq_key || parsed.openai_key || '';
-      } catch {
-        groqKey = config?.openai_key || '';
+    if (!safeMessage) {
+      if (testMode) {
+        return jsonResponse({ error: 'En modo prueba debes escribir un mensaje' }, 400);
       }
-      if (!groqKey) groqKey = process.env.GROQ_API_KEY || '';
+      return jsonResponse({ success: true, id: convId, messageSent: false });
+    }
 
-      const token = config?.whatsapp_token || process.env.WHATSAPP_TOKEN;
-      const phoneId = config?.whatsapp_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID;
-      const aiPrompt = config?.ai_prompt || '';
+    const { data: config, error: configError } = await supabase
+      .from('config')
+      .select('openai_key,whatsapp_token,whatsapp_phone_id,ai_prompt')
+      .eq('tenant_id', tenant.tenantId)
+      .maybeSingle();
+    if (configError) return internalApiError();
 
-      let finalMessage = message;
-      const contactName = testMode ? 'estimado cliente' : name;
+    const groqKey = parseConfiguredApiKey(config?.openai_key);
+    const token = typeof config?.whatsapp_token === 'string' ? config.whatsapp_token.trim() : '';
+    const phoneId = typeof config?.whatsapp_phone_id === 'string'
+      ? config.whatsapp_phone_id.trim()
+      : '';
+    const aiPrompt = typeof config?.ai_prompt === 'string'
+      ? config.ai_prompt.slice(0, MAX_AI_PROMPT_LENGTH)
+      : '';
 
-      // Use AI to craft the message
-      if (groqKey) {
-        try {
-          const groq = new OpenAI({
-            apiKey: groqKey,
-            baseURL: 'https://api.groq.com/openai/v1',
-          });
+    if (
+      !/^\d{5,40}$/.test(phoneId) ||
+      token.length < 10 ||
+      token.length > 4_096
+    ) {
+      return jsonResponse(
+        { error: 'WhatsApp no está configurado. Configure el token y phone ID.' },
+        400,
+      );
+    }
 
-          const completion = await groq.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
-            messages: [
-              {
-                role: 'system',
-                content: `Eres un asistente de ventas experto. Tu tarea es redactar un mensaje de WhatsApp para iniciar una conversación con un nuevo cliente potencial.
+    let finalMessage = safeMessage;
+    const contactName = testMode ? 'estimado cliente' : safeName;
+
+    if (groqKey.length >= 10) {
+      try {
+        const groq = new OpenAI({
+          apiKey: groqKey,
+          baseURL: 'https://api.groq.com/openai/v1',
+          timeout: 20_000,
+          maxRetries: 1,
+        });
+        const completion = await groq.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `Eres un asistente de ventas experto. Tu tarea es redactar un mensaje de WhatsApp para iniciar una conversación con un nuevo cliente potencial.
 
 Contexto del negocio:
 ${aiPrompt}
@@ -104,113 +225,87 @@ REGLAS:
 - Incluye 1-2 emojis relevantes
 - No uses listas ni formato complejo, es WhatsApp
 - Debe motivar al cliente a responder
-- Responde SOLO con el mensaje, nada más`
-              },
-              {
-                role: 'user',
-                content: `Redacta un primer mensaje para ${contactName}. Contexto de lo que quiero comunicar: "${message}"`
-              }
-            ],
-            max_tokens: 200,
-            temperature: 0.7,
-          });
-
-          finalMessage = completion.choices[0]?.message?.content || message;
-        } catch (err) {
-          console.error('AI message crafting error:', err);
-          // Fallback to original message
-        }
-      }
-
-      // Send via WhatsApp
-      if (token && phoneId) {
-        try {
-          const waResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
+- Responde SOLO con el mensaje, nada más`,
             },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              to: phone,
-              type: 'text',
-              text: { body: finalMessage },
-            }),
-          });
+            {
+              role: 'user',
+              content: `Redacta un primer mensaje para ${contactName}. Contexto de lo que quiero comunicar: "${safeMessage}"`,
+            },
+          ],
+          max_tokens: 200,
+          temperature: 0.7,
+        });
 
-          const waResult = await waResponse.json();
-          
-          if (waResponse.ok) {
-            // Save message to history only if not test mode
-            if (convId) {
-              await supabase.from('messages').insert({
-                conversation_id: convId,
-                role: 'assistant',
-                content: finalMessage,
-                tenant_id: tenant.tenantId,
-              });
-            }
-            
-            console.log(`📤 ${testMode ? '[TEST]' : ''} Mensaje enviado a ${contactName} (${phone})`);
-          } else {
-            // Check if 24h window is closed - try template fallback
-            const errCode = waResult?.error?.code;
-            const errMsg = (waResult?.error?.message || '').toLowerCase();
-            const is24hError = errCode === 131047 || errCode === 131026 || errCode === 130472 ||
-              errMsg.includes('24') || errMsg.includes('session') || errMsg.includes('window') || errMsg.includes('template');
-            
-            if (is24hError) {
-              console.log(`⏳ Ventana 24h cerrada para ${phone}, intentando con template...`);
-              const templateRes = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  messaging_product: 'whatsapp',
-                  to: phone,
-                  type: 'template',
-                  template: { name: 'hello_world', language: { code: 'en_US' } },
-                }),
-              });
-              const templateData = await templateRes.json();
-              if (templateRes.ok) {
-                console.log(`📤 ${testMode ? '[TEST]' : ''} Template enviado a ${contactName} (${phone}) - ventana 24h cerrada`);
-                if (convId) {
-                  await supabase.from('messages').insert({
-                    conversation_id: convId,
-                    role: 'assistant',
-                    content: `[Template enviado - ventana 24h cerrada]\n${finalMessage}`,
-                    tenant_id: tenant.tenantId,
-                  });
-                }
-              } else {
-                console.error('Template send error:', templateData);
-                return NextResponse.json({ error: 'La ventana de 24h está cerrada y no se pudo enviar template' }, { status: 500 });
-              }
-            } else {
-              console.error('WhatsApp send error:', waResult);
-              return NextResponse.json({ error: waResult.error?.message || 'Error al enviar por WhatsApp' }, { status: 500 });
-            }
-          }
-        } catch (err) {
-          console.error('WhatsApp send error:', err);
-          return NextResponse.json({ error: 'Error de conexión con WhatsApp' }, { status: 500 });
-        }
-      } else {
-        return NextResponse.json({ error: 'WhatsApp no está configurado. Configure el token y phone ID.' }, { status: 400 });
+        const generated = completion.choices[0]?.message?.content?.trim() || '';
+        if (generated) finalMessage = generated.slice(0, MAX_MESSAGE_LENGTH);
+      } catch {
+        // The original bounded message remains a safe provider-independent fallback.
+        console.warn('AI message crafting failed');
+      }
+    }
+
+    let whatsappResult: { ok: boolean; payload: unknown };
+    try {
+      whatsappResult = await sendWhatsAppRequest(phoneId, token, {
+        messaging_product: 'whatsapp',
+        to: safePhone,
+        type: 'text',
+        text: { body: finalMessage },
+      });
+    } catch {
+      console.error('WhatsApp provider request failed');
+      return jsonResponse({ error: 'Error de conexión con WhatsApp' }, 500);
+    }
+
+    let historyContent = finalMessage;
+    if (!whatsappResult.ok) {
+      const details = providerError(whatsappResult.payload);
+      const is24hError = details.code === 131047 || details.code === 131026 ||
+        details.code === 130472 || details.message.includes('24') ||
+        details.message.includes('session') || details.message.includes('window') ||
+        details.message.includes('template');
+
+      if (!is24hError) {
+        return jsonResponse({ error: 'Error al enviar por WhatsApp' }, 502);
       }
 
-      return NextResponse.json({ success: true, id: convId, messageSent: true, finalMessage, testMode: !!testMode });
+      let templateResult: { ok: boolean; payload: unknown };
+      try {
+        templateResult = await sendWhatsAppRequest(phoneId, token, {
+          messaging_product: 'whatsapp',
+          to: safePhone,
+          type: 'template',
+          template: { name: 'hello_world', language: { code: 'en_US' } },
+        });
+      } catch {
+        console.error('WhatsApp template request failed');
+        return jsonResponse({ error: 'No se pudo enviar el mensaje de WhatsApp' }, 502);
+      }
+      if (!templateResult.ok) {
+        return jsonResponse({ error: 'No se pudo enviar el mensaje de WhatsApp' }, 502);
+      }
+      historyContent = `[Template enviado - ventana 24h cerrada]\n${finalMessage}`;
     }
 
-    if (testMode) {
-      return NextResponse.json({ error: 'En modo prueba debes escribir un mensaje' }, { status: 400 });
+    if (convId) {
+      const { error: historyError } = await supabase.from('messages').insert({
+        conversation_id: convId,
+        role: 'assistant',
+        content: historyContent,
+        tenant_id: tenant.tenantId,
+      });
+      if (historyError) console.error('Sent message history write failed');
     }
 
-    return NextResponse.json({ success: true, id: convId, messageSent: false });
-
-  } catch (error: any) {
-    console.error('Add contact error:', error);
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+    return jsonResponse({
+      success: true,
+      id: convId,
+      messageSent: true,
+      finalMessage,
+      testMode,
+    });
+  } catch {
+    console.error('Add contact request failed');
+    return internalApiError();
   }
 }

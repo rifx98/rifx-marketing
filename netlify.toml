@@ -1,13 +1,10 @@
 [build]
-  publish = "."
-  command = "npm install && npx @tinacms/cli@latest build"
+  # Netlify's Next.js runtime owns the publish directory. Dependencies are
+  # installed from the committed package-lock before this local script runs.
+  command = "npm run build"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "22"
+  NPM_VERSION = "10.9.2"
   TINA_PUBLIC_CLIENT_ID = "40561aba-f9f7-4e3d-a8fa-d0149e35ca4b"
-  TINA_TOKEN = "7e3f66ae4163da82066dca9e0c46999c7ee217cb"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Content-Security-Policy = "default-src 'self' 'unsafe-eval' 'unsafe-inline' https: data: blob:; img-src 'self' data: blob: https:; connect-src 'self' https://*.tina.io https://*.tinajs.io wss://*.tina.io https:;"
+  # Configure TINA_TOKEN in Netlify's encrypted environment variables.

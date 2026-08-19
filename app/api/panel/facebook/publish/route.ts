@@ -32,7 +32,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFacebookCredentials } from '@/lib/facebook';
+import {
+  fetchFacebookJson,
+  getFacebookCredentials,
+  getFacebookPublicError,
+} from '@/lib/facebook';
+import { enforceTenantRateLimit, readLimitedJsonObject } from '@/lib/request-guards';
 
 export const maxDuration = 60;
 
@@ -145,8 +150,7 @@ interface CreativeAsset {
 
 // ─── Auto-detect Page ID ─────────────────────────────────
 async function fetchPageId(token: string): Promise<string> {
-  const res = await fetch(`${FB_BASE}/me/accounts?access_token=${token}&limit=100`);
-  const data = await res.json();
+  const data = await fetchFacebookJson(`${FB_BASE}/me/accounts?access_token=${token}&limit=100`);
 
   if (data.error) {
     throw new Error(
@@ -164,7 +168,6 @@ async function fetchPageId(token: string): Promise<string> {
 
   const rifxPage = data.data.find((p: any) => p.name && p.name.toLowerCase().includes('rifx'));
   if (rifxPage) {
-    console.log(`✨ Página RIFX autodetectada: ${rifxPage.name} (${rifxPage.id})`);
     return rifxPage.id;
   }
 
@@ -178,8 +181,7 @@ async function fetchPageId(token: string): Promise<string> {
 // el propio negocio, no es algo que la API pueda hacer por ellos ───
 async function getOrCreatePixel(adAccountId: string, token: string): Promise<string | null> {
   try {
-    const listRes = await fetch(`${FB_BASE}/${adAccountId}/adspixels?fields=id,name&access_token=${token}`);
-    const listData = await listRes.json();
+    const listData = await fetchFacebookJson(`${FB_BASE}/${adAccountId}/adspixels?fields=id,name&access_token=${token}`);
     if (listData.data && listData.data.length > 0) {
       return listData.data[0].id;
     }
@@ -189,8 +191,8 @@ async function getOrCreatePixel(adAccountId: string, token: string): Promise<str
       access_token: token,
     });
     return createData.id || null;
-  } catch (err) {
-    console.error('⚠️ [PIXEL] Error obteniendo/creando pixel:', err);
+  } catch {
+    console.error('Meta pixel lookup failed');
     return null;
   }
 }
@@ -357,58 +359,36 @@ function createErrorResponse(
   error: MetaApiError,
   extraData: Record<string, any> = {}
 ) {
-  const userMessage = error.error_user_msg || error.error_user_title || error.message;
-
-  console.error(`❌ [FB ${step.toUpperCase()}] Code: ${error.code}, SubCode: ${error.error_subcode}`);
-  console.error(`   Message: ${error.message}`);
-  console.error(`   User Msg: ${error.error_user_msg || 'N/A'}`);
-  console.error(`   FBTrace: ${error.fbtrace_id || 'N/A'}`);
+  console.error('Meta publishing step failed:', step, error.code || 'provider_error', error.error_subcode || 'none');
 
   return NextResponse.json({
     success: false,
-    error: userMessage,
+    error: 'Meta rechazo esta operacion. Revisa la configuracion de la campana.',
     error_code: error.code,
     error_subcode: error.error_subcode,
     step,
-    fbtrace_id: error.fbtrace_id,
     ...extraData,
-  }, { status: 400 });
+  }, { status: 502, headers: { 'Cache-Control': 'no-store' } });
 }
 
 // Helper to delete a campaign in case of error (rollback)
 async function rollbackCampaign(campaignId: string, token: string) {
   try {
-    console.log(`🧹 [ROLLBACK] Deleting incomplete campaign: ${campaignId}`);
-    const res = await fetch(`${FB_BASE}/${campaignId}?access_token=${token}`, {
+    await fetchFacebookJson(`${FB_BASE}/${campaignId}?access_token=${token}`, {
       method: 'DELETE',
     });
-    const data = await res.json();
-    console.log(`🧹 [ROLLBACK RESULT]`, data);
-  } catch (err) {
-    console.error(`❌ [ROLLBACK FAILED] Error deleting campaign ${campaignId}:`, err);
+  } catch {
+    console.error('Meta campaign rollback failed');
   }
 }
 
 // ─── Meta API helper ──────────────────────────────────────
 async function metaPost(url: string, payload: Record<string, any>) {
-  console.log(`📤 [META POST] ${url.replace(/access_token=[^&]+/, 'access_token=***')}`);
-  console.log(`   Payload keys: ${Object.keys(payload).filter(k => k !== 'access_token').join(', ')}`);
-
-  const res = await fetch(url, {
+  return fetchFacebookJson(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  const data = await res.json();
-
-  if (data.error) {
-    console.error(`📥 [META ERROR]`, JSON.stringify(data.error, null, 2));
-  } else {
-    console.log(`📥 [META OK] id: ${data.id}`);
-  }
-
-  return data;
 }
 
 interface AdSetResult {
@@ -427,7 +407,7 @@ async function uploadVideoToMeta(adAccountId: string, videoUrl: string, token: s
       access_token: token,
     });
     if (!data.id) {
-      console.error('⚠️ [VIDEO UPLOAD] No se pudo iniciar la subida:', data.error);
+      console.error('Meta video upload was rejected');
       return null;
     }
     const videoId = data.id;
@@ -436,27 +416,25 @@ async function uploadVideoToMeta(adAccountId: string, videoUrl: string, token: s
     // limite acotado de intentos para no exceder el timeout de la funcion.
     for (let attempt = 0; attempt < 6; attempt++) {
       await new Promise(resolve => setTimeout(resolve, 1500));
-      const statusRes = await fetch(`${FB_BASE}/${videoId}?fields=status&access_token=${token}`);
-      const statusData = await statusRes.json();
+      const statusData = await fetchFacebookJson(`${FB_BASE}/${videoId}?fields=status&access_token=${token}`);
       const videoStatus = statusData.status?.video_status;
       if (videoStatus === 'ready') return videoId;
       if (videoStatus === 'error') {
-        console.error('⚠️ [VIDEO UPLOAD] Meta reportó error procesando el video:', statusData.status);
+        console.error('Meta video processing failed');
         return null;
       }
     }
     console.error('⚠️ [VIDEO UPLOAD] Timeout esperando el procesamiento del video, se omite ese anuncio.');
     return null;
-  } catch (err) {
-    console.error('⚠️ [VIDEO UPLOAD] Excepción:', err);
+  } catch {
+    console.error('Meta video upload failed');
     return null;
   }
 }
 
 async function getVideoThumbnail(videoId: string, token: string): Promise<string | null> {
   try {
-    const res = await fetch(`${FB_BASE}/${videoId}/thumbnails?access_token=${token}`);
-    const data = await res.json();
+    const data = await fetchFacebookJson(`${FB_BASE}/${videoId}/thumbnails?access_token=${token}`);
     const thumbs = data.data || [];
     const preferred = thumbs.find((t: any) => t.is_preferred) || thumbs[0];
     return preferred?.uri || null;
@@ -711,10 +689,10 @@ async function createEngagementAudience(params: {
       data = await metaPost(`${FB_BASE}/${adAccountId}/customaudiences`, payload);
       if (data.id) return data.id;
     }
-    console.error('⚠️ [REMARKETING AUDIENCE] No se pudo crear, se sigue con targeting normal:', data.error);
+    console.error('Meta remarketing audience creation was rejected');
     return null;
-  } catch (err) {
-    console.error('⚠️ [REMARKETING AUDIENCE] Excepción, se sigue con targeting normal:', err);
+  } catch {
+    console.error('Meta remarketing audience creation failed');
     return null;
   }
 }
@@ -732,11 +710,11 @@ async function findExistingEngagementAudiences(
 ): Promise<string[]> {
   try {
     const listUrl = `${FB_BASE}/${adAccountId}/customaudiences?fields=id,subtype,delivery_status,rule&limit=200&access_token=${token}`;
-    let data = await (await fetch(listUrl)).json();
+    let data = await fetchFacebookJson(listUrl);
     if (!data.data && isRateLimitError(data.error)) {
       console.warn('⏳ [REMARKETING AUDIENCE] Límite de la API alcanzado buscando audiencias existentes, reintentando en 3s...');
       await new Promise(resolve => setTimeout(resolve, 3000));
-      data = await (await fetch(listUrl)).json();
+      data = await fetchFacebookJson(listUrl);
     }
     if (!data.data) return [];
 
@@ -755,8 +733,8 @@ async function findExistingEngagementAudiences(
       if (belongsToThisPage) matches.push(audience.id);
     }
     return matches;
-  } catch (err) {
-    console.error('⚠️ [REMARKETING AUDIENCE] Error buscando audiencias existentes de la Pagina:', err);
+  } catch {
+    console.error('Meta remarketing audience lookup failed');
     return [];
   }
 }
@@ -767,14 +745,90 @@ function addDays(date: Date, days: number): Date {
   return d;
 }
 
+const META_ID_PATTERN = /^[0-9]{5,30}$/;
+
+function isSafeHttpsUrl(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !!url.hostname && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function isValidPublisherBody(value: Record<string, unknown>): value is Record<string, unknown> & RequestBody {
+  if (
+    typeof value.campaign_name !== 'string'
+    || !value.campaign_name.trim()
+    || value.campaign_name.length > 200
+    || typeof value.message !== 'string'
+    || !value.message.trim()
+    || value.message.length > 5_000
+  ) return false;
+  if (
+    value.message_variants !== undefined
+    && (
+      !Array.isArray(value.message_variants)
+      || value.message_variants.length > 12
+      || value.message_variants.some(item => typeof item !== 'string' || !item.trim() || item.length > 5_000)
+    )
+  ) return false;
+  if (
+    value.creative_assets !== undefined
+    && (
+      !Array.isArray(value.creative_assets)
+      || value.creative_assets.length > 12
+      || value.creative_assets.some(asset => {
+        if (!asset || typeof asset !== 'object' || Array.isArray(asset)) return true;
+        const candidate = asset as Record<string, unknown>;
+        return !isSafeHttpsUrl(candidate.url) || !['image', 'video'].includes(String(candidate.type));
+      })
+    )
+  ) return false;
+  if (value.link_url !== undefined && !isSafeHttpsUrl(value.link_url)) return false;
+  if (value.image_url !== undefined && !isSafeHttpsUrl(value.image_url)) return false;
+  if (value.page_id !== undefined && (typeof value.page_id !== 'string' || !META_ID_PATTERN.test(value.page_id))) return false;
+  if (
+    value.daily_budget !== undefined
+    && (typeof value.daily_budget !== 'number' || !Number.isSafeInteger(value.daily_budget) || value.daily_budget < 100 || value.daily_budget > 100_000_000)
+  ) return false;
+  if (
+    value.duration_days !== undefined
+    && (typeof value.duration_days !== 'number' || !Number.isSafeInteger(value.duration_days) || value.duration_days < 1 || value.duration_days > 90)
+  ) return false;
+  if (value.status !== undefined && value.status !== 'PAUSED' && value.status !== 'ACTIVE') return false;
+  if (value.language !== undefined && value.language !== 'es' && value.language !== 'en') return false;
+  if (
+    value.countries !== undefined
+    && (
+      !Array.isArray(value.countries)
+      || value.countries.length > 25
+      || value.countries.some(country => typeof country !== 'string' || !/^[A-Z]{2}$/.test(country))
+    )
+  ) return false;
+  return true;
+}
+
 // ─── MAIN: POST handler ──────────────────────────────────
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     // ── 0. Config & validation ──────────────────────────
-    const { token, adAccountId, pageId: envPageId } = await getFacebookCredentials(req);
-    const body: RequestBody = await req.json();
+    const { tenantId, token, adAccountId, pageId: envPageId } = await getFacebookCredentials(req);
+    const rateDenied = await enforceTenantRateLimit('facebook-publish', tenantId, 4, 5 * 60_000);
+    if (rateDenied) return rateDenied;
+    const parsedBody = await readLimitedJsonObject(req, 128 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    if (!isValidPublisherBody(parsedBody.body)) {
+      return NextResponse.json({
+        success: false,
+        error: 'La configuracion de la campana es invalida.',
+        step: 'config',
+      }, { status: 400 });
+    }
+    const body = parsedBody.body;
 
     if (!body.campaign_name || !body.message) {
       return NextResponse.json({
@@ -806,12 +860,6 @@ export async function POST(req: NextRequest) {
 
     const useDynamicCreative = shouldUseDynamicCreative(objective, destinationType === 'WHATSAPP', dailyBudget, creativeAssets);
 
-    console.log(`\n${'═'.repeat(60)}`);
-    console.log(`🚀 RIFX Ad Publisher — Mode: ${mode.toUpperCase()} | Advantage+: ON`);
-    console.log(`   Objective: ${objective} | Goal: ${optimizationGoal} | Promoted object: ${JSON.stringify(promotedObject || {})}`);
-    console.log(`   Budget: $${(dailyBudget / 100).toFixed(2)}/day | Duration: ${durationDays}d | Split: ${shouldSplit}`);
-    console.log(`   Ads per set: ${messageVariants.length} | Page: ${resolvedPageId} | API: ${FB_API_VERSION} | Dynamic Creative: ${useDynamicCreative}`);
-    console.log(`${'═'.repeat(60)}\n`);
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -905,7 +953,6 @@ export async function POST(req: NextRequest) {
       adsFailed: ads1.failed,
     };
 
-    console.log(`\n✅ Fase 1 publicada: campaign=${campaign1Id} adset=${adSet1Id} ads=${ads1.created.length}/${messageVariants.length}\n`);
 
     if (!shouldSplit) {
       return NextResponse.json({
@@ -936,7 +983,6 @@ export async function POST(req: NextRequest) {
     const existingAudienceIds = await findExistingEngagementAudiences(adAccountId, resolvedPageId, token, audienceId || undefined);
     const remarketingAudienceIds = [audienceId, ...existingAudienceIds].filter(Boolean) as string[];
     if (existingAudienceIds.length > 0) {
-      console.log(`✨ [REMARKETING AUDIENCE] Se sumaron ${existingAudienceIds.length} audiencia(s) existente(s) de esta Página al remarketing`);
     }
 
     const campaign2Data = await metaPost(`${FB_BASE}/${adAccountId}/campaigns`, {
@@ -1049,7 +1095,6 @@ export async function POST(req: NextRequest) {
       adsFailed: ads2.failed,
     };
 
-    console.log(`\n✅ Fase 2 (remarketing) publicada: campaign=${campaign2Id} adset=${adSet2Id} ads=${ads2.created.length}/${remarketingVariants.length} audience=${audienceId || 'N/A'}\n`);
 
     return NextResponse.json({
       success: true,
@@ -1063,12 +1108,13 @@ export async function POST(req: NextRequest) {
       data: { phase1: phase1Result, phase2: phase2Result },
     });
 
-  } catch (error: any) {
-    console.error('❌ [RIFX Publisher] Unhandled error:', error);
+  } catch (error) {
+    console.error('[RIFX Publisher] Operation failed');
+    const failure = getFacebookPublicError(error);
     return NextResponse.json({
       success: false,
-      error: error.message || 'Error interno del servidor',
+      error: failure.error,
       step: 'config',
-    }, { status: 500 });
+    }, { status: failure.status });
   }
 }
