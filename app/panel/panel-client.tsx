@@ -6785,7 +6785,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   }
 
   // ========== FORCE PHONE VERIFICATION ==========
-  if (isLoggedIn && tenantData && !tenantData.phoneVerified) {
+  if (isLoggedIn && tenantData && tenantData.phoneVerified !== true) {
     return (
       <ForcePhoneVerification 
         onVerified={() => {
