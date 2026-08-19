@@ -121,6 +121,8 @@ export async function POST(req: NextRequest) {
         planStatus: tenant.plan_status,
         planExpiresAt: tenant.plan_expires_at,
         isAdmin: tenant.is_admin,
+        phone: tenant.phone || null,
+        phoneVerified: tenant.phone_verified || false,
       },
     });
     return attachSessionCookie(response, token);

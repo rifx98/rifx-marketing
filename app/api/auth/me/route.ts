@@ -106,6 +106,8 @@ export async function GET(req: NextRequest) {
       isAdmin: data.is_admin,
       adminRole: data.admin_role || 'full',
       createdAt: data.created_at,
+      phone: data.phone || null,
+      phoneVerified: data.phone_verified || false,
       allowedTabs,
       permissionOverrides: overrides,
     }, { headers: { 'Cache-Control': 'no-store' } });

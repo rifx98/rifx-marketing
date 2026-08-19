@@ -44,6 +44,7 @@ import PublicationTracker from '@/components/social/PublicationTracker';
 // Auth UI
 import { AuthComponent } from '@/components/ui/sign-up';
 import AuthSelector from '@/components/AuthSelector';
+import ForcePhoneVerification from '@/components/ForcePhoneVerification';
 
 // Ad Performance Chart (area, adapted from ApexCharts stock-movement pattern)
 type AdMetricKey = 'impressions' | 'clicks' | 'conversions';
@@ -6780,6 +6781,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           }}
         />
       </div>
+    );
+  }
+
+  // ========== FORCE PHONE VERIFICATION ==========
+  if (isLoggedIn && tenantData && tenantData.phoneVerified === false) {
+    return (
+      <ForcePhoneVerification 
+        onVerified={() => {
+          setTenantData({ ...tenantData, phoneVerified: true });
+        }} 
+      />
     );
   }
 

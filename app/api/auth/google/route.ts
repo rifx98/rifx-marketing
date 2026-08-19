@@ -237,6 +237,8 @@ export async function POST(req: NextRequest) {
         isAdmin: tenant.is_admin,
         adminRole: tenant.admin_role || 'full',
         createdAt: tenant.created_at,
+        phone: tenant.phone || null,
+        phoneVerified: tenant.phone_verified || false,
         allowedTabs,
         permissionOverrides: overrides,
       },
