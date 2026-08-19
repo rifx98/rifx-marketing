@@ -4,6 +4,7 @@ import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp, rateLimitKey } from '@/lib/security';
 import { normalizePhoneNumber, validatePhoneNumber } from '@/lib/phone';
 import { readLimitedJsonObject } from '@/lib/request-guards';
+import { checkDailySmsLimit, incrementDailySmsCount } from '@/lib/sms-limiter';
 
 async function sendOtp(phone: string): Promise<boolean> {
   try {
@@ -28,6 +29,19 @@ async function sendOtp(phone: string): Promise<boolean> {
 
 export async function POST(req: NextRequest) {
   try {
+    // 🛡️ PROTECCIÓN 1: Límite global diario de SMS (protege crédito gratis)
+    const dailyLimit = await checkDailySmsLimit();
+    if (!dailyLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Limite diario de SMS alcanzado. Intenta mañana.',
+          resetAt: dailyLimit.resetAt,
+        },
+        { status: 429 }
+      );
+    }
+
+    // 🛡️ PROTECCIÓN 2: Rate limit por IP
     const ipLimit = await checkRateLimit(
       rateLimitKey('phone-otp-ip', getClientIp(req.headers)),
       AUTH_RATE_LIMITS.otpSend.maxAttempts,
@@ -57,6 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Numero de telefono invalido' }, { status: 400 });
     }
 
+    // 🛡️ PROTECCIÓN 3: Rate limit por número de teléfono
     const phoneLimit = await checkRateLimit(
       rateLimitKey('phone-otp-number', normalizedPhone),
       AUTH_RATE_LIMITS.otpSend.maxAttempts,
@@ -75,6 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Enviar OTP
     if (!await sendOtp(normalizedPhone)) {
       return NextResponse.json(
         { error: 'No se pudo enviar el codigo' },
@@ -82,8 +98,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Incrementar contador global diario DESPUÉS de envío exitoso
+    incrementDailySmsCount();
+
     return NextResponse.json(
-      { success: true, message: 'Codigo enviado exitosamente', expiresIn: 600 },
+      {
+        success: true,
+        message: 'Codigo enviado exitosamente',
+        expiresIn: 600,
+        dailySmsRemaining: dailyLimit.remaining - 1, // -1 porque acabamos de enviar uno
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch {

@@ -7,13 +7,12 @@
     })
     return str
   }
-  export type Maybe<T> = T | null;
-export type InputMaybe<T> = Maybe<T>;
-export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
-export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
-export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
-export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
+  /** Internal type. DO NOT USE DIRECTLY. */
+type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+/** Internal type. DO NOT USE DIRECTLY. */
 export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
+export type Maybe<T> = T | null;
+export type InputMaybe<T> = Maybe<T>;
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
   ID: { input: string; output: string; }
@@ -765,131 +764,226 @@ export type ContactoMutation = {
   copyright?: InputMaybe<Scalars['String']['input']>;
 };
 
-export type HeroPartsFragment = { __typename: 'Hero', titulo_1?: string | null, titulo_2?: string | null, titulo_3?: string | null, subtitulo?: string | null, boton_form?: string | null, imagen_hero?: string | null };
+export type StringFilter = {
+  startsWith?: string | null | undefined;
+  eq?: string | null | undefined;
+  exists?: boolean | null | undefined;
+  in?: Array<string | null | undefined> | null | undefined;
+};
 
-export type MisionPartsFragment = { __typename: 'Mision', etiqueta?: string | null, titulo?: string | null, subtitulo_naranja?: string | null, descripcion?: string | null, boton?: string | null, imagen?: string | null };
+export type ImageFilter = {
+  startsWith?: string | null | undefined;
+  eq?: string | null | undefined;
+  exists?: boolean | null | undefined;
+  in?: Array<string | null | undefined> | null | undefined;
+};
 
-export type ServiciosPartsFragment = { __typename: 'Servicios', titulo_seccion?: string | null, servicio_1?: { __typename: 'ServiciosServicio_1', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null, servicio_2?: { __typename: 'ServiciosServicio_2', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null, servicio_3?: { __typename: 'ServiciosServicio_3', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null };
+export type HeroFilter = {
+  titulo_1?: StringFilter | null | undefined;
+  titulo_2?: StringFilter | null | undefined;
+  titulo_3?: StringFilter | null | undefined;
+  subtitulo?: StringFilter | null | undefined;
+  boton_form?: StringFilter | null | undefined;
+  imagen_hero?: ImageFilter | null | undefined;
+};
 
-export type TestimoniosPartsFragment = { __typename: 'Testimonios', testimonio_1?: { __typename: 'TestimoniosTestimonio_1', nombre?: string | null, texto?: string | null, foto?: string | null } | null, testimonio_2?: { __typename: 'TestimoniosTestimonio_2', nombre?: string | null, texto?: string | null, foto?: string | null } | null, testimonio_3?: { __typename: 'TestimoniosTestimonio_3', nombre?: string | null, texto?: string | null, foto?: string | null } | null };
+export type MisionFilter = {
+  etiqueta?: StringFilter | null | undefined;
+  titulo?: StringFilter | null | undefined;
+  subtitulo_naranja?: StringFilter | null | undefined;
+  descripcion?: StringFilter | null | undefined;
+  boton?: StringFilter | null | undefined;
+  imagen?: ImageFilter | null | undefined;
+};
 
-export type CtaPartsFragment = { __typename: 'Cta', titulo_1?: string | null, titulo_2?: string | null, boton?: string | null };
+export type ServiciosServicio_1Filter = {
+  emoji?: StringFilter | null | undefined;
+  nombre?: StringFilter | null | undefined;
+  descripcion?: StringFilter | null | undefined;
+};
 
-export type ContactoPartsFragment = { __typename: 'Contacto', telefono?: string | null, email?: string | null, direccion?: string | null, footer_texto?: string | null, copyright?: string | null };
+export type ServiciosServicio_2Filter = {
+  emoji?: StringFilter | null | undefined;
+  nombre?: StringFilter | null | undefined;
+  descripcion?: StringFilter | null | undefined;
+};
+
+export type ServiciosServicio_3Filter = {
+  emoji?: StringFilter | null | undefined;
+  nombre?: StringFilter | null | undefined;
+  descripcion?: StringFilter | null | undefined;
+};
+
+export type ServiciosFilter = {
+  titulo_seccion?: StringFilter | null | undefined;
+  servicio_1?: ServiciosServicio_1Filter | null | undefined;
+  servicio_2?: ServiciosServicio_2Filter | null | undefined;
+  servicio_3?: ServiciosServicio_3Filter | null | undefined;
+};
+
+export type TestimoniosTestimonio_1Filter = {
+  nombre?: StringFilter | null | undefined;
+  texto?: StringFilter | null | undefined;
+  foto?: ImageFilter | null | undefined;
+};
+
+export type TestimoniosTestimonio_2Filter = {
+  nombre?: StringFilter | null | undefined;
+  texto?: StringFilter | null | undefined;
+  foto?: ImageFilter | null | undefined;
+};
+
+export type TestimoniosTestimonio_3Filter = {
+  nombre?: StringFilter | null | undefined;
+  texto?: StringFilter | null | undefined;
+  foto?: ImageFilter | null | undefined;
+};
+
+export type TestimoniosFilter = {
+  testimonio_1?: TestimoniosTestimonio_1Filter | null | undefined;
+  testimonio_2?: TestimoniosTestimonio_2Filter | null | undefined;
+  testimonio_3?: TestimoniosTestimonio_3Filter | null | undefined;
+};
+
+export type CtaFilter = {
+  titulo_1?: StringFilter | null | undefined;
+  titulo_2?: StringFilter | null | undefined;
+  boton?: StringFilter | null | undefined;
+};
+
+export type ContactoFilter = {
+  telefono?: StringFilter | null | undefined;
+  email?: StringFilter | null | undefined;
+  direccion?: StringFilter | null | undefined;
+  footer_texto?: StringFilter | null | undefined;
+  copyright?: StringFilter | null | undefined;
+};
+
+export type HeroPartsFragment = { __typename: 'Hero', titulo_1: string | null, titulo_2: string | null, titulo_3: string | null, subtitulo: string | null, boton_form: string | null, imagen_hero: string | null };
+
+export type MisionPartsFragment = { __typename: 'Mision', etiqueta: string | null, titulo: string | null, subtitulo_naranja: string | null, descripcion: string | null, boton: string | null, imagen: string | null };
+
+export type ServiciosPartsFragment = { __typename: 'Servicios', titulo_seccion: string | null, servicio_1: { __typename: 'ServiciosServicio_1', emoji: string | null, nombre: string | null, descripcion: string | null } | null, servicio_2: { __typename: 'ServiciosServicio_2', emoji: string | null, nombre: string | null, descripcion: string | null } | null, servicio_3: { __typename: 'ServiciosServicio_3', emoji: string | null, nombre: string | null, descripcion: string | null } | null };
+
+export type TestimoniosPartsFragment = { __typename: 'Testimonios', testimonio_1: { __typename: 'TestimoniosTestimonio_1', nombre: string | null, texto: string | null, foto: string | null } | null, testimonio_2: { __typename: 'TestimoniosTestimonio_2', nombre: string | null, texto: string | null, foto: string | null } | null, testimonio_3: { __typename: 'TestimoniosTestimonio_3', nombre: string | null, texto: string | null, foto: string | null } | null };
+
+export type CtaPartsFragment = { __typename: 'Cta', titulo_1: string | null, titulo_2: string | null, boton: string | null };
+
+export type ContactoPartsFragment = { __typename: 'Contacto', telefono: string | null, email: string | null, direccion: string | null, footer_texto: string | null, copyright: string | null };
 
 export type HeroQueryVariables = Exact<{
-  relativePath: Scalars['String']['input'];
+  relativePath: string;
 }>;
 
 
-export type HeroQuery = { __typename?: 'Query', hero: { __typename: 'Hero', id: string, titulo_1?: string | null, titulo_2?: string | null, titulo_3?: string | null, subtitulo?: string | null, boton_form?: string | null, imagen_hero?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
+export type HeroQuery = { hero: { __typename: 'Hero', id: string, titulo_1: string | null, titulo_2: string | null, titulo_3: string | null, subtitulo: string | null, boton_form: string | null, imagen_hero: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
 
 export type HeroConnectionQueryVariables = Exact<{
-  before?: InputMaybe<Scalars['String']['input']>;
-  after?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Float']['input']>;
-  last?: InputMaybe<Scalars['Float']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<HeroFilter>;
+  before?: string | null | undefined;
+  after?: string | null | undefined;
+  first?: number | null | undefined;
+  last?: number | null | undefined;
+  sort?: string | null | undefined;
+  filter?: HeroFilter | null | undefined;
 }>;
 
 
-export type HeroConnectionQuery = { __typename?: 'Query', heroConnection: { __typename?: 'HeroConnection', totalCount: number, pageInfo: { __typename?: 'PageInfo', hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges?: Array<{ __typename?: 'HeroConnectionEdges', cursor: string, node?: { __typename: 'Hero', id: string, titulo_1?: string | null, titulo_2?: string | null, titulo_3?: string | null, subtitulo?: string | null, boton_form?: string | null, imagen_hero?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
+export type HeroConnectionQuery = { heroConnection: { totalCount: number, pageInfo: { hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges: Array<{ cursor: string, node: { __typename: 'Hero', id: string, titulo_1: string | null, titulo_2: string | null, titulo_3: string | null, subtitulo: string | null, boton_form: string | null, imagen_hero: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
 
 export type MisionQueryVariables = Exact<{
-  relativePath: Scalars['String']['input'];
+  relativePath: string;
 }>;
 
 
-export type MisionQuery = { __typename?: 'Query', mision: { __typename: 'Mision', id: string, etiqueta?: string | null, titulo?: string | null, subtitulo_naranja?: string | null, descripcion?: string | null, boton?: string | null, imagen?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
+export type MisionQuery = { mision: { __typename: 'Mision', id: string, etiqueta: string | null, titulo: string | null, subtitulo_naranja: string | null, descripcion: string | null, boton: string | null, imagen: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
 
 export type MisionConnectionQueryVariables = Exact<{
-  before?: InputMaybe<Scalars['String']['input']>;
-  after?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Float']['input']>;
-  last?: InputMaybe<Scalars['Float']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<MisionFilter>;
+  before?: string | null | undefined;
+  after?: string | null | undefined;
+  first?: number | null | undefined;
+  last?: number | null | undefined;
+  sort?: string | null | undefined;
+  filter?: MisionFilter | null | undefined;
 }>;
 
 
-export type MisionConnectionQuery = { __typename?: 'Query', misionConnection: { __typename?: 'MisionConnection', totalCount: number, pageInfo: { __typename?: 'PageInfo', hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges?: Array<{ __typename?: 'MisionConnectionEdges', cursor: string, node?: { __typename: 'Mision', id: string, etiqueta?: string | null, titulo?: string | null, subtitulo_naranja?: string | null, descripcion?: string | null, boton?: string | null, imagen?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
+export type MisionConnectionQuery = { misionConnection: { totalCount: number, pageInfo: { hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges: Array<{ cursor: string, node: { __typename: 'Mision', id: string, etiqueta: string | null, titulo: string | null, subtitulo_naranja: string | null, descripcion: string | null, boton: string | null, imagen: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
 
 export type ServiciosQueryVariables = Exact<{
-  relativePath: Scalars['String']['input'];
+  relativePath: string;
 }>;
 
 
-export type ServiciosQuery = { __typename?: 'Query', servicios: { __typename: 'Servicios', id: string, titulo_seccion?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, servicio_1?: { __typename: 'ServiciosServicio_1', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null, servicio_2?: { __typename: 'ServiciosServicio_2', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null, servicio_3?: { __typename: 'ServiciosServicio_3', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null } };
+export type ServiciosQuery = { servicios: { __typename: 'Servicios', id: string, titulo_seccion: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, servicio_1: { __typename: 'ServiciosServicio_1', emoji: string | null, nombre: string | null, descripcion: string | null } | null, servicio_2: { __typename: 'ServiciosServicio_2', emoji: string | null, nombre: string | null, descripcion: string | null } | null, servicio_3: { __typename: 'ServiciosServicio_3', emoji: string | null, nombre: string | null, descripcion: string | null } | null } };
 
 export type ServiciosConnectionQueryVariables = Exact<{
-  before?: InputMaybe<Scalars['String']['input']>;
-  after?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Float']['input']>;
-  last?: InputMaybe<Scalars['Float']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<ServiciosFilter>;
+  before?: string | null | undefined;
+  after?: string | null | undefined;
+  first?: number | null | undefined;
+  last?: number | null | undefined;
+  sort?: string | null | undefined;
+  filter?: ServiciosFilter | null | undefined;
 }>;
 
 
-export type ServiciosConnectionQuery = { __typename?: 'Query', serviciosConnection: { __typename?: 'ServiciosConnection', totalCount: number, pageInfo: { __typename?: 'PageInfo', hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges?: Array<{ __typename?: 'ServiciosConnectionEdges', cursor: string, node?: { __typename: 'Servicios', id: string, titulo_seccion?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, servicio_1?: { __typename: 'ServiciosServicio_1', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null, servicio_2?: { __typename: 'ServiciosServicio_2', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null, servicio_3?: { __typename: 'ServiciosServicio_3', emoji?: string | null, nombre?: string | null, descripcion?: string | null } | null } | null } | null> | null } };
+export type ServiciosConnectionQuery = { serviciosConnection: { totalCount: number, pageInfo: { hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges: Array<{ cursor: string, node: { __typename: 'Servicios', id: string, titulo_seccion: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, servicio_1: { __typename: 'ServiciosServicio_1', emoji: string | null, nombre: string | null, descripcion: string | null } | null, servicio_2: { __typename: 'ServiciosServicio_2', emoji: string | null, nombre: string | null, descripcion: string | null } | null, servicio_3: { __typename: 'ServiciosServicio_3', emoji: string | null, nombre: string | null, descripcion: string | null } | null } | null } | null> | null } };
 
 export type TestimoniosQueryVariables = Exact<{
-  relativePath: Scalars['String']['input'];
+  relativePath: string;
 }>;
 
 
-export type TestimoniosQuery = { __typename?: 'Query', testimonios: { __typename: 'Testimonios', id: string, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, testimonio_1?: { __typename: 'TestimoniosTestimonio_1', nombre?: string | null, texto?: string | null, foto?: string | null } | null, testimonio_2?: { __typename: 'TestimoniosTestimonio_2', nombre?: string | null, texto?: string | null, foto?: string | null } | null, testimonio_3?: { __typename: 'TestimoniosTestimonio_3', nombre?: string | null, texto?: string | null, foto?: string | null } | null } };
+export type TestimoniosQuery = { testimonios: { __typename: 'Testimonios', id: string, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, testimonio_1: { __typename: 'TestimoniosTestimonio_1', nombre: string | null, texto: string | null, foto: string | null } | null, testimonio_2: { __typename: 'TestimoniosTestimonio_2', nombre: string | null, texto: string | null, foto: string | null } | null, testimonio_3: { __typename: 'TestimoniosTestimonio_3', nombre: string | null, texto: string | null, foto: string | null } | null } };
 
 export type TestimoniosConnectionQueryVariables = Exact<{
-  before?: InputMaybe<Scalars['String']['input']>;
-  after?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Float']['input']>;
-  last?: InputMaybe<Scalars['Float']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<TestimoniosFilter>;
+  before?: string | null | undefined;
+  after?: string | null | undefined;
+  first?: number | null | undefined;
+  last?: number | null | undefined;
+  sort?: string | null | undefined;
+  filter?: TestimoniosFilter | null | undefined;
 }>;
 
 
-export type TestimoniosConnectionQuery = { __typename?: 'Query', testimoniosConnection: { __typename?: 'TestimoniosConnection', totalCount: number, pageInfo: { __typename?: 'PageInfo', hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges?: Array<{ __typename?: 'TestimoniosConnectionEdges', cursor: string, node?: { __typename: 'Testimonios', id: string, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, testimonio_1?: { __typename: 'TestimoniosTestimonio_1', nombre?: string | null, texto?: string | null, foto?: string | null } | null, testimonio_2?: { __typename: 'TestimoniosTestimonio_2', nombre?: string | null, texto?: string | null, foto?: string | null } | null, testimonio_3?: { __typename: 'TestimoniosTestimonio_3', nombre?: string | null, texto?: string | null, foto?: string | null } | null } | null } | null> | null } };
+export type TestimoniosConnectionQuery = { testimoniosConnection: { totalCount: number, pageInfo: { hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges: Array<{ cursor: string, node: { __typename: 'Testimonios', id: string, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string }, testimonio_1: { __typename: 'TestimoniosTestimonio_1', nombre: string | null, texto: string | null, foto: string | null } | null, testimonio_2: { __typename: 'TestimoniosTestimonio_2', nombre: string | null, texto: string | null, foto: string | null } | null, testimonio_3: { __typename: 'TestimoniosTestimonio_3', nombre: string | null, texto: string | null, foto: string | null } | null } | null } | null> | null } };
 
 export type CtaQueryVariables = Exact<{
-  relativePath: Scalars['String']['input'];
+  relativePath: string;
 }>;
 
 
-export type CtaQuery = { __typename?: 'Query', cta: { __typename: 'Cta', id: string, titulo_1?: string | null, titulo_2?: string | null, boton?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
+export type CtaQuery = { cta: { __typename: 'Cta', id: string, titulo_1: string | null, titulo_2: string | null, boton: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
 
 export type CtaConnectionQueryVariables = Exact<{
-  before?: InputMaybe<Scalars['String']['input']>;
-  after?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Float']['input']>;
-  last?: InputMaybe<Scalars['Float']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<CtaFilter>;
+  before?: string | null | undefined;
+  after?: string | null | undefined;
+  first?: number | null | undefined;
+  last?: number | null | undefined;
+  sort?: string | null | undefined;
+  filter?: CtaFilter | null | undefined;
 }>;
 
 
-export type CtaConnectionQuery = { __typename?: 'Query', ctaConnection: { __typename?: 'CtaConnection', totalCount: number, pageInfo: { __typename?: 'PageInfo', hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges?: Array<{ __typename?: 'CtaConnectionEdges', cursor: string, node?: { __typename: 'Cta', id: string, titulo_1?: string | null, titulo_2?: string | null, boton?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
+export type CtaConnectionQuery = { ctaConnection: { totalCount: number, pageInfo: { hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges: Array<{ cursor: string, node: { __typename: 'Cta', id: string, titulo_1: string | null, titulo_2: string | null, boton: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
 
 export type ContactoQueryVariables = Exact<{
-  relativePath: Scalars['String']['input'];
+  relativePath: string;
 }>;
 
 
-export type ContactoQuery = { __typename?: 'Query', contacto: { __typename: 'Contacto', id: string, telefono?: string | null, email?: string | null, direccion?: string | null, footer_texto?: string | null, copyright?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
+export type ContactoQuery = { contacto: { __typename: 'Contacto', id: string, telefono: string | null, email: string | null, direccion: string | null, footer_texto: string | null, copyright: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } };
 
 export type ContactoConnectionQueryVariables = Exact<{
-  before?: InputMaybe<Scalars['String']['input']>;
-  after?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Float']['input']>;
-  last?: InputMaybe<Scalars['Float']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<ContactoFilter>;
+  before?: string | null | undefined;
+  after?: string | null | undefined;
+  first?: number | null | undefined;
+  last?: number | null | undefined;
+  sort?: string | null | undefined;
+  filter?: ContactoFilter | null | undefined;
 }>;
 
 
-export type ContactoConnectionQuery = { __typename?: 'Query', contactoConnection: { __typename?: 'ContactoConnection', totalCount: number, pageInfo: { __typename?: 'PageInfo', hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges?: Array<{ __typename?: 'ContactoConnectionEdges', cursor: string, node?: { __typename: 'Contacto', id: string, telefono?: string | null, email?: string | null, direccion?: string | null, footer_texto?: string | null, copyright?: string | null, _sys: { __typename?: 'SystemInfo', filename: string, basename: string, hasReferences?: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
+export type ContactoConnectionQuery = { contactoConnection: { totalCount: number, pageInfo: { hasPreviousPage: boolean, hasNextPage: boolean, startCursor: string, endCursor: string }, edges: Array<{ cursor: string, node: { __typename: 'Contacto', id: string, telefono: string | null, email: string | null, direccion: string | null, footer_texto: string | null, copyright: string | null, _sys: { filename: string, basename: string, hasReferences: boolean | null, breadcrumbs: Array<string>, path: string, relativePath: string, extension: string } } | null } | null> | null } };
 
 export const HeroPartsFragmentDoc = gql`
     fragment HeroParts on Hero {
@@ -1418,5 +1512,7 @@ export const queries = (
   const requester = generateRequester(client)
   return getSdk(requester)
 }
+
+export type { Exact };
 
   

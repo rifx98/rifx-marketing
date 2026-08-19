@@ -102,6 +102,10 @@ export const AUTH_RATE_LIMITS = {
   register: { maxAttempts: 3, windowMs: 60 * 1000 },
   google: { maxAttempts: 10, windowMs: 60 * 1000 },
   passwordChange: { maxAttempts: 5, windowMs: 15 * 60 * 1000 },
-  otpSend: { maxAttempts: 3, windowMs: 5 * 60 * 1000 }, // 3 SMS per 5 min
-  otpVerify: { maxAttempts: 5, windowMs: 10 * 60 * 1000 }, // 5 attempts per 10 min
+  // SMS limits - MUY restrictivos para proteger crédito gratis
+  otpSend: {
+    maxAttempts: process.env.NODE_ENV === 'production' ? 2 : 3, // Solo 2 SMS en producción
+    windowMs: process.env.NODE_ENV === 'production' ? 15 * 60 * 1000 : 5 * 60 * 1000 // 15 min en prod
+  },
+  otpVerify: { maxAttempts: 5, windowMs: 10 * 60 * 1000 },
 } as const;

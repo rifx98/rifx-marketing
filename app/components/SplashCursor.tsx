@@ -14,8 +14,8 @@ export default function SplashCursor({
   SPLAT_FORCE = 6000,
   SHADING = true,
   COLOR_UPDATE_SPEED = 10,
-  BACK_COLOR = { r: 0.5, g: 0, b: 0 },
-  TRANSPARENT = true,
+  BACK_COLOR = { r: 0.047, g: 0.047, b: 0.047 },
+  TRANSPARENT = false,
   RAINBOW_MODE = true,
   COLOR = '#ff0000'
 }) {
@@ -1128,7 +1128,8 @@ export default function SplashCursor({
         pointerEvents: 'none',
         width: '100%',
         height: '100%',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        backgroundColor: '#0C0C0C'
       }}
     >
       <canvas
@@ -1137,7 +1138,8 @@ export default function SplashCursor({
         style={{
           width: '100%',
           height: '100%',
-          display: 'block'
+          display: 'block',
+          backgroundColor: '#0C0C0C'
         }}
       />
     </div>
