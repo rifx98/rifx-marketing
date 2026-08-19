@@ -8828,11 +8828,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {/* Avatar */}
                       <div className="flex items-center gap-5">
                         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0058bc] to-[#054ADA] flex items-center justify-center text-white text-xl font-black shadow-lg shadow-[#0058bc]/20">
-                          {configData.admin_name?.substring(0, 2).toUpperCase() || 'AD'}
+                          {tenantData?.ownerName?.substring(0, 2).toUpperCase() || tenantData?.email?.substring(0, 2).toUpperCase() || 'AD'}
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-[#0b1c30]">{configData.admin_name || 'Administrator'}</p>
-                          <p className="text-xs text-slate-400">{configData.admin_email || ''}</p>
+                          <p className="text-sm font-bold text-[#0b1c30]">{tenantData?.ownerName || 'Usuario'}</p>
+                          <p className="text-xs text-slate-400">{tenantData?.email || ''}</p>
                           <span className="inline-block mt-1 text-[10px] font-bold bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{currentPlan === 'trial' ? 'Free Trial' : `Chatea Pro ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)}`}</span>
                         </div>
                       </div>
@@ -8841,19 +8841,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="space-y-1.5">
                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Full Name' : 'Nombre Completo'}</label>
                           <input
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#0058bc]/20 focus:border-[#0058bc] outline-none transition-all"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none opacity-75 cursor-not-allowed"
                             type="text"
-                            value={configData.admin_name}
-                            onChange={e => setConfigData({...configData, admin_name: e.target.value})}
+                            value={tenantData?.ownerName || ''}
+                            readOnly
                           />
                         </div>
                         <div className="space-y-1.5">
                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Email Address' : 'Correo Electrónico'}</label>
                           <input
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#0058bc]/20 focus:border-[#0058bc] outline-none transition-all"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none opacity-75 cursor-not-allowed"
                             type="email"
-                            value={configData.admin_email}
-                            onChange={e => setConfigData({...configData, admin_email: e.target.value})}
+                            value={tenantData?.email || ''}
+                            readOnly
                           />
                         </div>
                       </div>
