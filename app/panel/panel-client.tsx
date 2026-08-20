@@ -44,7 +44,6 @@ import PublicationTracker from '@/components/social/PublicationTracker';
 // Auth UI
 import { AuthComponent } from '@/components/ui/sign-up';
 import AuthSelector from '@/components/AuthSelector';
-import ForcePhoneVerification from '@/components/ForcePhoneVerification';
 
 // Ad Performance Chart (area, adapted from ApexCharts stock-movement pattern)
 type AdMetricKey = 'impressions' | 'clicks' | 'conversions';
@@ -743,10 +742,13 @@ export default function PanelClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isRequestingReset, setIsRequestingReset] = useState(false);
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerCompany, setRegisterCompany] = useState('');
   const [registerOwner, setRegisterOwner] = useState('');
   const [registerError, setRegisterError] = useState('');
+  const [failedLoginAttempts, setFailedLoginAttempts] = useState(0);
+  const [authStep, setAuthStep] = useState('email');
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [tenantData, setTenantData] = useState<any>(null);
   
@@ -828,6 +830,16 @@ export default function PanelClient() {
     const calendarSuccess = params.get('calendar_success');
     const oauthError = params.get('error');
     const tabParam = params.get('tab');
+    const rToken = params.get('reset_token');
+
+    // We no longer use URL tokens for reset, we use OTP codes.
+    // If someone visits with a reset_token, we could redirect them to the panel clean URL
+    if (rToken) {
+      if (typeof window !== 'undefined') {
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+    }
 
     if (tabParam) {
       const validTabs = ['dashboard', 'crm', 'settings', 'playground', 'segments', 'analytics', 'billing', 'admin', 'campaigns', 'banners', 'social', 'appointments'];
@@ -887,9 +899,18 @@ export default function PanelClient() {
   useEffect(() => {
     if (!gsiLoaded || isLoggedIn) return;
 
+    let attempts = 0;
+    let timeout: NodeJS.Timeout;
+
     const renderGoogleButton = () => {
       const container = document.getElementById("google-signin-button");
-      if (!container) return;
+      if (!container) {
+        if (attempts < 10) {
+          attempts++;
+          timeout = setTimeout(renderGoogleButton, 100);
+        }
+        return;
+      }
 
       const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
       if (!googleClientId) {
@@ -917,17 +938,14 @@ export default function PanelClient() {
       }
     };
 
-    const timeout = setTimeout(renderGoogleButton, 100);
+    timeout = setTimeout(renderGoogleButton, 100);
     return () => {
       clearTimeout(timeout);
-      // Vaciar el contenedor antes de que React lo desmonte: el botón de Google
-      // se inyecta con document/iframe fuera del control de React (renderButton),
-      // así que si no lo limpiamos primero, React intenta un removeChild sobre un
-      // nodo que ya no es hijo suyo y crashea toda la app al iniciar sesión.
+      // Vaciar el contenedor antes de que React lo desmonte
       const container = document.getElementById('google-signin-button');
       if (container) container.replaceChildren();
     };
-  }, [gsiLoaded, isLoggedIn, isRegistering]);
+  }, [gsiLoaded, isLoggedIn, isRegistering, authStep]);
 
   // Load saved playground config from localStorage
   React.useEffect(() => {
@@ -3575,6 +3593,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [changingPassword, setChangingPassword] = useState(false);
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
+  
+  // Search state
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // Admin Panel States
   const [adminData, setAdminData] = useState<any>(null);
@@ -4906,14 +4928,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Email o contraseña incorrectos');
+    if (!res.ok) {
+      setFailedLoginAttempts(prev => prev + 1);
+      if (res.status === 429) {
+        throw new Error(`429:${data.error || 'Demasiados intentos'}`);
+      }
+      throw new Error(data.error || 'Email o contraseña incorrectos');
+    }
+    setFailedLoginAttempts(0);
     setAuthToken('cookie-session');
     setTenantData(data.tenant);
     setCurrentPlan(data.tenant.plan || 'trial');
     setIsLoggedIn(true);
   };
 
-  const handleRegisterViaAuthComponent = async (email: string, password: string, acceptedTerms: boolean) => {
+  const handleRegisterViaAuthComponent = async (email: string, password: string, acceptedTerms: boolean, companyName: string) => {
     setRegisterError('');
     const res = await fetch('/api/auth/register', {
       method: 'POST',
@@ -4921,7 +4950,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       body: JSON.stringify({
         email,
         password,
-        companyName: registerCompany || 'Mi Empresa',
+        companyName: companyName || registerCompany || 'Mi Empresa',
         ownerName: registerOwner || '',
         acceptedTerms,
       }),
@@ -4932,10 +4961,43 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setRegisterError(msg);
       throw new Error(msg);
     }
+    
+    if (data.pendingVerification) {
+      // Don't set state, wait for verification
+      return data;
+    }
+
     setAuthToken('cookie-session');
     setTenantData(data.tenant);
     setIsLoggedIn(true);
     setIsRegistering(false);
+    return data;
+  };
+
+  const handleRequestReset = async (email: string) => {
+    const res = await fetch('/api/auth/request-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al solicitar el restablecimiento');
+    return data; // { success, pendingVerification }
+  };
+
+  const handleResetPassword = async (email: string, code: string, password: string) => {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword: password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cambiar la contraseña');
+    
+    // The API sets a session cookie, so reload after a short delay for success animation
+    setTimeout(() => {
+      window.location.reload();
+    }, 2500);
   };
 
   // Auto-login from stored token and restore active states
@@ -6431,6 +6493,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     </>
   );
 
+
+  // ========== REQUEST RESET SCREEN ==========
+  if (!isLoggedIn && isRequestingReset) {
+    return (
+      <AuthSelector
+        mode="request-reset"
+        logo={<img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-9 h-9 object-contain" />}
+        onRequestReset={handleRequestReset}
+        onResetPassword={handleResetPassword}
+        onSwitchToLogin={() => setIsRequestingReset(false)}
+        onStepChange={setAuthStep}
+      />
+    );
+  }
+
   // ========== REGISTER SCREEN ==========
   if (!isLoggedIn && isRegistering) {
     return (
@@ -6442,6 +6519,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         externalError={registerError}
         onGoogleClick={handleGoogleBtnClick}
         googleInitNode={GoogleInitNode}
+        onStepChange={setAuthStep}
       />
     );
   }
@@ -6449,15 +6527,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // ========== LOGIN SCREEN ==========
   if (!isLoggedIn) {
     return (
-      <AuthSelector
-        mode="login"
-        logo={<img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-9 h-9 object-contain" />}
-        onLogin={handleLoginViaAuthComponent}
-        onSwitchToRegister={() => { setLoginError(''); setIsRegistering(true); }}
-        externalError={loginError}
-        onGoogleClick={handleGoogleBtnClick}
-        googleInitNode={GoogleInitNode}
-      />
+      <div className="relative w-full h-full">
+        <AuthSelector
+          mode="login"
+          logo={<img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-9 h-9 object-contain" />}
+          onLogin={handleLoginViaAuthComponent}
+          onSwitchToRegister={() => { setLoginError(''); setIsRegistering(true); }}
+          externalError={loginError}
+          onGoogleClick={handleGoogleBtnClick}
+          googleInitNode={GoogleInitNode}
+          onStepChange={setAuthStep}
+          showResetPrompt={failedLoginAttempts >= 3}
+          onResetPromptClick={() => { setLoginError(''); setFailedLoginAttempts(0); setIsRequestingReset(true); }}
+        />
+      </div>
     );
   }
 
@@ -6785,15 +6868,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   }
 
   // ========== FORCE PHONE VERIFICATION ==========
-  if (isLoggedIn && tenantData && tenantData.phoneVerified !== true) {
-    return (
-      <ForcePhoneVerification 
-        onVerified={() => {
-          setTenantData({ ...tenantData, phoneVerified: true });
-        }} 
-      />
-    );
-  }
+  // Removed to allow direct Gmail login without forcing phone number linking.
 
   return (
     <ThemeProvider authFetch={authFetch}>
@@ -6801,9 +6876,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     <div className={`panel-root min-h-screen ${language === 'es' ? 'lang-es' : 'lang-en'} bg-crm-surface text-on-surface overflow-x-hidden font-inter`}>
       {/* SideNavBar */}
       <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-slate-200/50 bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>
-        <div className="flex justify-center px-2 mb-2 select-none">
-          <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white shadow-lg shrink-0">
-            <span className="material-symbols-outlined text-2xl">psychology</span>
+        <div className="flex justify-center px-2 mb-2 select-none mt-2">
+          <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
+            <img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-10 h-10 object-contain" />
           </div>
         </div>
         
@@ -6987,7 +7062,86 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
           <div className="relative w-full max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-            <input className="w-full bg-crm-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 transition-all text-black" placeholder={language === 'en' ? 'Search audience or segments...' : 'Buscar audiencia o segmentos...'} type="text" />
+            <input 
+              autoComplete="off" 
+              name="dashboard-search-input" 
+              className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 transition-all text-black outline-none" 
+              placeholder={language === 'en' ? 'Search audience or segments...' : 'Buscar audiencia o segmentos...'} 
+              type="text" 
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+            />
+            {isSearchFocused && globalSearch.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 p-4 animate-in fade-in slide-in-from-top-2">
+                <p className="text-sm font-bold text-slate-800 mb-2">{language === 'en' ? 'Search Results for' : 'Resultados para'} "{globalSearch}"</p>
+                <div className="flex flex-col gap-2">
+                  {(() => {
+                    const menuItems = [
+                      { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
+                      { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
+                      { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+                      { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+                      { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                      { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
+                      { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+                      { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
+                      { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
+                      { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
+                      { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
+                      { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+                      { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
+                      { key: 'settings-profile', icon: 'person', labelEs: 'Perfil (Configuración)', labelEn: 'Profile (Settings)' },
+                      { key: 'settings-api_helper', icon: 'support_agent', labelEs: 'Asistente de APIs (Configuración)', labelEn: 'API Helper (Settings)' },
+                      { key: 'settings-ai', icon: 'psychology', labelEs: 'Proveedor IA (Configuración)', labelEn: 'AI Provider (Settings)' },
+                      { key: 'settings-whatsapp', icon: 'chat', labelEs: 'WhatsApp API (Configuración)', labelEn: 'WhatsApp (Settings)' },
+                      { key: 'settings-notifications', icon: 'notifications', labelEs: 'Notificaciones (Configuración)', labelEn: 'Notifications (Settings)' },
+                      { key: 'settings-meta', icon: 'campaign', labelEs: 'Meta Ads (Configuración)', labelEn: 'Meta Ads (Settings)' },
+                      { key: 'settings-memory', icon: 'memory', labelEs: 'Memoria (Configuración)', labelEn: 'Memory (Settings)' },
+                      { key: 'settings-security', icon: 'security', labelEs: 'Seguridad (Configuración)', labelEn: 'Security (Settings)' },
+                      { key: 'settings-dropi', icon: 'local_shipping', labelEs: 'Dropi Dropshipping (Configuración)', labelEn: 'Dropi (Settings)' },
+                      { key: 'settings-appearance', icon: 'palette', labelEs: 'Apariencia (Configuración)', labelEn: 'Appearance (Settings)' },
+                      ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
+                    ];
+                    
+                    const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                    const searchTerm = normalize(globalSearch);
+                    const searchResults = menuItems.filter(m => 
+                      normalize(language === 'es' ? m.labelEs : m.labelEn).includes(searchTerm)
+                    );
+                    
+                    if (searchResults.length === 0) {
+                      return <div className="text-xs text-slate-500 py-3 text-center">{language === 'en' ? 'No exact matches found.' : 'No se encontraron coincidencias exactas.'}</div>;
+                    }
+                    
+                    return searchResults.map(res => (
+                      <button
+                        key={res.key}
+                        onClick={() => {
+                          setGlobalSearch('');
+                          if (res.key.startsWith('settings-')) {
+                            safeSetActiveTab('settings');
+                            setSettingsSection(res.key.split('-')[1] as any);
+                          } else {
+                            safeSetActiveTab(res.key as any);
+                          }
+                        }}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors text-left"
+                        onMouseDown={(e) => e.preventDefault()} // prevent blur before click
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-[#0058bc]/10 flex items-center justify-center text-[#0058bc]">
+                          <span className="material-symbols-outlined text-lg">{res.icon}</span>
+                        </div>
+                        <span className="text-sm font-medium text-slate-700">
+                          {language === 'es' ? res.labelEs : res.labelEn}
+                        </span>
+                      </button>
+                    ));
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-6">
@@ -7065,15 +7219,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             </div>
           </button>
 
-          <div className="flex items-center gap-3">
+          <button 
+            onClick={() => { safeSetActiveTab('settings'); setSettingsSection('profile'); }}
+            className="flex items-center gap-3 group cursor-pointer hover:opacity-80 transition-opacity"
+            title={language === 'en' ? 'Go to Profile Settings' : 'Ir a Configuración de Perfil'}
+          >
             <div className="text-right">
-              <p className="text-xs font-bold text-primary">{tenantData?.companyName || tenantData?.email?.split('@')[0] || 'Admin'}</p>
+              <p className="text-xs font-bold text-primary group-hover:text-[#0058bc] transition-colors">{tenantData?.companyName || tenantData?.email?.split('@')[0] || 'Admin'}</p>
               <p className="text-[10px] text-slate-400 uppercase tracking-tighter">{tenantData?.plan ? `Plan ${tenantData.plan}` : 'Administrator'}</p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white border-2 border-white shadow-sm">
+            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-white border-2 border-white shadow-sm group-hover:shadow-md transition-shadow">
                <span className="material-symbols-outlined">admin_panel_settings</span>
             </div>
-          </div>
+          </button>
         </div>
       </header>
 
@@ -9161,15 +9319,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       {/* Main Connection Card */}
                       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                        {/* Blue Facebook header */}
-                        <div className="bg-gradient-to-r from-[#1877F2] to-[#0C63D4] px-6 py-4 flex items-center justify-between">
+                        {/* Green WhatsApp header */}
+                        <div className="bg-gradient-to-r from-[#25D366] to-[#1DA851] px-6 py-4 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow">
-                              <svg viewBox="0 0 24 24" width="20" height="20" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
                             </div>
                             <div>
-                              <p className="text-white font-bold text-sm">Facebook & WhatsApp Business</p>
-                              <p className="text-blue-100 text-[10px]">OAuth 2.0 — Seguro y Oficial</p>
+                              <p className="text-white font-bold text-sm">WhatsApp Business API</p>
+                              <p className="text-green-100 text-[10px]">OAuth 2.0 — Seguro y Oficial</p>
                             </div>
                           </div>
                           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${isWaConnected ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30' : 'bg-white/10 text-white/60 border border-white/20'}`}>
@@ -9224,9 +9382,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {!isWaConnected && !waShowPhonePicker && (
                             <>
                               <button onClick={handleFacebookLogin}
-                                className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#0C63D4] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-blue-500/30 transition-all">
-                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                                {language === 'en' ? 'Connect with Facebook' : 'Conectar con Facebook'}
+                                className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-[#25D366] hover:bg-[#1DA851] active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg shadow-green-500/30 transition-all">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                {language === 'en' ? 'Connect with WhatsApp' : 'Conectar WhatsApp'}
                               </button>
                               <div className="grid grid-cols-3 gap-3">
                                 {[
@@ -9431,8 +9589,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         {/* Header */}
                         <div className="bg-gradient-to-r from-[#1877F2] to-[#0C63D4] px-6 py-4 flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow">
-                              <svg viewBox="0 0 24 24" width="20" height="20" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                            <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow text-[#1877F2]">
+                              <span className="material-symbols-outlined" style={{ fontSize: '22px' }}>all_inclusive</span>
                             </div>
                             <div>
                               <p className="text-white font-bold text-sm">Meta Business Suite</p>
@@ -9450,8 +9608,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {isMetaConnected && !metaShowPicker && (
                             <div className="space-y-3">
                               <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                                <div className="w-11 h-11 rounded-xl bg-[#1877F2] flex items-center justify-center flex-shrink-0 shadow">
-                                  <svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                <div className="w-11 h-11 rounded-xl bg-[#1877F2] flex items-center justify-center flex-shrink-0 shadow text-white">
+                                  <span className="material-symbols-outlined" style={{ fontSize: '26px' }}>all_inclusive</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-black text-blue-800">{language === 'en' ? 'Meta Ads Connected' : 'Meta Ads Conectado'}</p>
@@ -9648,22 +9806,37 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
                       </div>
 
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Current Password' : 'Contraseña Actual'}</label>
-                          <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'New Password' : 'Nueva Contraseña'}</label>
-                            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                        <div className="space-y-4">
+                          <div className="space-y-1.5 relative">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Current Password' : 'Contraseña Actual'}</label>
+                            <div className="relative">
+                              <input type={showPassword ? "text" : "password"} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                              </button>
+                            </div>
                           </div>
-                          <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confirm Password' : 'Confirmar Contraseña'}</label>
-                            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5 relative">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'New Password' : 'Nueva Contraseña'}</label>
+                              <div className="relative">
+                                <input type={showPassword ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                  <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-1.5 relative">
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confirm Password' : 'Confirmar Contraseña'}</label>
+                              <div className="relative">
+                                <input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                  <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
                       <div className="flex items-center justify-between pt-2">
                         <p className="text-[10px] text-slate-400 max-w-xs">{language === 'en' ? 'Use a strong password with at least 8 characters.' : 'Usa una contraseña fuerte con al menos 8 caracteres.'}</p>

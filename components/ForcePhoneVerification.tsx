@@ -2,15 +2,42 @@
 
 import { useState, useEffect } from 'react';
 import { Phone, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+
+const COUNTRIES = [
+  { code: '+1', name: 'Estados Unidos / Canadá / PR', flag: '🇺🇸', max: 10 },
+  { code: '+52', name: 'México', flag: '🇲🇽', max: 10 },
+  { code: '+501', name: 'Belice', flag: '🇧🇿', max: 7 },
+  { code: '+502', name: 'Guatemala', flag: '🇬🇹', max: 8 },
+  { code: '+503', name: 'El Salvador', flag: '🇸🇻', max: 8 },
+  { code: '+504', name: 'Honduras', flag: '🇭🇳', max: 8 },
+  { code: '+505', name: 'Nicaragua', flag: '🇳🇮', max: 8 },
+  { code: '+506', name: 'Costa Rica', flag: '🇨🇷', max: 8 },
+  { code: '+507', name: 'Panamá', flag: '🇵🇦', max: 8 },
+  { code: '+57', name: 'Colombia', flag: '🇨🇴', max: 10 },
+  { code: '+58', name: 'Venezuela', flag: '🇻🇪', max: 10 },
+  { code: '+593', name: 'Ecuador', flag: '🇪🇨', max: 9 },
+  { code: '+51', name: 'Perú', flag: '🇵🇪', max: 9 },
+  { code: '+591', name: 'Bolivia', flag: '🇧🇴', max: 8 },
+  { code: '+56', name: 'Chile', flag: '🇨🇱', max: 9 },
+  { code: '+54', name: 'Argentina', flag: '🇦🇷', max: 10 },
+  { code: '+598', name: 'Uruguay', flag: '🇺🇾', max: 8 },
+  { code: '+595', name: 'Paraguay', flag: '🇵🇾', max: 9 },
+  { code: '+55', name: 'Brasil', flag: '🇧🇷', max: 11 },
+  { code: '+53', name: 'Cuba', flag: '🇨🇺', max: 8 },
+  { code: '+1809', name: 'Rep. Dominicana', flag: '🇩🇴', max: 7 },
+];
 
 export default function ForcePhoneVerification({ onVerified }: { onVerified: () => void }) {
   const [step, setStep] = useState<'phone' | 'verify'>('phone');
-  const [phone, setPhone] = useState('');
+  const [countryCode, setCountryCode] = useState('+593');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expiresIn, setExpiresIn] = useState(0);
+
+  const selectedCountry = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[11];
+  const phoneLengthRequired = selectedCountry.max;
 
   // Timer for OTP expiration
   useEffect(() => {
@@ -22,16 +49,23 @@ export default function ForcePhoneVerification({ onVerified }: { onVerified: () 
     }
   }, [expiresIn]);
 
+  const getFullPhone = () => {
+    // Si el usuario por error pega el código del país en el número, no lo duplicamos
+    let cleanPhone = phoneNumber.replace(/\D/g, '');
+    return `${countryCode}${cleanPhone}`;
+  };
+
   const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
+      const fullPhone = getFullPhone();
       const response = await fetch('/api/auth/phone/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: fullPhone }),
       });
 
       const data = await response.json();
@@ -55,10 +89,11 @@ export default function ForcePhoneVerification({ onVerified }: { onVerified: () 
     setLoading(true);
 
     try {
+      const fullPhone = getFullPhone();
       const response = await fetch('/api/auth/phone/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ phone: fullPhone, code }),
       });
 
       const data = await response.json();
@@ -108,22 +143,53 @@ export default function ForcePhoneVerification({ onVerified }: { onVerified: () 
           <form onSubmit={handleSendOTP} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Número de celular (con código de país)
+                Número de celular
               </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:ring-2 focus:ring-[#4a6cf7] focus:border-transparent text-white placeholder-gray-500 transition-all"
-                placeholder="+593 99 999 9999"
-                required
-                disabled={loading}
-              />
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => {
+                    setCountryCode(e.target.value);
+                    setPhoneNumber(''); // Reset phone when country changes
+                  }}
+                  className="w-[140px] px-3 py-3 bg-white/5 border border-white/10 rounded-lg focus:ring-2 focus:ring-[#4a6cf7] focus:border-transparent text-white transition-all outline-none appearance-none cursor-pointer"
+                  disabled={loading}
+                >
+                  {COUNTRIES.map(c => (
+                    <option key={c.name} value={c.code} className="bg-[#060918] text-white">
+                      {c.flag} {c.code}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, phoneLengthRequired);
+                    let formatted = '';
+                    if (digits.length > 0) formatted += digits.substring(0, 2);
+                    if (digits.length > 2) formatted += ' ' + digits.substring(2, 5);
+                    if (digits.length > 5) formatted += ' ' + digits.substring(5);
+                    setPhoneNumber(formatted);
+                  }}
+                  className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:ring-2 focus:ring-[#4a6cf7] focus:border-transparent text-white placeholder-gray-500 transition-all"
+                  placeholder={(() => {
+                    const nines = '9'.repeat(phoneLengthRequired);
+                    let formatted = '';
+                    if (nines.length > 0) formatted += nines.substring(0, 2);
+                    if (nines.length > 2) formatted += ' ' + nines.substring(2, 5);
+                    if (nines.length > 5) formatted += ' ' + nines.substring(5);
+                    return formatted;
+                  })()}
+                  required
+                  disabled={loading}
+                />
+              </div>
             </div>
             
             <button
               type="submit"
-              disabled={loading || phone.length < 8}
+              disabled={loading || phoneNumber.replace(/\D/g, '').length !== phoneLengthRequired}
               className="w-full bg-gradient-to-r from-[#4a6cf7] to-[#7c3aed] text-white py-3.5 px-4 rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium text-lg mt-2 shadow-[0_0_15px_rgba(74,108,247,0.4)]"
             >
               {loading ? 'Enviando...' : 'Enviar código SMS'}
@@ -133,7 +199,7 @@ export default function ForcePhoneVerification({ onVerified }: { onVerified: () 
           <form onSubmit={handleVerifyOTP} className="space-y-4">
             <div>
               <p className="text-sm text-center text-gray-400 mb-4">
-                Ingresa el código enviado al <strong className="text-white">{phone}</strong>
+                Ingresa el código enviado al <strong className="text-white">{getFullPhone()}</strong>
               </p>
               <input
                 type="text"

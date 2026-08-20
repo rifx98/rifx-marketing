@@ -4,6 +4,8 @@ import { attachSessionCookie, signToken, PLAN_LIMITS } from '@/lib/auth';
 import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp, normalizeEmail, rateLimitKey, validatePassword } from '@/lib/security';
 import { readLimitedJsonObject } from '@/lib/request-guards';
+import { sendVerificationEmail } from '@/lib/email';
+import { setMemoryVerification } from '../verify-email/route';
 import bcrypt from 'bcryptjs';
 
 // POST: Registrar nuevo tenant
@@ -69,63 +71,62 @@ export async function POST(req: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create tenant
-    const trialLimits = PLAN_LIMITS.trial;
-    const { data: tenant, error: insertError } = await supabase
-      .from('tenants')
-      .insert({
-        email: normalizedEmail,
-        password_hash: passwordHash,
-        company_name: typeof companyName === 'string' ? companyName.trim().slice(0, 160) : 'Mi Empresa',
-        owner_name: typeof ownerName === 'string' ? ownerName.trim().slice(0, 160) : '',
-        plan: 'trial',
-        plan_status: 'active',
-        plan_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days trial
-        storage_limit_bytes: trialLimits.storage,
-        contact_limit: trialLimits.contacts,
-        is_admin: false,
-        terms_accepted_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    // Generate 6-digit OTP code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    if (insertError) {
-      console.error('Tenant registration insert failed:', insertError.code || 'database_error');
-      return NextResponse.json({ error: 'No se pudo crear la cuenta' }, { status: 500 });
+    // Store pending registration data in Redis (or memory) with 10 min TTL
+    const pendingData = {
+      code,
+      passwordHash,
+      companyName: typeof companyName === 'string' ? companyName.trim().slice(0, 160) : 'Mi Empresa',
+      ownerName: typeof ownerName === 'string' ? ownerName.trim().slice(0, 160) : '',
+      acceptedTerms,
+    };
+
+    const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const ttlMs = 10 * 60 * 1000;
+    const ttlSeconds = Math.ceil(ttlMs / 1000);
+
+    if (upstashUrl && upstashToken) {
+      const parsedUrl = new URL(upstashUrl.startsWith('http') ? upstashUrl : `https://${upstashUrl}`);
+      const redisKey = `email-verify:${normalizedEmail}`;
+      
+      const response = await fetch(new URL('/pipeline', parsedUrl), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${upstashToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([
+          ['SET', redisKey, JSON.stringify(pendingData)],
+          ['EXPIRE', redisKey, ttlSeconds],
+        ]),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to store pending registration in Redis');
+        return NextResponse.json({ error: 'Error interno guardando la solicitud' }, { status: 500 });
+      }
+    } else {
+      // Fallback to memory store for dev
+      setMemoryVerification(normalizedEmail, JSON.stringify(pendingData), ttlMs);
     }
 
-    // Create default config for this tenant
-    await supabase.from('config').insert({
-      tenant_id: tenant.id,
-      ai_prompt: 'Eres un asesor de ventas profesional. Tu objetivo es ayudar al cliente y cerrar ventas. Sé amigable, persuasivo y responde en español.',
-    });
+    // Send the verification email
+    const emailSent = await sendVerificationEmail(normalizedEmail, code);
+    if (!emailSent) {
+      return NextResponse.json({ error: 'Error enviando el código de verificación al email' }, { status: 500 });
+    }
 
-    // Generate JWT token
-    const token = await signToken({
-      tenantId: tenant.id,
-      email: tenant.email,
-      plan: tenant.plan,
-      isAdmin: tenant.is_admin,
-      adminRole: 'full',
-      adminCanEditPlans: true,
-      sessionVersion: Number(tenant.session_version || 0),
-    });
-
-    const response = NextResponse.json({
+    // Return success indicating verification is pending
+    return NextResponse.json({
       success: true,
-      tenant: {
-        id: tenant.id,
-        email: tenant.email,
-        companyName: tenant.company_name,
-        plan: tenant.plan,
-        planStatus: tenant.plan_status,
-        planExpiresAt: tenant.plan_expires_at,
-        isAdmin: tenant.is_admin,
-        phone: tenant.phone || null,
-        phoneVerified: tenant.phone_verified || false,
-      },
+      pendingVerification: true,
+      message: 'Código de verificación enviado al email',
     });
-    return attachSessionCookie(response, token);
   } catch (error) {
     console.error('Registration failed:', error instanceof Error ? error.message : 'unknown_error');
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });

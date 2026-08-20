@@ -188,16 +188,21 @@ const sharedStyles = `
 
 // --- MAIN COMPONENT ---
 interface AuthComponentProps {
-  mode?: 'login' | 'register';
+  mode?: 'login' | 'register' | 'request-reset' | 'reset-password';
   logo?: React.ReactNode;
   brandName?: string;
   onLogin?: (email: string, password: string) => Promise<void>;
-  onRegister?: (email: string, password: string, acceptedTerms: boolean) => Promise<void>;
+  onRegister?: (email: string, password: string, acceptedTerms: boolean, companyName: string) => Promise<void>;
+  onRequestReset?: (email: string) => Promise<any>;
+  onResetPassword?: (email: string, code: string, password: string) => Promise<void>;
   onSwitchToRegister?: () => void;
   onSwitchToLogin?: () => void;
   externalError?: string;
   onGoogleClick?: () => void;
   googleInitNode?: React.ReactNode;
+  onStepChange?: (step: string) => void;
+  showResetPrompt?: boolean;
+  onResetPromptClick?: () => void;
 }
 
 export const AuthComponent = ({
@@ -206,33 +211,76 @@ export const AuthComponent = ({
   brandName = "RIFX",
   onLogin,
   onRegister,
+  onRequestReset,
+  onResetPassword,
   onSwitchToRegister,
   onSwitchToLogin,
   externalError,
   onGoogleClick,
   googleInitNode,
+  onStepChange,
+  showResetPrompt,
+  onResetPromptClick,
 }: AuthComponentProps) => {
   const isLogin = mode === 'login';
-  const modalSteps = isLogin ? loginSteps : registerSteps;
-
+  const isRequestReset = mode === 'request-reset';
+  const isResetPassword = mode === 'reset-password';
+  
+  const resetSteps = [
+    { message: "Enviando código...", icon: <Loader className="w-12 h-12 text-[#4a6cf7] animate-spin" /> },
+    { message: "¡Código enviado!", icon: <PartyPopper className="w-12 h-12 text-green-400" /> },
+  ];
+  const newPasswordSteps = [
+    { message: "Actualizando contraseña...", icon: <Loader className="w-12 h-12 text-[#4a6cf7] animate-spin" /> },
+    { message: "¡Contraseña actualizada!", icon: <PartyPopper className="w-12 h-12 text-green-400" /> },
+  ];
+  
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [authStep, setAuthStep] = useState("email");
+  const [companyName, setCompanyName] = useState("");
+  const [authStep, setAuthStep] = useState(isResetPassword ? "password" : "email"); // email | company | password | confirmPassword | verifyCode
+  const [verifyCode, setVerifyCode] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(60);
+  const [isEmailValid, setIsEmailValid] = useState(false);
   const [modalStatus, setModalStatus] = useState<'closed' | 'loading' | 'error' | 'success'>('closed');
   const [modalErrorMessage, setModalErrorMessage] = useState('');
+  const [resetCodeVerified, setResetCodeVerified] = useState(false); // true once OTP is verified for reset
+  
+  // For request-reset mode, once we're past verifyCode we use the newPasswordSteps
+  const isInResetPasswordPhase = isRequestReset && (authStep === 'password' || authStep === 'confirmPassword');
+  const modalSteps = isLogin ? loginSteps : (isRequestReset && !isInResetPasswordPhase) ? resetSteps : (isResetPassword || isInResetPasswordPhase) ? newPasswordSteps : registerSteps;
+
   const confettiRef = useRef<ConfettiRef>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const isEmailValid = /\S+@\S+\.\S+/.test(email);
+  useEffect(() => {
+    setAuthStep(isResetPassword ? "password" : "email");
+    setResendCountdown(60);
+  }, [mode]);
+
+  useEffect(() => {
+    if (authStep === 'verifyCode' && resendCountdown > 0) {
+      const timer = setTimeout(() => setResendCountdown(c => c - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [authStep, resendCountdown]);
+
+  const validateEmail = (val: string) => /\S+@\S+\.\S+/.test(val);
+  useEffect(() => {
+    setIsEmailValid(validateEmail(email));
+  }, [email]);
+
   const isPasswordValid = isLogin ? password.length > 0 : password.length >= 12;
   const isConfirmPasswordValid = confirmPassword.length >= 12;
+  const isCompanyNameValid = companyName.trim().length >= 2;
 
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const confirmPasswordInputRef = useRef<HTMLInputElement>(null);
+  const companyInputRef = useRef<HTMLInputElement>(null);
 
   const fireSideCanons = () => {
     const fire = confettiRef.current?.fire;
@@ -245,6 +293,10 @@ export const AuthComponent = ({
   useEffect(() => {
     if (externalError) { setModalErrorMessage(externalError); setModalStatus('error'); }
   }, [externalError]);
+
+  useEffect(() => {
+    if (onStepChange) onStepChange(authStep);
+  }, [authStep, onStepChange]);
 
   const runWithLoadingSteps = async (action: () => Promise<void>) => {
     setModalStatus('loading');
@@ -269,29 +321,142 @@ export const AuthComponent = ({
     if (isLogin) {
       if (authStep !== 'password' || !isPasswordValid) return;
       await runWithLoadingSteps(() => onLogin!(email, password));
+    } else if (isRequestReset) {
+      // Step 1: Email submitted → send OTP code
+      if (authStep === 'email' && isEmailValid) {
+        setModalStatus('loading');
+        try {
+          const result: any = await onRequestReset!(email);
+          // Transition to verifyCode step
+          setAuthStep('verifyCode');
+          setResendCountdown(60);
+          setModalStatus('closed');
+        } catch (err: any) {
+          setModalErrorMessage(err?.message || 'Error. Intenta de nuevo.');
+          setModalStatus('error');
+        }
+        return;
+      }
+      // Step 2: Code verified → handled inside verifyCode block below
+      // Step 3: New password confirmed → submit
+      if (authStep === 'confirmPassword') {
+        if (password !== confirmPassword) {
+          setModalErrorMessage("Las contraseñas no coinciden.");
+          setModalStatus('error');
+          return;
+        }
+        await runWithLoadingSteps(() => onResetPassword!(email, verifyCode, password));
+        return;
+      }
+    } else if (isResetPassword) {
+      if (authStep !== 'confirmPassword' || !isPasswordValid || password !== confirmPassword) {
+        if (password !== confirmPassword) {
+          setModalErrorMessage("Las contraseñas no coinciden.");
+          setModalStatus('error');
+        }
+        return;
+      }
+      await runWithLoadingSteps(() => onResetPassword!(email, verifyCode, password));
     } else {
-      if (authStep !== 'confirmPassword') return;
-      if (password !== confirmPassword) {
-        setModalErrorMessage("Las contraseñas no coinciden.");
-        setModalStatus('error');
+      // If we are at confirmPassword, trigger register (which will send email OTP)
+      if (authStep === 'confirmPassword') {
+        if (password !== confirmPassword) {
+          setModalErrorMessage("Las contraseñas no coinciden.");
+          setModalStatus('error');
+          return;
+        }
+        if (!acceptedTerms) {
+          setModalErrorMessage("Debes aceptar el Aviso Legal y la Política de Privacidad para continuar.");
+          setModalStatus('error');
+          return;
+        }
+        
+        if (onRegister) {
+          setModalStatus('loading');
+          try {
+            const result: any = await onRegister(email, password, acceptedTerms, companyName);
+            if (result?.pendingVerification) {
+              setAuthStep('verifyCode');
+              setResendCountdown(60);
+              setModalStatus('closed');
+            } else {
+              // Standard success
+              fireSideCanons();
+              setModalStatus('success');
+            }
+          } catch (err: any) {
+            setModalErrorMessage(err?.message || 'Error. Intenta de nuevo.');
+            setModalStatus('error');
+          }
+        }
         return;
       }
-      if (!acceptedTerms) {
-        setModalErrorMessage("Debes aceptar el Aviso Legal y la Política de Privacidad para continuar.");
-        setModalStatus('error');
+      
+      // If we are at verifyCode, submit the code (registration flow)
+      if (authStep === 'verifyCode') {
+        setModalStatus('loading');
+        try {
+          const res = await fetch('/api/auth/verify-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code: verifyCode }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Error verificando código');
+          
+          // Successful verification
+          if (window.location.pathname === '/panel' || window.location.pathname === '/') {
+             window.location.reload(); // Quick way to let panel-client re-fetch session
+          }
+          fireSideCanons();
+          setModalStatus('success');
+        } catch (err: any) {
+          setModalErrorMessage(err?.message || 'Código incorrecto. Intenta de nuevo.');
+          setModalStatus('error');
+        }
         return;
       }
-      await runWithLoadingSteps(() => onRegister ? onRegister(email, password, acceptedTerms) : Promise.resolve());
+    }
+
+    // Handle verifyCode for reset flow (isRequestReset) — verify code then go to password
+    if (isRequestReset && authStep === 'verifyCode') {
+      setModalStatus('loading');
+      try {
+        // We don't actually verify here — the code will be verified on final submit.
+        // Just validate format and move to password step.
+        if (!/^\d{6}$/.test(verifyCode.trim())) {
+          throw new Error('El código debe ser de 6 dígitos');
+        }
+        setResetCodeVerified(true);
+        setAuthStep('password');
+        setModalStatus('closed');
+      } catch (err: any) {
+        setModalErrorMessage(err?.message || 'Código inválido.');
+        setModalStatus('error');
+      }
+      return;
     }
   };
 
   const handleProgressStep = () => {
     if (authStep === 'email' && isEmailValid) {
-      setAuthStep("password");
+      if (isLogin) {
+        setAuthStep('password');
+        setTimeout(() => passwordInputRef.current?.focus(), 100);
+      } else if (isRequestReset) {
+        formRef.current?.requestSubmit();
+      } else {
+        setAuthStep('company');
+        setTimeout(() => companyInputRef.current?.focus(), 100);
+      }
+    } else if (authStep === 'company' && isCompanyNameValid) {
+      setAuthStep('password');
+      setTimeout(() => passwordInputRef.current?.focus(), 100);
     } else if (authStep === 'password' && isPasswordValid) {
       if (isLogin) {
         formRef.current?.requestSubmit();
       } else {
+        // For register, reset-password, AND request-reset (once code is verified)
         setAuthStep("confirmPassword");
       }
     }
@@ -303,7 +468,10 @@ export const AuthComponent = ({
 
   const handleGoBack = () => {
     if (authStep === 'confirmPassword') { setAuthStep('password'); setConfirmPassword(''); }
-    else if (authStep === 'password') setAuthStep('email');
+    else if (authStep === 'password' && isRequestReset && resetCodeVerified) { setAuthStep('verifyCode'); }
+    else if (authStep === 'password' && !isResetPassword) setAuthStep('email');
+    else if (authStep === 'verifyCode' && isRequestReset) { setAuthStep('email'); setVerifyCode(''); setResetCodeVerified(false); }
+    else if (authStep === 'company') setAuthStep('email');
   };
 
   const closeModal = () => { setModalStatus('closed'); setModalErrorMessage(''); };
@@ -366,26 +534,28 @@ export const AuthComponent = ({
               <motion.div key="h-email" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full flex flex-col items-center gap-4">
                 <BlurFade delay={0.2} className="w-full">
                   <p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white text-center">
-                    {isLogin ? 'Bienvenido de vuelta' : 'Crear cuenta'}
+                    {isLogin ? 'Bienvenido de vuelta' : isRequestReset ? 'Restablecer Acceso' : 'Crear cuenta'}
                   </p>
                 </BlurFade>
-                <BlurFade delay={0.4}><p className="text-sm font-medium text-gray-400">Continuar con</p></BlurFade>
-                <BlurFade delay={0.6} className="w-full flex justify-center">
-                  {googleInitNode ? (
-                    <div className="rounded-full overflow-hidden" style={{ height: 44 }}>
-                      {googleInitNode}
-                    </div>
-                  ) : (
-                    <GlassButton
-                      type="button"
-                      onClick={onGoogleClick}
-                      contentClassName="flex items-center justify-center gap-2"
-                      size="sm"
-                    >
-                      <GoogleIcon /><span className="font-semibold text-white">Google</span>
-                    </GlassButton>
-                  )}
-                </BlurFade>
+                {!isRequestReset && <BlurFade delay={0.4}><p className="text-sm font-medium text-gray-400">Continuar con</p></BlurFade>}
+                {!isRequestReset && (
+                  <BlurFade delay={0.6} className="w-full flex justify-center">
+                    {googleInitNode ? (
+                      <div className="rounded-full overflow-hidden" style={{ height: 44 }}>
+                        {googleInitNode}
+                      </div>
+                    ) : (
+                      <GlassButton
+                        type="button"
+                        onClick={onGoogleClick}
+                        contentClassName="flex items-center justify-center gap-2"
+                        size="sm"
+                      >
+                        <GoogleIcon /><span className="font-semibold text-white">Google</span>
+                      </GlassButton>
+                    )}
+                  </BlurFade>
+                )}
                 {!isLogin && (
                   <BlurFade delay={0.7} className="w-[280px] text-center">
                     <p className="text-[11px] leading-snug text-gray-500">
@@ -396,10 +566,33 @@ export const AuthComponent = ({
                     </p>
                   </BlurFade>
                 )}
-                <BlurFade delay={0.8} className="w-[300px]">
-                  <div className="flex items-center w-full gap-2 py-1">
-                    <hr className="w-full border-white/10"/><span className="text-xs font-semibold text-gray-500">O</span><hr className="w-full border-white/10"/>
-                  </div>
+                {isRequestReset && authStep === 'email' && (
+                  <BlurFade delay={0.4}>
+                    <p className="text-sm font-medium text-gray-400 text-center max-w-[280px]">
+                      Ingresa el correo asociado a tu cuenta y te enviaremos un código de verificación.
+                    </p>
+                  </BlurFade>
+                )}
+                {!isRequestReset && (
+                  <BlurFade delay={0.8} className="w-[300px]">
+                    <div className="flex items-center w-full gap-2 py-1">
+                      <hr className="w-full border-white/10"/><span className="text-xs font-semibold text-gray-500">O</span><hr className="w-full border-white/10"/>
+                    </div>
+                  </BlurFade>
+                )}
+              </motion.div>
+            )}
+            {!isLogin && authStep === "company" && (
+              <motion.div key="h-company" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full flex flex-col items-center text-center gap-4">
+                <BlurFade delay={0} className="w-full">
+                  <p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white">
+                    Nombre del negocio
+                  </p>
+                </BlurFade>
+                <BlurFade delay={0.2}>
+                  <p className="text-sm font-medium text-gray-400">
+                    ¿Cómo se llama tu empresa o negocio?
+                  </p>
                 </BlurFade>
               </motion.div>
             )}
@@ -407,20 +600,26 @@ export const AuthComponent = ({
               <motion.div key="h-pw" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full flex flex-col items-center text-center gap-4">
                 <BlurFade delay={0} className="w-full">
                   <p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white">
-                    {isLogin ? 'Ingresa tu contraseña' : 'Crea tu contraseña'}
+                    {isLogin ? 'Ingresa tu contraseña' : (isResetPassword || isRequestReset) ? 'Nueva contraseña' : 'Crea tu contraseña'}
                   </p>
                 </BlurFade>
                 <BlurFade delay={0.2}>
                   <p className="text-sm font-medium text-gray-400">
-                    {isLogin ? 'Tu contraseña de acceso.' : 'Mínimo 12 caracteres.'}
+                    {isLogin ? 'Tu contraseña de acceso.' : (isResetPassword || isRequestReset) ? 'Crea una contraseña segura. Mínimo 12 caracteres.' : 'Mínimo 12 caracteres.'}
                   </p>
                 </BlurFade>
               </motion.div>
             )}
-            {!isLogin && authStep === "confirmPassword" && (
+            {(isResetPassword || isRequestReset || !isLogin) && authStep === "confirmPassword" && (
               <motion.div key="h-cp" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full flex flex-col items-center text-center gap-4">
-                <BlurFade delay={0} className="w-full"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white">Último paso</p></BlurFade>
-                <BlurFade delay={0.2}><p className="text-sm font-medium text-gray-400">Confirma tu contraseña</p></BlurFade>
+                <BlurFade delay={0} className="w-full"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white">{(isResetPassword || isRequestReset) ? 'Confirmar' : 'Último paso'}</p></BlurFade>
+                <BlurFade delay={0.2}><p className="text-sm font-medium text-gray-400">{(isResetPassword || isRequestReset) ? 'Repite tu nueva contraseña para confirmar.' : 'Confirma tu contraseña'}</p></BlurFade>
+              </motion.div>
+            )}
+            {!isLogin && authStep === "verifyCode" && (
+              <motion.div key="h-vc" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="w-full flex flex-col items-center text-center gap-4">
+                <BlurFade delay={0} className="w-full"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-white">Verifica tu email</p></BlurFade>
+                <BlurFade delay={0.2}><p className="text-sm font-medium text-gray-400">Ingresa el código de 6 dígitos enviado a <br/><span className="text-white font-bold">{email}</span></p></BlurFade>
               </motion.div>
             )}
           </AnimatePresence>
@@ -428,7 +627,7 @@ export const AuthComponent = ({
           {/* --- FORM --- */}
           <form ref={formRef} onSubmit={handleFinalSubmit} className="w-[300px] space-y-6">
             <AnimatePresence>
-              {(isLogin ? authStep !== 'done' : authStep !== 'confirmPassword') && (
+              {(isLogin ? authStep !== 'done' : isRequestReset ? (authStep === 'email' || authStep === 'password') : isResetPassword ? authStep !== 'confirmPassword' : authStep !== 'confirmPassword') && (
                 <motion.div key="fields-main" exit={{ opacity: 0, filter: 'blur(4px)' }} transition={{ duration: 0.3 }} className="w-full space-y-6">
 
                   {/* Email input */}
@@ -458,6 +657,43 @@ export const AuthComponent = ({
                       </div>
                     </div>
                   </BlurFade>
+
+                  {/* Company input */}
+                  <AnimatePresence>
+                    {authStep === "company" && (
+                      <BlurFade key="company-field" className="w-full">
+                        <div className="relative w-full">
+                          <AnimatePresence>
+                            {companyName.length > 0 && (
+                              <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }} className="absolute -top-6 left-4 z-10">
+                                <label className="text-xs text-gray-500 font-semibold">Empresa</label>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                          <div className="su-gi-wrap w-[300px]">
+                            <div className="su-gi">
+                              <span className="su-gi-shine"></span>
+                              <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-10 pl-2">
+                                <Briefcase className="h-5 w-5 text-white/60 flex-shrink-0" />
+                              </div>
+                              <input ref={companyInputRef} type="text" placeholder="Ej. Mi Tienda Online" value={companyName}
+                                onChange={e => setCompanyName(e.target.value)} onKeyDown={handleKeyDown}
+                                className="su-input relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-white/40 focus:outline-none"
+                              />
+                              <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300", isCompanyNameValid ? "w-10 pr-1" : "w-0")}>
+                                <GlassButton type="button" onClick={handleProgressStep} size="icon" contentClassName="text-white/80"><ArrowRight className="w-5 h-5" /></GlassButton>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <BlurFade inView delay={0.2}>
+                          <button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+                            <ArrowLeft className="w-4 h-4" /> Volver
+                          </button>
+                        </BlurFade>
+                      </BlurFade>
+                    )}
+                  </AnimatePresence>
 
                   {/* Password input */}
                   <AnimatePresence>
@@ -493,9 +729,16 @@ export const AuthComponent = ({
                           </div>
                         </div>
                         <BlurFade inView delay={0.2}>
-                          <button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
-                            <ArrowLeft className="w-4 h-4" /> Volver
-                          </button>
+                          <div className="mt-4 flex items-center justify-between">
+                            <button type="button" onClick={handleGoBack} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+                              <ArrowLeft className="w-4 h-4" /> Volver
+                            </button>
+                            {isLogin && showResetPrompt && onResetPromptClick && (
+                              <button type="button" onClick={onResetPromptClick} className="text-sm text-white/50 hover:text-[#4a6cf7] transition-colors">
+                                Restablecer contraseña
+                              </button>
+                            )}
+                          </div>
                         </BlurFade>
                       </BlurFade>
                     )}
@@ -504,8 +747,8 @@ export const AuthComponent = ({
               )}
             </AnimatePresence>
 
-            {/* Confirm password (register only) */}
-            {!isLogin && (
+            {/* Confirm password (register, reset-password, or request-reset after code verified) */}
+            {(!isLogin || isResetPassword || isRequestReset) && (
               <AnimatePresence>
                 {authStep === 'confirmPassword' && (
                   <BlurFade key="cp-field" className="w-full">
@@ -529,32 +772,91 @@ export const AuthComponent = ({
                             onChange={e => setConfirmPassword(e.target.value)}
                             className="su-input relative z-10 h-full w-0 flex-grow bg-transparent text-white placeholder:text-white/40 focus:outline-none"
                           />
-                          <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300", isConfirmPasswordValid && acceptedTerms ? "w-10 pr-1" : "w-0")}>
-                            <GlassButton type="submit" size="icon" contentClassName="text-white/80" disabled={!acceptedTerms}><ArrowRight className="w-5 h-5" /></GlassButton>
+                          <div className={cn("relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300", (isResetPassword || isRequestReset) ? (isConfirmPasswordValid ? "w-10 pr-1" : "w-0") : (isConfirmPasswordValid && acceptedTerms ? "w-10 pr-1" : "w-0"))}>
+                            <GlassButton type="submit" size="icon" contentClassName="text-white/80" disabled={(isResetPassword || isRequestReset) ? false : !acceptedTerms}><ArrowRight className="w-5 h-5" /></GlassButton>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <BlurFade inView delay={0.1}>
-                      <label className="mt-4 flex items-start gap-2 text-left cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={acceptedTerms}
-                          onChange={e => setAcceptedTerms(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-[#4a6cf7]"
-                        />
-                        <span className="text-xs leading-snug text-gray-400">
-                          Acepto el{' '}
-                          <a href="/terminos" target="_blank" rel="noreferrer" className="text-[#8ea2ff] hover:underline">Aviso Legal</a>
-                          {' '}y la{' '}
-                          <a href="/politica-privacidad" target="_blank" rel="noreferrer" className="text-[#8ea2ff] hover:underline">Política de Privacidad</a>
-                          {' '}de Rifx Marketing.
-                        </span>
-                      </label>
-                    </BlurFade>
+                    {!isResetPassword && !isRequestReset && (
+                      <BlurFade inView delay={0.1}>
+                        <label className="mt-4 flex items-start gap-2 text-left cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={acceptedTerms}
+                            onChange={e => setAcceptedTerms(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-[#4a6cf7]"
+                          />
+                          <span className="text-xs leading-snug text-gray-400">
+                            Acepto el{' '}
+                            <a href="/terminos" target="_blank" rel="noreferrer" className="text-[#8ea2ff] hover:underline">Aviso Legal</a>
+                            {' '}y la{' '}
+                            <a href="/politica-privacidad" target="_blank" rel="noreferrer" className="text-[#8ea2ff] hover:underline">Política de Privacidad</a>
+                            {' '}de Rifx Marketing.
+                          </span>
+                        </label>
+                      </BlurFade>
+                    )}
                     <BlurFade inView delay={0.2}>
                       <button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
                         <ArrowLeft className="w-4 h-4" /> Volver
+                      </button>
+                    </BlurFade>
+                  </BlurFade>
+                )}
+              </AnimatePresence>
+            )}
+
+            {/* Verify Code (register or request-reset) */}
+            {!isLogin && (
+              <AnimatePresence>
+                {authStep === 'verifyCode' && (
+                  <BlurFade key="vc-field" className="w-full">
+                    <div className="relative w-full">
+                      <div className="su-gi-wrap w-[300px]">
+                        <div className="su-gi">
+                          <span className="su-gi-shine"></span>
+                          <input type="text" placeholder="000000" maxLength={6} value={verifyCode}
+                            onChange={e => setVerifyCode(e.target.value.replace(/\D/g, ''))}
+                            className="su-input relative z-10 h-full w-full bg-transparent text-white placeholder:text-white/40 focus:outline-none text-center font-mono text-2xl tracking-[0.3em] py-2"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <BlurFade inView delay={0.1}>
+                      <button type="submit" disabled={verifyCode.length !== 6} className={cn("mt-4 w-full py-3 rounded-full font-bold transition-all", verifyCode.length === 6 ? "bg-[#4a6cf7] text-white hover:bg-[#3955d8]" : "bg-white/10 text-white/50 cursor-not-allowed")}>
+                        {isRequestReset ? 'Verificar y continuar' : 'Verificar código'}
+                      </button>
+                    </BlurFade>
+                    <BlurFade inView delay={0.2}>
+                      <button 
+                        type="button" 
+                        disabled={resendCountdown > 0}
+                        onClick={async () => {
+                          if (resendCountdown > 0) return;
+                          if (isRequestReset && onRequestReset) {
+                            setModalStatus('loading');
+                            try {
+                              await onRequestReset(email);
+                            } catch { /* silently ignore resend errors */ }
+                            setModalStatus('closed');
+                            setModalErrorMessage('');
+                          } else if (onRegister) {
+                            onRegister(email, password, acceptedTerms, companyName);
+                            setModalStatus('loading');
+                            setTimeout(() => {
+                              setModalStatus('closed');
+                              setModalErrorMessage('');
+                            }, 1000);
+                          }
+                          setResendCountdown(60);
+                        }} 
+                        className={cn(
+                          "mt-4 w-full text-center text-xs transition-colors",
+                          resendCountdown > 0 ? "text-gray-600 cursor-not-allowed" : "text-gray-400 hover:text-white"
+                        )}
+                      >
+                        {resendCountdown > 0 ? `Reenviar código en ${resendCountdown}s` : 'Reenviar código'}
                       </button>
                     </BlurFade>
                   </BlurFade>
@@ -571,9 +873,14 @@ export const AuthComponent = ({
                   ¿No tienes cuenta? <span className="text-[#4a6cf7]">Crear cuenta gratis</span>
                 </button>
               )}
-              {!isLogin && onSwitchToLogin && (
+              {!isLogin && !isRequestReset && !isResetPassword && onSwitchToLogin && (
                 <button type="button" onClick={onSwitchToLogin} className="text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
                   ¿Ya tienes cuenta? <span className="text-[#4a6cf7]">Iniciar sesión</span>
+                </button>
+              )}
+              {(isRequestReset || isResetPassword) && onSwitchToLogin && (
+                <button type="button" onClick={onSwitchToLogin} className="text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
+                  Volver al <span className="text-[#4a6cf7]">Inicio de sesión</span>
                 </button>
               )}
             </BlurFade>

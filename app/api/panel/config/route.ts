@@ -370,6 +370,15 @@ export async function POST(req: NextRequest) {
         );
         if (conflict) return NextResponse.json({ error: 'Esta pagina de Facebook ya esta vinculada' }, { status: 409 });
       }
+      if (next.bulk_wa_phone_id) {
+        const conflict = await findConflictingTenantForExtendedField(
+          supabase,
+          tenant.tenantId,
+          'bulk_wa_phone_id',
+          next.bulk_wa_phone_id,
+        );
+        if (conflict) return NextResponse.json({ error: 'Este número de WhatsApp masivo ya está vinculado' }, { status: 409 });
+      }
       updateData.openai_key = encodeExtendedConfig(next);
     }
 

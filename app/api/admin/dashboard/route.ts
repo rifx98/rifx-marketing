@@ -95,12 +95,18 @@ export async function GET(req: NextRequest) {
     // Announcements (safe — table might not exist)
     let announcements: any[] = [];
     try {
-      const { data: annData } = await supabase
+      const { data: annData, error: annError } = await supabase
         .from('announcements')
-        .select('id,title,message,type,image_url,button_text,button_url,is_active,starts_at,expires_at,created_at,updated_at')
+        .select('id,title,message,type,image_url,button_text,button_url,is_active,starts_at,expires_at,created_at')
         .order('created_at', { ascending: false });
+      
+      if (annError) {
+        console.error('Admin announcements fetch error:', annError);
+      }
       announcements = annData || [];
-    } catch {}
+    } catch (e) {
+      console.error('Admin announcements exception:', e);
+    }
 
     // Payments (safe — table might not exist)
     let allPayments: any[] = [];

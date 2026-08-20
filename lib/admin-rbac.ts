@@ -110,14 +110,17 @@ function normalizeAdminRole(value: unknown): string {
 
 function normalizeAdminSections(value: unknown): AdminSection[] {
   let rawValue = value;
+  if (rawValue === null || rawValue === undefined) {
+    return ['overview', 'tenants', 'templates', 'announcements'];
+  }
   if (typeof rawValue === 'string') {
     try {
       rawValue = JSON.parse(rawValue);
     } catch {
-      return [];
+      return ['overview', 'tenants', 'templates', 'announcements'];
     }
   }
-  if (!Array.isArray(rawValue)) return [];
+  if (!Array.isArray(rawValue)) return ['overview', 'tenants', 'templates', 'announcements'];
 
   return Array.from(new Set(
     rawValue

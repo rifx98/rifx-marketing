@@ -19,12 +19,21 @@ export default function SplashCursor({
   RAINBOW_MODE = true,
   COLOR = '#ff0000'
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number | null>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Create canvas dynamically to avoid React Strict Mode WebGL context loss issues
+    const canvas = document.createElement('canvas');
+    canvas.id = 'fluid';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+    canvas.style.backgroundColor = '#0C0C0C';
+    container.appendChild(canvas);
 
     // Track if the effect is still active for cleanup
     let isActive = true;
@@ -1114,12 +1123,17 @@ export default function SplashCursor({
       // Releasing the context frees all textures, framebuffers, programs and
       // buffers allocated by this simulation when the component unmounts.
       gl.getExtension('WEBGL_lose_context')?.loseContext();
+      
+      if (container.contains(canvas)) {
+        container.removeChild(canvas);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'fixed',
         top: 0,
@@ -1131,17 +1145,6 @@ export default function SplashCursor({
         overflow: 'hidden',
         backgroundColor: '#0C0C0C'
       }}
-    >
-      <canvas
-        ref={canvasRef}
-        id="fluid"
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'block',
-          backgroundColor: '#0C0C0C'
-        }}
-      />
-    </div>
+    />
   );
 }
