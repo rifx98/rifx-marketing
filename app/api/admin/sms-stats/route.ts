@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDailySmsStats } from '@/lib/sms-limiter';
-import { verifyAdminAuth } from '@/lib/admin-auth';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 
 /**
  * GET /api/admin/sms-stats
@@ -8,9 +8,9 @@ import { verifyAdminAuth } from '@/lib/admin-auth';
  */
 export async function GET(req: NextRequest) {
   // Solo admins pueden ver estas estadísticas
-  const adminCheck = await verifyAdminAuth(req);
-  if (!adminCheck.authorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAdminPermission(req, 'view');
+  if (!auth.ok) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: auth.status ?? 401 });
   }
 
   const stats = getDailySmsStats();
