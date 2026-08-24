@@ -5931,6 +5931,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } finally { setAdminActionLoading(false); }
   };
 
+  const handleDisconnectWhatsapp = async (targetTenantId: string, companyName: string) => {
+    try {
+      setAdminActionLoading(true);
+      const res = await authFetch('/api/admin/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disconnect_whatsapp', targetTenantId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setToast({ message: Error: \, type: 'error' });
+        return;
+      }
+      setToast({ message: `\u2705 WhatsApp desconectado de "\${companyName}"`, type: 'success' });
+      loadAdminData();
+    } catch (e: any) {
+      setToast({ message: 'Error de conexi\u00f3n: ' + e.message, type: 'error' });
+    } finally { setAdminActionLoading(false); }
+  };
+
   const handleAdminDeleteTenant = async (targetTenantId: string) => {
     if (!targetTenantId) return;
     try {
@@ -15735,6 +15755,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Plan</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Días Rest.</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
+                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">WhatsApp</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Admin</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acciones</th>
                             </tr>
@@ -15775,6 +15796,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <td className="px-6 py-4 text-center">
                                   <span className={`w-2.5 h-2.5 rounded-full inline-block ${t.planStatus === 'active' ? 'bg-emerald-500' : 'bg-red-400'}`}></span>
                                 </td>
+                                 <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                   {(t as any).whatsappPhoneId ? (
+                                     <div className="flex flex-col items-center gap-1">
+                                       <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{(t as any).waDisplayPhone || (t as any).whatsappPhoneId}</span>
+                                       <button onClick={() => { if (window.confirm(`Desconectar WA de ${t.companyName}?`)) handleDisconnectWhatsapp(t.id, t.companyName); }} className="text-[9px] font-bold text-red-500 hover:text-red-700 flex items-center gap-0.5"><span className="material-symbols-outlined text-[11px]">link_off</span>Desconectar</button>
+                                     </div>
+                                   ) : <span className="text-[10px] text-slate-300">—</span>}
+                                 </td>
                                 <td className="px-6 py-4 text-center">
                                   {t.isAdmin && <span className="material-symbols-outlined text-orange-500 text-lg">shield</span>}
                                 </td>

@@ -70,6 +70,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No se pudo cargar el dashboard' }, { status: 500 });
     }
 
+    // Load WhatsApp connection info per tenant (admin visibility only)
+    let configByTenant: Record<string, { whatsapp_phone_id?: string; wa_display_phone?: string }> = {};
+    if (canViewTenants) {
+      const { data: configs } = await supabase
+        .from('config')
+        .select('tenant_id,whatsapp_phone_id,wa_display_phone');
+      for (const c of configs || []) {
+        if (c.tenant_id) configByTenant[c.tenant_id] = c;
+      }
+    }
+
     const tenants = allTenants || [];
     const totalTenants = tenants.length;
     const activeTenants = tenants.filter(t => t.plan_status === 'active').length;
@@ -196,6 +207,7 @@ export async function GET(req: NextRequest) {
         const daysRemaining = t.plan_expires_at
           ? Math.max(0, Math.ceil((new Date(t.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
           : 0;
+        const waConfig = configByTenant[t.id];
         return {
           id: t.id,
           email: t.email,
@@ -218,6 +230,8 @@ export async function GET(req: NextRequest) {
           lastPaymentDate,
           daysRemaining,
           permissionOverrides: t.permission_overrides || {},
+          whatsappPhoneId: waConfig?.whatsapp_phone_id || null,
+          waDisplayPhone: waConfig?.wa_display_phone || null,
         };
       }),
       announcements: canViewAnnouncements ? announcements : [],
@@ -498,6 +512,42 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'El tenant cambió mientras se procesaba la solicitud' }, { status: 409 });
       }
       return NextResponse.json({ success: true });
+    }
+
+
+    // Action: disconnect_whatsapp — clear a tenant's WhatsApp connection so
+    // the phone number can be reassigned to another account.
+    if (body.action === 'disconnect_whatsapp') {
+      const { targetTenantId } = body;
+      if (typeof targetTenantId !== 'string' || !TENANT_ID_PATTERN.test(targetTenantId)) {
+        return NextResponse.json({ error: 'ID de usuario requerido' }, { status: 400 });
+      }
+
+      // Verify target tenant exists
+      const { data: target, error: targetError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('id', targetTenantId)
+        .maybeSingle();
+      if (targetError) return NextResponse.json({ error: 'No se pudo consultar el tenant' }, { status: 500 });
+      if (!target) return NextResponse.json({ error: 'Tenant no encontrado' }, { status: 404 });
+
+      // Clear WhatsApp credentials from the tenant's config row
+      const { error: clearError } = await supabase
+        .from('config')
+        .update({
+          whatsapp_token: null,
+          whatsapp_phone_id: null,
+          wa_display_phone: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('tenant_id', targetTenantId);
+
+      if (clearError) {
+        console.error('Admin disconnect_whatsapp failed:', clearError.code || 'database_error');
+        return NextResponse.json({ error: 'No se pudo desconectar el número de WhatsApp' }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, message: 'Número de WhatsApp desconectado correctamente' });
     }
 
     return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 });

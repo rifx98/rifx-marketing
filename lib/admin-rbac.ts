@@ -66,6 +66,10 @@ const ADMIN_PERMISSION_RULES = {
     sections: ['tenants'],
     fullOnly: true,
   },
+  'tenants.whatsapp.disconnect': {
+    sections: ['tenants'],
+    fullOnly: true,
+  },
   'platform_settings.read': {
     sections: ['overview', 'permissions'],
   },
@@ -87,6 +91,7 @@ export const ADMIN_DASHBOARD_ACTION_PERMISSIONS = {
   update_plan_permissions: 'plan_permissions.update',
   update_tenant_overrides: 'tenant_overrides.update',
   delete_tenant: 'tenants.delete',
+  disconnect_whatsapp: 'tenants.whatsapp.disconnect',
 } as const satisfies Record<string, AdminPermission>;
 
 const KNOWN_ADMIN_SECTIONS = new Set<string>(ADMIN_SECTIONS);
