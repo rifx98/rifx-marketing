@@ -470,10 +470,32 @@ export async function POST(req: NextRequest) {
     if (saveError) return json({ error: 'No se pudo guardar la conexion de WhatsApp' }, 500);
 
     const { phoneOptions, accountCount, lookupIncomplete } = await listWhatsAppPhones(accessToken);
+
+    // Annotate which phone numbers are already connected to a DIFFERENT tenant.
+    // A number must only be connectable by one tenant at a time.
+    let annotatedPhoneOptions = phoneOptions;
+    if (phoneOptions.length > 0) {
+      const phoneIds = phoneOptions.map((p) => p.phoneNumberId);
+      const { data: takenConfigs } = await supabase
+        .from('config')
+        .select('whatsapp_phone_id')
+        .in('whatsapp_phone_id', phoneIds)
+        .neq('tenant_id', tenant.tenantId);
+
+      const takenByOthers = new Set(
+        (takenConfigs || []).map((c: { whatsapp_phone_id: string }) => c.whatsapp_phone_id),
+      );
+
+      annotatedPhoneOptions = phoneOptions.map((p) => ({
+        ...p,
+        takenByAnotherTenant: takenByOthers.has(p.phoneNumberId),
+      }));
+    }
+
     return json({
       accessToken: SECRET_PLACEHOLDER,
       tokenConfigured: true,
-      phoneOptions,
+      phoneOptions: annotatedPhoneOptions,
       accountCount,
       message: phoneOptions.length === 0
         ? 'Token guardado. Ingresa tu Phone Number ID manualmente.'
