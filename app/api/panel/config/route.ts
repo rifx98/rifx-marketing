@@ -419,12 +419,28 @@ export async function POST(req: NextRequest) {
     if (Object.keys(updateData).length === 1) {
       return NextResponse.json({ error: 'No hay campos reconocidos para actualizar' }, { status: 400 });
     }
-    const { error } = await supabase
-      .from('config')
-      .upsert({ tenant_id: tenant.tenantId, ...updateData }, { onConflict: 'tenant_id' });
-    if (error) {
-      console.error('Panel configuration write failed:', error.code || 'database_error');
-      if (error.code === '23505') return NextResponse.json({ error: 'La conexion ya esta vinculada' }, { status: 409 });
+
+    // Use explicit INSERT/UPDATE instead of upsert to guarantee strict
+    // tenant isolation. upsert(onConflict:'tenant_id') silently falls back
+    // to INSERT when no UNIQUE constraint exists, creating duplicate rows.
+    let writeError;
+    if (existing) {
+      // Row exists for this tenant: UPDATE only that row.
+      const { error } = await supabase
+        .from('config')
+        .update(updateData)
+        .eq('tenant_id', tenant.tenantId);
+      writeError = error;
+    } else {
+      // No row yet: INSERT a brand-new isolated row for this tenant.
+      const { error } = await supabase
+        .from('config')
+        .insert({ tenant_id: tenant.tenantId, ...updateData });
+      writeError = error;
+    }
+    if (writeError) {
+      console.error('Panel configuration write failed:', writeError.code || 'database_error');
+      if (writeError.code === '23505') return NextResponse.json({ error: 'La conexion ya esta vinculada' }, { status: 409 });
       return internalApiError();
     }
     return NextResponse.json(
