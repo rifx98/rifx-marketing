@@ -3,12 +3,15 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest, signOAuthState, verifyOAuthState } from '@/lib/auth';
 import { denyUnlessFeature } from '@/lib/feature-access';
 import { SECRET_PLACEHOLDER, resolveSecretUpdate } from '@/lib/security';
+import { buildOAuthRedirectUri, resolveOAuthAppOrigin } from '@/lib/social-oauth';
+import { readLimitedJsonObject, readLimitedResponseJson } from '@/lib/request-guards';
 
 const GRAPH_VERSION = 'v24.0';
 const GRAPH_TIMEOUT_MS = 8_000;
 const OAUTH_ACTION = 'whatsapp_connect' as const;
 const MAX_BUSINESSES = 10;
 const MAX_PHONE_OPTIONS = 100;
+const FACEBOOK_APP_ID_PATTERN = /^\d{5,32}$/;
 
 type JsonObject = Record<string, unknown>;
 
@@ -42,19 +45,6 @@ function asString(value: unknown, maxLength = 200): string {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
-function getAppOrigin(req: NextRequest): string | null {
-  try {
-    const configuredOrigin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
-    if (!configuredOrigin && process.env.NODE_ENV === 'production') return null;
-    const url = new URL(configuredOrigin || req.nextUrl.origin);
-    if (!['http:', 'https:'].includes(url.protocol)) return null;
-    if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') return null;
-    return url.origin;
-  } catch {
-    return null;
-  }
-}
-
 async function graphFetch(input: string | URL, init: RequestInit = {}) {
   return fetch(input, {
     ...init,
@@ -66,7 +56,7 @@ async function graphFetch(input: string | URL, init: RequestInit = {}) {
 
 async function responseJson(response: Response): Promise<JsonObject> {
   try {
-    return asObject(await response.json());
+    return asObject(await readLimitedResponseJson(response));
   } catch {
     return {};
   }
@@ -167,13 +157,25 @@ export async function POST(req: NextRequest) {
     const featureDenied = denyUnlessFeature(tenant, 'crm');
     if (featureDenied) return featureDenied;
 
-    const body = asObject(await req.json().catch(() => null));
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
     if (Object.keys(body).length === 0) return json({ error: 'Solicitud invalida' }, 400);
 
-    const appId = process.env.FACEBOOK_APP_ID;
-    const appOrigin = getAppOrigin(req);
-    if (!appId || !appOrigin) return json({ error: 'OAuth de WhatsApp no esta configurado' }, 503);
-    const redirectUri = `${appOrigin}/panel`;
+    const appId = typeof process.env.FACEBOOK_APP_ID === 'string'
+      ? process.env.FACEBOOK_APP_ID.trim()
+      : '';
+    const appOrigin = resolveOAuthAppOrigin();
+    if (!FACEBOOK_APP_ID_PATTERN.test(appId)) {
+      return json({ error: 'OAuth de WhatsApp no esta configurado: revisa FACEBOOK_APP_ID.' }, 503);
+    }
+    if (!appOrigin) {
+      return json({ error: 'OAuth de WhatsApp no esta configurado: revisa APP_URL.' }, 503);
+    }
+    const redirectUri = buildOAuthRedirectUri(appOrigin, '/panel');
+    const configId = typeof process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID === 'string'
+      ? process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID.trim()
+      : '';
 
     if (body.action === 'request_state') {
       const state = await signOAuthState({ tenantId: tenant.tenantId, oauthAction: OAUTH_ACTION });
@@ -181,7 +183,7 @@ export async function POST(req: NextRequest) {
         state,
         redirectUri,
         appId,
-        configId: process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID || '',
+        configId: FACEBOOK_APP_ID_PATTERN.test(configId) ? configId : '',
       });
     }
 
@@ -283,15 +285,15 @@ export async function PUT(req: NextRequest) {
     const featureDenied = denyUnlessFeature(tenant, 'crm');
     if (featureDenied) return featureDenied;
 
-    const body = asObject(await req.json().catch(() => null));
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
     const phoneNumberId = asString(body.phoneNumberId, 64);
     const accessTokenInput = asString(body.accessToken, 128);
     const wabaId = asString(body.wabaId, 64);
-    const displayPhone = asString(body.displayPhone, 50);
-    const verifiedName = asString(body.verifiedName);
     if (
       !/^\d+$/.test(phoneNumberId) ||
-      (wabaId && !/^\d+$/.test(wabaId)) ||
+      !/^\d+$/.test(wabaId) ||
       accessTokenInput !== SECRET_PLACEHOLDER
     ) {
       return json({ error: 'Numero o referencia de conexion invalida' }, 400);
@@ -322,14 +324,14 @@ export async function PUT(req: NextRequest) {
     const resolvedAccessToken = resolveSecretUpdate(accessTokenInput, config.whatsapp_token || '');
     if (!resolvedAccessToken) return json({ error: 'Token de WhatsApp requerido' }, 400);
 
-    const verifyUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}`);
-    verifyUrl.searchParams.set('fields', 'id,display_phone_number,verified_name');
-    const verifyResponse = await graphFetch(verifyUrl, {
-      headers: { Authorization: `Bearer ${resolvedAccessToken}` },
-    });
-    const verifyData = await responseJson(verifyResponse);
-    if (!verifyResponse.ok || asString(verifyData.id, 64) !== phoneNumberId) {
-      return json({ error: 'No se pudo verificar el numero de WhatsApp seleccionado' }, 400);
+    // Never trust WABA or display metadata supplied by the browser. Resolve
+    // the exact phone/WABA pair again with the tenant's server-side token.
+    const { phoneOptions } = await listWhatsAppPhones(resolvedAccessToken);
+    const verifiedPhone = phoneOptions.find((option) => (
+      option.phoneNumberId === phoneNumberId && option.wabaId === wabaId
+    ));
+    if (!verifiedPhone) {
+      return json({ error: 'No se pudo verificar que el numero pertenezca a la cuenta de WhatsApp seleccionada' }, 400);
     }
 
     let extendedConfig: JsonObject = {};
@@ -348,8 +350,8 @@ export async function PUT(req: NextRequest) {
           ...extendedConfig,
           wa_connected_via: 'facebook_oauth',
           wa_waba_id: wabaId,
-          wa_display_phone: displayPhone,
-          wa_verified_name: verifiedName,
+          wa_display_phone: verifiedPhone.displayPhone,
+          wa_verified_name: verifiedPhone.verifiedName,
           wa_connected_at: new Date().toISOString(),
         }),
       })
@@ -360,14 +362,14 @@ export async function PUT(req: NextRequest) {
     // stay in Authorization headers and every provider request has a timeout.
     let webhookSubscribed = false;
     let webhookSubscribeError = '';
-    const appId = process.env.FACEBOOK_APP_ID;
+    const appId = typeof process.env.FACEBOOK_APP_ID === 'string'
+      ? process.env.FACEBOOK_APP_ID.trim()
+      : '';
     const appSecret = process.env.FACEBOOK_APP_SECRET;
     const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
-    const appOrigin = getAppOrigin(req);
-    if (!appId || !appSecret || !verifyToken || !appOrigin) {
+    const appOrigin = resolveOAuthAppOrigin();
+    if (!FACEBOOK_APP_ID_PATTERN.test(appId) || !appSecret || !verifyToken || !appOrigin) {
       webhookSubscribeError = 'La configuracion del webhook esta incompleta en el servidor.';
-    } else if (!wabaId) {
-      webhookSubscribeError = 'No se recibio el identificador WABA para activar mensajes entrantes.';
     } else {
       try {
         const appSubscriptionResponse = await graphFetch(
@@ -380,14 +382,14 @@ export async function PUT(req: NextRequest) {
             },
             body: new URLSearchParams({
               object: 'whatsapp_business_account',
-              callback_url: `${appOrigin}/api/whatsapp`,
+              callback_url: buildOAuthRedirectUri(appOrigin, '/api/whatsapp'),
               verify_token: verifyToken,
               fields: 'messages',
             }),
           },
         );
         const appSubscriptionData = await responseJson(appSubscriptionResponse);
-        if (!appSubscriptionResponse.ok || appSubscriptionData.error) {
+        if (!appSubscriptionResponse.ok || appSubscriptionData.success !== true) {
           webhookSubscribeError = 'No se pudo registrar el webhook de WhatsApp en Meta.';
         } else {
           const wabaSubscriptionResponse = await graphFetch(
@@ -398,7 +400,7 @@ export async function PUT(req: NextRequest) {
             },
           );
           const wabaSubscriptionData = await responseJson(wabaSubscriptionResponse);
-          if (!wabaSubscriptionResponse.ok || wabaSubscriptionData.error) {
+          if (!wabaSubscriptionResponse.ok || wabaSubscriptionData.success !== true) {
             webhookSubscribeError = 'No se pudo asociar el WABA con esta aplicacion.';
           } else {
             webhookSubscribed = true;
@@ -414,7 +416,7 @@ export async function PUT(req: NextRequest) {
       verified: true,
       webhookSubscribed,
       webhookSubscribeError: webhookSubscribed ? undefined : webhookSubscribeError,
-      phoneNumber: asString(verifyData.display_phone_number, 50) || displayPhone,
+      phoneNumber: verifiedPhone.displayPhone,
       message: webhookSubscribed
         ? 'WhatsApp conectado exitosamente'
         : 'WhatsApp guardado; revisa la activacion de mensajes entrantes',

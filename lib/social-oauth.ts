@@ -27,10 +27,10 @@ export interface OAuthJsonResult<T = Record<string, unknown>> {
 }
 
 export function resolveOAuthAppOrigin(): string | null {
-  const configured = process.env.APP_URL || (
+  const configured = (process.env.APP_URL || (
     process.env.NODE_ENV !== 'production' ? process.env.NEXT_PUBLIC_APP_URL : undefined
-  );
-  if (!configured) return null;
+  ))?.trim();
+  if (!configured || configured.length > MAX_PROFILE_URL_LENGTH) return null;
 
   try {
     const url = new URL(configured);
@@ -38,7 +38,10 @@ export function resolveOAuthAppOrigin(): string | null {
       (url.protocol !== 'https:' && url.protocol !== 'http:') ||
       (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') ||
       url.username ||
-      url.password
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
     ) {
       return null;
     }

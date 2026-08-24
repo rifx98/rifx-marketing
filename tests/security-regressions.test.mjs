@@ -18,6 +18,13 @@ import {
   isPrivateOrReservedIp,
 } from '../lib/safe-fetch.ts';
 import { CRON_HEALTH_POLICIES, evaluateCronRun } from '../lib/cron-health.ts';
+import { parseFacebookOAuthBootstrap } from '../lib/facebook-oauth-bootstrap.ts';
+import {
+  GITHUB_ACTIONS_OIDC_AUDIENCE,
+  GITHUB_ACTIONS_OIDC_SUBJECT,
+  hasTrustedGitHubActionsClaims,
+  verifyGitHubActionsOidcToken,
+} from '../lib/github-actions-oidc.ts';
 import { isAllowedPushEndpoint } from '../lib/push-security.ts';
 import { sha256Hex, verifyHmacSha256 } from '../lib/webhook-events.ts';
 
@@ -36,6 +43,52 @@ test('secret comparison rejects empty/mismatched values without length leakage',
   assert.equal(safeEqualSecrets('short', 'a-different-length'), false);
   assert.equal(safeEqualSecrets('', ''), false);
   assert.equal(safeEqualSecrets(null, 'value'), false);
+});
+
+test('GitHub OIDC policy is bound to one immutable repository and workflow', async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const trustedClaims = {
+    iss: 'https://token.actions.githubusercontent.com',
+    aud: GITHUB_ACTIONS_OIDC_AUDIENCE,
+    sub: GITHUB_ACTIONS_OIDC_SUBJECT,
+    exp: now + 300,
+    nbf: now - 5,
+    iat: now - 5,
+    jti: 'unique-run-token-id',
+    repository: 'rifx98/rifx-marketing',
+    repository_id: '1338953941',
+    repository_owner: 'rifx98',
+    repository_owner_id: '278632563',
+    ref: 'refs/heads/main',
+    ref_type: 'branch',
+    workflow_ref: 'rifx98/rifx-marketing/.github/workflows/whatsapp-worker.yml@refs/heads/main',
+    event_name: 'schedule',
+    runner_environment: 'github-hosted',
+  };
+
+  assert.equal(hasTrustedGitHubActionsClaims(trustedClaims), true);
+  assert.equal(hasTrustedGitHubActionsClaims({ ...trustedClaims, event_name: 'workflow_dispatch' }), true);
+
+  for (const untrusted of [
+    { repository: 'attacker/rifx-marketing' },
+    { repository_id: '999' },
+    { repository_owner: 'attacker' },
+    { repository_owner_id: '999' },
+    { ref: 'refs/heads/feature' },
+    { ref_type: 'tag' },
+    { workflow_ref: 'rifx98/rifx-marketing/.github/workflows/other.yml@refs/heads/main' },
+    { event_name: 'pull_request' },
+    { runner_environment: 'self-hosted' },
+    { sub: 'repo:rifx98/rifx-marketing:ref:refs/heads/main' },
+    { aud: [GITHUB_ACTIONS_OIDC_AUDIENCE] },
+    { jti: '' },
+  ]) {
+    assert.equal(hasTrustedGitHubActionsClaims({ ...trustedClaims, ...untrusted }), false);
+  }
+
+  assert.equal(await verifyGitHubActionsOidcToken(null), false);
+  assert.equal(await verifyGitHubActionsOidcToken('not-a.jwt.token'), false);
+  assert.equal(await verifyGitHubActionsOidcToken('x'.repeat(8 * 1024 + 1)), false);
 });
 
 test('password policy covers length, bcrypt byte limit, common values and email reuse', () => {
@@ -81,6 +134,82 @@ test('webhook HMAC verification rejects malformed and tampered payloads', () => 
   assert.equal(verifyHmacSha256(body, '00', secret), false);
   assert.equal(verifyHmacSha256(body, 'z'.repeat(64), secret), false);
   assert.match(sha256Hex(body), /^[0-9a-f]{64}$/);
+});
+
+test('Facebook OAuth bootstrap surfaces server errors and rejects unsafe redirects', () => {
+  const expectedOrigin = 'https://rifx-marketing.com';
+  const invalidMessage = 'Configuracion OAuth invalida.';
+  const validPayload = {
+    state: 'signed.oauth.state',
+    redirectUri: `${expectedOrigin}/panel`,
+    appId: '123456789012345',
+    configId: '987654321098765',
+  };
+
+  const parsed = parseFacebookOAuthBootstrap(validPayload, {
+    responseOk: true,
+    expectedOrigin,
+    invalidMessage,
+  });
+  assert.equal(parsed.state, validPayload.state);
+  assert.equal(parsed.redirectUrl.toString(), validPayload.redirectUri);
+  assert.equal(parsed.appId, validPayload.appId);
+  assert.equal(parsed.configId, validPayload.configId);
+
+  assert.throws(
+    () => parseFacebookOAuthBootstrap(
+      { error: 'OAuth de WhatsApp no esta configurado: revisa APP_URL.' },
+      { responseOk: false, expectedOrigin, invalidMessage },
+    ),
+    /revisa APP_URL/,
+  );
+
+  const invalidPayloads = [
+    {},
+    { ...validPayload, redirectUri: '' },
+    { ...validPayload, redirectUri: 'not-a-url' },
+    { ...validPayload, redirectUri: 'javascript:alert(1)' },
+    { ...validPayload, redirectUri: 'https://evil.example/panel' },
+    { ...validPayload, redirectUri: `${expectedOrigin}/panel/` },
+    { ...validPayload, redirectUri: `${expectedOrigin}/panel?code=leak` },
+    { ...validPayload, redirectUri: `${expectedOrigin}/panel#fragment` },
+    { ...validPayload, redirectUri: 'https://user:pass@rifx-marketing.com/panel' },
+    { ...validPayload, state: '' },
+    { ...validPayload, state: 'x'.repeat(4_097) },
+    { ...validPayload, state: 'line\nbreak' },
+    { ...validPayload, appId: 'not-numeric' },
+    { ...validPayload, appId: '1234' },
+    { ...validPayload, appId: '1'.repeat(33) },
+    { ...validPayload, configId: 'not-numeric' },
+    { ...validPayload, configId: 123456789012345 },
+  ];
+  for (const payload of invalidPayloads) {
+    assert.throws(
+      () => parseFacebookOAuthBootstrap(payload, {
+        responseOk: true,
+        expectedOrigin,
+        invalidMessage,
+      }),
+      /Configuracion OAuth invalida/,
+    );
+  }
+});
+
+test('CSRF proxy permits only the exact authenticated WhatsApp server routes without Origin', () => {
+  const proxySource = source('proxy.ts');
+  const exemptSet = proxySource.match(
+    /const CSRF_EXEMPT_SERVER_PATHS = new Set\(\[([\s\S]*?)\]\);/,
+  );
+
+  assert.ok(exemptSet);
+  assert.deepEqual(
+    [...exemptSet[1].matchAll(/'([^']+)'/g)].map((match) => match[1]),
+    ['/api/whatsapp', '/api/cron/whatsapp'],
+  );
+  assert.match(
+    proxySource,
+    /if \(CSRF_EXEMPT_SERVER_PATHS\.has\(pathname\)\) \{\s*return null;\s*\}/,
+  );
 });
 
 test('payment webhooks and cron locks retain their fail-closed invariants', () => {
@@ -165,11 +294,19 @@ test('critical authorization and tenant-isolation regressions stay closed', () =
 test('WhatsApp ingress acknowledges only durable, leased, tenant-routed messages', () => {
   const webhook = source('app/api/whatsapp/route.ts');
   const worker = source('app/api/cron/whatsapp/route.ts');
+  const cronAuth = source('app/api/cron/auth.ts');
+  const oidc = source('lib/github-actions-oidc.ts');
+  const workflow = source('.github/workflows/whatsapp-worker.yml');
   const migration = source('supabase/migrations/018_whatsapp_ingress.sql');
+  const deployment = JSON.parse(source('vercel.json'));
 
   assert.match(webhook, /for \(const entry of entries\)[\s\S]*?for \(const change of changes\)[\s\S]*?for \(const message of messages\)/);
   assert.match(webhook, /MAX_INGRESS_MESSAGES\s*=\s*1000/);
   assert.match(webhook, /\.rpc\('enqueue_whatsapp_ingress_batch'/);
+  assert.match(webhook, /after\(async \(\) =>/);
+  assert.match(webhook, /new URL\('\/api\/cron\/whatsapp', origin\.origin\)/);
+  assert.match(webhook, /headers:\s*\{ Authorization:\s*`Bearer \$\{cronSecret\}` \}/);
+  assert.match(webhook, /if \(enqueued > 0\) scheduleWhatsAppWorker\(req\)/);
   assert.match(webhook, /Ingress temporarily unavailable[\s\S]*?status:\s*503/);
   assert.match(webhook, /x-rifx-whatsapp-worker/);
   assert.match(webhook, /\.rpc\('claim_whatsapp_delivery'/);
@@ -177,15 +314,49 @@ test('WhatsApp ingress acknowledges only durable, leased, tenant-routed messages
   assert.match(webhook, /deliveryKey\s*=\s*sha256Hex\(JSON\.stringify\(\[sourceMessageId, deliveryPurpose\]\)\)/);
   assert.match(webhook, /throw new Error\(`whatsapp_provider_http_/);
 
-  assert.match(worker, /validateCronAuth\(req\)/);
-  assert.match(worker, /if \(!cronSecret\)[\s\S]*?status:\s*503/);
-  assert.match(worker, /safeEqualSecrets\(suppliedCronSecret, cronSecret\)/);
-  assert.match(worker, /process\.env\.WHATSAPP_WORKER_SECRET \|\| cronSecret/);
+  assert.match(worker, /verifyGitHubActionsOidcToken\(suppliedToken\)/);
+  assert.match(worker, /safeEqualSecrets\(suppliedToken, cronSecret\)/);
+  assert.match(worker, /process\.env\.WHATSAPP_WORKER_SECRET \|\| process\.env\.CRON_SECRET/);
   assert.match(worker, /process\.env\.APP_URL/);
+  assert.doesNotMatch(worker, /export async function GET/);
+  assert.equal(deployment.crons.find((entry) => entry.path === '/api/cron/whatsapp'), undefined);
   assert.match(worker, /\.rpc\('claim_whatsapp_ingress'/);
   assert.match(worker, /\.rpc\('complete_whatsapp_ingress'/);
-  assert.match(worker, /p_lease_seconds:\s*900/);
-  assert.match(worker, /AbortSignal\.timeout/);
+  assert.match(worker, /maxDuration\s*=\s*60/);
+  assert.match(worker, /RUN_BUDGET_MS\s*=\s*45_000/);
+  assert.match(worker, /remainingBudget < 10_000/);
+  assert.match(worker, /p_lease_seconds:\s*120/);
+  assert.match(worker, /AbortSignal\.timeout\(Math\.min\(42_000/);
+  assert.match(webhook, /maxDuration\s*=\s*60/);
+  assert.match(webhook, /WORKER_TRIGGER_TIMEOUT_MS\s*=\s*50_000/);
+  assert.match(webhook, /leaseSeconds:\s*120/);
+  assert.doesNotMatch(`${worker}\n${webhook}`, /maxDuration\s*=\s*300/);
+  assert.match(cronAuth, /safeEqualSecrets\(suppliedSecret, cronSecret\)/);
+  assert.doesNotMatch(cronAuth, /authHeader === `Bearer \$\{cronSecret\}`/);
+
+  assert.match(oidc, /createRemoteJWKSet\(new URL\(GITHUB_ACTIONS_JWKS_URL\)/);
+  assert.match(oidc, /issuer:\s*GITHUB_ACTIONS_ISSUER/);
+  assert.match(oidc, /audience:\s*GITHUB_ACTIONS_OIDC_AUDIENCE/);
+  assert.match(oidc, /algorithms:\s*\['RS256'\]/);
+  assert.match(oidc, /typ:\s*'JWT'/);
+  assert.match(oidc, /maxTokenAge:\s*'10 minutes'/);
+  assert.match(oidc, /repository_id:\s*'1338953941'/);
+  assert.match(oidc, /repository_owner_id:\s*'278632563'/);
+  assert.doesNotMatch(oidc, /console\./);
+
+  assert.match(workflow, /id-token:\s*write/);
+  assert.match(workflow, /permissions:\s*\n\s+id-token:\s*write\s*\n\s*\nconcurrency:/);
+  assert.match(workflow, /cron:\s*'3-58\/5 \* \* \* \*'/);
+  assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
+  assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_TOKEN/);
+  assert.match(workflow, /--request POST/);
+  assert.match(workflow, /--max-time 55/);
+  assert.match(workflow, /::add-mask::\$\{oidc_token\}/);
+  assert.match(workflow, /https:\/\/rifx-marketing\.com\/api\/cron\/whatsapp/);
+  assert.match(workflow, /jq -e '\.success == true'/);
+  assert.doesNotMatch(workflow, /\$\{\{\s*secrets\./);
+  assert.doesNotMatch(workflow, /^\s*uses:/m);
+  assert.doesNotMatch(workflow, /--location|set\s+-[^\n]*x/);
 
   assert.match(migration, /CREATE TABLE public\.whatsapp_ingress/);
   assert.match(migration, /provider_message_id text NOT NULL UNIQUE/);
@@ -245,6 +416,7 @@ test('dashboard polling uses a tenant-scoped aggregate instead of full-table tra
 
 test('Meta and WhatsApp OAuth stay tenant-bound without exposing provider tokens', () => {
   const auth = source('lib/auth.ts');
+  const bootstrap = source('lib/facebook-oauth-bootstrap.ts');
   const meta = source('app/api/panel/meta/facebook-connect/route.ts');
   const whatsapp = source('app/api/panel/whatsapp/facebook-connect/route.ts');
   const panel = source('app/panel/panel-client.tsx');
@@ -261,17 +433,40 @@ test('Meta and WhatsApp OAuth stay tenant-bound without exposing provider tokens
     assert.match(route, /accessToken:\s*SECRET_PLACEHOLDER/);
     assert.match(route, /Cache-Control':\s*'no-store/);
     assert.match(route, /AbortSignal\.timeout\(GRAPH_TIMEOUT_MS\)/);
+    assert.match(route, /readLimitedResponseJson\(response\)/);
+    assert.match(route, /resolveOAuthAppOrigin\(\)/);
+    assert.match(route, /FACEBOOK_APP_ID_PATTERN\.test\(appId\)/);
+    assert.equal((route.match(/readLimitedJsonObject\(req, 16 \* 1024\)/g) || []).length, 2);
     assert.doesNotMatch(route, /body\.redirectUri/);
+    assert.doesNotMatch(route, /process\.env\.NEXT_PUBLIC_APP_URL/);
     assert.doesNotMatch(route, /\{\s*code,\s*redirectUri\s*\}\s*=\s*await req\.json/);
     assert.doesNotMatch(route, /return (?:json|NextResponse\.json)\(\{\s*accessToken[,}]/);
   }
 
   assert.match(meta, /accessToken\s*!==\s*SECRET_PLACEHOLDER/);
   assert.match(whatsapp, /accessTokenInput\s*!==\s*SECRET_PLACEHOLDER/);
+  assert.match(whatsapp, /option\.phoneNumberId === phoneNumberId && option\.wabaId === wabaId/);
+  assert.match(whatsapp, /wa_display_phone:\s*verifiedPhone\.displayPhone/);
+  assert.match(whatsapp, /wa_verified_name:\s*verifiedPhone\.verifiedName/);
+  assert.match(whatsapp, /appSubscriptionData\.success !== true/);
+  assert.match(whatsapp, /wabaSubscriptionData\.success !== true/);
+  assert.doesNotMatch(whatsapp, /body\.(?:displayPhone|verifiedName)/);
   assert.equal((panel.match(/action:\s*'request_state'/g) || []).length, 2);
+  assert.equal((panel.match(/parseFacebookOAuthBootstrap\(oauth,/g) || []).length, 2);
   assert.equal((panel.match(/JSON\.stringify\(\{\s*code,\s*state:\s*returnedState\s*\}\)/g) || []).length, 2);
+  assert.equal((panel.match(/returnedState !== state/g) || []).length, 2);
+  assert.equal((panel.match(/popupUrl\.origin !== window\.location\.origin \|\| popupUrl\.pathname !== '\/panel'/g) || []).length, 2);
+  assert.doesNotMatch(panel, /new URL\(String\(oauth\.redirectUri \|\| ''\)\)/);
+  assert.doesNotMatch(panel, /displayPhone:\s*phone\.displayPhone|verifiedName:\s*phone\.verifiedName/);
   assert.doesNotMatch(panel, /btoa\(JSON\.stringify\(\{\s*action:\s*['"](?:meta_connect|wa_connect)/);
   assert.doesNotMatch(panel, /JSON\.stringify\(\{\s*code,\s*redirectUri:/);
+
+  assert.match(bootstrap, /if \(!options\.responseOk\) invalidBootstrap\(serverError \|\| invalidMessage\)/);
+  assert.match(bootstrap, /redirectUrl\.origin !== expectedOrigin\.origin/);
+  assert.match(bootstrap, /redirectUrl\.pathname !== '\/panel'/);
+  assert.match(bootstrap, /redirectUrl\.username/);
+  assert.match(bootstrap, /redirectUrl\.search/);
+  assert.match(bootstrap, /redirectUrl\.hash/);
 });
 
 test('push ownership and announcement link validation remain fail-closed', () => {
@@ -717,6 +912,7 @@ test('cron health fails closed for failed, missing and stale critical jobs', () 
     'running',
   );
   assert.equal(CRON_HEALTH_POLICIES.messages.maxAgeMs, 15 * 60_000);
+  assert.equal(CRON_HEALTH_POLICIES.whatsapp.maxAgeMs, 15 * 60_000);
   assert.equal(CRON_HEALTH_POLICIES['monthly-briefing'].maxAgeMs, 35 * 24 * 60 * 60_000);
 
   const route = source('app/api/cron/health/route.ts');

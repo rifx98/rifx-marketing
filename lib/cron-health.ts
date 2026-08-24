@@ -5,7 +5,9 @@ const DAY_MS = 24 * HOUR_MS;
 export const CRON_HEALTH_POLICIES = {
   appointments: { maxAgeMs: 45 * MINUTE_MS },
   messages: { maxAgeMs: 15 * MINUTE_MS },
-  whatsapp: { maxAgeMs: 5 * MINUTE_MS },
+  // GitHub's free schedule runs every five minutes but can have delivery
+  // jitter, so three missed windows are required before paging as stale.
+  whatsapp: { maxAgeMs: 15 * MINUTE_MS },
   'cold-leads': { maxAgeMs: 36 * HOUR_MS },
   'cleanup-media': { maxAgeMs: 36 * HOUR_MS },
   'monthly-briefing': { maxAgeMs: 35 * DAY_MS },

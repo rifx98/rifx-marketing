@@ -1,0 +1,57 @@
+name: WhatsApp queue fallback
+
+on:
+  schedule:
+    # Avoid the busiest minutes at the beginning of each hour.
+    - cron: '3-58/5 * * * *'
+  workflow_dispatch:
+
+# The job can mint an OIDC token, but cannot read or modify repository content.
+permissions:
+  id-token: write
+
+concurrency:
+  group: whatsapp-queue-worker
+  cancel-in-progress: false
+
+jobs:
+  drain-queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Invoke the production worker with short-lived OIDC
+        shell: bash
+        env:
+          OIDC_AUDIENCE: https://rifx-marketing.com/api/cron/whatsapp
+          WORKER_URL: https://rifx-marketing.com/api/cron/whatsapp
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "GitHub OIDC is unavailable for this job" >&2
+            exit 1
+          fi
+
+          encoded_audience="$(jq -rn --arg value "${OIDC_AUDIENCE}" '$value | @uri')"
+          oidc_response="$(
+            curl --fail --silent --show-error \
+              --proto '=https' --tlsv1.2 \
+              --connect-timeout 5 --max-time 10 \
+              --header "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encoded_audience}"
+          )"
+          oidc_token="$(jq -er '.value | select(type == "string" and length > 0)' <<<"${oidc_response}")"
+          unset oidc_response
+          echo "::add-mask::${oidc_token}"
+          trap 'unset oidc_token' EXIT
+
+          worker_response="$(
+            curl --fail --silent --show-error \
+              --proto '=https' --tlsv1.2 \
+              --connect-timeout 5 --max-time 55 \
+              --request POST \
+              --header "Authorization: Bearer ${oidc_token}" \
+              --header 'Content-Length: 0' \
+              "${WORKER_URL}"
+          )"
+          jq -e '.success == true' <<<"${worker_response}" >/dev/null

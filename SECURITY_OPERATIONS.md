@@ -191,12 +191,38 @@ valid message found across all `entry` and `changes` arrays before returning a
 200 response. If PostgreSQL is unavailable, it returns 503 so Meta can retry;
 it never acknowledges a message that was not persisted or already present.
 
-Configure `WHATSAPP_APP_SECRET`, `CRON_SECRET`, and an HTTPS `APP_URL` in the
-deployment secret store. `WHATSAPP_WORKER_SECRET` is optional; when omitted,
-the internal processor uses `CRON_SECRET`. Schedule an authenticated request to
-`/api/cron/whatsapp` at least once per minute with
-`Authorization: Bearer <CRON_SECRET>`. The route is fail-closed when any
-required secret, the canonical origin, or the database queue is unavailable.
+Configure `WHATSAPP_APP_SECRET`, `CRON_SECRET`, `WHATSAPP_WORKER_SECRET`, and an
+HTTPS `APP_URL` as Vercel Sensitive environment variables. Keep every value
+server-only. `WHATSAPP_WORKER_SECRET` may fall back to `CRON_SECRET` for legacy
+deployments, but an independent value is preferred. The public callback uses
+`after()` to start the worker immediately with `CRON_SECRET` after acknowledging
+Meta. This is the normal low-latency path.
+
+Vercel Hobby cannot deploy the previous every-minute cron. The free fallback is
+`.github/workflows/whatsapp-worker.yml`, scheduled every five minutes. GitHub
+does not store a shared secret: each run requests a short-lived OIDC JWT and
+posts it directly to `/api/cron/whatsapp`. The route verifies GitHub's RS256
+signature against its fixed HTTPS JWKS endpoint, exact issuer and audience, the
+immutable repository and owner IDs, immutable subject, `main` ref, exact
+workflow path, GitHub-hosted runner, and the `schedule`/`workflow_dispatch`
+event allowlist. All other repositories, branches, workflows, and events fail
+closed. The JWT is never persisted or logged.
+
+The worker and webhook have a 60-second Hobby limit. The worker reserves a
+45-second run budget, caps an internal processor request at 42 seconds, refuses
+new claims when fewer than 10 seconds remain, and uses 120-second database
+leases so a terminated invocation becomes recoverable quickly. GitHub schedules can be delayed or
+dropped during high load and are disabled in public repositories after 60 days
+without repository activity. Therefore the OIDC schedule is a recovery path,
+not a real-time SLA; keep the immediate Vercel trigger enabled. The worker route
+also fails closed when a required secret, canonical origin, or queue dependency
+is unavailable.
+
+The OIDC trust policy intentionally fixes `https://rifx-marketing.com` as both
+audience and destination. If the production domain, repository owner/name, or
+workflow path changes, update the workflow and `lib/github-actions-oidc.ts`
+together and rerun the security suite. Protect `main` and require 2FA for every
+account with write access.
 
 Verify this flow in staging before enabling the Meta callback:
 
@@ -204,9 +230,10 @@ Verify this flow in staging before enabling the Meta callback:
    Confirm each provider message ID creates exactly one `whatsapp_ingress` row.
 2. Replay the exact fixture concurrently and confirm only duplicate counters
    change. Replay one provider ID with altered content and confirm HTTP 409.
-3. Stop a worker after it claims an item, wait for the lease to expire, and
-   confirm another worker reclaims it. Confirm repeated failures back off and
-   reach `dead` after eight attempts rather than retrying forever.
+3. Stop a worker after it claims an item, wait at least 120 seconds for the
+   lease to expire, and confirm another worker reclaims it. Confirm repeated
+   failures back off and reach `dead` after eight attempts rather than retrying
+   forever.
 4. Race two workers and verify `FOR UPDATE SKIP LOCKED` prevents concurrent
    ownership. For a successful reply, confirm one `whatsapp_outbound_deliveries`
    receipt reaches `sent` and a replay does not call Meta again.

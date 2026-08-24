@@ -1,15 +1,18 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
+import { verifyGitHubActionsOidcToken } from '@/lib/github-actions-oidc';
 import { safeEqualSecrets } from '@/lib/security';
-import { cronUnauthorizedResponse, validateCronAuth } from '../auth';
 import { startRunLog, updateRunLog } from '@/services/cron/lock';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 const MAX_MESSAGES_PER_RUN = 3;
-const RUN_BUDGET_MS = 270_000;
+// Leave enough of Hobby's 60-second function window to persist leases and the
+// run log even after a slow processor request or an OIDC key refresh.
+const RUN_BUDGET_MS = 45_000;
+const MAX_BEARER_BYTES = 8 * 1024;
 
 interface ClaimedIngress {
   ingress_id: string;
@@ -17,6 +20,31 @@ interface ClaimedIngress {
   provider_message_id: string;
   payload: Record<string, unknown>;
   attempt_count: number;
+}
+
+function readBearerToken(req: NextRequest): string | null {
+  const authorization = req.headers.get('authorization');
+  if (!authorization || Buffer.byteLength(authorization, 'utf8') > MAX_BEARER_BYTES + 16) {
+    return null;
+  }
+  return authorization.match(/^Bearer\s+([^\s]+)$/i)?.[1] || null;
+}
+
+async function isAuthorizedWorkerRequest(req: NextRequest): Promise<boolean> {
+  const suppliedToken = readBearerToken(req);
+  if (!suppliedToken) return false;
+
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && safeEqualSecrets(suppliedToken, cronSecret)) return true;
+
+  return verifyGitHubActionsOidcToken(suppliedToken);
+}
+
+function unauthorizedResponse() {
+  return NextResponse.json(
+    { success: false, error: 'No autorizado' },
+    { status: 401, headers: { 'Cache-Control': 'no-store' } },
+  );
 }
 
 function resolveWebhookUrl(req: NextRequest): URL | null {
@@ -58,22 +86,12 @@ async function completeIngress(
 }
 
 export async function POST(req: NextRequest) {
-  if (!validateCronAuth(req)) return cronUnauthorizedResponse();
+  // The immediate Vercel trigger uses CRON_SECRET. The free scheduled fallback
+  // uses a short-lived GitHub OIDC token bound to one repository and workflow.
+  // There is deliberately no development bypass for this durable worker.
+  if (!(await isAuthorizedWorkerRequest(req))) return unauthorizedResponse();
 
-  // Unlike legacy cron routes, this queue never permits the development
-  // no-secret bypass: a durable worker must be authenticated in every mode.
-  const cronSecret = process.env.CRON_SECRET;
-  const suppliedCronSecret = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || null;
-  if (!cronSecret) {
-    console.error('[WhatsApp Worker] CRON_SECRET is not configured');
-    return NextResponse.json(
-      { success: false, error: 'Worker unavailable' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } },
-    );
-  }
-  if (!safeEqualSecrets(suppliedCronSecret, cronSecret)) return cronUnauthorizedResponse();
-
-  const workerSecret = process.env.WHATSAPP_WORKER_SECRET || cronSecret;
+  const workerSecret = process.env.WHATSAPP_WORKER_SECRET || process.env.CRON_SECRET;
   const appSecret = process.env.WHATSAPP_APP_SECRET;
   const webhookUrl = resolveWebhookUrl(req);
   if (!workerSecret || !appSecret || !webhookUrl) {
@@ -99,13 +117,15 @@ export async function POST(req: NextRequest) {
 
   for (let index = 0; index < MAX_MESSAGES_PER_RUN; index += 1) {
     const remainingBudget = RUN_BUDGET_MS - (Date.now() - startedAt);
-    if (remainingBudget < 5_000) break;
+    // Do not claim ownership when there is too little time left to perform a
+    // provider call and durably finalize the lease.
+    if (remainingBudget < 10_000) break;
 
     const ownerToken = randomUUID();
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase.rpc('claim_whatsapp_ingress', {
       p_processing_token: ownerToken,
-      p_lease_seconds: 900,
+      p_lease_seconds: 120,
     });
     if (error) {
       console.error('[WhatsApp Worker] Unable to claim durable ingress');
@@ -134,7 +154,7 @@ export async function POST(req: NextRequest) {
         body: rawBody,
         redirect: 'error',
         cache: 'no-store',
-        signal: AbortSignal.timeout(Math.min(240_000, Math.max(1_000, remainingBudget - 2_000))),
+        signal: AbortSignal.timeout(Math.min(42_000, Math.max(1_000, remainingBudget - 3_000))),
       });
       succeeded = response.ok;
       errorCode = succeeded ? null : `processor_http_${response.status}`;
@@ -191,8 +211,4 @@ export async function POST(req: NextRequest) {
     status: success ? 200 : (!runLogged || stoppedOnLeaseError || countError ? 503 : 500),
     headers: { 'Cache-Control': 'no-store' },
   });
-}
-
-export async function GET(req: NextRequest) {
-  return POST(req);
 }

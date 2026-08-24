@@ -4,10 +4,13 @@ import { getTenantFromRequest, signOAuthState, verifyOAuthState } from '@/lib/au
 import { denyUnlessFeature } from '@/lib/feature-access';
 import { findConflictingTenantForExtendedField } from '@/lib/connection-guard';
 import { SECRET_PLACEHOLDER, resolveSecretUpdate } from '@/lib/security';
+import { buildOAuthRedirectUri, resolveOAuthAppOrigin } from '@/lib/social-oauth';
+import { readLimitedJsonObject, readLimitedResponseJson } from '@/lib/request-guards';
 
 const GRAPH_VERSION = 'v24.0';
 const GRAPH_TIMEOUT_MS = 8_000;
 const OAUTH_ACTION = 'meta_ads_connect' as const;
+const FACEBOOK_APP_ID_PATTERN = /^\d{5,32}$/;
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -17,19 +20,6 @@ function json(body: unknown, status = 200) {
       Pragma: 'no-cache',
     },
   });
-}
-
-function getRedirectUri(req: NextRequest): string | null {
-  try {
-    const configuredOrigin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL;
-    if (!configuredOrigin && process.env.NODE_ENV === 'production') return null;
-    const origin = new URL(configuredOrigin || req.nextUrl.origin);
-    if (!['http:', 'https:'].includes(origin.protocol)) return null;
-    if (process.env.NODE_ENV === 'production' && origin.protocol !== 'https:') return null;
-    return new URL('/panel', `${origin.origin}/`).toString();
-  } catch {
-    return null;
-  }
 }
 
 async function graphFetch(input: string | URL, init: RequestInit = {}) {
@@ -43,7 +33,7 @@ async function graphFetch(input: string | URL, init: RequestInit = {}) {
 
 async function responseJson(response: Response): Promise<any> {
   try {
-    return await response.json();
+    return await readLimitedResponseJson(response);
   } catch {
     return {};
   }
@@ -100,7 +90,7 @@ async function listMetaAssets(accessToken: string, limit = 50) {
     responseJson(pagesResponse),
   ]);
 
-  if (!adResponse.ok || adData?.error) {
+  if (!adResponse.ok || adData?.error || !Array.isArray(adData?.data)) {
     throw new Error('META_ASSET_LOOKUP_FAILED');
   }
 
@@ -155,12 +145,24 @@ export async function POST(req: NextRequest) {
     const featureDenied = denyUnlessFeature(tenant, 'campaigns');
     if (featureDenied) return featureDenied;
 
-    const body = await req.json().catch(() => null);
-    if (!body || typeof body !== 'object') return json({ error: 'Solicitud invalida' }, 400);
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
 
-    const appId = process.env.FACEBOOK_APP_ID;
-    const redirectUri = getRedirectUri(req);
-    if (!appId || !redirectUri) return json({ error: 'OAuth de Meta no esta configurado' }, 503);
+    const appId = typeof process.env.FACEBOOK_APP_ID === 'string'
+      ? process.env.FACEBOOK_APP_ID.trim()
+      : '';
+    const appOrigin = resolveOAuthAppOrigin();
+    if (!FACEBOOK_APP_ID_PATTERN.test(appId)) {
+      return json({ error: 'OAuth de Meta no esta configurado: revisa FACEBOOK_APP_ID.' }, 503);
+    }
+    if (!appOrigin) {
+      return json({ error: 'OAuth de Meta no esta configurado: revisa APP_URL.' }, 503);
+    }
+    const redirectUri = buildOAuthRedirectUri(appOrigin, '/panel');
+    const configId = typeof process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID === 'string'
+      ? process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID.trim()
+      : '';
 
     if (body.action === 'request_state') {
       const state = await signOAuthState({ tenantId: tenant.tenantId, oauthAction: OAUTH_ACTION });
@@ -168,7 +170,7 @@ export async function POST(req: NextRequest) {
         state,
         redirectUri,
         appId,
-        configId: process.env.NEXT_PUBLIC_FACEBOOK_ADS_CONFIG_ID || '',
+        configId: FACEBOOK_APP_ID_PATTERN.test(configId) ? configId : '',
       });
     }
 
@@ -276,8 +278,9 @@ export async function PUT(req: NextRequest) {
     const featureDenied = denyUnlessFeature(tenant, 'campaigns');
     if (featureDenied) return featureDenied;
 
-    const body = await req.json().catch(() => null);
-    if (!body || typeof body !== 'object') return json({ error: 'Solicitud invalida' }, 400);
+    const parsedBody = await readLimitedJsonObject(req, 16 * 1024);
+    if (!parsedBody.ok) return parsedBody.response;
+    const body = parsedBody.body;
     const accessToken = typeof body.accessToken === 'string' ? body.accessToken : '';
     const adAccountId = typeof body.adAccountId === 'string' ? body.adAccountId.trim() : '';
     const pageId = typeof body.pageId === 'string' ? body.pageId.trim() : '';

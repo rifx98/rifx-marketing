@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
 import { checkAvailability, createCalendarEvent, getCalendarCredentials, deleteCalendarEvent } from '@/lib/google-calendar';
@@ -17,17 +17,73 @@ import {
 } from '@/lib/webhook-events';
 import { tenantCanUseFeature } from '@/lib/feature-access';
 
+export const maxDuration = 60;
+
 class ContinueWebhookBatch extends Error {}
 
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const MAX_INGRESS_MESSAGES = 1000;
 const PHONE_ID_PATTERN = /^\d{6,30}$/;
+const MAX_APP_ORIGIN_LENGTH = 2048;
+const WORKER_TRIGGER_TIMEOUT_MS = 50_000;
 
 interface WhatsAppIngressEvent {
   provider_message_id: string;
   destination_phone_id: string;
   payload_sha256: string;
   payload: Record<string, unknown>;
+}
+
+function resolveWhatsAppWorkerUrl(req: NextRequest): URL | null {
+  const configuredOrigin = process.env.APP_URL?.trim()
+    || (process.env.NODE_ENV === 'development' ? req.nextUrl.origin : '');
+  if (!configuredOrigin || configuredOrigin.length > MAX_APP_ORIGIN_LENGTH) return null;
+
+  try {
+    const origin = new URL(configuredOrigin);
+    if (
+      !['http:', 'https:'].includes(origin.protocol) ||
+      (process.env.NODE_ENV === 'production' && origin.protocol !== 'https:') ||
+      origin.username ||
+      origin.password ||
+      origin.pathname !== '/' ||
+      origin.search ||
+      origin.hash
+    ) return null;
+    return new URL('/api/cron/whatsapp', origin.origin);
+  } catch {
+    return null;
+  }
+}
+
+function scheduleWhatsAppWorker(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  const workerUrl = resolveWhatsAppWorkerUrl(req);
+  if (!cronSecret || !workerUrl) {
+    console.error('[WhatsApp] Immediate worker trigger is not configured');
+    return;
+  }
+
+  // Start the durable worker only after Meta has received its fast ACK. The
+  // worker endpoint still performs its own constant-time secret validation.
+  after(async () => {
+    try {
+      const response = await fetch(workerUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${cronSecret}` },
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(WORKER_TRIGGER_TIMEOUT_MS),
+      });
+      if (!response.ok) {
+        console.error(`[WhatsApp] Immediate worker returned HTTP ${response.status}`);
+      }
+      await response.body?.cancel();
+    } catch {
+      // The scheduled GitHub OIDC workflow remains the durable retry path.
+      console.error('[WhatsApp] Immediate worker trigger failed');
+    }
+  });
 }
 
 async function readWebhookBody(req: NextRequest): Promise<string> {
@@ -219,9 +275,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Webhook event conflict' }, { status: 409 });
   }
 
+  const enqueued = Number(result?.enqueued_count || 0);
+  if (enqueued > 0) scheduleWhatsAppWorker(req);
+
   return NextResponse.json({
     status: 'accepted',
-    queued: Number(result?.enqueued_count || 0),
+    queued: enqueued,
     duplicates: Number(result?.duplicate_count || 0),
     ignored: Number(result?.ignored_count || 0),
   });
@@ -325,9 +384,9 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         tenantId,
         payloadSha256: sha256Hex(JSON.stringify({ message: candidate, metadata: value?.metadata || {} })),
         // The current handler is synchronous and can legitimately perform AI,
-        // media and calendar work. The bounded DB lease permits safe retry after
-        // a crashed function without allowing two workers to own the event.
-        leaseSeconds: 900,
+        // media and calendar work. Keep this above the Hobby function window so
+        // a crashed invocation becomes reclaimable without a 15-minute stall.
+        leaseSeconds: 120,
       });
       if (claim.state === 'duplicate') continue;
       if (claim.state === 'busy') {

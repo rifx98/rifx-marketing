@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeEqualSecrets } from '@/lib/security';
 
 /**
  * Valida la autenticación de la petición cron utilizando el header Authorization.
@@ -18,7 +19,8 @@ export function validateCronAuth(req: NextRequest): boolean {
     return false;
   }
 
-  return authHeader === `Bearer ${cronSecret}`;
+  const suppliedSecret = authHeader?.match(/^Bearer\s+([^\s]+)$/i)?.[1] || null;
+  return safeEqualSecrets(suppliedSecret, cronSecret);
 }
 
 /**

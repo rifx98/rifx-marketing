@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// These exact server-to-server endpoints cannot supply browser Origin/Referer
+// headers. They enforce HMAC and/or Bearer authentication in their Route
+// Handlers, so requests must reach those handlers for verification.
+const CSRF_EXEMPT_SERVER_PATHS = new Set([
+  '/api/whatsapp',
+  '/api/cron/whatsapp',
+]);
+
 function buildPanelCsp(nonce: string): string {
   const isDevelopment = process.env.NODE_ENV !== 'production';
   return [
@@ -33,6 +41,10 @@ function validateCsrf(request: NextRequest): NextResponse | null {
 
   // Only protect API routes
   if (!pathname.startsWith('/api/')) {
+    return null;
+  }
+
+  if (CSRF_EXEMPT_SERVER_PATHS.has(pathname)) {
     return null;
   }
 

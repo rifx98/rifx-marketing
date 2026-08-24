@@ -35,6 +35,7 @@ import { CREATIVE_TEMPLATES, CreativeTemplate } from './templates';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import ThemeSettings from './theme-settings';
 import PricingTab from './PricingTab';
+import { parseFacebookOAuthBootstrap } from '@/lib/facebook-oauth-bootstrap';
 
 // OmniPublish V1 Imports
 import VideoUploader from '@/components/social/VideoUploader';
@@ -1734,7 +1735,7 @@ export default function PanelClient() {
         },
         {
           keys: ['webhook', 'callback', 'devolución', 'verificación', 'messages', 'webhooks'],
-          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. Para configurarlo:\n\n1️⃣ Entra a tu App en **Meta Developers** > **WhatsApp** > **Configuración**.\n2️⃣ En la sección **Webhook**, pulsa **Editar**.\n3️⃣ Copia y pega tu URL de devolución de llamada personalizada:\n   `https://api.rifx-sovereign.io/hooks/v1/wa/' + (configData.whatsapp_phone_id || '[TU_PHONE_ID]') + '`\n4️⃣ Escribe tu Token de verificación (puedes poner cualquier clave corta, ej: `rifx_secret`).\n5️⃣ **¡VITAL!** Tras guardar, haz clic en **Administrar** (al lado de Webhooks) y dale al botón de **Suscribirse** en la fila de **`messages`**. Si no haces este último paso, el bot no recibirá ningún mensaje.'
+          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. RIFX registra el webhook durante la conexión con Facebook.\n\n1️⃣ Entra a tu App en **Meta Developers** > **WhatsApp** > **Configuración**.\n2️⃣ Confirma que la URL de devolución sea `https://rifx-marketing.com/api/whatsapp`.\n3️⃣ Haz clic en **Administrar** y confirma que **`messages`** aparezca como **Suscrito**.\n4️⃣ Si Meta solicita verificar nuevamente el webhook, reconecta WhatsApp desde el panel. No inventes ni compartas un token: el servidor administra esa credencial privada.'
         },
         {
           keys: ['id de teléfono', 'phone id', 'id de telefono', 'phone number id', 'obtener el id de teléfono', 'dónde está el id'],
@@ -1867,7 +1868,7 @@ export default function PanelClient() {
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
           }
-          replyText += '**Paso 5: Configurar el Webhook de Recepción**\n\nPara que tu bot reciba y conteste los mensajes de tus clientes, debes configurar el webhook en Meta:\n\n1️⃣ En Meta Developers, ve a **WhatsApp** > **Configuración**.\n2️⃣ En **Webhook**, haz clic en **Editar**.\n3️⃣ En **URL de devolución de llamada**, pega esta URL exacta:\n   `https://api.rifx-sovereign.io/hooks/v1/wa/' + (configData.whatsapp_phone_id || '[TU_PHONE_ID]') + '`\n4️⃣ En **Token de verificación**, escribe cualquier contraseña corta que desees (ej: `rifx_secret`).\n5️⃣ Haz clic en **Guardar**.\n6️⃣ **¡MUY IMPORTANTE!** En la lista de Webhooks de WhatsApp, haz clic en **Administrar** y pulsa **Suscribirse** en la fila de **`messages`**.\n\n![Paso 5: Configuración de Webhook](/images/setup/meta_webhook.png)\n\n¿Completaste la suscripción a los webhooks?';
+          replyText += '**Paso 5: Activar el Webhook de Recepción**\n\nRIFX registra el webhook oficial durante la conexión con Facebook. No inventes ni compartas un token de verificación.\n\n1️⃣ En Meta Developers, ve a **WhatsApp** > **Configuración**.\n2️⃣ Confirma que la **URL de devolución de llamada** sea exactamente:\n   `https://rifx-marketing.com/api/whatsapp`\n3️⃣ En la lista de Webhooks de WhatsApp, haz clic en **Administrar** y confirma que **`messages`** aparezca como **Suscrito**.\n4️⃣ Si Meta solicita volver a verificar el webhook, reconecta WhatsApp desde el panel de RIFX. El token de verificación es privado y lo administra el servidor.\n\n![Paso 5: Configuración de Webhook](/images/setup/meta_webhook.png)\n\n¿El webhook oficial y la suscripción a `messages` están activos?';
           nextChips = ['Sí, webhooks listos', 'Volver al inicio'];
         } else if (newStep === 5) {
           newStep = 6;
@@ -4045,30 +4046,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'request_state' }),
       });
-      const oauth = await stateResponse.json();
-      const redirectUrl = new URL(String(oauth.redirectUri || ''));
-      if (
-        !stateResponse.ok ||
-        typeof oauth.state !== 'string' ||
-        oauth.state.length === 0 ||
-        oauth.state.length > 4096 ||
-        !/^\d+$/.test(String(oauth.appId || '')) ||
-        redirectUrl.origin !== window.location.origin ||
-        redirectUrl.pathname !== '/panel'
-      ) {
-        throw new Error(oauth.error || (language === 'en' ? 'Invalid OAuth configuration.' : 'Configuracion OAuth invalida.'));
-      }
-      state = oauth.state;
+      const oauth = await stateResponse.json().catch(() => ({}));
+      const bootstrap = parseFacebookOAuthBootstrap(oauth, {
+        responseOk: stateResponse.ok,
+        expectedOrigin: window.location.origin,
+        invalidMessage: language === 'en' ? 'Invalid OAuth configuration.' : 'Configuracion OAuth invalida.',
+      });
+      state = bootstrap.state;
       const scope = 'ads_management,ads_read,pages_show_list,pages_read_engagement,pages_manage_ads,business_management,read_insights';
       const fbUrl = new URL('https://www.facebook.com/v24.0/dialog/oauth');
-      fbUrl.searchParams.set('client_id', String(oauth.appId));
-      fbUrl.searchParams.set('redirect_uri', redirectUrl.toString());
+      fbUrl.searchParams.set('client_id', bootstrap.appId);
+      fbUrl.searchParams.set('redirect_uri', bootstrap.redirectUrl.toString());
       fbUrl.searchParams.set('scope', scope);
       fbUrl.searchParams.set('state', state);
       fbUrl.searchParams.set('response_type', 'code');
       fbUrl.searchParams.set('auth_type', 'rerequest');
-      if (/^\d+$/.test(String(oauth.configId || ''))) {
-        fbUrl.searchParams.set('config_id', String(oauth.configId));
+      if (bootstrap.configId) {
+        fbUrl.searchParams.set('config_id', bootstrap.configId);
       }
       popup.location.href = fbUrl.toString();
     } catch (error) {
@@ -4088,19 +4082,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (!popup.closed) popup.close();
           return;
         }
-        const popupUrl = popup.location.href;
-        if (popupUrl.includes('error=')) {
+        const popupUrl = new URL(popup.location.href);
+        if (popupUrl.origin !== window.location.origin || popupUrl.pathname !== '/panel') return;
+        if (popupUrl.searchParams.has('error')) {
           clearInterval(poll);
           popup.close();
           setToast({ message: language === 'en' ? 'Meta authorization was cancelled.' : 'La autorizacion de Meta fue cancelada.', type: 'error' });
           return;
         }
-        if (popupUrl.includes('code=')) {
+        if (popupUrl.searchParams.has('code')) {
           clearInterval(poll);
           popup.close();
-          const url = new URL(popupUrl);
-          const code = url.searchParams.get('code');
-          const returnedState = url.searchParams.get('state');
+          const code = popupUrl.searchParams.get('code');
+          const returnedState = popupUrl.searchParams.get('state');
           if (!code || !returnedState || returnedState !== state) {
             setToast({ message: language === 'en' ? 'Invalid OAuth response.' : 'Respuesta OAuth invalida.', type: 'error' });
             return;
@@ -9193,29 +9187,22 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'request_state' }),
                       });
-                      const oauth = await stateResponse.json();
-                      const redirectUrl = new URL(String(oauth.redirectUri || ''));
-                      if (
-                        !stateResponse.ok ||
-                        typeof oauth.state !== 'string' ||
-                        oauth.state.length === 0 ||
-                        oauth.state.length > 4096 ||
-                        !/^\d+$/.test(String(oauth.appId || '')) ||
-                        redirectUrl.origin !== window.location.origin ||
-                        redirectUrl.pathname !== '/panel'
-                      ) {
-                        throw new Error(oauth.error || (language === 'en' ? 'Invalid OAuth configuration.' : 'Configuracion OAuth invalida.'));
-                      }
-                      state = oauth.state;
+                      const oauth = await stateResponse.json().catch(() => ({}));
+                      const bootstrap = parseFacebookOAuthBootstrap(oauth, {
+                        responseOk: stateResponse.ok,
+                        expectedOrigin: window.location.origin,
+                        invalidMessage: language === 'en' ? 'Invalid OAuth configuration.' : 'Configuracion OAuth invalida.',
+                      });
+                      state = bootstrap.state;
                       const scope = 'whatsapp_business_messaging,whatsapp_business_management,business_management';
                       const fbUrl = new URL('https://www.facebook.com/v24.0/dialog/oauth');
-                      fbUrl.searchParams.set('client_id', String(oauth.appId));
-                      fbUrl.searchParams.set('redirect_uri', redirectUrl.toString());
+                      fbUrl.searchParams.set('client_id', bootstrap.appId);
+                      fbUrl.searchParams.set('redirect_uri', bootstrap.redirectUrl.toString());
                       fbUrl.searchParams.set('scope', scope);
                       fbUrl.searchParams.set('state', state);
                       fbUrl.searchParams.set('response_type', 'code');
-                      if (/^\d+$/.test(String(oauth.configId || ''))) {
-                        fbUrl.searchParams.set('config_id', String(oauth.configId));
+                      if (bootstrap.configId) {
+                        fbUrl.searchParams.set('config_id', bootstrap.configId);
                       }
                       popup.location.href = fbUrl.toString();
                     } catch (error) {
@@ -9235,19 +9222,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           if (!popup.closed) popup.close();
                           return;
                         }
-                        const popupUrl = popup.location.href;
-                        if (popupUrl.includes('error=')) {
+                        const popupUrl = new URL(popup.location.href);
+                        if (popupUrl.origin !== window.location.origin || popupUrl.pathname !== '/panel') return;
+                        if (popupUrl.searchParams.has('error')) {
                           clearInterval(poll);
                           popup.close();
                           setToast({ type: 'error', message: language === 'en' ? 'WhatsApp authorization was cancelled.' : 'La autorizacion de WhatsApp fue cancelada.' });
                           return;
                         }
-                        if (popupUrl.includes('code=')) {
+                        if (popupUrl.searchParams.has('code')) {
                           clearInterval(poll);
                           popup.close();
-                          const url = new URL(popupUrl);
-                          const code = url.searchParams.get('code');
-                          const returnedState = url.searchParams.get('state');
+                          const code = popupUrl.searchParams.get('code');
+                          const returnedState = popupUrl.searchParams.get('state');
                           if (!code || !returnedState || returnedState !== state) {
                             setToast({ type: 'error', message: language === 'en' ? 'Invalid OAuth response.' : 'Respuesta OAuth invalida.' });
                             return;
@@ -9290,8 +9277,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         phoneNumberId: phone.phoneNumberId,
                         accessToken: waFbToken || configData.whatsapp_token,
                         wabaId: phone.wabaId,
-                        displayPhone: phone.displayPhone,
-                        verifiedName: phone.verifiedName,
                       }),
                     });
                     const data = await res.json();
@@ -9429,7 +9414,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </div>
                             <div className="space-y-1.5">
                               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Webhook URL</label>
-                              <input className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-400 outline-none" type="text" readOnly value={`https://api.rifx-sovereign.io/hooks/v1/wa/${configData.whatsapp_phone_id || 'ID'}`} />
+                              <input className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-[10px] font-mono text-slate-400 outline-none" type="text" readOnly value="https://rifx-marketing.com/api/whatsapp" />
                             </div>
                           </div>
                           <button onClick={handleVerifyWhatsApp} disabled={waVerifying} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${waStatus === 'success' ? 'bg-[#25D366] text-white' : waStatus === 'error' ? 'bg-red-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}>
