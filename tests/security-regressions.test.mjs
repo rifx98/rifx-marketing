@@ -309,6 +309,17 @@ test('WhatsApp ingress acknowledges only durable, leased, tenant-routed messages
   assert.match(webhook, /if \(enqueued > 0\) scheduleWhatsAppWorker\(req\)/);
   assert.match(webhook, /Ingress temporarily unavailable[\s\S]*?status:\s*503/);
   assert.match(webhook, /x-rifx-whatsapp-worker/);
+  assert.match(worker, /hasValidClaimIdentity\(claim\)/);
+  assert.match(worker, /'x-rifx-whatsapp-tenant-id': claim\.tenant_id/);
+  assert.match(worker, /'x-rifx-whatsapp-provider-message-id': claim\.provider_message_id/);
+  assert.match(webhook, /req\.headers\.get\('x-rifx-whatsapp-tenant-id'\)/);
+  assert.match(webhook, /req\.headers\.get\('x-rifx-whatsapp-provider-message-id'\)/);
+  assert.match(webhook, /queuedMessages\.length !== 1[\s\S]*?String\(queuedMessages\[0\]\.id \|\| ''\) !== claimedProviderMessageId/);
+  assert.match(
+    webhook,
+    /\.from\('config'\)[\s\S]{0,160}\.eq\('tenant_id', claimedTenantId\)[\s\S]{0,120}\.eq\('whatsapp_phone_id', webhookPhoneId\)[\s\S]{0,80}\.maybeSingle\(\)/,
+  );
+  assert.doesNotMatch(webhook, /\.eq\('whatsapp_phone_id', webhookPhoneId\)\s*\.limit\(2\)/);
   assert.match(webhook, /\.rpc\('claim_whatsapp_delivery'/);
   assert.match(webhook, /\.rpc\('complete_whatsapp_delivery'/);
   assert.match(webhook, /deliveryKey\s*=\s*sha256Hex\(JSON\.stringify\(\[sourceMessageId, deliveryPurpose\]\)\)/);

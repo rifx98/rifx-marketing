@@ -24,6 +24,8 @@ class ContinueWebhookBatch extends Error {}
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 const MAX_INGRESS_MESSAGES = 1000;
 const PHONE_ID_PATTERN = /^\d{6,30}$/;
+const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PROVIDER_MESSAGE_ID_PATTERN = /^[\x21-\x7e]{1,200}$/;
 const MAX_APP_ORIGIN_LENGTH = 2048;
 const WORKER_TRIGGER_TIMEOUT_MS = 50_000;
 
@@ -309,6 +311,15 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
+    const claimedTenantId = req.headers.get('x-rifx-whatsapp-tenant-id') || '';
+    const claimedProviderMessageId = req.headers.get('x-rifx-whatsapp-provider-message-id') || '';
+    if (
+      !TENANT_ID_PATTERN.test(claimedTenantId)
+      || !PROVIDER_MESSAGE_ID_PATTERN.test(claimedProviderMessageId)
+    ) {
+      return NextResponse.json({ error: 'Invalid worker claim identity' }, { status: 400 });
+    }
+
     if (Buffer.byteLength(rawBody, 'utf8') > 1024 * 1024) {
       return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
     }
@@ -318,9 +329,18 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     const entry = body?.entry?.[0];
     const changes = entry?.changes?.[0];
     const value = changes?.value;
-    const messageCandidates = Array.isArray(value?.messages)
-      ? value.messages.filter((message: any) => message && (message.type === 'text' || message.type === 'audio')).slice(0, 20)
-      : [];
+    const queuedMessages = Array.isArray(value?.messages) ? value.messages : [];
+    if (
+      queuedMessages.length !== 1
+      || !queuedMessages[0]
+      || typeof queuedMessages[0] !== 'object'
+      || String(queuedMessages[0].id || '') !== claimedProviderMessageId
+    ) {
+      return NextResponse.json({ error: 'Worker claim does not match payload' }, { status: 409 });
+    }
+    const messageCandidates = queuedMessages.filter(
+      (message: any) => message.type === 'text' || message.type === 'audio',
+    );
 
     // Ignorar si no es texto ni audio
     if (messageCandidates.length === 0) {
@@ -335,19 +355,24 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
 
-    // Route exclusively by Meta's destination phone ID. Customer-phone and
-    // "first config" fallbacks can cross tenant boundaries and are forbidden.
-    const { data: matchedConfigs, error: configError } = await supabase
+    // Keep the tenant selected when the event entered the durable queue. If
+    // ownership changed meanwhile, fail closed instead of routing it again.
+    const { data: matchedConfig, error: configError } = await supabase
       .from('config')
       .select('*')
+      .eq('tenant_id', claimedTenantId)
       .eq('whatsapp_phone_id', webhookPhoneId)
-      .limit(2);
-    if (configError || !matchedConfigs || matchedConfigs.length !== 1 || !matchedConfigs[0].tenant_id) {
-      console.error('[WhatsApp] Destination phone ID is missing or ambiguous');
+      .maybeSingle();
+    if (configError) {
+      console.error('[WhatsApp] Claimed destination lookup failed');
+      return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
+    }
+    if (!matchedConfig) {
+      console.error('[WhatsApp] Claimed tenant no longer owns the destination phone ID');
       return NextResponse.json({ status: 'ignored_unknown_destination' });
     }
-    const config: Record<string, any> = matchedConfigs[0];
-    const tenantId: string = config.tenant_id;
+    const config: Record<string, any> = matchedConfig;
+    const tenantId = claimedTenantId;
 
     const { data: planOwner, error: planOwnerError } = await supabase
       .from('tenants')

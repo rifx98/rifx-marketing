@@ -13,6 +13,8 @@ const MAX_MESSAGES_PER_RUN = 3;
 // run log even after a slow processor request or an OIDC key refresh.
 const RUN_BUDGET_MS = 45_000;
 const MAX_BEARER_BYTES = 8 * 1024;
+const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PROVIDER_MESSAGE_ID_PATTERN = /^[\x21-\x7e]{1,200}$/;
 
 interface ClaimedIngress {
   ingress_id: string;
@@ -20,6 +22,11 @@ interface ClaimedIngress {
   provider_message_id: string;
   payload: Record<string, unknown>;
   attempt_count: number;
+}
+
+function hasValidClaimIdentity(claim: ClaimedIngress): boolean {
+  return TENANT_ID_PATTERN.test(claim.tenant_id)
+    && PROVIDER_MESSAGE_ID_PATTERN.test(claim.provider_message_id);
 }
 
 function readBearerToken(req: NextRequest): string | null {
@@ -137,30 +144,38 @@ export async function POST(req: NextRequest) {
     const claim = (Array.isArray(data) ? data[0] : data) as ClaimedIngress | null;
     if (!claim?.ingress_id) break;
 
-    const rawBody = JSON.stringify(claim.payload);
-    const signature = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
     let succeeded = false;
     let errorCode: string | null = null;
 
-    try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${workerSecret}`,
-          'Content-Type': 'application/json',
-          'x-hub-signature-256': signature,
-          'x-rifx-whatsapp-worker': '1',
-        },
-        body: rawBody,
-        redirect: 'error',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(Math.min(42_000, Math.max(1_000, remainingBudget - 3_000))),
-      });
-      succeeded = response.ok;
-      errorCode = succeeded ? null : `processor_http_${response.status}`;
-      await response.body?.cancel();
-    } catch {
-      errorCode = 'processor_request_failed';
+    if (!hasValidClaimIdentity(claim)) {
+      // A malformed database claim must never be forwarded as routing input.
+      errorCode = 'invalid_claim_identity';
+    } else {
+      const rawBody = JSON.stringify(claim.payload);
+      const signature = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
+
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${workerSecret}`,
+            'Content-Type': 'application/json',
+            'x-hub-signature-256': signature,
+            'x-rifx-whatsapp-worker': '1',
+            'x-rifx-whatsapp-tenant-id': claim.tenant_id,
+            'x-rifx-whatsapp-provider-message-id': claim.provider_message_id,
+          },
+          body: rawBody,
+          redirect: 'error',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(Math.min(42_000, Math.max(1_000, remainingBudget - 3_000))),
+        });
+        succeeded = response.ok;
+        errorCode = succeeded ? null : `processor_http_${response.status}`;
+        await response.body?.cancel();
+      } catch {
+        errorCode = 'processor_request_failed';
+      }
     }
 
     const attempts = Math.max(1, Number(claim.attempt_count) || 1);

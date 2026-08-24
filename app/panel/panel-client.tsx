@@ -46,6 +46,58 @@ import PublicationTracker from '@/components/social/PublicationTracker';
 import { AuthComponent } from '@/components/ui/sign-up';
 import AuthSelector from '@/components/AuthSelector';
 
+const createInitialPanelConfig = () => ({
+  whatsapp_token_configured: false,
+  whatsapp_phone_id: '',
+  wa_display_phone: '',
+  bulk_wa_token: '',
+  bulk_wa_phone_id: '',
+  openai_key: '',
+  gemini_key: '',
+  groq_key: '',
+  fal_key: '',
+  visual_render_provider: 'openai',
+  facebook_access_token: '',
+  facebook_ad_account_id: '',
+  facebook_page_id: '',
+  meta_ad_account_name: '',
+  meta_page_name: '',
+  payphone_token: '',
+  payphone_store_id: '',
+  ai_prompt: '',
+  media_retention_days: 0,
+  alert_email: '',
+  admin_name: 'Alexander Thorne',
+  admin_email: 'a.thorne@rifx-sovereign.io',
+  confidence_threshold: 0.85,
+  model_selection: 'gpt-4o',
+  auto_classification: true,
+  email_alerts: false,
+  push_notifications: false,
+  monthly_briefing: false,
+  dropi_enabled: false,
+  dropi_token: '',
+  dropi_default_product_id: '',
+  dropi_default_price: 50,
+  dropi_prompt: '',
+  admin_notification_phone: '',
+});
+
+const createInitialApiHelperMessages = () => ([
+  {
+    sender: 'agent',
+    text: '¡Hola! Soy tu Asistente de Configuración de APIs de RIFX. Te ayudaré a conectar tus servicios sin pedirte ni mostrar credenciales privadas.\n\n¿Qué API deseas configurar hoy?',
+    timestamp: new Date(),
+    chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads'],
+  },
+]);
+
+const isLikelyApiCredential = (value: string) => {
+  const normalized = value.trim();
+  if (/^(?:Bearer\s+)?EA[A-Za-z0-9._~+/=-]{20,}$/i.test(normalized)) return true;
+  return !/\s/.test(normalized) && /^[A-Za-z0-9._~+/=-]{40,}$/.test(normalized);
+};
+
 // Ad Performance Chart (area, adapted from ApexCharts stock-movement pattern)
 type AdMetricKey = 'impressions' | 'clicks' | 'conversions';
 

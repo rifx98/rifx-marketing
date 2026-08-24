@@ -240,7 +240,7 @@ export async function GET(req: NextRequest) {
       groq_key_configured: Boolean(extended.groq_key),
       fal_key: redactSecret(extended.fal_key),
       fal_key_configured: Boolean(extended.fal_key),
-      alert_email: storedString(config.alert_email, 254),
+      alert_email: config.alert_email,
       email_alerts: config.email_alerts === true,
       push_notifications: config.push_notifications === true,
       monthly_briefing: config.monthly_briefing === true,

@@ -4,13 +4,15 @@ import { getTenantFromRequest, signOAuthState, verifyOAuthState } from '@/lib/au
 import { denyUnlessFeature } from '@/lib/feature-access';
 import { SECRET_PLACEHOLDER, resolveSecretUpdate } from '@/lib/security';
 import { buildOAuthRedirectUri, resolveOAuthAppOrigin } from '@/lib/social-oauth';
-import { readLimitedJsonObject, readLimitedResponseJson } from '@/lib/request-guards';
+import {
+  enforceTenantRateLimit,
+  readLimitedJsonObject,
+  readLimitedResponseJson,
+} from '@/lib/request-guards';
 
 const GRAPH_VERSION = 'v24.0';
 const GRAPH_TIMEOUT_MS = 8_000;
 const OAUTH_ACTION = 'whatsapp_connect' as const;
-const MAX_BUSINESSES = 10;
-const MAX_PHONE_OPTIONS = 100;
 const FACEBOOK_APP_ID_PATTERN = /^\d{5,32}$/;
 
 type JsonObject = Record<string, unknown>;
@@ -23,6 +25,11 @@ interface PhoneOption {
   verifiedName: string;
   status: string;
   qualityRating: string;
+}
+
+interface ConnectionResult {
+  body: JsonObject;
+  status: number;
 }
 
 function json(body: unknown, status = 200) {
@@ -62,89 +69,208 @@ async function responseJson(response: Response): Promise<JsonObject> {
   }
 }
 
-function extractWabas(data: JsonObject): JsonObject[] {
-  const entries = asObject(data).data;
-  return Array.isArray(entries) ? entries.map(asObject) : [];
+function whatsappConfigId(): string {
+  const configured = process.env.FACEBOOK_WHATSAPP_CONFIG_ID
+    || process.env.NEXT_PUBLIC_FACEBOOK_CONFIG_ID
+    || '';
+  return configured.trim();
 }
 
-function addPhoneOptions(
-  data: JsonObject,
-  options: PhoneOption[],
-  seenWabaIds: Set<string>,
-) {
-  for (const account of extractWabas(data)) {
-    const wabaId = asString(account.id, 64);
-    if (!/^\d+$/.test(wabaId) || seenWabaIds.has(wabaId)) continue;
-    seenWabaIds.add(wabaId);
+async function lookupSelectedPhone(
+  accessToken: string,
+  wabaId: string,
+  phoneNumberId: string,
+): Promise<PhoneOption | null> {
+  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}`);
+  url.searchParams.set(
+    'fields',
+    'id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,status}',
+  );
+  const response = await graphFetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const account = await responseJson(response);
+  if (!response.ok || asString(account.id, 64) !== wabaId) return null;
 
-    const phones = asObject(account.phone_numbers).data;
-    if (!Array.isArray(phones)) continue;
-    for (const rawPhone of phones) {
-      if (options.length >= MAX_PHONE_OPTIONS) return;
-      const phone = asObject(rawPhone);
-      const phoneNumberId = asString(phone.id, 64);
-      if (!/^\d+$/.test(phoneNumberId)) continue;
-      options.push({
-        wabaId,
-        wabaName: asString(account.name),
-        phoneNumberId,
-        displayPhone: asString(phone.display_phone_number, 50),
-        verifiedName: asString(phone.verified_name),
-        status: asString(phone.status, 50),
-        qualityRating: asString(phone.quality_rating, 50),
-      });
-    }
-  }
-}
-
-async function listWhatsAppPhones(accessToken: string) {
-  const authHeaders = { Authorization: `Bearer ${accessToken}` };
-  const businessesUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/businesses`);
-  businessesUrl.searchParams.set('fields', 'id,name');
-  businessesUrl.searchParams.set('limit', String(MAX_BUSINESSES));
-
-  let businessesResponse: Response;
-  try {
-    businessesResponse = await graphFetch(businessesUrl, { headers: authHeaders });
-  } catch {
-    return { phoneOptions: [] as PhoneOption[], accountCount: 0, lookupIncomplete: true };
-  }
-  const businessesData = await responseJson(businessesResponse);
-  const rawBusinesses = businessesData.data;
-  if (!businessesResponse.ok || !Array.isArray(rawBusinesses)) {
-    return { phoneOptions: [] as PhoneOption[], accountCount: 0, lookupIncomplete: true };
-  }
-
-  const businessIds = rawBusinesses
-    .map((business) => asString(asObject(business).id, 64))
-    .filter((id) => /^\d+$/.test(id))
-    .slice(0, MAX_BUSINESSES);
-  const wabaFields = 'id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,status}';
-
-  const lookups = await Promise.all(businessIds.flatMap((businessId) => {
-    return ['owned_whatsapp_business_accounts', 'client_whatsapp_business_accounts'].map(async (edge) => {
-      try {
-        const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${businessId}/${edge}`);
-        url.searchParams.set('fields', wabaFields);
-        url.searchParams.set('limit', '50');
-        const response = await graphFetch(url, { headers: authHeaders });
-        return { ok: response.ok, data: await responseJson(response) };
-      } catch {
-        return { ok: false, data: {} as JsonObject };
-      }
-    });
-  }));
-
-  const phoneOptions: PhoneOption[] = [];
-  const seenWabaIds = new Set<string>();
-  for (const lookup of lookups) {
-    if (lookup.ok && !lookup.data.error) addPhoneOptions(lookup.data, phoneOptions, seenWabaIds);
-  }
+  const phones = asObject(account.phone_numbers).data;
+  if (!Array.isArray(phones)) return null;
+  const rawPhone = phones.map(asObject).find((phone) => asString(phone.id, 64) === phoneNumberId);
+  if (!rawPhone) return null;
 
   return {
-    phoneOptions,
-    accountCount: seenWabaIds.size,
-    lookupIncomplete: lookups.some((lookup) => !lookup.ok || Boolean(lookup.data.error)),
+    wabaId,
+    wabaName: asString(account.name),
+    phoneNumberId,
+    displayPhone: asString(rawPhone.display_phone_number, 50),
+    verifiedName: asString(rawPhone.verified_name),
+    status: asString(rawPhone.status, 50),
+    qualityRating: asString(rawPhone.quality_rating, 50),
+  };
+}
+
+function parseExtendedConfig(value: unknown): JsonObject {
+  if (typeof value !== 'string' || !value) return {};
+  try {
+    return asObject(JSON.parse(value));
+  } catch {
+    return {};
+  }
+}
+
+async function subscribeWhatsAppWebhooks(
+  accessToken: string,
+  wabaId: string,
+): Promise<{ webhookSubscribed: boolean; webhookSubscribeError: string }> {
+  const appId = typeof process.env.FACEBOOK_APP_ID === 'string'
+    ? process.env.FACEBOOK_APP_ID.trim()
+    : '';
+  const appSecret = process.env.FACEBOOK_APP_SECRET;
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  const appOrigin = resolveOAuthAppOrigin();
+  if (!FACEBOOK_APP_ID_PATTERN.test(appId) || !appSecret || !verifyToken || !appOrigin) {
+    return {
+      webhookSubscribed: false,
+      webhookSubscribeError: 'La configuracion del webhook esta incompleta en el servidor.',
+    };
+  }
+
+  try {
+    const appSubscriptionResponse = await graphFetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${appId}/subscriptions`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${appId}|${appSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          object: 'whatsapp_business_account',
+          callback_url: buildOAuthRedirectUri(appOrigin, '/api/whatsapp'),
+          verify_token: verifyToken,
+          fields: 'messages',
+        }),
+      },
+    );
+    const appSubscriptionData = await responseJson(appSubscriptionResponse);
+    if (!appSubscriptionResponse.ok || appSubscriptionData.success !== true) {
+      return {
+        webhookSubscribed: false,
+        webhookSubscribeError: 'No se pudo registrar el webhook de WhatsApp en Meta.',
+      };
+    }
+
+    const wabaSubscriptionResponse = await graphFetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/subscribed_apps`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    const wabaSubscriptionData = await responseJson(wabaSubscriptionResponse);
+    if (!wabaSubscriptionResponse.ok || wabaSubscriptionData.success !== true) {
+      return {
+        webhookSubscribed: false,
+        webhookSubscribeError: 'No se pudo asociar el WABA con esta aplicacion.',
+      };
+    }
+    return { webhookSubscribed: true, webhookSubscribeError: '' };
+  } catch {
+    return {
+      webhookSubscribed: false,
+      webhookSubscribeError: 'No se pudo completar la suscripcion del webhook.',
+    };
+  }
+}
+
+async function connectPhoneForTenant(
+  tenantId: string,
+  accessToken: string,
+  wabaId: string,
+  phoneNumberId: string,
+  businessId: string,
+): Promise<ConnectionResult> {
+  const verifiedPhone = await lookupSelectedPhone(accessToken, wabaId, phoneNumberId);
+  if (!verifiedPhone) {
+    return {
+      body: { error: 'No se pudo verificar el numero seleccionado con la cuenta autorizada' },
+      status: 400,
+    };
+  }
+
+  const supabase = createSupabaseAdmin();
+  const { data: config, error: configError } = await supabase
+    .from('config')
+    .select('openai_key')
+    .eq('tenant_id', tenantId)
+    .limit(1)
+    .maybeSingle();
+  if (configError || !config) {
+    return { body: { error: 'Configuracion no disponible' }, status: 404 };
+  }
+
+  const { data: conflictingConfig, error: conflictError } = await supabase
+    .from('config')
+    .select('tenant_id')
+    .eq('whatsapp_phone_id', phoneNumberId)
+    .neq('tenant_id', tenantId)
+    .limit(1)
+    .maybeSingle();
+  if (conflictError) return { body: { error: 'No se pudo validar la conexion' }, status: 500 };
+  if (conflictingConfig) {
+    return {
+      body: { error: 'Este numero de WhatsApp ya esta conectado a otra cuenta.' },
+      status: 409,
+    };
+  }
+
+  const extendedConfig = parseExtendedConfig(config.openai_key);
+  const { error: updateError } = await supabase
+    .from('config')
+    .update({
+      whatsapp_token: accessToken,
+      whatsapp_phone_id: phoneNumberId,
+      wa_display_phone: verifiedPhone.displayPhone || null,
+      openai_key: JSON.stringify({
+        ...extendedConfig,
+        wa_connected_via: 'facebook_embedded_signup',
+        wa_business_id: businessId || undefined,
+        wa_waba_id: wabaId,
+        wa_verified_name: verifiedPhone.verifiedName,
+        wa_connected_at: new Date().toISOString(),
+      }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('tenant_id', tenantId);
+  if (updateError) {
+    if (updateError.code === '23505') {
+      return {
+        body: { error: 'Este numero de WhatsApp ya esta conectado a otra cuenta.' },
+        status: 409,
+      };
+    }
+    return { body: { error: 'No se pudo guardar la conexion de WhatsApp' }, status: 500 };
+  }
+
+  const { webhookSubscribed, webhookSubscribeError } = await subscribeWhatsAppWebhooks(
+    accessToken,
+    wabaId,
+  );
+  return {
+    body: {
+      success: true,
+      verified: true,
+      accessToken: SECRET_PLACEHOLDER,
+      tokenConfigured: true,
+      phoneNumberId,
+      wabaId,
+      phoneNumber: verifiedPhone.displayPhone,
+      webhookSubscribed,
+      webhookSubscribeError: webhookSubscribed ? undefined : webhookSubscribeError,
+      message: webhookSubscribed
+        ? 'WhatsApp conectado exitosamente'
+        : 'WhatsApp guardado; revisa la activacion de mensajes entrantes',
+    },
+    status: 200,
   };
 }
 
