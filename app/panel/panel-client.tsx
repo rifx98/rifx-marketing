@@ -5108,12 +5108,24 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   }, []);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
-    setAuthToken(null);
+    // Immediately wipe all tenant-specific state BEFORE the network call so
+    // the next user who logs in on the same browser never sees stale data,
+    // even for the brief moment before fetchConfig() resolves.
+    setConfigData(createInitialPanelConfig());
+    originalConfigRef.current = null;
+    setConversationsData([]);
+    setStatsData(null);
     setTenantData(null);
+    setCurrentPlan('trial');
+    setAuthToken(null);
+    setWaPhoneOptions([]);
+    setWaShowPhonePicker(false);
+    setWaFbToken('');
     setIsLoggedIn(false);
     setLoginUser('');
     setLoginPass('');
+    setActiveTab('dashboard');
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
   };
 
   // Load templates from DB (Client view)
