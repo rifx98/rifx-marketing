@@ -14,6 +14,7 @@ const GRAPH_VERSION = 'v24.0';
 const GRAPH_TIMEOUT_MS = 8_000;
 const OAUTH_ACTION = 'whatsapp_connect' as const;
 const FACEBOOK_APP_ID_PATTERN = /^\d{5,32}$/;
+const MAX_BUSINESSES = 10;
 
 type JsonObject = Record<string, unknown>;
 
@@ -115,6 +116,91 @@ function parseExtendedConfig(value: unknown): JsonObject {
   } catch {
     return {};
   }
+}
+
+function addPhoneOptions(
+  wabaData: JsonObject,
+  out: PhoneOption[],
+  seen: Set<string>,
+): void {
+  const items = Array.isArray(wabaData.data) ? wabaData.data : [];
+  for (const rawWaba of items) {
+    const waba = asObject(rawWaba);
+    const wabaId = asString(waba.id, 64);
+    if (!wabaId || seen.has(wabaId)) continue;
+    seen.add(wabaId);
+    const phones = asObject(waba.phone_numbers).data;
+    if (!Array.isArray(phones)) continue;
+    for (const rawPhone of phones) {
+      const phone = asObject(rawPhone);
+      const phoneNumberId = asString(phone.id, 64);
+      if (!phoneNumberId) continue;
+      out.push({
+        wabaId,
+        wabaName: asString(waba.name),
+        phoneNumberId,
+        displayPhone: asString(phone.display_phone_number, 50),
+        verifiedName: asString(phone.verified_name),
+        status: asString(phone.status, 50),
+        qualityRating: asString(phone.quality_rating, 50),
+      });
+    }
+  }
+}
+
+async function listWhatsAppPhones(accessToken: string): Promise<{
+  phoneOptions: PhoneOption[];
+  accountCount: number;
+  lookupIncomplete: boolean;
+}> {
+  const authHeaders = { Authorization: `Bearer ${accessToken}` };
+  const businessesUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/businesses`);
+  businessesUrl.searchParams.set('fields', 'id,name');
+  businessesUrl.searchParams.set('limit', String(MAX_BUSINESSES));
+
+  let businessesResponse: Response;
+  try {
+    businessesResponse = await graphFetch(businessesUrl, { headers: authHeaders });
+  } catch {
+    return { phoneOptions: [] as PhoneOption[], accountCount: 0, lookupIncomplete: true };
+  }
+  const businessesData = await responseJson(businessesResponse);
+  const rawBusinesses = businessesData.data;
+  if (!businessesResponse.ok || !Array.isArray(rawBusinesses)) {
+    return { phoneOptions: [] as PhoneOption[], accountCount: 0, lookupIncomplete: true };
+  }
+
+  const businessIds = rawBusinesses
+    .map((business) => asString(asObject(business).id, 64))
+    .filter((id) => /^\d+$/.test(id))
+    .slice(0, MAX_BUSINESSES);
+  const wabaFields = 'id,name,phone_numbers{id,display_phone_number,verified_name,quality_rating,status}';
+
+  const lookups = await Promise.all(businessIds.flatMap((businessId) => {
+    return ['owned_whatsapp_business_accounts', 'client_whatsapp_business_accounts'].map(async (edge) => {
+      try {
+        const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${businessId}/${edge}`);
+        url.searchParams.set('fields', wabaFields);
+        url.searchParams.set('limit', '50');
+        const response = await graphFetch(url, { headers: authHeaders });
+        return { ok: response.ok, data: await responseJson(response) };
+      } catch {
+        return { ok: false, data: {} as JsonObject };
+      }
+    });
+  }));
+
+  const phoneOptions: PhoneOption[] = [];
+  const seenWabaIds = new Set<string>();
+  for (const lookup of lookups) {
+    if (lookup.ok && !lookup.data.error) addPhoneOptions(lookup.data, phoneOptions, seenWabaIds);
+  }
+
+  return {
+    phoneOptions,
+    accountCount: seenWabaIds.size,
+    lookupIncomplete: lookups.some((lookup) => !lookup.ok || Boolean(lookup.data.error)),
+  };
 }
 
 async function subscribeWhatsAppWebhooks(
@@ -452,10 +538,11 @@ export async function PUT(req: NextRequest) {
 
     // Never trust WABA or display metadata supplied by the browser. Resolve
     // the exact phone/WABA pair again with the tenant's server-side token.
-    const { phoneOptions } = await listWhatsAppPhones(resolvedAccessToken);
-    const verifiedPhone = phoneOptions.find((option) => (
-      option.phoneNumberId === phoneNumberId && option.wabaId === wabaId
-    ));
+    const option = await lookupSelectedPhone(resolvedAccessToken, wabaId, phoneNumberId);
+    // Cross-check that the verified option exactly matches what the client requested.
+    const verifiedPhone = option && (option.phoneNumberId === phoneNumberId && option.wabaId === wabaId)
+      ? option
+      : null;
     if (!verifiedPhone) {
       return json({ error: 'No se pudo verificar que el numero pertenezca a la cuenta de WhatsApp seleccionada' }, 400);
     }
