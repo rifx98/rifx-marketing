@@ -5941,10 +5941,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setToast({ message: Error: \, type: 'error' });
+        setToast({ message: `Error: ${data.error || 'No se pudo desconectar WhatsApp'}`, type: 'error' });
         return;
       }
-      setToast({ message: `\u2705 WhatsApp desconectado de "\${companyName}"`, type: 'success' });
+      setToast({ message: `✅ WhatsApp desconectado de "${companyName}"`, type: 'success' });
       loadAdminData();
     } catch (e: any) {
       setToast({ message: 'Error de conexi\u00f3n: ' + e.message, type: 'error' });
