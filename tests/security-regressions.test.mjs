@@ -556,9 +556,179 @@ test('admin APIs enforce centralized live and default-deny RBAC', () => {
     'create_announcement', 'update_announcement', 'delete_announcement',
     'toggle_announcement', 'update_tenant_plan', 'toggle_admin',
     'update_plan_permissions', 'update_tenant_overrides', 'delete_tenant',
+    'disconnect_whatsapp',
   ]) {
     assert.match(rbac, new RegExp(`\\b${action}:\\s*'[^']+'`), action);
   }
+});
+
+test('admin WhatsApp inventory is secret-free, lossless and fail-closed', () => {
+  const dashboard = source('app/api/admin/dashboard/route.ts');
+  const panel = source('app/panel/panel-client.tsx');
+  const rbac = source('lib/admin-rbac.ts');
+  const getBlock = dashboard.match(
+    /export async function GET\(req: NextRequest\) \{[\s\S]*?(?=\/\/ POST:)/,
+  )?.[0] || '';
+
+  assert.ok(getBlock, 'admin dashboard GET block must exist');
+  const configQuery = getBlock.match(
+    /const \{ data: configs, error: configsError \} = await supabase[\s\S]*?\.not\('whatsapp_phone_id', 'is', null\);/,
+  )?.[0] || '';
+  assert.ok(configQuery, 'WhatsApp connection query must expose its database error');
+  assert.match(configQuery, /\.select\('id,tenant_id,whatsapp_phone_id,updated_at'\)/);
+  assert.doesNotMatch(
+    configQuery,
+    /whatsapp_token|openai_key|payphone_token|payphone_store_id|ai_prompt|panel_password|wa_display_phone/,
+  );
+  assert.doesNotMatch(getBlock, /wa_display_phone/);
+
+  const configsErrorBlock = getBlock.match(
+    /if \(configsError\) \{([\s\S]*?)\n\s*\} else \{/,
+  )?.[1] || '';
+  assert.ok(configsErrorBlock, 'configsError must be handled explicitly');
+  assert.match(configsErrorBlock, /whatsappConnections\s*=\s*null/);
+  assert.match(configsErrorBlock, /whatsappConnectionsError\s*=\s*true/);
+  assert.doesNotMatch(configsErrorBlock, /NextResponse\.json/);
+  assert.match(getBlock, /whatsappConnectionsError,\s*\n\s*whatsappConnections,/);
+  assert.match(
+    getBlock,
+    /whatsappConnections:\s*canManageWhatsApp[\s\S]{0,160}whatsappConnections === null[\s\S]{0,120}\? null/,
+  );
+  assert.match(panel, /whatsappConnectionsError \? \([\s\S]{0,300}No disponible/);
+  assert.match(panel, /Los estados se muestran como no disponibles/);
+
+  assert.match(
+    getBlock,
+    /whatsappConnections\s*=\s*\(configs \|\| \[\]\)\.flatMap\(/,
+  );
+  assert.match(getBlock, /connectionId:\s*config\.id/);
+  assert.match(getBlock, /phoneNumberId:\s*config\.whatsapp_phone_id/);
+  assert.match(getBlock, /orphaned:\s*!owner/);
+  assert.match(
+    getBlock,
+    /typeof config\.tenant_id === 'string'[\s\S]{0,160}\? config\.tenant_id\s*:\s*null/,
+  );
+  assert.match(
+    getBlock,
+    /whatsappConnectionsByTenant\[connection\.tenantId\]\.push\(connection\)/,
+  );
+  assert.doesNotMatch(getBlock, /configByTenant\[[^\]]+\]\s*=/);
+  assert.match(getBlock, /whatsappConnections,\s*\n\s*tenants:/);
+
+  const disconnectPermission = rbac.match(
+    /'tenants\.whatsapp\.disconnect':\s*\{([\s\S]*?)\n\s*\},/,
+  )?.[1] || '';
+  assert.match(disconnectPermission, /sections:\s*\['tenants'\]/);
+  assert.match(disconnectPermission, /fullOnly:\s*true/);
+  assert.match(
+    rbac,
+    /disconnect_whatsapp:\s*'tenants\.whatsapp\.disconnect'/,
+  );
+});
+
+test('admin WhatsApp disconnect uses validated connection-level compare-and-swap', () => {
+  const dashboard = source('app/api/admin/dashboard/route.ts');
+  const panel = source('app/panel/panel-client.tsx');
+  const disconnectStart = dashboard.indexOf("if (body.action === 'disconnect_whatsapp') {");
+  const disconnectEnd = dashboard.indexOf(
+    "return NextResponse.json({ error: 'Acci\u00f3n no reconocida'",
+    disconnectStart,
+  );
+  assert.ok(disconnectStart >= 0 && disconnectEnd > disconnectStart);
+  const disconnectBlock = dashboard.slice(disconnectStart, disconnectEnd);
+
+  assert.match(
+    disconnectBlock,
+    /const \{ connectionId, expectedPhoneNumberId \} = body/,
+  );
+  assert.match(
+    disconnectBlock,
+    /typeof connectionId !== 'string' \|\| !TENANT_ID_PATTERN\.test\(connectionId\)/,
+  );
+  assert.match(
+    disconnectBlock,
+    /typeof expectedPhoneNumberId !== 'string'[\s\S]{0,120}!WHATSAPP_PHONE_ID_PATTERN\.test\(expectedPhoneNumberId\)/,
+  );
+  assert.match(
+    disconnectBlock,
+    /\.eq\('id', connectionId\)\s*\.eq\('whatsapp_phone_id', expectedPhoneNumberId\)/,
+  );
+  assert.match(disconnectBlock, /\.select\('id'\)\s*\.maybeSingle\(\)/);
+  assert.match(disconnectBlock, /if \(!disconnected\)[\s\S]{0,220}status:\s*409/);
+  assert.doesNotMatch(disconnectBlock, /targetTenantId|\.eq\('tenant_id'/);
+  assert.doesNotMatch(disconnectBlock, /\.delete\(\)/);
+
+  const clearedFields = disconnectBlock.match(
+    /\.update\(\{([\s\S]*?)\}\)\s*\.eq\('id', connectionId\)/,
+  )?.[1] || '';
+  assert.deepEqual(
+    [...clearedFields.matchAll(/^\s*([a-z_]+):/gm)].map((match) => match[1]),
+    ['whatsapp_token', 'whatsapp_phone_id', 'updated_at'],
+  );
+  assert.match(clearedFields, /whatsapp_token:\s*null/);
+  assert.match(clearedFields, /whatsapp_phone_id:\s*null/);
+
+  const handlerStart = panel.indexOf('const handleDisconnectWhatsapp = async (');
+  const handlerEnd = panel.indexOf('const handleAdminDeleteTenant', handlerStart);
+  assert.ok(handlerStart >= 0 && handlerEnd > handlerStart);
+  const handlerBlock = panel.slice(handlerStart, handlerEnd);
+  assert.match(
+    handlerBlock,
+    /connectionId:\s*string,\s*expectedPhoneNumberId:\s*string,/,
+  );
+  assert.match(
+    handlerBlock,
+    /body:\s*JSON\.stringify\(\{\s*action:\s*'disconnect_whatsapp',\s*connectionId,\s*expectedPhoneNumberId,\s*\}\)/,
+  );
+  assert.doesNotMatch(handlerBlock, /targetTenantId/);
+  assert.ok(
+    (panel.match(
+      /handleDisconnectWhatsapp\(connection\.connectionId, connection\.phoneNumberId,/g,
+    ) || []).length >= 2,
+  );
+});
+
+test('WhatsApp integrity migration aborts ambiguity instead of selecting an owner', () => {
+  const migration = source('supabase/migrations/024_whatsapp_connection_integrity.sql');
+  const executableSql = migration.replace(/^\s*--.*$/gm, '');
+
+  assert.match(
+    migration,
+    /ALTER TABLE public\.config\s+ADD COLUMN IF NOT EXISTS wa_display_phone text/,
+  );
+  assert.match(migration, /LOCK TABLE public\.tenants IN SHARE ROW EXCLUSIVE MODE/);
+  assert.match(migration, /LOCK TABLE public\.config IN SHARE ROW EXCLUSIVE MODE/);
+  assert.match(migration, /config contains an unowned or orphan row/);
+  assert.match(migration, /a tenant has multiple config rows/);
+  assert.match(migration, /one WhatsApp phone ID has multiple owners/);
+  assert.doesNotMatch(executableSql, /\bDELETE\s+FROM\b|\bUPDATE\s+public\.config\b|\bTRUNCATE\b/i);
+  assert.doesNotMatch(migration, /ROW_NUMBER\s*\(/i);
+
+  const orphanCheck = migration.indexOf('config contains an unowned or orphan row');
+  const tenantDuplicateCheck = migration.indexOf('a tenant has multiple config rows');
+  const phoneDuplicateCheck = migration.indexOf('one WhatsApp phone ID has multiple owners');
+  const firstUniqueIndex = migration.indexOf('CREATE UNIQUE INDEX');
+  const foreignKey = migration.indexOf('ADD CONSTRAINT config_tenant_id_integrity_fkey');
+  for (const preflight of [orphanCheck, tenantDuplicateCheck, phoneDuplicateCheck]) {
+    assert.ok(preflight >= 0 && preflight < firstUniqueIndex);
+    assert.ok(preflight < foreignKey);
+  }
+
+  assert.match(
+    migration,
+    /CREATE UNIQUE INDEX IF NOT EXISTS config_tenant_id_integrity_uidx\s+ON public\.config \(tenant_id\)/,
+  );
+  assert.match(
+    migration,
+    /CREATE UNIQUE INDEX IF NOT EXISTS config_whatsapp_phone_id_integrity_uidx[\s\S]{0,180}WHERE whatsapp_phone_id IS NOT NULL AND btrim\(whatsapp_phone_id\) <> ''/,
+  );
+  assert.match(
+    migration,
+    /IF NOT EXISTS \([\s\S]*?FROM pg_constraint AS constraint_row[\s\S]*?constraint_row\.conrelid = 'public\.config'::regclass[\s\S]*?constraint_row\.confrelid = 'public\.tenants'::regclass[\s\S]*?constraint_row\.confdeltype = 'c'[\s\S]*?ADD CONSTRAINT config_tenant_id_integrity_fkey/,
+  );
+  assert.match(migration, /FOREIGN KEY \(tenant_id\)[\s\S]{0,100}ON DELETE CASCADE\s+NOT VALID/);
+  assert.match(migration, /ALTER TABLE public\.config VALIDATE CONSTRAINT %I/);
+  assert.match(migration, /ALTER TABLE public\.config FORCE ROW LEVEL SECURITY/);
 });
 
 test('legacy AI and contact endpoints bound inputs, providers and error disclosure', () => {

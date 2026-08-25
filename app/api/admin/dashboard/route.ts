@@ -14,12 +14,23 @@ export const revalidate = 0;
 
 const MAX_ANNOUNCEMENT_URL_LENGTH = 2_048;
 const TENANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const WHATSAPP_PHONE_ID_PATTERN = /^\d{5,32}$/;
 const ADMIN_TENANT_FIELDS = [
   'id', 'email', 'company_name', 'owner_name', 'plan', 'plan_status',
   'plan_started_at', 'plan_expires_at', 'storage_used_bytes',
   'storage_limit_bytes', 'contact_limit', 'is_admin', 'admin_role',
   'admin_can_edit_plans', 'admin_sections', 'created_at', 'permission_overrides',
 ].join(',');
+
+interface WhatsAppConnectionDto {
+  connectionId: string;
+  tenantId: string | null;
+  phoneNumberId: string;
+  ownerEmail: string | null;
+  ownerCompanyName: string | null;
+  orphaned: boolean;
+  updatedAt: string | null;
+}
 
 function normalizeAnnouncementButtonUrl(value: unknown): { value: string | null; error?: string } {
   if (value === undefined || value === null || value === '') return { value: null };
@@ -57,6 +68,7 @@ export async function GET(req: NextRequest) {
     const canViewTenants = hasAdminSection(admin, 'tenants');
     const canViewAnnouncements = hasAdminSection(admin, 'announcements');
     const canManagePlanPermissions = hasAdminPermission(admin, 'plan_permissions.update');
+    const canManageWhatsApp = hasAdminPermission(admin, 'tenants.whatsapp.disconnect');
 
     const supabase = createSupabaseAdmin();
 
@@ -70,18 +82,63 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No se pudo cargar el dashboard' }, { status: 500 });
     }
 
-    // Load WhatsApp connection info per tenant (admin visibility only)
-    let configByTenant: Record<string, { whatsapp_phone_id?: string; wa_display_phone?: string }> = {};
-    if (canViewTenants) {
-      const { data: configs } = await supabase
+    const tenants = allTenants || [];
+    const tenantMap: Record<string, any> = {};
+    for (const t of tenants) tenantMap[t.id] = t;
+
+    let whatsappConnections: WhatsAppConnectionDto[] | null = canManageWhatsApp ? [] : null;
+    let whatsappConnectionsError = false;
+    if (canManageWhatsApp) {
+      const { data: configs, error: configsError } = await supabase
         .from('config')
-        .select('tenant_id,whatsapp_phone_id,wa_display_phone');
-      for (const c of configs || []) {
-        if (c.tenant_id) configByTenant[c.tenant_id] = c;
+        .select('id,tenant_id,whatsapp_phone_id,updated_at')
+        .not('whatsapp_phone_id', 'is', null);
+
+      if (configsError) {
+        console.error(
+          'Admin WhatsApp connections fetch failed:',
+          configsError.code || 'database_error',
+        );
+        whatsappConnections = null;
+        whatsappConnectionsError = true;
+      } else {
+        whatsappConnections = (configs || []).flatMap((config): WhatsAppConnectionDto[] => {
+          if (
+            typeof config.id !== 'string' ||
+            !TENANT_ID_PATTERN.test(config.id) ||
+            typeof config.whatsapp_phone_id !== 'string' ||
+            !WHATSAPP_PHONE_ID_PATTERN.test(config.whatsapp_phone_id)
+          ) {
+            return [];
+          }
+
+          const tenantId =
+            typeof config.tenant_id === 'string' && TENANT_ID_PATTERN.test(config.tenant_id)
+              ? config.tenant_id
+              : null;
+          const owner = tenantId ? tenantMap[tenantId] : null;
+          return [{
+            connectionId: config.id,
+            tenantId,
+            phoneNumberId: config.whatsapp_phone_id,
+            ownerEmail: typeof owner?.email === 'string' ? owner.email : null,
+            ownerCompanyName: typeof owner?.company_name === 'string' ? owner.company_name : null,
+            orphaned: !owner,
+            updatedAt: typeof config.updated_at === 'string' ? config.updated_at : null,
+          }];
+        });
       }
     }
 
-    const tenants = allTenants || [];
+    const whatsappConnectionsByTenant: Record<string, WhatsAppConnectionDto[]> = {};
+    for (const connection of whatsappConnections || []) {
+      if (!connection.tenantId) continue;
+      if (!whatsappConnectionsByTenant[connection.tenantId]) {
+        whatsappConnectionsByTenant[connection.tenantId] = [];
+      }
+      whatsappConnectionsByTenant[connection.tenantId].push(connection);
+    }
+
     const totalTenants = tenants.length;
     const activeTenants = tenants.filter(t => t.plan_status === 'active').length;
 
@@ -147,8 +204,6 @@ export async function GET(req: NextRequest) {
       .reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
 
     // Recent payments with tenant info attached
-    const tenantMap: Record<string, any> = {};
-    for (const t of tenants) tenantMap[t.id] = t;
     const recentPayments = payments.slice(0, 10).map((p: any) => ({
       ...p,
       tenantEmail: tenantMap[p.tenant_id]?.email || null,
@@ -190,6 +245,9 @@ export async function GET(req: NextRequest) {
       monthlyRevenue: canViewOverview ? monthlyRevenue : 0,
       recentPayments: canViewOverview ? recentPayments : [],
       planPermissions: canManagePlanPermissions ? planPermissions : null,
+      canManageWhatsApp,
+      whatsappConnectionsError,
+      whatsappConnections,
       tenants: (canViewTenants ? tenants : canViewOverview ? tenants.slice(0, 5) : []).map(t => {
         if (!canViewTenants) {
           return {
@@ -207,7 +265,6 @@ export async function GET(req: NextRequest) {
         const daysRemaining = t.plan_expires_at
           ? Math.max(0, Math.ceil((new Date(t.plan_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
           : 0;
-        const waConfig = configByTenant[t.id];
         return {
           id: t.id,
           email: t.email,
@@ -230,8 +287,11 @@ export async function GET(req: NextRequest) {
           lastPaymentDate,
           daysRemaining,
           permissionOverrides: t.permission_overrides || {},
-          whatsappPhoneId: waConfig?.whatsapp_phone_id || null,
-          waDisplayPhone: waConfig?.wa_display_phone || null,
+          whatsappConnections: canManageWhatsApp
+            ? whatsappConnections === null
+              ? null
+              : whatsappConnectionsByTenant[t.id] || []
+            : null,
         };
       }),
       announcements: canViewAnnouncements ? announcements : [],
@@ -515,39 +575,43 @@ export async function POST(req: NextRequest) {
     }
 
 
-    // Action: disconnect_whatsapp — clear a tenant's WhatsApp connection so
-    // the phone number can be reassigned to another account.
+    // Action: disconnect_whatsapp — clear one exact WhatsApp connection so
+    // the phone number can be reassigned without affecting sibling config rows.
     if (body.action === 'disconnect_whatsapp') {
-      const { targetTenantId } = body;
-      if (typeof targetTenantId !== 'string' || !TENANT_ID_PATTERN.test(targetTenantId)) {
-        return NextResponse.json({ error: 'ID de usuario requerido' }, { status: 400 });
+      const { connectionId, expectedPhoneNumberId } = body;
+      if (typeof connectionId !== 'string' || !TENANT_ID_PATTERN.test(connectionId)) {
+        return NextResponse.json({ error: 'ID de conexión inválido' }, { status: 400 });
+      }
+      if (
+        typeof expectedPhoneNumberId !== 'string' ||
+        !WHATSAPP_PHONE_ID_PATTERN.test(expectedPhoneNumberId)
+      ) {
+        return NextResponse.json({ error: 'Phone ID inválido' }, { status: 400 });
       }
 
-      // Verify target tenant exists
-      const { data: target, error: targetError } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('id', targetTenantId)
-        .maybeSingle();
-      if (targetError) return NextResponse.json({ error: 'No se pudo consultar el tenant' }, { status: 500 });
-      if (!target) return NextResponse.json({ error: 'Tenant no encontrado' }, { status: 404 });
-
-      // Clear WhatsApp credentials from the tenant's config row
-      const { error: clearError } = await supabase
+      const { data: disconnected, error: clearError } = await supabase
         .from('config')
         .update({
           whatsapp_token: null,
           whatsapp_phone_id: null,
-          wa_display_phone: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('tenant_id', targetTenantId);
+        .eq('id', connectionId)
+        .eq('whatsapp_phone_id', expectedPhoneNumberId)
+        .select('id')
+        .maybeSingle();
 
       if (clearError) {
         console.error('Admin disconnect_whatsapp failed:', clearError.code || 'database_error');
         return NextResponse.json({ error: 'No se pudo desconectar el número de WhatsApp' }, { status: 500 });
       }
-      return NextResponse.json({ success: true, message: 'Número de WhatsApp desconectado correctamente' });
+      if (!disconnected) {
+        return NextResponse.json(
+          { error: 'La conexión de WhatsApp cambió; actualiza el panel' },
+          { status: 409 },
+        );
+      }
+      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 });

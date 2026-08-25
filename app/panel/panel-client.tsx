@@ -92,6 +92,16 @@ const createInitialApiHelperMessages = () => ([
   },
 ]);
 
+type AdminWhatsAppConnection = {
+  connectionId: string;
+  tenantId: string | null;
+  phoneNumberId: string;
+  ownerEmail: string | null;
+  ownerCompanyName: string | null;
+  orphaned: boolean;
+  updatedAt: string | null;
+};
+
 const isLikelyApiCredential = (value: string) => {
   const normalized = value.trim();
   if (/^(?:Bearer\s+)?EA[A-Za-z0-9._~+/=-]{20,}$/i.test(normalized)) return true;
@@ -3654,9 +3664,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Admin Panel States
   const [adminData, setAdminData] = useState<any>(null);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [disconnectingWhatsappConnectionId, setDisconnectingWhatsappConnectionId] = useState<string | null>(null);
   const [adminTab, setAdminTab] = useState<'overview' | 'tenants' | 'announcements' | 'templates' | 'ai_engine' | 'permissions'>('overview');
   const [localPlanPermissions, setLocalPlanPermissions] = useState<any>(null);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const canManageWhatsApp = adminData?.canManageWhatsApp === true;
+  const whatsappConnectionsError = Boolean(adminData?.whatsappConnectionsError);
+  const orphanedWhatsappConnections: AdminWhatsAppConnection[] = canManageWhatsApp && Array.isArray(adminData?.whatsappConnections)
+    ? adminData.whatsappConnections.filter((connection: AdminWhatsAppConnection) => connection.orphaned)
+    : [];
 
   React.useEffect(() => {
     if (adminData?.planPermissions) {
@@ -5931,24 +5947,46 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } finally { setAdminActionLoading(false); }
   };
 
-  const handleDisconnectWhatsapp = async (targetTenantId: string, companyName: string) => {
+  const handleDisconnectWhatsapp = async (
+    connectionId: string,
+    expectedPhoneNumberId: string,
+    companyName: string,
+  ) => {
+    if (!connectionId || !expectedPhoneNumberId) {
+      setToast({ message: 'No se puede identificar esta conexión de WhatsApp de forma segura.', type: 'error' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Desconectar WhatsApp de la empresa "${companyName}"?\n\nPhone ID: ${expectedPhoneNumberId}\n\nEsta acción liberará únicamente esta conexión.`,
+    );
+    if (!confirmed) return;
+
     try {
       setAdminActionLoading(true);
+      setDisconnectingWhatsappConnectionId(connectionId);
       const res = await authFetch('/api/admin/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'disconnect_whatsapp', targetTenantId }),
+        body: JSON.stringify({
+          action: 'disconnect_whatsapp',
+          connectionId,
+          expectedPhoneNumberId,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setToast({ message: `Error: ${data.error || 'No se pudo desconectar WhatsApp'}`, type: 'error' });
         return;
       }
-      setToast({ message: `✅ WhatsApp desconectado de "${companyName}"`, type: 'success' });
-      loadAdminData();
+      setToast({ message: `✅ WhatsApp ${expectedPhoneNumberId} desconectado de "${companyName}"`, type: 'success' });
+      await loadAdminData();
     } catch (e: any) {
       setToast({ message: 'Error de conexi\u00f3n: ' + e.message, type: 'error' });
-    } finally { setAdminActionLoading(false); }
+    } finally {
+      setAdminActionLoading(false);
+      setDisconnectingWhatsappConnectionId(null);
+    }
   };
 
   const handleAdminDeleteTenant = async (targetTenantId: string) => {
@@ -15736,6 +15774,69 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {/* ===== TENANTS SUB-TAB ===== */}
                 {adminTab === 'tenants' && (
                   <div className="space-y-6">
+                    {canManageWhatsApp && whatsappConnectionsError && (
+                      <div role="alert" className="flex flex-col gap-4 rounded-2xl border border-red-200 bg-red-50 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-start gap-3">
+                          <span className="material-symbols-outlined mt-0.5 text-xl text-red-500">error</span>
+                          <div>
+                            <p className="text-sm font-extrabold text-red-700">No se pudieron cargar las conexiones de WhatsApp</p>
+                            <p className="mt-1 text-xs font-medium text-red-600">
+                              Los estados se muestran como no disponibles para evitar indicar por error que un número está libre.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={loadAdminData}
+                          disabled={adminLoading}
+                          className="shrink-0 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {adminLoading ? 'Reintentando...' : 'Reintentar'}
+                        </button>
+                      </div>
+                    )}
+
+                    {canManageWhatsApp && !whatsappConnectionsError && orphanedWhatsappConnections.length > 0 && (
+                      <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-5">
+                        <div className="mb-4 flex items-start gap-3">
+                          <span className="material-symbols-outlined mt-0.5 text-xl text-amber-600">warning</span>
+                          <div>
+                            <p className="text-sm font-extrabold text-amber-800">Conexiones de WhatsApp huérfanas</p>
+                            <p className="mt-1 text-xs font-medium text-amber-700">
+                              Estas conexiones siguen reservando un Phone ID, pero ya no pertenecen a un usuario visible. Libera solo la conexión que reconozcas.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {orphanedWhatsappConnections.map(connection => {
+                            const ownerName = connection.ownerCompanyName || connection.ownerEmail || 'Cuenta sin propietario';
+                            const isDisconnecting = disconnectingWhatsappConnectionId === connection.connectionId;
+
+                            return (
+                              <div key={connection.connectionId} className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-extrabold text-slate-700">{ownerName}</p>
+                                  {connection.ownerEmail && connection.ownerEmail !== ownerName && (
+                                    <p className="truncate text-[10px] font-medium text-slate-400">{connection.ownerEmail}</p>
+                                  )}
+                                  <p className="mt-1 text-[10px] font-bold text-amber-700">
+                                    Phone ID: <span className="font-mono">{connection.phoneNumberId}</span>
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleDisconnectWhatsapp(connection.connectionId, connection.phoneNumberId, ownerName)}
+                                  disabled={adminActionLoading || isDisconnecting}
+                                  className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-[10px] font-bold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <span className="material-symbols-outlined text-sm">link_off</span>
+                                  {isDisconnecting ? 'Liberando...' : 'Liberar conexión'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                       <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                         <div>
@@ -15755,7 +15856,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Plan</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Días Rest.</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
-                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">WhatsApp</th>
+                              {canManageWhatsApp && (
+                                <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">WhatsApp</th>
+                              )}
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Admin</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Acciones</th>
                             </tr>
@@ -15796,14 +15899,45 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <td className="px-6 py-4 text-center">
                                   <span className={`w-2.5 h-2.5 rounded-full inline-block ${t.planStatus === 'active' ? 'bg-emerald-500' : 'bg-red-400'}`}></span>
                                 </td>
-                                 <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
-                                   {(t as any).whatsappPhoneId ? (
-                                     <div className="flex flex-col items-center gap-1">
-                                       <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">{(t as any).waDisplayPhone || (t as any).whatsappPhoneId}</span>
-                                       <button onClick={() => { if (window.confirm(`Desconectar WA de ${t.companyName}?`)) handleDisconnectWhatsapp(t.id, t.companyName); }} className="text-[9px] font-bold text-red-500 hover:text-red-700 flex items-center gap-0.5"><span className="material-symbols-outlined text-[11px]">link_off</span>Desconectar</button>
-                                     </div>
-                                   ) : <span className="text-[10px] text-slate-300">—</span>}
-                                 </td>
+                                {canManageWhatsApp && (
+                                  <td className="px-4 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                    {whatsappConnectionsError ? (
+                                      <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 text-[10px] font-bold text-red-500">
+                                        <span className="material-symbols-outlined text-xs">error</span>
+                                        No disponible
+                                      </span>
+                                    ) : Array.isArray(t.whatsappConnections) && t.whatsappConnections.length > 0 ? (
+                                      <div className="flex min-w-[190px] flex-col gap-2">
+                                        {t.whatsappConnections.map((connection: AdminWhatsAppConnection) => {
+                                          const ownerName = connection.ownerCompanyName || t.companyName || connection.ownerEmail || 'Sin nombre';
+                                          const isDisconnecting = disconnectingWhatsappConnectionId === connection.connectionId;
+
+                                          return (
+                                            <div key={connection.connectionId} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-2.5 py-2">
+                                              <div className="min-w-0 text-left">
+                                                <p className="text-[9px] font-bold uppercase tracking-wide text-emerald-600">Phone ID</p>
+                                                <p className="truncate font-mono text-[10px] font-bold text-emerald-700" title={connection.phoneNumberId}>
+                                                  {connection.phoneNumberId}
+                                                </p>
+                                              </div>
+                                              <button
+                                                onClick={() => handleDisconnectWhatsapp(connection.connectionId, connection.phoneNumberId, ownerName)}
+                                                disabled={adminActionLoading || isDisconnecting}
+                                                title={`Desconectar WhatsApp ${connection.phoneNumberId} de ${ownerName}`}
+                                                className="flex shrink-0 items-center gap-0.5 rounded-md bg-white px-2 py-1 text-[9px] font-bold text-red-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                              >
+                                                <span className="material-symbols-outlined text-[11px]">link_off</span>
+                                                {isDisconnecting ? 'Desconectando...' : 'Desconectar'}
+                                              </button>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] font-medium text-slate-400">Sin conexión registrada</span>
+                                    )}
+                                  </td>
+                                )}
                                 <td className="px-6 py-4 text-center">
                                   {t.isAdmin && <span className="material-symbols-outlined text-orange-500 text-lg">shield</span>}
                                 </td>
