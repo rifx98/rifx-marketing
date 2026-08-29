@@ -62,11 +62,11 @@ export async function POST(req: NextRequest) {
 
     const parsedBody = await readLimitedJsonObject(req, 4 * 1024);
     if (!parsedBody.ok) return parsedBody.response;
-    const validation = validatePhoneNumber(parsedBody.body.phone);
+    const validation = validatePhoneNumber(parsedBody.body.phone as string);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const normalizedPhone = normalizePhoneNumber(parsedBody.body.phone);
+    const normalizedPhone = normalizePhoneNumber(parsedBody.body.phone as string);
     if (!normalizedPhone) {
       return NextResponse.json({ error: 'Numero de telefono invalido' }, { status: 400 });
     }

@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback, Children } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { ArrowRight, Mail, Lock, Eye, EyeOff, ArrowLeft, X, AlertCircle, PartyPopper, Loader } from "lucide-react";
+import { ArrowRight, Mail, Lock, Eye, EyeOff, ArrowLeft, X, AlertCircle, PartyPopper, Loader, Briefcase } from "lucide-react";
 import { AnimatePresence, motion, useInView, Variants, Transition } from "framer-motion";
 
 import type { GlobalOptions as ConfettiGlobalOptions, CreateTypes as ConfettiInstance, Options as ConfettiOptions } from "canvas-confetti";

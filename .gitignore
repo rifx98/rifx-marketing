@@ -37,3 +37,6 @@ public/debug/
 *.secret
 .DS_Store
 Thumbs.db
+
+.vercel
+.env*

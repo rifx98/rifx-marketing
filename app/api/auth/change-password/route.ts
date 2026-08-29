@@ -49,17 +49,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Esta cuenta usa acceso con Google y no tiene una contraseña local.' }, { status: 409 });
     }
 
-    const currentIsValid = await bcrypt.compare(currentPassword, tenant.password_hash);
+    const currentIsValid = await bcrypt.compare(currentPassword as string, tenant.password_hash);
     if (!currentIsValid) {
       return NextResponse.json({ error: 'La contraseña actual no es correcta' }, { status: 401 });
     }
-    if (await bcrypt.compare(newPassword, tenant.password_hash)) {
+    if (await bcrypt.compare(newPassword as string, tenant.password_hash)) {
       return NextResponse.json({ error: 'La nueva contraseña debe ser diferente' }, { status: 400 });
     }
 
     const currentSessionVersion = Number(tenant.session_version || 0);
     const nextSessionVersion = currentSessionVersion + 1;
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const passwordHash = await bcrypt.hash(newPassword as string, 12);
     const { data: updated, error: updateError } = await supabase
       .from('tenants')
       .update({ password_hash: passwordHash, session_version: nextSessionVersion })

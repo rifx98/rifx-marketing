@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Datos de cuenta invalidos' }, { status: 400 });
     }
 
-    const validation = validatePhoneNumber(phone);
+    const validation = validatePhoneNumber(phone as string);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const normalizedPhone = normalizePhoneNumber(phone);
+    const normalizedPhone = normalizePhoneNumber(phone as string);
     if (!normalizedPhone || typeof code !== 'string' || !/^\d{6}$/.test(code)) {
       return NextResponse.json({ error: 'Codigo invalido' }, { status: 400 });
     }
@@ -86,11 +86,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Codigo incorrecto o expirado' }, { status: 401 });
     }
 
-    const { data: existingTenant, error: lookupError } = await supabase
+    const { data: existingTenantData, error: lookupError } = await supabase
       .from('tenants')
       .select(TENANT_AUTH_FIELDS)
       .eq('phone', normalizedPhone)
       .maybeSingle();
+    const existingTenant: any = existingTenantData;
     if (lookupError) {
       console.error('Phone tenant lookup failed:', lookupError.code || 'database_error');
       return NextResponse.json({ error: 'No se pudo completar la autenticacion' }, { status: 500 });

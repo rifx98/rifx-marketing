@@ -63,7 +63,7 @@ function validateCsrf(request: NextRequest): NextResponse | null {
     `http://${host}`,
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.APP_URL,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
   // Check origin header first (most reliable)
   if (origin) {

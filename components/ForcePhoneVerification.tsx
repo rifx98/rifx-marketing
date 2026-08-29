@@ -51,7 +51,7 @@ export default function ForcePhoneVerification({ onVerified }: { onVerified: () 
 
   const getFullPhone = () => {
     // Si el usuario por error pega el código del país en el número, no lo duplicamos
-    let cleanPhone = phoneNumber.replace(/\D/g, '');
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
     return `${countryCode}${cleanPhone}`;
   };
 

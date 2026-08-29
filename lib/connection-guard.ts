@@ -12,7 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export async function findConflictingTenantForExtendedField(
   supabase: SupabaseClient,
   currentTenantId: string,
-  field: 'facebook_ad_account_id' | 'facebook_page_id',
+  field: 'facebook_ad_account_id' | 'facebook_page_id' | 'bulk_wa_phone_id',
   value: string
 ): Promise<string | null> {
   if (!value) return null;

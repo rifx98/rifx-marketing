@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No se pudo cargar el dashboard' }, { status: 500 });
     }
 
-    const tenants = allTenants || [];
+    const tenants: any[] = allTenants || [];
     const tenantMap: Record<string, any> = {};
     for (const t of tenants) tenantMap[t.id] = t;
 
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
       if (!title || !message) {
         return NextResponse.json({ error: 'Título y mensaje son requeridos' }, { status: 400 });
       }
-      if (starts_at && expires_at && new Date(expires_at) <= new Date(starts_at)) {
+      if (starts_at && expires_at && new Date(String(expires_at)) <= new Date(String(starts_at))) {
         return NextResponse.json({ error: 'La fecha de caducidad debe ser posterior a la de inicio' }, { status: 400 });
       }
       const normalizedButtonUrl = normalizeAnnouncementButtonUrl(button_url);
@@ -342,8 +342,8 @@ export async function POST(req: NextRequest) {
       if (image_url) insertData.image_url = image_url;
       if (button_text) insertData.button_text = button_text;
       if (normalizedButtonUrl.value) insertData.button_url = normalizedButtonUrl.value;
-      if (starts_at) insertData.starts_at = new Date(starts_at).toISOString();
-      if (expires_at) insertData.expires_at = new Date(expires_at).toISOString();
+      if (starts_at) insertData.starts_at = new Date(String(starts_at)).toISOString();
+      if (expires_at) insertData.expires_at = new Date(String(expires_at)).toISOString();
 
       const { data, error } = await supabase
         .from('announcements')
@@ -364,7 +364,7 @@ export async function POST(req: NextRequest) {
       if (!title || !message) {
         return NextResponse.json({ error: 'Título y mensaje son requeridos' }, { status: 400 });
       }
-      if (starts_at && expires_at && new Date(expires_at) <= new Date(starts_at)) {
+      if (starts_at && expires_at && new Date(String(expires_at)) <= new Date(String(starts_at))) {
         return NextResponse.json({ error: 'La fecha de caducidad debe ser posterior a la de inicio' }, { status: 400 });
       }
       const normalizedButtonUrl = normalizeAnnouncementButtonUrl(button_url);
@@ -378,8 +378,8 @@ export async function POST(req: NextRequest) {
         image_url: image_url || null,
         button_text: button_text || null,
         button_url: normalizedButtonUrl.value,
-        starts_at: starts_at ? new Date(starts_at).toISOString() : null,
-        expires_at: expires_at ? new Date(expires_at).toISOString() : null,
+        starts_at: starts_at ? new Date(String(starts_at)).toISOString() : null,
+        expires_at: expires_at ? new Date(String(expires_at)).toISOString() : null,
       };
 
       const { data, error } = await supabase
@@ -421,7 +421,7 @@ export async function POST(req: NextRequest) {
     if (body.action === 'update_tenant_plan') {
       const { targetTenantId, plan } = body;
       const validPlans = ['trial', 'start', 'plus', 'master'];
-      if (!validPlans.includes(plan)) {
+      if (!validPlans.includes(plan as string)) {
         return NextResponse.json({ error: 'Plan inválido' }, { status: 400 });
       }
 
@@ -432,7 +432,7 @@ export async function POST(req: NextRequest) {
         master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
       };
 
-      const limits = LIMITS[plan];
+      const limits = LIMITS[plan as string];
       const { error } = await supabase
         .from('tenants')
         .update({

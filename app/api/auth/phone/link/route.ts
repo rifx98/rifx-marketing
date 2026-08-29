@@ -38,11 +38,11 @@ export async function POST(req: NextRequest) {
     if (!parsedBody.ok) return parsedBody.response;
     const { phone, code } = parsedBody.body;
 
-    const validation = validatePhoneNumber(phone);
+    const validation = validatePhoneNumber(parsedBody.body.phone as string);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const normalizedPhone = normalizePhoneNumber(phone);
+    const normalizedPhone = normalizePhoneNumber(parsedBody.body.phone as string);
     if (!normalizedPhone || typeof code !== 'string' || !/^\d{6}$/.test(code)) {
       return NextResponse.json({ error: 'Codigo invalido' }, { status: 400 });
     }

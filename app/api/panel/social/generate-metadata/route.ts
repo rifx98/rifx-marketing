@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     if ((typeof title !== 'string' && typeof caption !== 'string')
         || (typeof title === 'string' && title.length > 300)
         || (typeof caption === 'string' && caption.length > 4_000)
-        || (!title?.trim() && !caption?.trim())) {
+        || (!(typeof title === 'string' ? title.trim() : '') && !(typeof caption === 'string' ? caption.trim() : ''))) {
       return NextResponse.json({ error: 'Por favor, escribe un borrador o ideas en el título o descripción primero.' }, { status: 400 });
     }
 

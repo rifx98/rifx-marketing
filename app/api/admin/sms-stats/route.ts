@@ -8,9 +8,9 @@ import { requireAdminPermission } from '@/lib/admin-rbac';
  */
 export async function GET(req: NextRequest) {
   // Solo admins pueden ver estas estadísticas
-  const auth = await requireAdminPermission(req, 'view');
+  const auth = await requireAdminPermission(req, 'dashboard.read');
   if (!auth.ok) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: auth.status ?? 401 });
+    return auth.response;
   }
 
   const stats = getDailySmsStats();

@@ -9,7 +9,7 @@ interface AuthSelectorProps {
   mode: 'login' | 'register' | 'request-reset' | 'reset-password';
   logo?: React.ReactNode;
   onLogin?: (email: string, password: string) => Promise<void>;
-  onRegister?: (email: string, password: string, acceptedTerms: boolean) => Promise<void>;
+  onRegister?: (email: string, password: string, acceptedTerms: boolean, companyName: string) => Promise<void>;
   onRequestReset?: (email: string) => Promise<any>;
   onResetPassword?: (email: string, code: string, password: string) => Promise<void>;
   onSwitchToRegister?: () => void;
