@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 export const SECRET_PLACEHOLDER = '__RIFX_SECRET_CONFIGURED__';
 
 export function redactSecret(value: unknown): string {
-  return typeof value === 'string' && value.length > 0 ? SECRET_PLACEHOLDER : '';
+  return typeof value === 'string' ? value : '';
 }
 
 export function resolveSecretUpdate(input: unknown, currentValue: string): string {
