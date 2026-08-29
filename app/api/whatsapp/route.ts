@@ -478,7 +478,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     const isAudio = messageData.type === 'audio';
 
     if (messageData.type === 'text') {
-      customerMessage = messageData.text.body;
+      customerMessage = String(messageData.text?.body ?? '');
     } else if (isAudio) {
       console.log(`[WhatsApp ${providerMessageId}] Audio recibido; iniciando transcripción`);
       let extConfig = { openai_key: '', gemini_key: '', groq_key: '' };
@@ -498,15 +498,27 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         console.error('❌ No se puede transcribir audio: whatsapp_token no configurado');
         customerMessage = '(Mensaje de audio enviado pero no se pudo descargar por falta de token de WhatsApp)';
       } else {
-        const audioId = messageData.audio.id;
-        const text = await transcribeWhatsAppAudio(audioId, token, openAiKey, groqKey);
-        if (text) {
-          customerMessage = text;
-          console.log(`[WhatsApp ${providerMessageId}] Audio transcrito`);
+        const audioId = String(messageData.audio?.id ?? '');
+        if (!audioId) {
+          console.error(`[WhatsApp ${providerMessageId}] Audio payload sin ID`);
+          customerMessage = '(Mensaje de audio recibido pero sin identificador válido)';
         } else {
-          customerMessage = '(Mensaje de audio enviado pero falló la transcripción)';
+          const text = await transcribeWhatsAppAudio(audioId, token, openAiKey, groqKey);
+          if (text) {
+            customerMessage = text;
+            console.log(`[WhatsApp ${providerMessageId}] Audio transcrito`);
+          } else {
+            customerMessage = '(Mensaje de audio enviado pero falló la transcripción)';
+          }
         }
       }
+    }
+
+    // Guard: si no se extrajo ningún mensaje, no continuar procesando
+    if (!customerMessage.trim()) {
+      console.warn(`[WhatsApp ${providerMessageId}] Mensaje vacío tras extracción (type=${messageData.type}) — ignorando`);
+      await finalizeWebhookEvent('ignored', 'empty_message_content');
+      return NextResponse.json({ status: 'ignored_empty_message' });
     }
 
     console.log(`[WhatsApp ${providerMessageId}] Mensaje validado para tenant ${tenantId}`);
@@ -530,18 +542,30 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           .maybeSingle();
           
         if (targetConv) {
-          await supabase.from('messages').insert({
-            conversation_id: targetConv.id,
-            role: 'assistant',
-            content: adminReply
-          });
+          try {
+            await supabase.from('messages').insert({
+              conversation_id: targetConv.id,
+              role: 'assistant',
+              content: adminReply
+            });
+          } catch (dbErr) {
+            console.error('[WhatsApp] Admin proxy: error guardando mensaje en DB:', dbErr instanceof Error ? dbErr.message : dbErr);
+          }
           
-          await sendWhatsAppMessage(targetPhone, adminReply, config, 'admin_proxy_reply');
-          await sendWhatsAppMessage(adminNotificationPhone, `✅ Mensaje enviado a ${targetPhone}`, config, 'admin_proxy_ack');
+          try {
+            await sendWhatsAppMessage(targetPhone, adminReply, config, 'admin_proxy_reply');
+            await sendWhatsAppMessage(adminNotificationPhone, `✅ Mensaje enviado a ${targetPhone}`, config, 'admin_proxy_ack');
+          } catch (sendErr) {
+            console.error('[WhatsApp] Admin proxy: error enviando respuesta:', sendErr instanceof Error ? sendErr.message : sendErr);
+          }
           await finalizeWebhookEvent('processed');
           return NextResponse.json({ status: 'admin_proxy_reply_sent' });
         } else {
-          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_reply_not_found');
+          try {
+            await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_reply_not_found');
+          } catch (sendErr) {
+            console.error('[WhatsApp] Admin proxy: error notificando not-found:', sendErr instanceof Error ? sendErr.message : sendErr);
+          }
           await finalizeWebhookEvent('ignored', 'admin_proxy_target_not_found');
           return NextResponse.json({ status: 'admin_proxy_not_found' });
         }
@@ -558,29 +582,45 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           .maybeSingle();
           
         if (targetConv) {
-          await supabase.from('messages').insert({
-            conversation_id: targetConv.id,
-            role: 'assistant',
-            content: '__SYSTEM_RESUME__'
-          });
-          
-          await supabase
-            .from('conversations')
-            .update({ status: 'chatting', updated_at: new Date().toISOString() })
-            .eq('id', targetConv.id)
-            .eq('tenant_id', tenantId);
+          try {
+            await supabase.from('messages').insert({
+              conversation_id: targetConv.id,
+              role: 'assistant',
+              content: '__SYSTEM_RESUME__'
+            });
             
-          await sendWhatsAppMessage(adminNotificationPhone, `🤖 ✅ Bot reactivado para ${targetPhone}`, config, 'admin_proxy_bot_resumed');
+            await supabase
+              .from('conversations')
+              .update({ status: 'chatting', updated_at: new Date().toISOString() })
+              .eq('id', targetConv.id)
+              .eq('tenant_id', tenantId);
+          } catch (dbErr) {
+            console.error('[WhatsApp] Admin proxy !bot: error actualizando DB:', dbErr instanceof Error ? dbErr.message : dbErr);
+          }
+             
+          try {
+            await sendWhatsAppMessage(adminNotificationPhone, `🤖 ✅ Bot reactivado para ${targetPhone}`, config, 'admin_proxy_bot_resumed');
+          } catch (sendErr) {
+            console.error('[WhatsApp] Admin proxy !bot: error notificando:', sendErr instanceof Error ? sendErr.message : sendErr);
+          }
           await finalizeWebhookEvent('processed');
           return NextResponse.json({ status: 'admin_proxy_bot_resumed' });
         } else {
-          await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_bot_not_found');
+          try {
+            await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_bot_not_found');
+          } catch (sendErr) {
+            console.error('[WhatsApp] Admin proxy !bot: error notificando not-found:', sendErr instanceof Error ? sendErr.message : sendErr);
+          }
           await finalizeWebhookEvent('ignored', 'admin_proxy_target_not_found');
           return NextResponse.json({ status: 'admin_proxy_not_found' });
         }
       }
       
-      await sendWhatsAppMessage(adminNotificationPhone, `⚠️ Comando no reconocido.\nUsos:\n!r [numero] [mensaje]\n!bot [numero]`, config, 'admin_proxy_invalid_command');
+      try {
+        await sendWhatsAppMessage(adminNotificationPhone, `⚠️ Comando no reconocido.\nUsos:\n!r [numero] [mensaje]\n!bot [numero]`, config, 'admin_proxy_invalid_command');
+      } catch (sendErr) {
+        console.error('[WhatsApp] Admin proxy: error notificando comando inválido:', sendErr instanceof Error ? sendErr.message : sendErr);
+      }
       await finalizeWebhookEvent('ignored', 'admin_proxy_invalid_command');
       return NextResponse.json({ status: 'admin_proxy_invalid_command' });
     }
@@ -695,8 +735,12 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           `!r ${customerPhone} tu mensaje\n\n` +
           `🤖 *Para reactivar el bot:*\n` +
           `!bot ${customerPhone}`;
-        await sendWhatsAppMessage(adminPhone, notifMsg, config, 'human_mode_notification');
-        console.log(`🔔 Notificación enviada al admin (${adminPhone}) — cliente en modo humano`);
+        try {
+          await sendWhatsAppMessage(adminPhone, notifMsg, config, 'human_mode_notification');
+          console.log(`🔔 Notificación enviada al admin (${adminPhone}) — cliente en modo humano`);
+        } catch (sendErr) {
+          console.error(`[WhatsApp] Error notificando al admin en modo humano:`, sendErr instanceof Error ? sendErr.message : sendErr);
+        }
       }
 
       await supabase
@@ -708,7 +752,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     }
 
     // 2.6 Detectar intención de compra → mover a "interested" automáticamente
-    const realStatus = conversation.status.replace('paused_', '');
+    const realStatus = (conversation.status || 'chatting').replace('paused_', '');
     if (realStatus === 'chatting') {
       const msgLower = customerMessage.toLowerCase();
       const buyIntentKeywords = [
@@ -801,8 +845,12 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
             `!r ${customerPhone} tu mensaje\n\n` +
             `🤖 *Para reactivar el bot:*\n` +
             `!bot ${customerPhone}`;
-          await sendWhatsAppMessage(adminPhone, alertMsg, config, 'human_escalation_notification');
-          console.log(`🚨 Alerta urgente enviada al admin (${adminPhone})`);
+          try {
+            await sendWhatsAppMessage(adminPhone, alertMsg, config, 'human_escalation_notification');
+            console.log(`🚨 Alerta urgente enviada al admin (${adminPhone})`);
+          } catch (sendErr) {
+            console.error(`[WhatsApp] Error notificando escalamiento humano al admin:`, sendErr instanceof Error ? sendErr.message : sendErr);
+          }
         }
         
         // Retornar temprano para que la IA no responda
@@ -1329,8 +1377,17 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(geminiPayload),
+            signal: AbortSignal.timeout(30_000),
           });
-          const gemData = await gemRes.json();
+          let gemData: any;
+          try {
+            gemData = await gemRes.json();
+          } catch (parseErr) {
+            console.error(`❌ Gemini API devolvió respuesta no-JSON (HTTP ${gemRes.status})`);
+            const gemError: any = new Error(`Gemini response not JSON (HTTP ${gemRes.status})`);
+            gemError.status = gemRes.status;
+            throw gemError;
+          }
           
           // Log full error if present
           if (gemData?.error) {
@@ -1418,8 +1475,15 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(fbPayload),
+                  signal: AbortSignal.timeout(30_000),
                 });
-                const gemData = await gemRes.json();
+                let gemData: any;
+                try {
+                  gemData = await gemRes.json();
+                } catch {
+                  console.error(`❌ Fallback Gemini: respuesta no-JSON (HTTP ${gemRes.status})`);
+                  continue;
+                }
                 if (gemData?.error) console.error(`❌ Fallback Gemini Error:`, JSON.stringify(gemData.error));
                 aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
               } else {
@@ -1615,8 +1679,15 @@ Transportadora: *${orderResult.carrier}*`;
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(fuPayload),
+              signal: AbortSignal.timeout(30_000),
             });
-            const gemData2 = await gemRes2.json();
+            let gemData2: any;
+            try {
+              gemData2 = await gemRes2.json();
+            } catch {
+              console.error(`❌ Calendar slots Gemini: respuesta no-JSON (HTTP ${gemRes2.status})`);
+              gemData2 = {};
+            }
             slotsResponse = gemData2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
           } else {
             const client2 = new OpenAI({ apiKey, baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined });
@@ -1894,47 +1965,67 @@ Transportadora: *${orderResult.carrier}*`;
       }
     }
 
-    // Actualizar campos de ventas en la conversación
-    const salesUpdate: Record<string, any> = {
-      intent: intentResult.intent,
-      sales_stage: newSalesStage,
-      lead_score: newLeadScore,
-      updated_at: new Date().toISOString(),
-    };
-    if (salesMeta.objection) salesUpdate.last_objection = salesMeta.objection;
-    if (salesMeta.nextAction) salesUpdate.next_action = salesMeta.nextAction;
-    if (salesMeta.businessType) salesUpdate.business_type = salesMeta.businessType;
-    if (salesMeta.urgency) salesUpdate.urgency_level = salesMeta.urgency;
-    if (salesMeta.serviceInterest) salesUpdate.service_interest = salesMeta.serviceInterest;
-    if (salesMeta.budgetRange) salesUpdate.budget_range = salesMeta.budgetRange;
+    // Actualizar campos de ventas en la conversación (no-crítico: no debe impedir envío de respuesta)
+    try {
+      const salesUpdate: Record<string, any> = {
+        intent: intentResult.intent,
+        sales_stage: newSalesStage,
+        lead_score: newLeadScore,
+        updated_at: new Date().toISOString(),
+      };
+      if (salesMeta.objection) salesUpdate.last_objection = salesMeta.objection;
+      if (salesMeta.nextAction) salesUpdate.next_action = salesMeta.nextAction;
+      if (salesMeta.businessType) salesUpdate.business_type = salesMeta.businessType;
+      if (salesMeta.urgency) salesUpdate.urgency_level = salesMeta.urgency;
+      if (salesMeta.serviceInterest) salesUpdate.service_interest = salesMeta.serviceInterest;
+      if (salesMeta.budgetRange) salesUpdate.budget_range = salesMeta.budgetRange;
 
-    await supabase.from('conversations').update(salesUpdate).eq('id', conversation.id);
-    console.log(`📊 Sales: stage=${newSalesStage}, score=${newLeadScore}, intent=${intentResult.intent}`);
+      await supabase.from('conversations').update(salesUpdate).eq('id', conversation.id);
+      console.log(`📊 Sales: stage=${newSalesStage}, score=${newLeadScore}, intent=${intentResult.intent}`);
 
-    // Actualizar también la Memoria a Largo Plazo
-    await supabase.from('customer_profiles').upsert({
-      phone_number: customerPhone,
-      tenant_id: tenantId,
-      customer_name: customerName || customerProfile?.customer_name,
-      business_type: salesUpdate.business_type || customerProfile?.business_type,
-      location: salesUpdate.location || customerProfile?.location,
-      budget_range: salesUpdate.budget_range || customerProfile?.budget_range,
-      service_interest: salesUpdate.service_interest || customerProfile?.service_interest,
-      last_interaction: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'tenant_id,phone_number' });
+      // Actualizar también la Memoria a Largo Plazo
+      await supabase.from('customer_profiles').upsert({
+        phone_number: customerPhone,
+        tenant_id: tenantId,
+        customer_name: customerName || customerProfile?.customer_name,
+        business_type: salesUpdate.business_type || customerProfile?.business_type,
+        location: salesUpdate.location || customerProfile?.location,
+        budget_range: salesUpdate.budget_range || customerProfile?.budget_range,
+        service_interest: salesUpdate.service_interest || customerProfile?.service_interest,
+        last_interaction: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'tenant_id,phone_number' });
+    } catch (salesDbErr) {
+      console.error(`[WhatsApp ${providerMessageId}] Error actualizando sales/profile (no-crítico):`, salesDbErr instanceof Error ? salesDbErr.message : salesDbErr);
+      // No impedir el envío de la respuesta al cliente
+    }
+
+    // Guard: nunca enviar una respuesta vacía al cliente
+    if (!aiResponse || !aiResponse.trim()) {
+      console.warn(`[WhatsApp ${providerMessageId}] aiResponse vacío — usando fallback`);
+      aiResponse = '¡Hola! Recibí tu mensaje. ¿En qué puedo ayudarte? 😊';
+    }
 
     // 7. Guardar respuesta de la IA
-    await supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      role: 'assistant',
-      content: aiResponse,
-    });
+    try {
+      await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: aiResponse,
+      });
+    } catch (dbInsertErr) {
+      console.error(`[WhatsApp ${providerMessageId}] Error guardando respuesta en DB:`, dbInsertErr instanceof Error ? dbInsertErr.message : dbInsertErr);
+      // Continuamos para intentar enviar la respuesta al cliente
+    }
 
     // 8. Enviar respuesta por WhatsApp
-    await sendWhatsAppMessage(customerPhone, aiResponse, config, 'assistant_response');
-
-    console.log(`[WhatsApp ${providerMessageId}] Respuesta enviada`);
+    try {
+      await sendWhatsAppMessage(customerPhone, aiResponse, config, 'assistant_response');
+      console.log(`[WhatsApp ${providerMessageId}] Respuesta enviada`);
+    } catch (sendErr) {
+      console.error(`[WhatsApp ${providerMessageId}] Error enviando respuesta al cliente:`, sendErr instanceof Error ? sendErr.message : sendErr);
+      // La respuesta ya fue guardada en la DB, el cliente puede verla en el panel
+    }
 
     await finalizeWebhookEvent('processed');
 
@@ -1946,14 +2037,22 @@ Transportadora: *${orderResult.carrier}*`;
         { status: 503, headers: { 'Retry-After': '1' } },
       );
     }
-    console.error('[WhatsApp] Webhook processing failed');
+    // CRITICAL: log the actual error so Vercel logs are diagnosable
+    const errMsg = error instanceof Error ? error.message : String(error);
+    const errStack = error instanceof Error ? error.stack : undefined;
+    console.error(`[WhatsApp] Webhook processing failed: ${errMsg}`);
+    if (errStack) console.error(`[WhatsApp] Stack trace:`, errStack);
     if (claimedEvent) {
-      await completeWebhookEvent(
-        createSupabaseAdmin(),
-        claimedEvent,
-        'failed',
-        'unhandled_processing_error',
-      );
+      try {
+        await completeWebhookEvent(
+          createSupabaseAdmin(),
+          claimedEvent,
+          'failed',
+          errMsg.slice(0, 120),
+        );
+      } catch (completionErr) {
+        console.error('[WhatsApp] Failed to finalize webhook event after crash:', completionErr instanceof Error ? completionErr.message : completionErr);
+      }
     }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
@@ -2035,7 +2134,7 @@ async function sendWhatsAppMessage(
 
   const deliveryId = claim.claimed_delivery_id;
   try {
-    const response = await fetch(`https://graph.facebook.com/v24.0/${encodeURIComponent(phoneId)}/messages`, {
+    const response = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(phoneId)}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
     let providerResponse: Response;
     try {
       providerResponse = await fetch(
-        `https://graph.facebook.com/v24.0/${encodeURIComponent(config.whatsapp_phone_id)}/messages`,
+        `https://graph.facebook.com/v19.0/${encodeURIComponent(config.whatsapp_phone_id)}/messages`,
         {
           method: 'POST',
           headers: {
