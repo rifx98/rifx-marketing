@@ -7179,8 +7179,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           <div className="relative w-full max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
             <input 
-              autoComplete="off" 
-              name="dashboard-search-input" 
+              autoComplete="new-password" data-lpignore="true" name="dashboard-search-input" 
               className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 transition-all text-black outline-none" 
               placeholder={language === 'en' ? 'Search audience or segments...' : 'Buscar audiencia o segmentos...'} 
               type="text" 
@@ -9216,7 +9215,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               aiKeyStatus === 'error' ? 'border-red-300 focus:border-red-400' :
                               'border-slate-200 focus:border-[#0058bc]'
                             }`}
-                            type={showAiApiKey ? 'text' : 'password'}
+                            autoComplete="new-password" data-lpignore="true" type={showAiApiKey ? 'text' : 'password'}
                             placeholder={selectedAiProvider === 'openai' ? 'sk-proj-...' : selectedAiProvider === 'gemini' ? 'AIzaSy...' : 'gsk_...'}
                             value={selectedAiProvider === 'openai' ? (configData.openai_key || '') : selectedAiProvider === 'gemini' ? (configData.gemini_key || '') : (configData.groq_key || '')}
                             onChange={e => {
@@ -18719,3 +18718,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     </ThemeProvider>
   );
 }
+
+
+
