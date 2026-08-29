@@ -4023,6 +4023,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     return '';
   });
   const [showAiApiKey, setShowAiApiKey] = useState(false);
+  const [waShowApiKey, setWaShowApiKey] = useState(false);
+  const [bulkWaShowApiKey, setBulkWaShowApiKey] = useState(false);
   const [waVerifying, setWaVerifying] = useState(false);
   const [waStatus, setWaStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [waStatusMsg, setWaStatusMsg] = useState('');
@@ -4477,7 +4479,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Helper: fetch with auth token
   const authFetch = (url: string, options: RequestInit = {}) => {
     const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
-    return fetch(url, { ...options, headers, credentials: 'same-origin' });
+    return fetch(url, { ...options, headers, credentials: 'same-origin', cache: 'no-store' });
   };
 
   const handleTogglePush = async (enabled: boolean) => {
@@ -4568,9 +4570,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (!data.error) {
             const parsed = {
              whatsapp_token: data.whatsapp_token || '',
+             whatsapp_token_configured: data.whatsapp_token_configured === true,
              whatsapp_phone_id: data.whatsapp_phone_id || '',
              wa_display_phone: data.wa_display_phone || '',
              bulk_wa_token: data.bulk_wa_token || '',
+             bulk_wa_token_configured: data.bulk_wa_token_configured === true,
              bulk_wa_phone_id: data.bulk_wa_phone_id || '',
              openai_key: data.openai_key || '',
              gemini_key: data.gemini_key || '',
@@ -9289,7 +9293,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                 {/* ════ WHATSAPP ════ */}
                 {settingsSection === 'whatsapp' && (() => {
-                  const isWaConnected = !!(configData.whatsapp_token && configData.whatsapp_phone_id);
+                  const isWaConnected = !!(
+                    (configData.whatsapp_token_configured || configData.whatsapp_token)
+                    && configData.whatsapp_phone_id
+                  );
 
                   const handleFacebookLogin = async () => {
                     const w = 600, h = 700;
@@ -9375,7 +9382,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               setWaShowPhonePicker(true);
                             } else {
                               setWaFbToken(data.accessToken);
-                              setConfigData((prev: any) => ({ ...prev, whatsapp_token: data.accessToken }));
+                              setConfigData((prev: any) => ({
+                                ...prev,
+                                whatsapp_token: data.accessToken,
+                                whatsapp_token_configured: true,
+                              }));
                               setWaShowPhonePicker(false);
                               setToast({ type: 'info', message: language === 'en' ? 'Token saved. Enter your Phone Number ID below.' : 'Token guardado. Ingresa tu Phone Number ID abajo.' });
                             }
@@ -9402,7 +9413,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     });
                     const data = await res.json();
                     if (data.success) {
-                      setConfigData((prev: any) => ({ ...prev, whatsapp_token: waFbToken || prev.whatsapp_token, whatsapp_phone_id: phone.phoneNumberId }));
+                      setConfigData((prev: any) => ({
+                        ...prev,
+                        whatsapp_token: waFbToken || prev.whatsapp_token,
+                        whatsapp_token_configured: true,
+                        whatsapp_phone_id: phone.phoneNumberId,
+                      }));
                       setWaShowPhonePicker(false);
                       setWaStatus('success');
                       setWaStatusMsg(data.phoneNumber ? `✓ ${data.phoneNumber}` : '✓ Conectado');
@@ -9454,7 +9470,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <p className="text-[11px] text-emerald-600 font-mono truncate">{waStatusMsg || configData.whatsapp_phone_id}</p>
                               </div>
                               <button
-                                onClick={() => { setConfigData((prev: any) => ({ ...prev, whatsapp_token: '', whatsapp_phone_id: '' })); setWaStatus('idle'); setWaStatusMsg(''); setToast({ type: 'info', message: language === 'en' ? 'WhatsApp disconnected' : 'WhatsApp desconectado' }); }}
+                                onClick={() => { setConfigData((prev: any) => ({ ...prev, whatsapp_token: '', whatsapp_token_configured: false, whatsapp_phone_id: '' })); setWaStatus('idle'); setWaStatusMsg(''); setToast({ type: 'info', message: language === 'en' ? 'WhatsApp disconnected' : 'WhatsApp desconectado' }); }}
                                 className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all"
                               >{language === 'en' ? 'Disconnect' : 'Desconectar'}</button>
                             </div>
@@ -9537,7 +9553,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Bearer API Token' : 'Token de API'}</label>
                             <div className="flex gap-2">
-                              <input className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="password" autoComplete="new-password" value={configData.whatsapp_token} onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})} />
+                              <div className="relative flex-1">
+                                <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-xs font-mono text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type={waShowApiKey ? 'text' : 'password'} autoComplete="new-password" value={configData.whatsapp_token} onChange={e => setConfigData({...configData, whatsapp_token: e.target.value})} />
+                                <button type="button" onClick={() => setWaShowApiKey(!waShowApiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                  <span className="material-symbols-outlined text-base">{waShowApiKey ? 'visibility_off' : 'visibility'}</span>
+                                </button>
+                              </div>
                               <button onClick={() => navigator.clipboard.writeText(configData.whatsapp_token)} className="bg-slate-100 p-3 rounded-xl hover:bg-slate-200 transition-colors text-slate-500"><span className="material-symbols-outlined text-sm">content_copy</span></button>
                             </div>
                           </div>
@@ -9575,7 +9596,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Token API Masivos</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-600 outline-none focus:border-amber-400 transition-all" type="password" autoComplete="new-password" placeholder="Bearer token..." value={configData.bulk_wa_token || ''} onChange={e => setConfigData({...configData, bulk_wa_token: e.target.value})} />
+                            <div className="relative">
+                              <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-xs font-mono text-slate-600 outline-none focus:border-amber-400 transition-all" type={bulkWaShowApiKey ? 'text' : 'password'} autoComplete="new-password" placeholder="Bearer token..." value={configData.bulk_wa_token || ''} onChange={e => setConfigData({...configData, bulk_wa_token: e.target.value})} />
+                              <button type="button" onClick={() => setBulkWaShowApiKey(!bulkWaShowApiKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                <span className="material-symbols-outlined text-base">{bulkWaShowApiKey ? 'visibility_off' : 'visibility'}</span>
+                              </button>
+                            </div>
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Phone ID Masivos</label>

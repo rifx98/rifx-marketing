@@ -271,7 +271,7 @@ export async function GET(req: NextRequest) {
       sales_prompt: extended.sales_prompt,
       support_prompt: extended.support_prompt,
       admin_notification_phone: extended.admin_notification_phone,
-    }, { headers: { 'Cache-Control': 'private, no-store' } });
+    }, { headers: { 'Cache-Control': 'private, no-store, max-age=0, must-revalidate' } });
   } catch {
     console.error('Panel configuration request failed');
     return internalApiError();
@@ -424,27 +424,43 @@ export async function POST(req: NextRequest) {
     // tenant isolation. upsert(onConflict:'tenant_id') silently falls back
     // to INSERT when no UNIQUE constraint exists, creating duplicate rows.
     let writeError;
+    let savedConfig: { whatsapp_token: string | null; whatsapp_phone_id: string | null } | null = null;
     if (existing) {
       // Row exists for this tenant: UPDATE only that row.
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('config')
         .update(updateData)
-        .eq('tenant_id', tenant.tenantId);
+        .eq('tenant_id', tenant.tenantId)
+        .select('whatsapp_token,whatsapp_phone_id')
+        .single();
       writeError = error;
+      savedConfig = data;
     } else {
       // No row yet: INSERT a brand-new isolated row for this tenant.
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('config')
-        .insert({ tenant_id: tenant.tenantId, ...updateData });
+        .insert({ tenant_id: tenant.tenantId, ...updateData })
+        .select('whatsapp_token,whatsapp_phone_id')
+        .single();
       writeError = error;
+      savedConfig = data;
     }
     if (writeError) {
       console.error('[Config] Write failed:', writeError);
       if (writeError.code === '23505') return NextResponse.json({ error: 'La conexion ya esta vinculada' }, { status: 409 });
-      return NextResponse.json({ error: `Database error (write): ${writeError.message || writeError.code}` }, { status: 500 });
+      return internalApiError();
+    }
+    if (!savedConfig) {
+      console.error('[Config] Write returned no tenant row');
+      return internalApiError();
     }
     return NextResponse.json(
-      { success: true, message: 'Configuracion guardada correctamente' },
+      {
+        success: true,
+        message: 'Configuracion guardada correctamente',
+        whatsapp_token_configured: Boolean(savedConfig.whatsapp_token),
+        whatsapp_phone_id: storedString(savedConfig.whatsapp_phone_id, 30),
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (error) {
