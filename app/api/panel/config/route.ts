@@ -295,8 +295,8 @@ export async function POST(req: NextRequest) {
       .eq('tenant_id', tenant.tenantId)
       .maybeSingle();
     if (existingError) {
-      console.error('Panel configuration state lookup failed:', existingError.code || 'database_error');
-      return internalApiError();
+      console.error('[Config] State lookup failed:', existingError);
+      return NextResponse.json({ error: `Database error (lookup): ${existingError.message || existingError.code}` }, { status: 500 });
     }
 
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -439,9 +439,9 @@ export async function POST(req: NextRequest) {
       writeError = error;
     }
     if (writeError) {
-      console.error('Panel configuration write failed:', writeError.code || 'database_error');
+      console.error('[Config] Write failed:', writeError);
       if (writeError.code === '23505') return NextResponse.json({ error: 'La conexion ya esta vinculada' }, { status: 409 });
-      return internalApiError();
+      return NextResponse.json({ error: `Database error (write): ${writeError.message || writeError.code}` }, { status: 500 });
     }
     return NextResponse.json(
       { success: true, message: 'Configuracion guardada correctamente' },
@@ -451,7 +451,8 @@ export async function POST(req: NextRequest) {
     if (error instanceof ConfigInputError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    console.error('Panel configuration mutation failed');
-    return internalApiError();
+    console.error('[Config] Mutation failed with exception:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: `No se pudo completar la solicitud (Exception): ${msg}` }, { status: 500 });
   }
 }
