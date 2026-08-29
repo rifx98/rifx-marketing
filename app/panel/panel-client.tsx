@@ -4750,9 +4750,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Auto-verify WhatsApp when settings tab opens
   const waAutoVerifiedRef = React.useRef(false);
   React.useEffect(() => {
-    if (activeTab === 'settings' && isLoggedIn && !waAutoVerifiedRef.current) {
-      waAutoVerifiedRef.current = true;
-      const timer = setTimeout(() => { handleVerifyWhatsApp(true); }, 800);
+    if (activeTab === 'settings' && isLoggedIn && !waAutoVerifiedRef.current && configData.whatsapp_token && configData.whatsapp_phone_id) {
+        waAutoVerifiedRef.current = true;
+        const timer = setTimeout(() => { handleVerifyWhatsApp(true); }, 800);
       return () => clearTimeout(timer);
     }
   }, [activeTab, isLoggedIn, configData.whatsapp_token, configData.whatsapp_phone_id]);
@@ -18718,6 +18718,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     </ThemeProvider>
   );
 }
+
 
 
 
