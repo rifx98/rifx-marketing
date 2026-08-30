@@ -35,6 +35,9 @@ const nextConfig = {
       { protocol: 'https', hostname: 'rfmoonr.com' },
     ],
   },
+  experimental: {
+    after: true,
+  },
   serverExternalPackages: ['@imgly/background-removal-node'],
   async redirects() {
     return [
