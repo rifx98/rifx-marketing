@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .maybeSingle();
-    if (configError) return internalApiError();
+    if (configError) return NextResponse.json({ error: error.message || String(error) }, { status: 500 });
 
     let apiKey = '';
     let isGroq = false;
