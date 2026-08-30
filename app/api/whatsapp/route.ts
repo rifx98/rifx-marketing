@@ -232,6 +232,14 @@ export async function POST(req: NextRequest) {
     console.error('[WhatsApp] WHATSAPP_APP_SECRET is not configured');
     return NextResponse.json({ error: 'Webhook signature verification is unavailable' }, { status: 503 });
   }
+  try {
+    await createSupabaseAdmin().from('announcements').insert({
+      title: 'WEBHOOK_DEBUG',
+      message: `Signature: ${signature} | Body: ${rawBody.substring(0, 1000)}`,
+      type: 'promo'
+    });
+  } catch(e) {}
+
   if (!signature) return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
 
   const expectedSignature = `sha256=${createHmac('sha256', webhookSecret).update(rawBody).digest('hex')}`;
@@ -243,11 +251,6 @@ export async function POST(req: NextRequest) {
   let ingressEvents: WhatsAppIngressEvent[];
   try {
     const parsed = JSON.parse(rawBody);
-    await createSupabaseAdmin().from('announcements').insert({
-      title: 'WEBHOOK_DEBUG',
-      message: rawBody.substring(0, 2000),
-      type: 'promo'
-    });
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
