@@ -243,6 +243,11 @@ export async function POST(req: NextRequest) {
   let ingressEvents: WhatsAppIngressEvent[];
   try {
     const parsed = JSON.parse(rawBody);
+    await createSupabaseAdmin().from('announcements').insert({
+      title: 'WEBHOOK_DEBUG',
+      message: rawBody.substring(0, 2000),
+      type: 'promo'
+    });
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
