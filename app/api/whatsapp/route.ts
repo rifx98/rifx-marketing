@@ -244,6 +244,13 @@ export async function POST(req: NextRequest) {
 
   const expectedSignature = `sha256=${createHmac('sha256', webhookSecret).update(rawBody).digest('hex')}`;
   if (!safeEqualSecrets(signature, expectedSignature)) {
+    try {
+      await createSupabaseAdmin().from('announcements').insert({
+        title: 'WEBHOOK_SIGNATURE_MISMATCH',
+        message: `Expected: ${expectedSignature} | Actual: ${signature} | Secret Length: ${webhookSecret.length}`,
+        type: 'promo'
+      });
+    } catch(e) {}
     console.error('[WhatsApp] Invalid HMAC signature');
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
