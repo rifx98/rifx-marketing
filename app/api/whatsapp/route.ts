@@ -304,7 +304,23 @@ export async function POST(req: NextRequest) {
   }
 
   const enqueued = Number(result?.enqueued_count || 0);
-  if (enqueued > 0) scheduleWhatsAppWorker(req);
+  try {
+    if (enqueued > 0) scheduleWhatsAppWorker(req);
+  } catch (e: any) {
+    await supabase.from('announcements').insert({
+      title: 'WEBHOOK_WORKER_FATAL',
+      message: `scheduleWhatsAppWorker exception: ${e.message}`,
+      type: 'promo'
+    });
+  }
+
+  try {
+    await supabase.from('announcements').insert({
+      title: 'WEBHOOK_SUCCESS',
+      message: `Final result: ${JSON.stringify(result)}`,
+      type: 'promo'
+    });
+  } catch(e) {}
 
   return NextResponse.json({
     status: 'accepted',
