@@ -412,17 +412,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
       
-      const CHUNK_SIZE = 20;
+      const CHUNK_SIZE = 50;
+      const chunks = [];
       for (let i = 0; i < announcementIds.length; i += CHUNK_SIZE) {
-        const chunk = announcementIds.slice(i, i + CHUNK_SIZE);
-        const { error } = await supabase
-          .from('announcements')
-          .delete()
-          .in('id', chunk);
-        if (error) {
-          console.error('Error en bulk_delete_announcements:', error);
-          return NextResponse.json({ error: 'No se pudieron eliminar algunos anuncios' }, { status: 500 });
-        }
+        chunks.push(announcementIds.slice(i, i + CHUNK_SIZE));
+      }
+
+      const results = await Promise.all(
+        chunks.map(chunk => supabase.from('announcements').delete().in('id', chunk))
+      );
+
+      const hasError = results.some(r => r.error);
+      if (hasError) {
+        console.error('Error en bulk_delete_announcements:', results.find(r => r.error)?.error);
+        return NextResponse.json({ error: 'No se pudieron eliminar algunos anuncios' }, { status: 500 });
       }
 
       return NextResponse.json({ success: true, deleted: announcementIds.length });
