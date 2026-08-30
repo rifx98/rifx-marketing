@@ -429,7 +429,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       .eq('id', tenantId)
       .maybeSingle();
     if (planOwnerError || !planOwner) {
-      console.error('[WhatsApp] Tenant entitlement lookup failed');
+      console.error('[WhatsApp] Tenant entitlement lookup failed:', tenantId, planOwnerError);
       return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
     }
     if (planOwner.is_active === false || planOwner.deleted_at || !tenantCanUseFeature({
@@ -1253,7 +1253,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
     if (!apiKey || apiKey.length < 10) {
       console.warn(`⚠️ No hay API Key para el modelo seleccionado (${selectedModel}). Buscando fallback...`);
       const fallbackOptions = [
-        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'qwen/qwen3.8-27b', name: 'Groq' },
+        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'mixtral-8x7b-32768', name: 'Groq' },
         { key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini', name: 'OpenAI' },
         { key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash', name: 'Gemini' },
       ];
@@ -1263,7 +1263,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
           console.log(`🔄 Fallback de API Key → usando ${fb.name} (${fb.model})`);
           apiKey = fb.key;
           selectedModel = fb.model;
-          isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
+          isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('gemma') || selectedModel.startsWith('deepseek');
           isGemini = selectedModel.startsWith('gemini');
           isOpenAI = !isGroq && !isGemini;
           foundFallback = true;

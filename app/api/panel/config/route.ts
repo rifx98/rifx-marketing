@@ -23,8 +23,8 @@ const MODELS = new Set([
   'gemini-2.0-flash',
   'gemini-1.5-pro',
   'gemini-1.5-flash',
-  'qwen/qwen3.8-27b',
-  'llama-3.1-8b-instant',
+  'llama-3.3-70b-versatile',
+  'llama3-8b-8192',
   'mixtral-8x7b-32768',
 ]);
 const VISUAL_PROVIDERS = new Set(['openai', 'flux']);

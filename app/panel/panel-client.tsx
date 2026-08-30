@@ -9267,7 +9267,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         >
                           <optgroup label="OpenAI"><option value="gpt-4o">GPT-4o (Recomendado)</option><option value="gpt-4o-mini">GPT-4o Mini</option><option value="gpt-4-turbo">GPT-4 Turbo</option><option value="gpt-3.5-turbo">GPT-3.5 Turbo</option></optgroup>
                           <optgroup label="Google Gemini"><option value="gemini-2.0-flash">Gemini 2.0 Flash</option><option value="gemini-1.5-pro">Gemini 1.5 Pro</option><option value="gemini-1.5-flash">Gemini 1.5 Flash</option></optgroup>
-                          <optgroup label="Groq"><option value="qwen/qwen3.8-27b">Llama 3.3 70B</option><option value="llama-3.1-8b-instant">Llama 3.1 8B</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option></optgroup>
+                          <optgroup label="Groq"><option value="llama-3.3-70b-versatile">Llama 3.3 70B</option><option value="llama3-8b-8192">Llama 3 8B</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option></optgroup>
                         </select>
                       </div>
                       <div className="space-y-3">
