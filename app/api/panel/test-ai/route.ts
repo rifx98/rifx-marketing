@@ -103,13 +103,13 @@ export async function POST(req: NextRequest) {
 
     let targetModel = selectedModel;
     if (targetModel === 'llama-3.3-70b') {
-      targetModel = 'llama-3.3-70b-versatile';
+      targetModel = 'qwen/qwen3.8-27b';
     } else if (targetModel === 'mixtral-8x7b') {
       targetModel = 'llama-3.1-8b-instant'; // mixtral-8x7b-32768 deprecated, use llama fallback
     } else if (targetModel === 'llama-3.1-405b') {
-      targetModel = 'llama-3.3-70b-versatile'; // 405b-reasoning no longer exists on Groq
+      targetModel = 'qwen/qwen3.8-27b'; // 405b-reasoning no longer exists on Groq
     } else if (targetModel === 'llama-3.1-405b-reasoning') {
-      targetModel = 'llama-3.3-70b-versatile'; // direct fix if stored as full name
+      targetModel = 'qwen/qwen3.8-27b'; // direct fix if stored as full name
     }
 
     let isGroq = targetModel.startsWith('llama') || targetModel.startsWith('mixtral') || targetModel === 'llama-3.1-8b-instant';
@@ -135,9 +135,9 @@ export async function POST(req: NextRequest) {
       // Fallback: try Groq if available and we're not already trying Groq
       const groqFallbackKey = extConfig.groq_key || process.env.GROQ_API_KEY || '';
       if (!isGroq && groqFallbackKey && groqFallbackKey.length >= 10) {
-        console.warn(`⚠️ test-ai: No API key for ${selectedModel} (${isOpenAI ? 'OpenAI' : isGemini ? 'Gemini' : 'Anthropic'}). Falling back to Groq (llama-3.3-70b-versatile).`);
+        console.warn(`⚠️ test-ai: No API key for ${selectedModel} (${isOpenAI ? 'OpenAI' : isGemini ? 'Gemini' : 'Anthropic'}). Falling back to Groq (qwen/qwen3.8-27b).`);
         apiKey = groqFallbackKey;
-        targetModel = 'llama-3.3-70b-versatile';
+        targetModel = 'qwen/qwen3.8-27b';
         // Update provider flags for downstream logic
         isGroq = true;
         isGemini = false;

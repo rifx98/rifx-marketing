@@ -152,7 +152,7 @@ Do NOT reference any other product category. The product analysis above is your 
     console.log(`[GROQ][STAGE 2] Prompt Enviado:\n${userPrompt.substring(0, 400)}...`);
 
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -317,7 +317,7 @@ PROMPT SENT TO FLUX:
     console.log(`[QA][STAGE 6] Prompt Enviado:\n${userPrompt}`);
 
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -382,7 +382,7 @@ PROMPT SENT TO FLUX:
 
     const groq = getGroqClient();
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -447,7 +447,7 @@ Generate art direction that uses the template's VISUAL STRUCTURE but the product
 
     const groq = getGroqClient();
     const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         {

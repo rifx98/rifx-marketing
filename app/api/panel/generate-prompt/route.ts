@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
           isGemini = true;
         } else if (p.groq_key) {
           apiKey = p.groq_key;
-          modelName = 'llama-3.3-70b-versatile';
+          modelName = 'qwen/qwen3.8-27b';
           isGroq = true;
         }
       } catch {
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         modelName = 'gpt-4o';
       } else if (process.env.GROQ_API_KEY) {
         apiKey = process.env.GROQ_API_KEY;
-        modelName = 'llama-3.3-70b-versatile';
+        modelName = 'qwen/qwen3.8-27b';
         isGroq = true;
       } else if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
         apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';

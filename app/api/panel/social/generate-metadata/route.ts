@@ -90,7 +90,7 @@ El idioma de la respuesta debe ser estrictamente español.`;
 Mejora y optimiza esta información para redes sociales.`;
 
     const completion = await client.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },

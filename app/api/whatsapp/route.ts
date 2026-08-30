@@ -1204,7 +1204,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
     if (!apiKey || apiKey.length < 10) {
       console.warn(`⚠️ No hay API Key para el modelo seleccionado (${selectedModel}). Buscando fallback...`);
       const fallbackOptions = [
-        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'llama-3.3-70b-versatile', name: 'Groq' },
+        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'qwen/qwen3.8-27b', name: 'Groq' },
         { key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini', name: 'OpenAI' },
         { key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash', name: 'Gemini' },
       ];
@@ -1449,7 +1449,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
             fallbackProviders.push({ name: 'Gemini', key: extConfig.gemini_key || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '', model: 'gemini-2.0-flash' });
           }
           if (!isGroq && (extConfig.groq_key || process.env.GROQ_API_KEY)) {
-            fallbackProviders.push({ name: 'Groq', key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'llama-3.3-70b-versatile', baseURL: 'https://api.groq.com/openai/v1' });
+            fallbackProviders.push({ name: 'Groq', key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'qwen/qwen3.8-27b', baseURL: 'https://api.groq.com/openai/v1' });
           }
 
           for (const fb of fallbackProviders) {

@@ -23,7 +23,7 @@ const MODELS = new Set([
   'gemini-2.0-flash',
   'gemini-1.5-pro',
   'gemini-1.5-flash',
-  'llama-3.3-70b-versatile',
+  'qwen/qwen3.8-27b',
   'llama-3.1-8b-instant',
   'mixtral-8x7b-32768',
 ]);

@@ -160,7 +160,7 @@ export async function runLeadFollowUps(options: {
         // Fallback de seguridad en caso de ausencia de API keys específicas
         if (!apiKey || apiKey.length < 10) {
           const fallbackOptions = [
-            { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'llama-3.3-70b-versatile', name: 'Groq' },
+            { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'qwen/qwen3.8-27b', name: 'Groq' },
             { key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini', name: 'OpenAI' },
             { key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash', name: 'Gemini' },
           ];

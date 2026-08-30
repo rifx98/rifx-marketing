@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
           maxRetries: 1,
         });
         const completion = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
+          model: 'qwen/qwen3.8-27b',
           messages: [
             {
               role: 'system',
