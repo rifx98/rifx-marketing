@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from('platform_settings')
-      .select('id,platform_name,platform_logo,sidebar_order,plan_permissions,updated_at')
+      .select('id,platform_name,platform_logo,sidebar_order,plan_permissions,global_ai_config,updated_at')
       .limit(1)
       .single();
 
@@ -29,8 +29,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         platform_name: 'Sovereign',
         platform_logo: null,
-        sidebar_order: ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin']
+        sidebar_order: ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+        global_ai_config: { enabled: false, provider: '', model: '', apiKey: '' }
       });
+    }
+
+    // Redact apiKey before sending to frontend
+    if (data.global_ai_config && data.global_ai_config.apiKey) {
+      data.global_ai_config.apiKey = '***';
+    } else if (!data.global_ai_config) {
+      data.global_ai_config = { enabled: false, provider: '', model: '', apiKey: '' };
     }
 
     return NextResponse.json(data);
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
     const parsedBody = await readLimitedJsonObject(request, 64 * 1024);
     if (!parsedBody.ok) return parsedBody.response;
     const body = parsedBody.body;
-    const { platform_name, platform_logo, sidebar_order } = body;
+    const { platform_name, platform_logo, sidebar_order, global_ai_config } = body;
 
     if (
       typeof platform_name !== 'string'
@@ -72,21 +80,28 @@ export async function POST(request: NextRequest) {
     // Check if a row exists
     const { data: existing } = await supabase
       .from('platform_settings')
-      .select('id')
+      .select('id,global_ai_config')
       .limit(1)
       .single();
+
+    let finalAiConfig = global_ai_config || existing?.global_ai_config || { enabled: false, provider: '', model: '', apiKey: '' };
+    
+    // If the frontend sends '***' for the api key, preserve the existing one in the database
+    if (global_ai_config && global_ai_config.apiKey === '***') {
+      finalAiConfig.apiKey = existing?.global_ai_config?.apiKey || '';
+    }
 
     let result;
     if (existing) {
       result = await supabase
         .from('platform_settings')
-        .update({ platform_name, platform_logo, sidebar_order, updated_at: new Date().toISOString() })
+        .update({ platform_name, platform_logo, sidebar_order, global_ai_config: finalAiConfig, updated_at: new Date().toISOString() })
         .eq('id', existing.id)
         .select();
     } else {
       result = await supabase
         .from('platform_settings')
-        .insert({ platform_name, platform_logo, sidebar_order })
+        .insert({ platform_name, platform_logo, sidebar_order, global_ai_config: finalAiConfig })
         .select();
     }
 

@@ -232,25 +232,13 @@ export async function POST(req: NextRequest) {
     console.error('[WhatsApp] WHATSAPP_APP_SECRET is not configured');
     return NextResponse.json({ error: 'Webhook signature verification is unavailable' }, { status: 503 });
   }
-  try {
-    await createSupabaseAdmin().from('announcements').insert({
-      title: 'WEBHOOK_DEBUG',
-      message: `Signature: ${signature} | Body: ${rawBody.substring(0, 1000)}`,
-      type: 'promo'
-    });
-  } catch(e) {}
+
 
   if (!signature) return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
 
   const expectedSignature = `sha256=${createHmac('sha256', webhookSecret).update(rawBody).digest('hex')}`;
   if (!safeEqualSecrets(signature, expectedSignature)) {
-    try {
-      await createSupabaseAdmin().from('announcements').insert({
-        title: 'WEBHOOK_SIGNATURE_MISMATCH',
-        message: `Expected: ${expectedSignature} | Actual: ${signature} | Secret Length: ${webhookSecret.length}`,
-        type: 'promo'
-      });
-    } catch(e) {}
+
     console.error('[WhatsApp] Invalid HMAC signature');
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
@@ -282,11 +270,6 @@ export async function POST(req: NextRequest) {
     });
     
     if (error) {
-      await supabase.from('announcements').insert({
-        title: 'WEBHOOK_FATAL',
-        message: `RPC Error object: ${error.message || error.code || 'unknown'}`,
-        type: 'promo'
-      });
       console.error('[WhatsApp] Durable ingress enqueue failed:', error.code || 'database_error');
       return NextResponse.json(
         { error: 'Ingress temporarily unavailable' },
@@ -296,11 +279,7 @@ export async function POST(req: NextRequest) {
     
     result = Array.isArray(data) ? data[0] : data;
   } catch (e: any) {
-    await supabase.from('announcements').insert({
-      title: 'WEBHOOK_FATAL',
-      message: `Exception: ${e.message}\n${e.stack}`,
-      type: 'promo'
-    });
+    console.error('[WhatsApp] Exception during ingress enqueue:', e.message);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
@@ -314,20 +293,10 @@ export async function POST(req: NextRequest) {
   try {
     if (enqueued > 0) scheduleWhatsAppWorker(req);
   } catch (e: any) {
-    await supabase.from('announcements').insert({
-      title: 'WEBHOOK_WORKER_FATAL',
-      message: `scheduleWhatsAppWorker exception: ${e.message}`,
-      type: 'promo'
-    });
+    console.error('[WhatsApp] scheduleWhatsAppWorker exception:', e.message);
   }
 
-  try {
-    await supabase.from('announcements').insert({
-      title: 'WEBHOOK_SUCCESS',
-      message: `Final result: ${JSON.stringify(result)}`,
-      type: 'promo'
-    });
-  } catch(e) {}
+
 
   return NextResponse.json({
     status: 'accepted',
@@ -422,6 +391,39 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     }
     const config: Record<string, any> = matchedConfig;
     const tenantId = claimedTenantId;
+
+    try {
+      const { data: globalSet } = await supabase
+        .from('platform_settings')
+        .select('global_ai_config')
+        .limit(1)
+        .single();
+      
+      const globalAiConfig = globalSet?.global_ai_config;
+      if (globalAiConfig && globalAiConfig.enabled) {
+        config.model_selection = globalAiConfig.model || config.model_selection;
+        
+        let targetKeyField = 'openai_key'; // Default to openai config space
+        if (globalAiConfig.provider === 'gemini') targetKeyField = 'gemini_key';
+        else if (globalAiConfig.provider === 'groq') targetKeyField = 'groq_key';
+        
+        // We inject the API key directly into the root config, and also ensure extConfig gets it later
+        config[targetKeyField] = globalAiConfig.apiKey;
+        
+        // If the user uses a JSON string in openai_key for extended config, we shouldn't overwrite the whole JSON if we can avoid it.
+        // But since we extract extConfig later from JSON.parse(config.openai_key), we can just let it fall back or we inject it into the JSON if it's already a JSON string.
+        try {
+          const parsedExt = JSON.parse(config.openai_key || '{}');
+          parsedExt[targetKeyField] = globalAiConfig.apiKey;
+          parsedExt.model_selection = globalAiConfig.model;
+          config.openai_key = JSON.stringify(parsedExt);
+        } catch {
+          // not json, do nothing extra
+        }
+      }
+    } catch (e) {
+      console.error('[WhatsApp] Error reading global_ai_config', e);
+    }
 
     const { data: planOwner, error: planOwnerError } = await supabase
       .from('tenants')

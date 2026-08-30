@@ -1692,6 +1692,15 @@ export default function PanelClient() {
     return () => { cancelled = true; };
   }, [activeTab]);
   const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
+  const [adminGlobalAi, setAdminGlobalAi] = useState<{enabled: boolean, provider: string, model: string, apiKey: string} | null>(null);
+  
+  useEffect(() => {
+    if (settingsSection === 'ai' && tenantData?.isAdmin) {
+      authFetch('/api/admin/platform-settings').then(res => res.json()).then(data => {
+        if (data && data.global_ai_config) setAdminGlobalAi(data.global_ai_config);
+      }).catch(err => console.error(err));
+    }
+  }, [settingsSection, tenantData?.isAdmin]);
 
   // API Setup Assistant State
   const [apiHelperFlow, setApiHelperFlow] = useState<'idle' | 'whatsapp' | 'meta'>('idle');
@@ -5904,6 +5913,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setAdminActionLoading(false);
   };
 
+  const handleDeleteAllWebhookAnnouncements = async () => {
+    const webhookAnns = (adminData?.announcements || []).filter(a => a.title.startsWith('WEBHOOK_'));
+    if (webhookAnns.length === 0) return;
+    
+    setAdminActionLoading(true);
+    try {
+      await authFetch('/api/admin/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'bulk_delete_announcements', announcementIds: webhookAnns.map(a => a.id) }),
+      });
+      setToast({ type: 'success', message: `${webhookAnns.length} anuncios basura eliminados` });
+      loadAdminData();
+    } catch (e) { console.error(e); }
+    setAdminActionLoading(false);
+  };
+
   const handleToggleAnnouncement = async (id: string, isActive: boolean) => {
     try {
       await authFetch('/api/admin/dashboard', {
@@ -9169,6 +9195,96 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your AI provider and connection credentials.' : 'Configura tu proveedor de IA y credenciales de conexión.'}</p>
                     </div>
 
+                    {tenantData?.isAdmin && (
+                      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 p-6 shadow-lg mb-6 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                          <span className="material-symbols-outlined text-8xl text-white" style={{ fontVariationSettings: "'FILL' 1" }}>admin_panel_settings</span>
+                        </div>
+                        <div className="relative z-10 space-y-4">
+                          <div className="flex items-center gap-3">
+                            <span className="material-symbols-outlined text-[#00c6ff] text-2xl">public</span>
+                            <div>
+                              <h4 className="text-white font-bold text-sm">Configuración Global de IA (Super Admin)</h4>
+                              <p className="text-slate-400 text-[10px] mt-0.5">Fuerza a todos los usuarios a usar esta misma API.</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between py-3 border-t border-slate-700/50">
+                            <div>
+                              <span className="text-white font-bold text-xs">Forzar API Global</span>
+                              <p className="text-slate-400 text-[9px] mt-0.5">Al activarlo, los usuarios no podrán usar sus propias llaves.</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input type="checkbox" className="sr-only peer" checked={adminGlobalAi?.enabled || false} onChange={e => setAdminGlobalAi({ ...(adminGlobalAi || { provider: 'openai', model: 'gpt-4o', apiKey: '' }), enabled: e.target.checked } as any)} />
+                              <div className="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00c6ff]"></div>
+                            </label>
+                          </div>
+
+                          {adminGlobalAi?.enabled && (
+                            <div className="space-y-4 pt-2">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Proveedor</label>
+                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#00c6ff]"
+                                    value={adminGlobalAi?.provider || 'openai'}
+                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, provider: e.target.value } as any)}
+                                  >
+                                    <option value="openai">OpenAI</option>
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="groq">Groq</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</label>
+                                  <input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#00c6ff]"
+                                    value={adminGlobalAi?.model || ''} placeholder="ej. gpt-4o, gemini-1.5-pro"
+                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">API Key Global</label>
+                                <input type="password" placeholder="Ingresa la llave maestra..." className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none focus:border-[#00c6ff]"
+                                  value={adminGlobalAi?.apiKey || ''}
+                                  onChange={e => setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any)}
+                                />
+                              </div>
+                              <button onClick={async () => {
+                                try {
+                                  const getRes = await authFetch('/api/admin/platform-settings');
+                                  const curr = await getRes.json();
+                                  await authFetch('/api/admin/platform-settings', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      platform_name: curr.platform_name || 'Sovereign',
+                                      sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+                                      global_ai_config: adminGlobalAi
+                                    })
+                                  });
+                                  setToast({ type: 'success', message: 'Configuración global guardada exitosamente' });
+                                } catch (err) {
+                                  setToast({ type: 'error', message: 'Error al guardar la configuración global' });
+                                }
+                              }} className="w-full py-2 bg-[#00c6ff] hover:bg-[#0099cc] text-slate-900 font-bold text-xs rounded-xl transition-all">Guardar Global API</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {configData.global_ai_enabled ? (
+                      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center flex flex-col items-center justify-center space-y-4 shadow-inner">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100">
+                          <span className="material-symbols-outlined text-4xl text-[#0058bc]">admin_panel_settings</span>
+                        </div>
+                        <div>
+                          <h4 className="text-[#0b1c30] font-black text-sm">Administrado Globalmente</h4>
+                          <p className="text-slate-500 text-[11px] mt-1 max-w-[280px]">El administrador de la plataforma ha configurado la Inteligencia Artificial de forma global. No necesitas ingresar tu propia llave.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
                     {/* Provider selector */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                       <div className="flex items-center justify-between">
@@ -9288,6 +9404,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </label>
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -16724,10 +16842,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <h3 className="text-lg font-extrabold text-primary">Anuncios del Sistema</h3>
                           <p className="text-xs text-slate-400 mt-1">Los anuncios activos se muestran a todos los usuarios en su dashboard</p>
                         </div>
-                        <button onClick={() => showAnnForm ? resetAnnForm() : setShowAnnForm(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all">
-                          <span className="material-symbols-outlined text-sm">add</span>
-                          Nuevo Anuncio
-                        </button>
+                        <div className="flex items-center gap-3">
+                          {adminData?.announcements?.some(a => a.title.startsWith('WEBHOOK_')) && (
+                            <button onClick={handleDeleteAllWebhookAnnouncements} className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-all">
+                              <span className="material-symbols-outlined text-sm">delete_sweep</span>
+                              Limpiar Errores
+                            </button>
+                          )}
+                          <button onClick={() => showAnnForm ? resetAnnForm() : setShowAnnForm(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all">
+                            <span className="material-symbols-outlined text-sm">add</span>
+                            Nuevo Anuncio
+                          </button>
+                        </div>
                       </div>
 
                       {showAnnForm && (

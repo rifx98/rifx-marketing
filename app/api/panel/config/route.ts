@@ -213,21 +213,32 @@ export async function GET(req: NextRequest) {
     const rateDenied = await enforceTenantRateLimit('panel-config-read', tenant.tenantId, 120, 60_000);
     if (rateDenied) return rateDenied;
 
-    const { data: config, error } = await createSupabaseAdmin()
+    const supabase = createSupabaseAdmin();
+    const { data: config, error } = await supabase
       .from('config')
       .select('whatsapp_token,whatsapp_phone_id,wa_display_phone,openai_key,payphone_token,payphone_store_id,ai_prompt,media_retention_days,alert_email,email_alerts,push_notifications,monthly_briefing')
       .eq('tenant_id', tenant.tenantId)
       .maybeSingle();
+
+    const { data: platformSettings } = await supabase
+      .from('platform_settings')
+      .select('global_ai_config')
+      .limit(1)
+      .single();
+
+    const globalAiEnabled = platformSettings?.global_ai_config?.enabled === true;
+
     if (error) {
       console.error('Panel configuration lookup failed:', error.code || 'database_error');
       return internalApiError();
     }
     if (!config) {
-      return NextResponse.json(EMPTY_CONFIG, { headers: { 'Cache-Control': 'private, no-store' } });
+      return NextResponse.json({ ...EMPTY_CONFIG, global_ai_enabled: globalAiEnabled }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     const extended = decodeExtendedConfig(config.openai_key);
     return NextResponse.json({
+      global_ai_enabled: globalAiEnabled,
       whatsapp_token: redactSecret(config.whatsapp_token),
       whatsapp_token_configured: Boolean(config.whatsapp_token),
       whatsapp_phone_id: storedString(config.whatsapp_phone_id, 30),

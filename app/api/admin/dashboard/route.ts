@@ -405,6 +405,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // Action: bulk_delete_announcements
+    if (body.action === 'bulk_delete_announcements') {
+      const { announcementIds } = body;
+      if (!Array.isArray(announcementIds) || announcementIds.length === 0) {
+        return NextResponse.json({ success: true });
+      }
+      const { error } = await supabase
+        .from('announcements')
+        .delete()
+        .in('id', announcementIds);
+
+      if (error) return NextResponse.json({ error: 'No se pudieron eliminar los anuncios' }, { status: 500 });
+      return NextResponse.json({ success: true, deleted: announcementIds.length });
+    }
+
     // Action: toggle_announcement
     if (body.action === 'toggle_announcement') {
       const { announcementId, isActive } = body;
