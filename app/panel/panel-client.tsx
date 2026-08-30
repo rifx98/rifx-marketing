@@ -3720,6 +3720,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [newAnnTitle, setNewAnnTitle] = useState('');
   const [newAnnMessage, setNewAnnMessage] = useState('');
   const [newAnnType, setNewAnnType] = useState<'info' | 'update' | 'warning' | 'promo' | 'training'>('info');
+  const [selectedAnnouncements, setSelectedAnnouncements] = useState<string[]>([]);
   const [showAnnForm, setShowAnnForm] = useState(false);
   const [editingTenantId, setEditingTenantId] = useState<string | null>(null);
   const [editingTenantPlan, setEditingTenantPlan] = useState('trial');
@@ -5913,18 +5914,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setAdminActionLoading(false);
   };
 
-  const handleDeleteAllWebhookAnnouncements = async () => {
-    const webhookAnns = (adminData?.announcements || []).filter(a => a.title.startsWith('WEBHOOK_'));
-    if (webhookAnns.length === 0) return;
+  const handleDeleteSelectedAnnouncements = async () => {
+    if (selectedAnnouncements.length === 0) return;
     
     setAdminActionLoading(true);
     try {
       await authFetch('/api/admin/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'bulk_delete_announcements', announcementIds: webhookAnns.map(a => a.id) }),
+        body: JSON.stringify({ action: 'bulk_delete_announcements', announcementIds: selectedAnnouncements }),
       });
-      setToast({ type: 'success', message: `${webhookAnns.length} anuncios basura eliminados` });
+      setToast({ type: 'success', message: `${selectedAnnouncements.length} anuncios eliminados` });
+      setSelectedAnnouncements([]);
       loadAdminData();
     } catch (e) { console.error(e); }
     setAdminActionLoading(false);
@@ -16843,10 +16844,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <p className="text-xs text-slate-400 mt-1">Los anuncios activos se muestran a todos los usuarios en su dashboard</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          {adminData?.announcements?.some(a => a.title.startsWith('WEBHOOK_')) && (
-                            <button onClick={handleDeleteAllWebhookAnnouncements} className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-all">
-                              <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                              Limpiar Errores
+                          <label className="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer select-none mr-2">
+                            <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                              checked={adminData?.announcements?.length > 0 && selectedAnnouncements.length === adminData?.announcements?.length}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setSelectedAnnouncements((adminData?.announcements || []).map(a => a.id));
+                                } else {
+                                  setSelectedAnnouncements([]);
+                                }
+                              }}
+                            />
+                            Seleccionar Todos
+                          </label>
+                          {selectedAnnouncements.length > 0 && (
+                            <button onClick={handleDeleteSelectedAnnouncements} className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-all">
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                              Eliminar Seleccionados ({selectedAnnouncements.length})
                             </button>
                           )}
                           <button onClick={() => showAnnForm ? resetAnnForm() : setShowAnnForm(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:opacity-90 transition-all">
@@ -16997,6 +17011,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 )}
                                 <div className="flex items-start justify-between gap-4">
                                   <div className="flex items-start gap-4 flex-1">
+                                    <div className="pt-2.5">
+                                      <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                                        checked={selectedAnnouncements.includes(ann.id)}
+                                        onChange={e => {
+                                          if (e.target.checked) setSelectedAnnouncements([...selectedAnnouncements, ann.id]);
+                                          else setSelectedAnnouncements(selectedAnnouncements.filter(id => id !== ann.id));
+                                        }}
+                                      />
+                                    </div>
                                     <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0`}>
                                       <span className={`material-symbols-outlined ${cfg.text}`}>{cfg.icon}</span>
                                     </div>
