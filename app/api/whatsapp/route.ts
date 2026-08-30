@@ -267,27 +267,36 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createSupabaseAdmin();
-  const { data, error } = await supabase.rpc('enqueue_whatsapp_ingress_batch', {
-    p_events: ingressEvents,
-  });
-
+  let result;
+  
   try {
+    const { data, error } = await supabase.rpc('enqueue_whatsapp_ingress_batch', {
+      p_events: ingressEvents,
+    });
+    
+    if (error) {
+      await supabase.from('announcements').insert({
+        title: 'WEBHOOK_FATAL',
+        message: `RPC Error object: ${error.message || error.code || 'unknown'}`,
+        type: 'promo'
+      });
+      console.error('[WhatsApp] Durable ingress enqueue failed:', error.code || 'database_error');
+      return NextResponse.json(
+        { error: 'Ingress temporarily unavailable' },
+        { status: 503, headers: { 'Retry-After': '2' } },
+      );
+    }
+    
+    result = Array.isArray(data) ? data[0] : data;
+  } catch (e: any) {
     await supabase.from('announcements').insert({
-      title: 'WEBHOOK_DEBUG_2',
-      message: `RPC Result: ${JSON.stringify({ data, error })}`,
+      title: 'WEBHOOK_FATAL',
+      message: `Exception: ${e.message}\n${e.stack}`,
       type: 'promo'
     });
-  } catch(e) {}
-
-  if (error) {
-    console.error('[WhatsApp] Durable ingress enqueue failed:', error.code || 'database_error');
-    return NextResponse.json(
-      { error: 'Ingress temporarily unavailable' },
-      { status: 503, headers: { 'Retry-After': '2' } },
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 
-  const result = Array.isArray(data) ? data[0] : data;
   const conflicts = Number(result?.conflict_count || 0);
   if (conflicts > 0) {
     console.error('[WhatsApp] Provider message identity conflict');
