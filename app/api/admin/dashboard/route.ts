@@ -412,7 +412,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
       
-      const CHUNK_SIZE = 100;
+      const CHUNK_SIZE = 20;
       for (let i = 0; i < announcementIds.length; i += CHUNK_SIZE) {
         const chunk = announcementIds.slice(i, i + CHUNK_SIZE);
         const { error } = await supabase
