@@ -9200,83 +9200,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your AI provider and connection credentials.' : 'Configura tu proveedor de IA y credenciales de conexión.'}</p>
                     </div>
 
-                    {tenantData?.isAdmin && (
-                      <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 p-6 shadow-lg mb-6 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10">
-                          <span className="material-symbols-outlined text-8xl text-white" style={{ fontVariationSettings: "'FILL' 1" }}>admin_panel_settings</span>
-                        </div>
-                        <div className="relative z-10 space-y-4">
-                          <div className="flex items-center gap-3">
-                            <span className="material-symbols-outlined text-[#00c6ff] text-2xl">public</span>
-                            <div>
-                              <h4 className="text-white font-bold text-sm">Configuración Global de IA (Super Admin)</h4>
-                              <p className="text-slate-400 text-[10px] mt-0.5">Fuerza a todos los usuarios a usar esta misma API.</p>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center justify-between py-3 border-t border-slate-700/50">
-                            <div>
-                              <span className="text-white font-bold text-xs">Forzar API Global</span>
-                              <p className="text-slate-400 text-[9px] mt-0.5">Al activarlo, los usuarios no podrán usar sus propias llaves.</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input type="checkbox" className="sr-only peer" checked={adminGlobalAi?.enabled || false} onChange={e => setAdminGlobalAi({ ...(adminGlobalAi || { provider: 'openai', model: 'gpt-4o', apiKey: '' }), enabled: e.target.checked } as any)} />
-                              <div className="w-9 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00c6ff]"></div>
-                            </label>
-                          </div>
 
-                          {adminGlobalAi?.enabled && (
-                            <div className="space-y-4 pt-2">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Proveedor</label>
-                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#00c6ff]"
-                                    value={adminGlobalAi?.provider || 'openai'}
-                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, provider: e.target.value } as any)}
-                                  >
-                                    <option value="openai">OpenAI</option>
-                                    <option value="gemini">Google Gemini</option>
-                                    <option value="groq">Groq</option>
-                                  </select>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</label>
-                                  <input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#00c6ff]"
-                                    value={adminGlobalAi?.model || ''} placeholder="ej. gpt-4o, gemini-1.5-pro"
-                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">API Key Global</label>
-                                <input type="password" placeholder="Ingresa la llave maestra..." className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none focus:border-[#00c6ff]"
-                                  value={adminGlobalAi?.apiKey || ''}
-                                  onChange={e => setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any)}
-                                />
-                              </div>
-                              <button onClick={async () => {
-                                try {
-                                  const getRes = await authFetch('/api/admin/platform-settings');
-                                  const curr = await getRes.json();
-                                  await authFetch('/api/admin/platform-settings', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      platform_name: curr.platform_name || 'Sovereign',
-                                      sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
-                                      global_ai_config: adminGlobalAi
-                                    })
-                                  });
-                                  setToast({ type: 'success', message: 'Configuración global guardada exitosamente' });
-                                } catch (err) {
-                                  setToast({ type: 'error', message: 'Error al guardar la configuración global' });
-                                }
-                              }} className="w-full py-2 bg-[#00c6ff] hover:bg-[#0099cc] text-slate-900 font-bold text-xs rounded-xl transition-all">Guardar Global API</button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
 
                     {configData.global_ai_enabled ? (
                       <div className="bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center flex flex-col items-center justify-center space-y-4 shadow-inner">
@@ -17234,6 +17158,85 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <p className="text-[9px] text-slate-400">Necesaria para FLUX Inpainting (fal.ai)</p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Global AI Config (Admin Only) */}
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 p-8 shadow-lg relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <span className="material-symbols-outlined text-8xl text-white" style={{ fontVariationSettings: "'FILL' 1" }}>public</span>
+                      </div>
+                      <div className="relative z-10 space-y-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-[#00c6ff]/20 flex items-center justify-center text-[#00c6ff]">
+                            <span className="material-symbols-outlined text-2xl">admin_panel_settings</span>
+                          </div>
+                          <div>
+                            <h4 className="text-white font-bold text-lg">Configuración Global de IA (Chatbot)</h4>
+                            <p className="text-slate-400 text-xs mt-0.5">Fuerza a todos los usuarios a usar esta API para el chatbot de WhatsApp.</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between py-4 border-y border-slate-700/50">
+                          <div>
+                            <span className="text-white font-bold text-sm">Forzar API Global</span>
+                            <p className="text-slate-400 text-[10px] mt-0.5">Al activarlo, los usuarios no podrán usar sus propias llaves en la pestaña de configuración.</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={adminGlobalAi?.enabled || false} onChange={e => setAdminGlobalAi({ ...(adminGlobalAi || { provider: 'openai', model: 'gpt-4o', apiKey: '' }), enabled: e.target.checked } as any)} />
+                            <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00c6ff]"></div>
+                          </label>
+                        </div>
+
+                        {adminGlobalAi?.enabled && (
+                          <div className="space-y-5 pt-2">
+                            <div className="grid grid-cols-2 gap-5">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Proveedor</label>
+                                <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                  value={adminGlobalAi?.provider || 'openai'}
+                                  onChange={e => setAdminGlobalAi({ ...adminGlobalAi, provider: e.target.value } as any)}
+                                >
+                                  <option value="openai">OpenAI</option>
+                                  <option value="gemini">Google Gemini</option>
+                                  <option value="groq">Groq</option>
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</label>
+                                <input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                  value={adminGlobalAi?.model || ''} placeholder="ej. gpt-4o, gemini-1.5-pro"
+                                  onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">API Key Global</label>
+                              <input type="password" placeholder="Ingresa la llave maestra..." className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono text-white outline-none focus:border-[#00c6ff]"
+                                value={adminGlobalAi?.apiKey || ''}
+                                onChange={e => setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any)}
+                              />
+                            </div>
+                            <button onClick={async () => {
+                              try {
+                                const getRes = await authFetch('/api/admin/platform-settings');
+                                const curr = await getRes.json();
+                                await authFetch('/api/admin/platform-settings', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    platform_name: curr.platform_name || 'Sovereign',
+                                    sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+                                    global_ai_config: adminGlobalAi
+                                  })
+                                });
+                                setToast({ type: 'success', message: 'Configuración global guardada exitosamente' });
+                              } catch (err) {
+                                setToast({ type: 'error', message: 'Error al guardar la configuración global' });
+                              }
+                            }} className="w-full py-3 mt-4 bg-[#00c6ff] hover:bg-[#0099cc] text-slate-900 font-bold text-sm rounded-xl transition-all shadow-lg shadow-[#00c6ff]/20">Guardar Global API (Chatbot)</button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
