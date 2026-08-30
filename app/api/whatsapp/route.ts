@@ -270,6 +270,15 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase.rpc('enqueue_whatsapp_ingress_batch', {
     p_events: ingressEvents,
   });
+
+  try {
+    await supabase.from('announcements').insert({
+      title: 'WEBHOOK_DEBUG_2',
+      message: `RPC Result: ${JSON.stringify({ data, error })}`,
+      type: 'promo'
+    });
+  } catch(e) {}
+
   if (error) {
     console.error('[WhatsApp] Durable ingress enqueue failed:', error.code || 'database_error');
     return NextResponse.json(
