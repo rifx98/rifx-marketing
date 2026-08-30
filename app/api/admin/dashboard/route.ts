@@ -411,12 +411,20 @@ export async function POST(req: NextRequest) {
       if (!Array.isArray(announcementIds) || announcementIds.length === 0) {
         return NextResponse.json({ success: true });
       }
-      const { error } = await supabase
-        .from('announcements')
-        .delete()
-        .in('id', announcementIds);
+      
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < announcementIds.length; i += CHUNK_SIZE) {
+        const chunk = announcementIds.slice(i, i + CHUNK_SIZE);
+        const { error } = await supabase
+          .from('announcements')
+          .delete()
+          .in('id', chunk);
+        if (error) {
+          console.error('Error en bulk_delete_announcements:', error);
+          return NextResponse.json({ error: 'No se pudieron eliminar algunos anuncios' }, { status: 500 });
+        }
+      }
 
-      if (error) return NextResponse.json({ error: 'No se pudieron eliminar los anuncios' }, { status: 500 });
       return NextResponse.json({ success: true, deleted: announcementIds.length });
     }
 

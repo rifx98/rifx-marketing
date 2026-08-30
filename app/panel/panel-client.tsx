@@ -5919,15 +5919,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     
     setAdminActionLoading(true);
     try {
-      await authFetch('/api/admin/dashboard', {
+      const res = await authFetch('/api/admin/dashboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'bulk_delete_announcements', announcementIds: selectedAnnouncements }),
       });
+      if (!res.ok) throw new Error('Error al borrar los anuncios');
       setToast({ type: 'success', message: `${selectedAnnouncements.length} anuncios eliminados` });
       setSelectedAnnouncements([]);
       loadAdminData();
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+      setToast({ type: 'error', message: e.message || 'Error al eliminar' });
+      console.error(e); 
+    }
     setAdminActionLoading(false);
   };
 
