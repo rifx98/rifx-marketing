@@ -1758,110 +1758,132 @@ Transportadora: *${orderResult.carrier}*`;
 
     // 6.8 Detectar si la IA quiere agendar una cita en Google Calendar
     const appointmentMatch = aiResponse.match(/\[AGENDAR_CITA:(.+?):(.+?):(\d{4}-\d{2}-\d{2}):(\d{2}:\d{2}):(.+?)\]/);
-    if (appointmentMatch && tenantId && isAllowedAppointmentSlot(appointmentMatch[3], appointmentMatch[4])) {
+    if (appointmentMatch && tenantId) {
       const [, , , date, time, rawService] = appointmentMatch;
       const clientName = String(customerName || 'Cliente').slice(0, 160);
       const clientPhone = customerPhone;
       const service = String(rawService || 'Asesoría').slice(0, 200);
+      
+      // Remove the hidden tag so the user doesn't see it
       aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
 
-      console.log(`📅 Agendando cita para ${clientName} el ${date} a las ${time}...`);
+      if (isAllowedAppointmentSlot(date, time)) {
+        console.log(`📅 Agendando cita para ${clientName} el ${date} a las ${time}...`);
 
-      const startDateTime = `${date}T${time}:00`;
-      const [h, m] = time.split(':').map(Number);
-      const endH = h + 1; // 1 hour duration
-      const endDateTime = `${date}T${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+        const startDateTime = `${date}T${time}:00`;
+        const [h, m] = time.split(':').map(Number);
+        const endH = h + 1; // 1 hour duration
+        const endDateTime = `${date}T${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 
-      const result = await createCalendarEvent(tenantId, {
-        summary: `📅 Cita: ${clientName} — ${service}`,
-        description: `Cliente: ${clientName}\nTeléfono: ${clientPhone}\nServicio: ${service}\nAgendado vía WhatsApp Bot de RIFX Marketing`,
-        startDateTime,
-        endDateTime,
-        timeZone: 'America/Guayaquil'
-      });
+        const result = await createCalendarEvent(tenantId, {
+          summary: `📅 Cita: ${clientName} — ${service}`,
+          description: `Cliente: ${clientName}\nTeléfono: ${clientPhone}\nServicio: ${service}\nAgendado vía WhatsApp Bot de RIFX Marketing`,
+          startDateTime,
+          endDateTime,
+          timeZone: 'America/Guayaquil'
+        });
 
-      if (result.success) {
-        aiResponse += `\n\n✅ *¡Cita Agendada con Éxito!*\n📅 Fecha: *${date}*\n🕐 Hora: *${time}*\n📋 Motivo: *${service}*\n\n¡Te esperamos! Si necesitas reagendar, avísame con anticipación. 😊`;
-        console.log(`✅ Cita creada exitosamente: ${result.eventId}`);
+        if (result.success) {
+          console.log(`✅ Cita creada exitosamente en Google Calendar: ${result.eventId}`);
+          let dbErrorOcurred = false;
 
-        // Guardar cita en la base de datos
-        try {
-          // America/Guayaquil is UTC-5, so we parse it with -05:00 offset to construct correct timestamp
-          const scheduledTimeISO = new Date(`${date}T${time}:00-05:00`).toISOString();
+          // Guardar cita en la base de datos
+          try {
+            // America/Guayaquil is UTC-5, so we parse it with -05:00 offset to construct correct timestamp
+            const scheduledTimeISO = new Date(`${date}T${time}:00-05:00`).toISOString();
 
-          // Buscar si el cliente ya tiene una cita para reciclarla en esta conversación
-          const { data: existingAppt } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('conversation_id', conversation.id)
-            .eq('tenant_id', tenantId)
-            .order('scheduled_time', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (existingAppt) {
-            // Eliminar evento viejo de Google Calendar
-            if (existingAppt.event_id) {
-              const delRes = await deleteCalendarEvent(tenantId, existingAppt.event_id);
-              if (delRes.success) {
-                console.log(`✅ [Reagendamiento] Evento viejo de Google Calendar ${existingAppt.event_id} eliminado exitosamente`);
-              } else {
-                console.error(`❌ [Reagendamiento] Error al eliminar evento viejo de Google Calendar:`, delRes.error);
-              }
-            }
-
-            // Actualizar la cita existente en la DB
-            const { error: dbUpdateErr } = await supabase
+            // Buscar si el cliente ya tiene una cita para reciclarla en esta conversación
+            const { data: existingAppt } = await supabase
               .from('appointments')
-              .update({
+              .select('*')
+              .eq('conversation_id', conversation.id)
+              .eq('tenant_id', tenantId)
+              .order('scheduled_time', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (existingAppt) {
+              // Eliminar evento viejo de Google Calendar
+              if (existingAppt.event_id) {
+                const delRes = await deleteCalendarEvent(tenantId, existingAppt.event_id);
+                if (delRes.success) {
+                  console.log(`✅ [Reagendamiento] Evento viejo de Google Calendar ${existingAppt.event_id} eliminado exitosamente`);
+                } else {
+                  console.error(`❌ [Reagendamiento] Error al eliminar evento viejo de Google Calendar:`, delRes.error);
+                }
+              }
+
+              // Actualizar la cita existente en la DB
+              const { error: dbUpdateErr } = await supabase
+                .from('appointments')
+                .update({
+                  event_id: result.eventId,
+                  scheduled_time: scheduledTimeISO,
+                  service: service,
+                  status: 'rescheduled',
+                  reminder_24h_sent: false,
+                  reminder_2h_sent: false,
+                  reminder_30m_sent: false,
+                  reminder_sent_at: null,
+                  confirmed_at: null,
+                  confirmation_message: null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingAppt.id)
+                .eq('tenant_id', tenantId)
+                .eq('conversation_id', conversation.id);
+
+              if (dbUpdateErr) {
+                console.error('❌ Error al actualizar la cita reagendada en la DB:', dbUpdateErr);
+                dbErrorOcurred = true;
+              } else {
+                console.log(`✅ Cita ${existingAppt.id} reagendada con éxito en la DB`);
+              }
+            } else {
+              // Insertar una nueva cita
+              const { error: dbInsertErr } = await supabase.from('appointments').insert({
+                tenant_id: tenantId,
+                conversation_id: conversation.id,
                 event_id: result.eventId,
+                customer_name: clientName,
+                phone_number: clientPhone,
                 scheduled_time: scheduledTimeISO,
                 service: service,
-                status: 'rescheduled',
+                status: 'pending',
                 reminder_24h_sent: false,
                 reminder_2h_sent: false,
-                reminder_30m_sent: false,
-                reminder_sent_at: null,
-                confirmed_at: null,
-                confirmation_message: null,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', existingAppt.id)
-              .eq('tenant_id', tenantId)
-              .eq('conversation_id', conversation.id);
-
-            if (dbUpdateErr) {
-              console.error('❌ Error al actualizar la cita reagendada en la DB:', dbUpdateErr);
-            } else {
-              console.log(`✅ Cita ${existingAppt.id} reagendada con éxito en la DB`);
+                reminder_30m_sent: false
+              });
+              
+              if (dbInsertErr) {
+                console.error('❌ Error al guardar la cita en la base de datos:', dbInsertErr);
+                dbErrorOcurred = true;
+              } else {
+                console.log(`✅ Cita guardada en base de datos para el cliente ${clientName}`);
+              }
             }
-          } else {
-            // Insertar una nueva cita
-            const { error: dbInsertErr } = await supabase.from('appointments').insert({
-              tenant_id: tenantId,
-              conversation_id: conversation.id,
-              event_id: result.eventId,
-              customer_name: clientName,
-              phone_number: clientPhone,
-              scheduled_time: scheduledTimeISO,
-              service: service,
-              status: 'pending',
-              reminder_24h_sent: false,
-              reminder_2h_sent: false,
-              reminder_30m_sent: false
-            });
-            if (dbInsertErr) {
-              console.error('❌ Error al guardar la cita en la base de datos:', dbInsertErr);
-            } else {
-              console.log(`✅ Cita guardada en base de datos para el cliente ${clientName}`);
-            }
+          } catch (dbErr) {
+            console.error('❌ Error inesperado al guardar la cita en la base de datos:', dbErr);
+            dbErrorOcurred = true;
           }
-        } catch (dbErr) {
-          console.error('❌ Error inesperado al guardar la cita en la base de datos:', dbErr);
+
+          if (dbErrorOcurred) {
+            // Overwrite the AI's hallucinated response with a clear error
+            aiResponse = `❌ *Error al guardar la cita:*\nLo siento, ocurrió un problema técnico al registrar tu cita en nuestro sistema. Por favor, intenta de nuevo más tarde o comunícate con un asesor.`;
+          } else {
+            // Todo salió perfecto
+            aiResponse += `\n\n✅ *¡Cita Agendada con Éxito!*\n📅 Fecha: *${date}*\n🕐 Hora: *${time}*\n📋 Motivo: *${service}*\n\n¡Te esperamos! Si necesitas reagendar, avísame con anticipación. 😊`;
+          }
+
+        } else {
+          console.error(`❌ Error agendando cita: ${result.error}`);
+          // Overwrite the AI's hallucinated response with a clear error
+          aiResponse = `❌ *Error de Sincronización:*\nNo hemos podido agendar tu cita en el calendario (es probable que el horario seleccionado ya no esté disponible). Por favor, intenta elegir otro horario o pide hablar con un asesor humano. 🙏`;
         }
       } else {
-        console.error(`❌ Error agendando cita: ${result.error}`);
-        aiResponse += `\n\n⚠️ Hubo un problema al agendar tu cita. Un asesor se pondrá en contacto contigo para confirmar manualmente. 🙏`;
+        console.error(`❌ Error agendando cita: Horario inválido o fuera de rango (${date} ${time})`);
+        // Overwrite the AI's hallucinated response with a clear error
+        aiResponse = `❌ *Error de Disponibilidad:*\nEl horario solicitado (${date} a las ${time}) no está disponible o está fuera de nuestro horario de atención (Lunes a Viernes). Por favor, elige otro horario.`;
       }
     } else if (appointmentMatch) {
       aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
