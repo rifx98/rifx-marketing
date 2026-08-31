@@ -169,6 +169,9 @@ function decodeExtendedConfig(stored: unknown): ExtendedConfig {
     sales_prompt: storedString(parsed.sales_prompt, 20_000),
     support_prompt: storedString(parsed.support_prompt, 20_000),
     admin_notification_phone: storedString(parsed.admin_notification_phone, 20),
+    business_days: Array.isArray(parsed.business_days) ? parsed.business_days : EXTENDED_DEFAULTS.business_days,
+    business_start_hour: storedString(parsed.business_start_hour, 5, EXTENDED_DEFAULTS.business_start_hour),
+    business_end_hour: storedString(parsed.business_end_hour, 5, EXTENDED_DEFAULTS.business_end_hour),
   };
 }
 

@@ -1693,14 +1693,27 @@ Transportadora: *${orderResult.carrier}*`;
       const requestedDate = availabilityMatch[1];
       aiResponse = aiResponse.replace(/\[VERIFICAR_DISPONIBILIDAD:\d{4}-\d{2}-\d{2}\]/, '').trim();
 
-      console.log(`📅 Verificando disponibilidad para ${requestedDate}...`);
-      const { available, error: calError } = await checkAvailability(tenantId, requestedDate);
-
-      if (calError) {
-        aiResponse += `\n\n⚠️ No pude verificar la disponibilidad: ${calError}`;
-      } else if (available.length === 0) {
-        aiResponse += `\n\nLo siento, no hay horarios disponibles para el ${requestedDate}. ¿Te gustaría consultar otro día?`;
+      console.log(`🔍 Verificando disponibilidad para ${requestedDate}...`);
+      
+      const bDays = extConfig.business_days || [1,2,3,4,5];
+      const requestedDay = new Date(`${requestedDate}T12:00:00`).getDay();
+      
+      if (!bDays.includes(requestedDay)) {
+        console.log(`⚠️ Día ${requestedDate} no es laboral. Días configurados: ${bDays}`);
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
+        aiResponse += `\n\n[SISTEMA]: El ${requestedDate} no está dentro de nuestros días de atención (${configuredDaysStr}). Por favor, dile amablemente al cliente que no atendemos ese día y ofrécele opciones en nuestros días hábiles.`;
       } else {
+        const startHourNum = parseInt(extConfig.business_start_hour?.split(':')[0] || '9', 10);
+        const endHourNum = parseInt(extConfig.business_end_hour?.split(':')[0] || '18', 10);
+        
+        const { available, error: calError } = await checkAvailability(tenantId, requestedDate, startHourNum, endHourNum);
+
+        if (calError) {
+          aiResponse += `\n\n⚠️ No pude verificar la disponibilidad: ${calError}`;
+        } else if (available.length === 0) {
+          aiResponse += `\n\nLo siento, no hay horarios disponibles para el ${requestedDate}. ¿Te gustaría consultar otro día?`;
+        } else {
         // Re-call AI with the availability data so it presents the options naturally
         const slotsText = available.map((s, i) => `${i + 1}. ${s.label}`).join('\n');
         // Extract the user's originally requested time (if any) from their message
@@ -1771,6 +1784,7 @@ Transportadora: *${orderResult.carrier}*`;
         } catch (e) {
           aiResponse = `Estos son los horarios disponibles para el ${requestedDate}:\n\n${slotsText}\n\n¿Cuál te conviene más? 😊`;
         }
+      }
       }
     }
 

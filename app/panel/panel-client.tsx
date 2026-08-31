@@ -16849,7 +16849,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               checked={adminData?.announcements?.length > 0 && selectedAnnouncements.length === adminData?.announcements?.length}
                               onChange={e => {
                                 if (e.target.checked) {
-                                  setSelectedAnnouncements((adminData?.announcements || []).map(a => a.id));
+                                  setSelectedAnnouncements((adminData?.announcements || []).map((a: any) => a.id));
                                 } else {
                                   setSelectedAnnouncements([]);
                                 }
