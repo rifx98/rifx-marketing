@@ -14822,14 +14822,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-6">
+                <div className="flex flex-col sm:flex-row gap-6 max-w-md">
                   <div className="flex-1">
                     <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'Start Time' : 'Hora de Apertura'}</label>
                     <input
                       type="time"
                       value={configData.business_start_hour || '09:00'}
                       onChange={e => setConfigData({ ...configData, business_start_hour: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50"
+                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50 cursor-pointer"
                     />
                   </div>
                   <div className="flex-1">
@@ -14838,7 +14838,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       type="time"
                       value={configData.business_end_hour || '18:00'}
                       onChange={e => setConfigData({ ...configData, business_end_hour: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50"
+                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50 cursor-pointer"
                     />
                   </div>
                 </div>
