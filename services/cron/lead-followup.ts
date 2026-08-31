@@ -43,8 +43,8 @@ export async function runLeadFollowUps(options: {
     const eligibleTenantIds = await getEligibleTenantIds(supabase, options.tenantId);
     if (eligibleTenantIds.length === 0) return result;
 
-    // 1. Encontrar conversaciones inactivas (sin cambios en las últimas 24 horas)
-    const rangeStart = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    // 1. Encontrar conversaciones inactivas (al menos 1 hora para el primer seguimiento)
+    const rangeStart = new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString();
 
     const query = supabase
       .from('conversations')
@@ -76,13 +76,26 @@ export async function runLeadFollowUps(options: {
     // 2. Comprobación de idempotencia y frecuencia de seguimiento
     const pendingLeads: any[] = [];
     
+    // Filtro de horario nocturno (UTC-5)
+    const utcHour = now.getUTCHours();
+    let localHour = utcHour - 5;
+    if (localHour < 0) localHour += 24;
+    const isNightTime = localHour < 8 || localHour >= 21; // No enviar entre las 9:00 PM y las 8:00 AM
+
     for (const conv of inactiveLeads) {
+      if (isNightTime) {
+        // Si es de noche, saltamos todas las conversaciones sin procesarlas
+        // Se acumularán para la mañana siguiente, manteniendo los intervalos relativos intactos
+        result.skipped++;
+        continue;
+      }
+
       const { data: lastMsgs, error: lastMsgsErr } = await supabase
         .from('messages')
         .select('*')
         .eq('conversation_id', conv.id)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(10);
 
       if (lastMsgsErr) {
         console.error(`[Lead Follow-Up Service] Error al consultar historial de mensajes para ${conv.id}:`, lastMsgsErr);
@@ -90,17 +103,34 @@ export async function runLeadFollowUps(options: {
       }
 
       if (lastMsgs && lastMsgs.length > 0) {
-        const lastMsg = lastMsgs[0];
-        const lastMsgTime = new Date(lastMsg.created_at).getTime();
+        const lastMsgTime = new Date(lastMsgs[0].created_at).getTime();
+        const hoursSinceLastMsg = (now.getTime() - lastMsgTime) / (1000 * 60 * 60);
 
-        // Si el último mensaje es de hace menos de 24h, omitir (no molestar al usuario)
-        if (now.getTime() - lastMsgTime < 24 * 60 * 60 * 1000) {
+        let followUpCount = 0;
+        for (const msg of lastMsgs) {
+          // Si encontramos un mensaje del usuario, paramos de contar
+          if (msg.role === 'user') break;
+          // Si es un mensaje de seguimiento de la IA
+          if (msg.role === 'assistant' && (msg.content.includes('🤖 [Seguimiento]') || msg.content.includes('[Template enviado'))) {
+            followUpCount++;
+          }
+        }
+
+        if (followUpCount >= 3) {
+          // Máximo 3 seguimientos permitidos
           result.skipped++;
           continue;
         }
 
-        // Si el último mensaje ya es de seguimiento automatizado, omitir para evitar envíos recurrentes
-        if (lastMsg.role === 'assistant' && (lastMsg.content.includes('🤖 [Seguimiento]') || lastMsg.content.includes('[Template enviado - ventana 24h cerrada]'))) {
+        // Tiempos de espera (relativos al último mensaje enviado):
+        // 1ro: 1 hora
+        // 2do: 5 horas después del 1ro (Total = 6h)
+        // 3ro: 6 horas después del 2do (Total = 12h)
+        let requiredWaitHours = 1;
+        if (followUpCount === 1) requiredWaitHours = 5;
+        if (followUpCount === 2) requiredWaitHours = 6;
+
+        if (hoursSinceLastMsg < requiredWaitHours) {
           result.skipped++;
           continue;
         }

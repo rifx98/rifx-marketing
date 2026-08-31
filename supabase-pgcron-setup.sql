@@ -110,10 +110,10 @@ SELECT cron.unschedule(jobid)
   FROM cron.job
  WHERE jobname = 'invoke-cold-leads-cron';
 
--- 10:00 UTC = 05:00 America/Bogota (pg_cron schedules are UTC by default).
+-- Ejecutar cada hora (minuto 0) para procesar seguimientos escalonados (1h, 3h, 5h).
 SELECT cron.schedule(
   'invoke-cold-leads-cron',
-  '0 10 * * *',
+  '0 * * * *',
   $$SELECT private.invoke_cron_endpoint('/api/cron/cold-leads');$$
 );
 
