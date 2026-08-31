@@ -14642,11 +14642,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
               {[
                 { 
-                  title: language === 'en' ? 'Total Bookings' : 'Total',
+                  title: language === 'en' ? 'Total' : 'Total',
                   value: statsData?.appointmentStats?.total || 0,
                   icon: 'event',
                   color: 'text-blue-500',
                   bg: 'bg-blue-500/10'
+                },
+                { 
+                  title: language === 'en' ? 'Pending' : 'Pendientes',
+                  value: statsData?.appointmentStats?.pending || 0,
+                  icon: 'schedule',
+                  color: 'text-slate-400',
+                  bg: 'bg-slate-400/10'
+                },
+                { 
+                  title: language === 'en' ? 'To Validate' : 'Por Validar',
+                  value: statsData?.appointmentStats?.pendingCompletion || 0,
+                  icon: 'rate_review',
+                  color: 'text-purple-500',
+                  bg: 'bg-purple-500/10'
                 },
                 { 
                   title: language === 'en' ? 'Confirmed' : 'Confirmadas',
@@ -14656,11 +14670,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   bg: 'bg-indigo-500/10'
                 },
                 { 
-                  title: language === 'en' ? 'Pending' : 'Pendientes',
-                  value: statsData?.appointmentStats?.pending || 0,
-                  icon: 'schedule',
-                  color: 'text-slate-400',
-                  bg: 'bg-slate-400/10'
+                  title: language === 'en' ? 'Rescheduled' : 'Reagendadas',
+                  value: statsData?.appointmentStats?.rescheduled || 0,
+                  icon: 'sync',
+                  color: 'text-amber-500',
+                  bg: 'bg-amber-500/10'
                 },
                 { 
                   title: language === 'en' ? 'Completed' : 'Asistidas',
@@ -14677,53 +14691,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   bg: 'bg-rose-500/10'
                 },
                 { 
-                  title: language === 'en' ? 'Attendance %' : 'Asistencia',
-                  value: `${(statsData?.appointmentStats?.rates?.attendanceRate || 0).toFixed(1)}%`,
-                  icon: 'percent',
-                  color: 'text-teal-400',
-                  bg: 'bg-teal-400/10'
-                },
-                { 
-                  title: language === 'en' ? 'Rescheduled' : 'Reagendadas',
-                  value: statsData?.appointmentStats?.rescheduled || 0,
-                  icon: 'sync',
-                  color: 'text-amber-500',
-                  bg: 'bg-amber-500/10'
-                },
-                { 
                   title: language === 'en' ? 'Cancelled' : 'Canceladas',
                   value: statsData?.appointmentStats?.cancelled || 0,
                   icon: 'cancel',
                   color: 'text-red-500',
                   bg: 'bg-red-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Completed' : 'Completadas',
-                  value: statsData?.appointmentStats?.completed || 0,
-                  icon: 'task_alt',
-                  color: 'text-emerald-500',
-                  bg: 'bg-emerald-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'No Show' : 'No Show',
-                  value: statsData?.appointmentStats?.noShow || 0,
-                  icon: 'person_off',
-                  color: 'text-rose-500',
-                  bg: 'bg-rose-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Pending Action' : 'Pendientes',
-                  value: statsData?.appointmentStats?.pending || 0,
-                  icon: 'pending',
-                  color: 'text-cyan-500',
-                  bg: 'bg-cyan-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Review Needed' : 'Por Validar',
-                  value: statsData?.appointmentStats?.pendingCompletion || 0,
-                  icon: 'rate_review',
-                  color: 'text-purple-500',
-                  bg: 'bg-purple-500/10'
                 }
               ].map((card, idx) => (
                 <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col justify-between shadow-sm">
