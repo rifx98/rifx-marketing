@@ -371,6 +371,7 @@ NO inventes información. Mantén el mensaje sumamente breve (máximo 2 párrafo
           : `🤖 [Seguimiento]: ${aiResponse}`;
 
         await supabase.from('messages').insert({
+          tenant_id: conv.tenant_id,
           conversation_id: conv.id,
           role: 'assistant',
           content: historyText,

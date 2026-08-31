@@ -267,6 +267,7 @@ export async function runAppointmentReminders(options: {
 
         // Registrar el mensaje en el historial del chat
         await supabase.from('messages').insert({
+          tenant_id: appt.tenant_id,
           conversation_id: appt.conversation_id,
           role: 'assistant',
           content: `🤖 [Recordatorio ${type}]: ${reminderText}`,
