@@ -170,14 +170,27 @@ function buildIngressEvents(body: Record<string, any>): WhatsAppIngressEvent[] {
   return events;
 }
 
-function isAllowedAppointmentSlot(date: string, time: string): boolean {
+function isAllowedAppointmentSlot(date: string, time: string, businessDays: number[], startHourStr: string, endHourStr: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
   const [hour, minute] = time.split(':').map(Number);
-  if (hour < 9 || hour > 17 || minute < 0 || minute > 59) return false;
+  
+  const [startHour, startMin] = (startHourStr || '09:00').split(':').map(Number);
+  const [endHour, endMin] = (endHourStr || '18:00').split(':').map(Number);
+  
+  const timeInMinutes = hour * 60 + minute;
+  const startInMinutes = startHour * 60 + (startMin || 0);
+  const endInMinutes = endHour * 60 + (endMin || 0);
+  
+  if (timeInMinutes < startInMinutes || timeInMinutes > endInMinutes) return false;
+  
   const scheduled = new Date(`${date}T${time}:00-05:00`);
   if (Number.isNaN(scheduled.getTime())) return false;
-  const day = scheduled.getUTCDay();
-  return day >= 1 && day <= 5 && scheduled.getTime() >= Date.now() - 5 * 60_000
+  
+  // Use the local date string to get the correct day of week
+  const day = new Date(`${date}T12:00:00`).getDay();
+  if (!businessDays.includes(day)) return false;
+  
+  return scheduled.getTime() >= Date.now() - 5 * 60_000
     && scheduled.getTime() <= Date.now() + 366 * 24 * 60 * 60_000;
 }
 
@@ -980,7 +993,8 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       model_selection: 'gpt-4o', confidence_threshold: 0.85,
       dropi_enabled: false, dropi_token: '',
       dropi_default_product_id: '', dropi_default_price: 50,
-      dropi_prompt: ''
+      dropi_prompt: '',
+      business_days: [1, 2, 3, 4, 5], business_start_hour: '09:00', business_end_hour: '18:00'
     };
     try { 
       const p = JSON.parse(config?.openai_key || '{}');
@@ -1121,6 +1135,10 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
         const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
         const todayName = dayNames[today.getDay()];
 
+        const bDays = extConfig.business_days || [1,2,3,4,5];
+        const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
+        const scheduleString = `${configuredDaysStr}, de ${extConfig.business_start_hour || '09:00'} a ${extConfig.business_end_hour || '18:00'}`;
+
         aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DE CITAS — GOOGLE CALENDAR CONECTADO]:
 Tienes acceso al calendario del negocio para agendar reuniones y citas con los clientes.
 Hoy es ${todayName} ${todayStr}.
@@ -1133,7 +1151,7 @@ NO ofrezcas horarios ni inicies el flujo de agendamiento a menos que el cliente 
 Si el cliente está haciendo PREGUNTAS sobre el servicio (ej. "¿cómo funciona?", "¿qué incluye?", "¿cómo me ayudan?", "¿qué resultados puedo esperar?"), RESPONDE SUS PREGUNTAS con información útil y detallada. NO saltes a ofrecer horarios. Sé un asesor de ventas experto primero — aporta valor, resuelve dudas, genera confianza. Solo cuando el cliente ya esté convencido o pida explícitamente agendar, ahí sí inicia el flujo de agendamiento.
 
 Flujo de agendamiento (SOLO cuando el cliente lo solicite):
-1. Pregúntale qué día y hora le conviene. ESTRICTAMENTE PROHIBIDO: NO PUEDES agendar, ofrecer ni aceptar citas fuera del horario de atención (Lunes a Viernes, de 9:00 AM a 6:00 PM). Si el cliente pide un sábado o domingo, DEBES NEGARTE CORTÉSEMENTE y ofrecer solo días hábiles. Si desobedeces esto, el sistema colapsará.
+1. Pregúntale qué día y hora le conviene. ESTRICTAMENTE PROHIBIDO: NO PUEDES agendar, ofrecer ni aceptar citas fuera del horario de atención (${scheduleString}). Si el cliente pide un día fuera del horario, DEBES NEGARTE CORTÉSEMENTE y ofrecer solo días hábiles. Si desobedeces esto, el sistema colapsará.
 2. Cuando el cliente proponga una fecha (sin hora específica), usa el siguiente tag para verificar disponibilidad:
    [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
    El sistema te devolverá los horarios disponibles para ese día.
@@ -1767,7 +1785,7 @@ Transportadora: *${orderResult.carrier}*`;
       // Remove the hidden tag so the user doesn't see it
       aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
 
-      if (isAllowedAppointmentSlot(date, time)) {
+      if (isAllowedAppointmentSlot(date, time, extConfig.business_days || [1,2,3,4,5], extConfig.business_start_hour || '09:00', extConfig.business_end_hour || '18:00')) {
         console.log(`📅 Agendando cita para ${clientName} el ${date} a las ${time}...`);
 
         const startDateTime = `${date}T${time}:00`;
@@ -1883,11 +1901,18 @@ Transportadora: *${orderResult.carrier}*`;
       } else {
         console.error(`❌ Error agendando cita: Horario inválido o fuera de rango (${date} ${time})`);
         // Overwrite the AI's hallucinated response with a clear error
-        aiResponse = `❌ *Error de Disponibilidad:*\nEl horario solicitado (${date} a las ${time}) no está disponible o está fuera de nuestro horario de atención (Lunes a Viernes). Por favor, elige otro horario.`;
+        const bDays = extConfig.business_days || [1,2,3,4,5];
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
+        
+        aiResponse = `❌ *Error de Disponibilidad:*\nEl horario solicitado (${date} a las ${time}) no está disponible o está fuera de nuestro horario de atención (${configuredDaysStr}, de ${extConfig.business_start_hour || '09:00'} a ${extConfig.business_end_hour || '18:00'}). Por favor, elige otro horario.`;
       }
     } else if (appointmentMatch) {
       aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
-      aiResponse += '\n\nNo pude validar ese horario. Elige un día hábil entre 9:00 AM y 6:00 PM.';
+      const bDays = extConfig.business_days || [1,2,3,4,5];
+      const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
+      aiResponse += `\n\nNo pude validar ese horario. Elige un día disponible (${configuredDaysStr}) entre ${extConfig.business_start_hour || '09:00'} y ${extConfig.business_end_hour || '18:00'}.`;
     }
 
     // 6.81 Interceptor de Alucinaciones de Agendamiento

@@ -81,6 +81,9 @@ const createInitialPanelConfig = () => ({
   dropi_default_price: 50,
   dropi_prompt: '',
   admin_notification_phone: '',
+  business_days: [1, 2, 3, 4, 5],
+  business_start_hour: '09:00',
+  business_end_hour: '18:00',
 });
 
 const createInitialApiHelperMessages = () => ([
@@ -3843,6 +3846,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     dropi_default_price: 50,
     dropi_prompt: '',
     admin_notification_phone: '',
+    sales_prompt: '',
+    support_prompt: '',
+    business_days: [1, 2, 3, 4, 5],
+    business_start_hour: '09:00',
+    business_end_hour: '18:00',
   });
   const originalConfigRef = React.useRef<any>(null);
   const configDataRef = React.useRef(configData);
@@ -4594,6 +4602,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              payphone_token: data.payphone_token || '',
              payphone_store_id: data.payphone_store_id || '',
              ai_prompt: data.ai_prompt || '',
+             sales_prompt: data.sales_prompt || '',
+             support_prompt: data.support_prompt || '',
              media_retention_days: data.media_retention_days || 0,
              alert_email: data.alert_email || '',
              admin_name: data.admin_name || 'Alexander Thorne',
@@ -4615,6 +4625,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              dropi_default_price: data.dropi_default_price ?? 50,
              dropi_prompt: data.dropi_prompt || '',
              admin_notification_phone: data.admin_notification_phone || '',
+             business_days: Array.isArray(data.business_days) ? data.business_days : [1, 2, 3, 4, 5],
+             business_start_hour: data.business_start_hour || '09:00',
+             business_end_hour: data.business_end_hour || '18:00',
             };
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
@@ -6581,7 +6594,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         dropi_default_product_id: configData.dropi_default_product_id,
         dropi_default_price: configData.dropi_default_price,
         dropi_prompt: configData.dropi_prompt,
+        sales_prompt: configData.sales_prompt,
+        support_prompt: configData.support_prompt,
         admin_notification_phone: configData.admin_notification_phone,
+        business_days: configData.business_days,
+        business_start_hour: configData.business_start_hour,
+        business_end_hour: configData.business_end_hour,
       };
       console.log('Enviando config payload:', Object.keys(payload));
       const res = await authFetch('/api/panel/config', {
@@ -14758,6 +14776,88 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Business Hours Settings */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="material-symbols-outlined text-slate-400">tune</span>
+                <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Business Hours & Days' : 'Días y Horarios de Atención'}</h2>
+              </div>
+              <p className="text-sm text-slate-500 mb-6">
+                {language === 'en' ? 'Configure the days and hours your business operates. The AI bot will use this to determine if an appointment slot is available.' : 'Configura los días y horas que opera tu negocio. El bot de IA usará esto para determinar si un horario está disponible para citas.'}
+              </p>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-3">{language === 'en' ? 'Working Days' : 'Días Laborables'}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { id: 1, label: language === 'en' ? 'Mon' : 'Lun' },
+                      { id: 2, label: language === 'en' ? 'Tue' : 'Mar' },
+                      { id: 3, label: language === 'en' ? 'Wed' : 'Mié' },
+                      { id: 4, label: language === 'en' ? 'Thu' : 'Jue' },
+                      { id: 5, label: language === 'en' ? 'Fri' : 'Vie' },
+                      { id: 6, label: language === 'en' ? 'Sat' : 'Sáb' },
+                      { id: 0, label: language === 'en' ? 'Sun' : 'Dom' }
+                    ].map(day => (
+                      <button
+                        key={day.id}
+                        onClick={() => {
+                          const days = configData.business_days || [];
+                          const newDays = days.includes(day.id) 
+                            ? days.filter((d: number) => d !== day.id) 
+                            : [...days, day.id].sort();
+                          setConfigData({ ...configData, business_days: newDays });
+                        }}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                          (configData.business_days || []).includes(day.id)
+                            ? 'bg-primary text-white'
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-6">
+                  <div className="flex-1">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'Start Time' : 'Hora de Apertura'}</label>
+                    <input
+                      type="time"
+                      value={configData.business_start_hour || '09:00'}
+                      onChange={e => setConfigData({ ...configData, business_start_hour: e.target.value })}
+                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'End Time' : 'Hora de Cierre'}</label>
+                    <input
+                      type="time"
+                      value={configData.business_end_hour || '18:00'}
+                      onChange={e => setConfigData({ ...configData, business_end_hour: e.target.value })}
+                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleSaveSettings as any}
+                    disabled={isSaving}
+                    className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2"
+                  >
+                    {isSaving ? (
+                      <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">save</span>
+                    )}
+                    {language === 'en' ? 'Save Schedule' : 'Guardar Horario'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Interactive Schedule Table */}
