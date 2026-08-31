@@ -1133,7 +1133,7 @@ NO ofrezcas horarios ni inicies el flujo de agendamiento a menos que el cliente 
 Si el cliente está haciendo PREGUNTAS sobre el servicio (ej. "¿cómo funciona?", "¿qué incluye?", "¿cómo me ayudan?", "¿qué resultados puedo esperar?"), RESPONDE SUS PREGUNTAS con información útil y detallada. NO saltes a ofrecer horarios. Sé un asesor de ventas experto primero — aporta valor, resuelve dudas, genera confianza. Solo cuando el cliente ya esté convencido o pida explícitamente agendar, ahí sí inicia el flujo de agendamiento.
 
 Flujo de agendamiento (SOLO cuando el cliente lo solicite):
-1. Pregúntale qué día y hora le conviene. Los horarios de atención son de Lunes a Viernes, de 9:00 AM a 6:00 PM.
+1. Pregúntale qué día y hora le conviene. ESTRICTAMENTE PROHIBIDO: NO PUEDES agendar, ofrecer ni aceptar citas fuera del horario de atención (Lunes a Viernes, de 9:00 AM a 6:00 PM). Si el cliente pide un sábado o domingo, DEBES NEGARTE CORTÉSEMENTE y ofrecer solo días hábiles. Si desobedeces esto, el sistema colapsará.
 2. Cuando el cliente proponga una fecha (sin hora específica), usa el siguiente tag para verificar disponibilidad:
    [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
    El sistema te devolverá los horarios disponibles para ese día.
@@ -1888,6 +1888,30 @@ Transportadora: *${orderResult.carrier}*`;
     } else if (appointmentMatch) {
       aiResponse = aiResponse.replace(/\[AGENDAR_CITA:.+?\]/, '').trim();
       aiResponse += '\n\nNo pude validar ese horario. Elige un día hábil entre 9:00 AM y 6:00 PM.';
+    }
+
+    // 6.81 Interceptor de Alucinaciones de Agendamiento
+    if (!appointmentMatch && isCalendarConnected) {
+      const hallucinationKeywords = [
+        'quedo agendado',
+        'quedó agendado',
+        'cita agendada',
+        'te agendé',
+        'ha sido agendada',
+        'listo, te he agendado',
+        'quedó agendada',
+        'ya estás agendado',
+        'ya estas agendado',
+        'cita confirmada'
+      ];
+      
+      const responseLower = aiResponse.toLowerCase();
+      const hasHallucination = hallucinationKeywords.some(kw => responseLower.includes(kw));
+      
+      if (hasHallucination && !responseLower.includes('error')) {
+        console.warn('⚠️ Alucinación detectada: La IA confirmó una cita verbalmente pero omitió el tag [AGENDAR_CITA]. Interceptando...');
+        aiResponse = "❌ *Ups, hubo un pequeño fallo técnico de mi parte.*\nIntenté confirmar tu cita pero olvidé enviarle la orden final a mi sistema de calendario. ¿Podrías confirmarme nuevamente el día y la hora para registrarlo correctamente?";
+      }
     }
 
     // 6.85 Sanitizar cualquier placeholder estático de reunión remanente en la respuesta de la IA
