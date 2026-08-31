@@ -67,7 +67,9 @@ export async function GET(req: NextRequest) {
     }
 
     const userPlan = data.plan || 'trial';
-    const baseAllowedTabs = planPermissions[userPlan] || planPermissions.trial;
+    const isPlanExpired = data.plan_status === 'expired' || (data.plan_expires_at && new Date(data.plan_expires_at).getTime() < Date.now());
+    const effectivePlan = isPlanExpired ? 'trial' : userPlan;
+    const baseAllowedTabs = planPermissions[effectivePlan] || planPermissions.trial;
     const overrides = data.permission_overrides || {};
     const activeOverrides: string[] = [];
     const now = Date.now();

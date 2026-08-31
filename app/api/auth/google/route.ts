@@ -196,7 +196,9 @@ export async function POST(req: NextRequest) {
     }
 
     const userPlan = tenant.plan || 'trial';
-    const baseAllowedTabs = planPermissions[userPlan] || planPermissions.trial;
+    const isPlanExpired = tenant.plan_status === 'expired' || (tenant.plan_expires_at && new Date(tenant.plan_expires_at).getTime() < Date.now());
+    const effectivePlan = isPlanExpired ? 'trial' : userPlan;
+    const baseAllowedTabs = planPermissions[effectivePlan] || planPermissions.trial;
     const overrides = tenant.permission_overrides || {};
     const activeOverrides: string[] = [];
     const now = Date.now();

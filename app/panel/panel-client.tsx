@@ -3348,7 +3348,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
     if (hasActiveOverride) return false; // Overridden access is active
 
-    if (isPlanExpired) return true; // Expired plan is locked
+    // Removed hard-lockout so the UI relies on server-provided allowedTabs which safely fall back to trial tier when expired.
 
     // Use server-provided allowedTabs (includes admin's updated plan permissions from platform_settings)
     if (tenantData?.allowedTabs && Array.isArray(tenantData.allowedTabs)) {
