@@ -7347,6 +7347,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           e.stopPropagation();
                           safeSetActiveTab('conversations');
                           setSelectedChat({ id: alert.id, name: alert.name, status: 'chatting', phone_number: '', created_at: '' });
+                          setShowChartModal(true);
                           // También asegurarnos de que la tabla no esté filtrada si el usuario no aparece
                           setTableFilter('all');
                         }}
