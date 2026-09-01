@@ -170,6 +170,18 @@ function buildIngressEvents(body: Record<string, any>): WhatsAppIngressEvent[] {
   return events;
 }
 
+/**
+ * Calculates the day-of-week (0=Sunday..6=Saturday) for a YYYY-MM-DD string
+ * using pure arithmetic so it is independent of the server's local timezone.
+ */
+function getDayOfWeekUTC(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  // Tomohiko Sakamoto's algorithm — works for Gregorian dates
+  const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+  const yr = m < 3 ? y - 1 : y;
+  return (yr + Math.floor(yr / 4) - Math.floor(yr / 100) + Math.floor(yr / 400) + t[m - 1] + d) % 7;
+}
+
 function isAllowedAppointmentSlot(date: string, time: string, businessDays: number[], startHourStr: string, endHourStr: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
   const [hour, minute] = time.split(':').map(Number);
@@ -186,8 +198,8 @@ function isAllowedAppointmentSlot(date: string, time: string, businessDays: numb
   const scheduled = new Date(`${date}T${time}:00-05:00`);
   if (Number.isNaN(scheduled.getTime())) return false;
   
-  // Use the local date string to get the correct day of week
-  const day = new Date(`${date}T12:00:00`).getDay();
+  // Timezone-safe day-of-week via pure arithmetic (no Date.getDay() drift)
+  const day = getDayOfWeekUTC(date);
   if (!businessDays.includes(day)) return false;
   
   return scheduled.getTime() >= Date.now() - 5 * 60_000
@@ -1171,7 +1183,15 @@ IMPORTANTE:
 - NUNCA envíes un enlace de reunión estático. Siempre usa los tags [VERIFICAR_DISPONIBILIDAD] y [AGENDAR_CITA] para gestionar citas de forma dinámica.
 - Para calcular fechas relativas (ej. "mañana", "el jueves", "este viernes"), básate en que hoy es ${todayName} ${todayStr}. Por ejemplo, si hoy es Lunes 2026-06-08, "este viernes" es 2026-06-12. Calcula siempre la fecha exacta en formato YYYY-MM-DD.`;
         console.log(`📅 Calendar: Instrucciones de agendamiento inyectadas para tenant ${tenantId} (enlaces estáticos sanitizados)`);
+      } else {
+        // Fallback when calendar credentials exist but are invalid/expired, OR not connected at all
+        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DESCONECTADO]:
+ACTUALMENTE NO TIENES ACCESO AL CALENDARIO. ESTÁ ESTRICTAMENTE PROHIBIDO confirmar citas, agendar reuniones o proponer horarios. Si el cliente pide agendar, dile amablemente que en este momento no puedes procesar citas automáticamente y que un asesor humano se pondrá en contacto para agendar, o indícale que te deje sus datos. NUNCA digas "quedo agendado" ni inventes confirmaciones.`;
       }
+    } else if (!extConfig.dropi_enabled) {
+        // Dropi is disabled and no tenantId or no calendar configured
+        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DESCONECTADO]:
+ACTUALMENTE NO TIENES ACCESO AL CALENDARIO. ESTÁ ESTRICTAMENTE PROHIBIDO confirmar citas, agendar reuniones o proponer horarios. Si el cliente pide agendar, dile amablemente que en este momento no puedes procesar citas automáticamente y que un asesor humano se pondrá en contacto para agendar, o indícale que te deje sus datos. NUNCA digas "quedo agendado" ni inventes confirmaciones.`;
     }
 
     // 4.25 Buscar cita pendiente próxima para este cliente y agregar contexto
@@ -1396,13 +1416,24 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
             }
 
             if (bookingDate) {
-              // Format for display
-              const dispHour = selHour > 12 ? selHour - 12 : (selHour === 0 ? 12 : selHour);
-              const dispPeriod = selHour >= 12 ? 'PM' : 'AM';
+              // SAFETY: Validate business day BEFORE generating the AGENDAR_CITA tag
+              const bDays = extConfig.business_days || [1,2,3,4,5];
+              const bookingDayOfWeek = getDayOfWeekUTC(bookingDate);
+              if (!bDays.includes(bookingDayOfWeek)) {
+                const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
+                aiResponse = `Lo siento, el ${dayNames[bookingDayOfWeek]} no es un día de atención. Nuestros días disponibles son: *${configuredDaysStr}*. ¿Te gustaría elegir otro día? 😊`;
+                skipAiCall = true;
+                console.log(`📅 [INTERCEPCIÓN DIRECTA] Día ${bookingDate} (${dayNames[bookingDayOfWeek]}) rechazado — no es día laboral`);
+              } else {
+                // Format for display
+                const dispHour = selHour > 12 ? selHour - 12 : (selHour === 0 ? 12 : selHour);
+                const dispPeriod = selHour >= 12 ? 'PM' : 'AM';
 
-              aiResponse = `¡Perfecto! Voy a agendar tu reunión para el *${bookingDate}* a las *${dispHour}:${selMin} ${dispPeriod}*. 😊\n\n[AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:${bookingDate}:${selTime24}:Asesoría de RIFX]`;
-              skipAiCall = true;
-              console.log(`📅 [INTERCEPCIÓN DIRECTA] Usuario seleccionó ${selTime24} de slots presentados → agendando directamente para ${bookingDate}`);
+                aiResponse = `¡Perfecto! Voy a agendar tu reunión para el *${bookingDate}* a las *${dispHour}:${selMin} ${dispPeriod}*. 😊\n\n[AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:${bookingDate}:${selTime24}:Asesoría de RIFX]`;
+                skipAiCall = true;
+                console.log(`📅 [INTERCEPCIÓN DIRECTA] Usuario seleccionó ${selTime24} de slots presentados → agendando directamente para ${bookingDate}`);
+              }
             }
           }
         }
@@ -1929,27 +1960,80 @@ Transportadora: *${orderResult.carrier}*`;
       aiResponse += `\n\nNo pude validar ese horario. Elige un día disponible (${configuredDaysStr}) entre ${extConfig.business_start_hour || '09:00'} y ${extConfig.business_end_hour || '18:00'}.`;
     }
 
-    // 6.81 Interceptor de Alucinaciones de Agendamiento
-    if (!appointmentMatch && isCalendarConnected) {
+    // 6.81 Interceptor de Alucinaciones de Agendamiento (SIEMPRE activo)
+    if (!appointmentMatch) {
       const hallucinationKeywords = [
         'quedo agendado',
         'quedó agendado',
+        'queda agendado',
+        'queda agendada',
         'cita agendada',
         'te agendé',
         'ha sido agendada',
+        'ha sido agendado',
         'listo, te he agendado',
         'quedó agendada',
         'ya estás agendado',
         'ya estas agendado',
-        'cita confirmada'
+        'ya estás agendada',
+        'ya estas agendada',
+        'cita confirmada',
+        'reunión confirmada',
+        'reunion confirmada',
+        'reunión agendada',
+        'reunion agendada',
+        'te he reservado',
+        'reservado para',
+        'reservada para',
+        'he agendado tu',
+        'agendado tu cita',
+        'agendada tu cita',
+        'agendado para el',
+        'agendada para el',
+        'nos vemos el',  // when followed by confirmation language
       ];
       
       const responseLower = aiResponse.toLowerCase();
       const hasHallucination = hallucinationKeywords.some(kw => responseLower.includes(kw));
       
-      if (hasHallucination && !responseLower.includes('error')) {
-        console.warn('⚠️ Alucinación detectada: La IA confirmó una cita verbalmente pero omitió el tag [AGENDAR_CITA]. Interceptando...');
-        aiResponse = "❌ *Ups, hubo un pequeño fallo técnico de mi parte.*\nIntenté confirmar tu cita pero olvidé enviarle la orden final a mi sistema de calendario. ¿Podrías confirmarme nuevamente el día y la hora para registrarlo correctamente?";
+      if (hasHallucination && !responseLower.includes('error') && !responseLower.includes('no pude')) {
+        console.warn('⚠️ [GUARD] Alucinación de agendamiento detectada (sin tag [AGENDAR_CITA]). Interceptando respuesta...');
+        if (isCalendarConnected) {
+          aiResponse = "Lo siento, hubo un problema técnico al procesar tu cita. 🙏\n\n¿Podrías confirmarme nuevamente el *día* y la *hora* que prefieres para agendarla correctamente en nuestro calendario?";
+        } else {
+          aiResponse = "Lo siento, en este momento nuestro sistema de agendamiento no está disponible. 🙏\n\nPor favor déjame tu nombre y el horario que prefieres, y un asesor se pondrá en contacto contigo para confirmar la cita.";
+        }
+      }
+    }
+
+    // 6.82 Guardia Final de Días No Laborales (última línea de defensa)
+    // Atrapa CUALQUIER respuesta que confirme una cita en un día fuera de business_days,
+    // sin importar si el calendario está conectado o no.
+    {
+      const bDays = extConfig.business_days || [1, 2, 3, 4, 5];
+      const dayNames: Record<string, number> = {
+        'domingo': 0, 'lunes': 1, 'martes': 2, 'miércoles': 3, 'miercoles': 3,
+        'jueves': 4, 'viernes': 5, 'sábado': 6, 'sabado': 6,
+      };
+      const dayNamesDisplay = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const responseLower = aiResponse.toLowerCase();
+
+      // Detect if response confirms a specific non-business day
+      const confirmPatterns = [
+        'agendado', 'agendada', 'confirmado', 'confirmada', 'reservado', 'reservada',
+        'te espero', 'te esperamos', 'nos vemos', 'quedo agendado', 'quedó agendado',
+      ];
+      const mentionsConfirmation = confirmPatterns.some(p => responseLower.includes(p));
+
+      if (mentionsConfirmation) {
+        for (const [dayName, dayNum] of Object.entries(dayNames)) {
+          if (!bDays.includes(dayNum) && responseLower.includes(dayName)) {
+            const configuredDaysStr = bDays.map((d: number) => dayNamesDisplay[d]).join(', ');
+            console.warn(`⚠️ [WEEKEND GUARD] Respuesta confirma cita en ${dayNamesDisplay[dayNum]} (no laboral). Bloqueando.`);
+            aiResponse = `Lo siento, los *${dayNamesDisplay[dayNum]}* no tenemos atención disponible. 😊\n\nNuestros días de atención son: *${configuredDaysStr}*, de *${extConfig.business_start_hour || '09:00'}* a *${extConfig.business_end_hour || '18:00'}*.\n\n¿Te gustaría agendar en alguno de estos días?`;
+            break;
+          }
+        }
       }
     }
 
