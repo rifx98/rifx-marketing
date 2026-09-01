@@ -878,16 +878,16 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
       humanAskCount = (prevAsks || []).length;
 
-      if (humanAskCount < 2) {
-        // 1ra o 2da vez: registrar intento, la IA insistirá que puede ayudar
+      if (humanAskCount < 1) {
+        // 1ra vez: registrar intento, la IA insistirá que puede ayudar
         await supabase.from('messages').insert({
           conversation_id: conversation.id,
           role: 'assistant',
           content: '__HUMAN_ASK__',
         });
-        console.log(`[WhatsApp ${providerMessageId}] Solicitud de humano ${humanAskCount + 1}/3`);
+        console.log(`[WhatsApp ${providerMessageId}] Solicitud de humano ${humanAskCount + 1}/2`);
       } else {
-        // 3ra+ vez: escalar a humano real, insertar alerta, pausar IA y marcar conversacion
+        // 2da+ vez: escalar a humano real, insertar alerta, pausar IA y marcar conversacion
         await supabase.from('messages').insert([
           {
             conversation_id: conversation.id,
@@ -929,6 +929,14 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           }
         }
         
+        // Enviar mensaje al cliente para que no se quede esperando
+        const escalationMsg = `Entiendo. Te he puesto en la fila prioritaria para hablar con un asesor humano. 🧑‍💻\n\nEn breve se comunicarán contigo por este medio. ¡Gracias por tu paciencia!`;
+        try {
+          await sendWhatsAppMessage(customerPhone, escalationMsg, config, 'human_escalation_reply');
+        } catch (sendErr) {
+          console.error(`[WhatsApp] Error respondiendo escalamiento al cliente:`, sendErr instanceof Error ? sendErr.message : sendErr);
+        }
+
         // Retornar temprano para que la IA no responda
         await finalizeWebhookEvent('processed');
         return NextResponse.json({ status: 'escalated_to_human' });
@@ -1887,7 +1895,9 @@ Transportadora: *${orderResult.carrier}*`;
               const { error: dbUpdateErr } = await supabase
                 .from('appointments')
                 .update({
-                  event_id: result.eventId,\n                  customer_name: clientName,\n                  phone_number: clientPhone,
+                  event_id: result.eventId,
+                  customer_name: clientName,
+                  phone_number: clientPhone,
                   scheduled_time: scheduledTimeISO,
                   service: service,
                   status: 'rescheduled',
@@ -1914,7 +1924,7 @@ Transportadora: *${orderResult.carrier}*`;
               const { error: dbInsertErr } = await supabase.from('appointments').insert({
                 tenant_id: tenantId,
                 conversation_id: conversation.id,
-                event_id: result.eventId,\n                  customer_name: clientName,\n                  phone_number: clientPhone,
+                event_id: result.eventId,
                 customer_name: clientName,
                 phone_number: clientPhone,
                 scheduled_time: scheduledTimeISO,
