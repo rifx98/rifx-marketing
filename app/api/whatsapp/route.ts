@@ -16,6 +16,7 @@ import {
   type WebhookClaim,
 } from '@/lib/webhook-events';
 import { tenantCanUseFeature } from '@/lib/feature-access';
+import { sendAdminEscalationEmail } from '@/lib/email';
 
 export const maxDuration = 60;
 
@@ -714,6 +715,11 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           console.error(`[WhatsApp] Error notificando al admin en modo humano:`, sendErr instanceof Error ? sendErr.message : sendErr);
         }
       }
+      
+      const adminEmail = extConfig.admin_email || process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER;
+      if (adminEmail) {
+        await sendAdminEscalationEmail(adminEmail, customerName, customerPhone, customerMessage);
+      }
 
       await supabase
         .from('conversations')
@@ -820,6 +826,11 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           } catch (sendErr) {
             console.error(`[WhatsApp] Error notificando escalamiento humano al admin:`, sendErr instanceof Error ? sendErr.message : sendErr);
           }
+        }
+        
+        const adminEmail = extConfig.admin_email || process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER;
+        if (adminEmail) {
+          await sendAdminEscalationEmail(adminEmail, customerName, customerPhone, customerMessage);
         }
         
         // Enviar mensaje al cliente para que no se quede esperando

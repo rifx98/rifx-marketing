@@ -204,6 +204,57 @@ function buildVerificationEmailHtml(code: string): string {
 }
 
 /**
+ * Send an email notification to the admin when a customer escalates to human.
+ */
+export async function sendAdminEscalationEmail(to: string, customerName: string, customerPhone: string, customerMessage: string): Promise<boolean> {
+  const transporter = createTransporter();
+  const fromAddress = process.env.GMAIL_USER || 'noreply@rifx.online';
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`\n📧 [DEV] Escalation email to ${to} for customer ${customerName}`);
+      return true;
+    }
+    console.error('Email transporter not configured: GMAIL_USER or GMAIL_APP_PASSWORD missing');
+    return false;
+  }
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <h2 style="color: #e11d48; margin-top: 0; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px;">🚨 Cliente solicita atención humana</h2>
+      <p style="color: #334155; font-size: 16px; line-height: 1.5;">Un cliente ha solicitado hablar con un asesor en WhatsApp. El bot inteligente ha sido <strong>PAUSADO</strong>.</p>
+      
+      <div style="background-color: #f8fafc; padding: 16px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #3b82f6;">
+        <p style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px;"><strong>👤 Cliente:</strong> ${customerName}</p>
+        <p style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px;"><strong>📞 Teléfono:</strong> +${customerPhone}</p>
+        <p style="margin: 0; color: #0f172a; font-size: 15px;"><strong>💬 Último mensaje:</strong><br/>
+          <span style="display: block; background: #fff; padding: 12px; border-radius: 6px; margin-top: 8px; border: 1px solid #e2e8f0; font-style: italic; color: #475569;">"${customerMessage.substring(0, 500)}"</span>
+        </p>
+      </div>
+      
+      <p style="font-size: 15px; color: #334155; margin-bottom: 24px;">Por favor, ingresa al Panel de Administración para responderle o reactivar su bot.</p>
+      
+      <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid #f1f5f9;">
+        <p style="font-size: 13px; color: #94a3b8; margin: 0;">Este es un mensaje automatizado del Sistema de Alertas RIFX.</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: `"RIFX Notificaciones" <${fromAddress}>`,
+      to,
+      subject: `🚨 Atención Requerida: Cliente ${customerName} espera respuesta`,
+      html,
+    });
+    return true;
+  } catch (error) {
+    console.error('[Email] Failed to send admin escalation email:', error);
+    return false;
+  }
+}
+
+/**
  * Send a password reset link to the user's email.
  * Returns true if the email was sent successfully.
  */
