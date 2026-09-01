@@ -4840,26 +4840,32 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
           // Solo alertar si hay solicitud Y la conversación no está ya en modo humano
           if (hasHumanReq) {
-            // Considerar atendido si hay un __SYSTEM_RESUME__ o un mensaje manual del admin (role: assistant sin __) más reciente
-            const reqIdx = convData.messages.findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
-            const handledIdx = convData.messages.findIndex((m: any, idx: number) => {
-              if (idx > reqIdx) return false; // Solo buscar en mensajes más nuevos
-              if (m.content === '__SYSTEM_RESUME__') return true;
-              // Si el admin envió un mensaje manual desde el panel
-              if (m.role === 'assistant' && m.content && !m.content.startsWith('__')) {
-                // Ignorar el mensaje automático de escalamiento que envía el bot justo después
-                if (m.content.includes('fila prioritaria para hablar con un asesor humano')) return false;
-                return true;
-              }
-              return false;
-            });
-
-            if (handledIdx === -1) {
-              newAlerts.push({
-                id: conv.id,
-                name: conv.customer_name || conv.name || 'Sin nombre',
-                time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
+            // Los mensajes vienen del más antiguo al más nuevo.
+            // Para ver si la última acción fue una petición humana no atendida, buscamos de más nuevo a más antiguo.
+            const reversedMsgs = [...convData.messages].reverse();
+            const reqIdxRev = reversedMsgs.findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
+            
+            if (reqIdxRev !== -1) {
+              const handledIdxRev = reversedMsgs.findIndex((m: any, idx: number) => {
+                // Solo buscar en mensajes más nuevos que la petición humana
+                if (idx >= reqIdxRev) return false;
+                
+                if (m.content === '__SYSTEM_RESUME__') return true;
+                if (m.role === 'assistant' && m.content && !m.content.startsWith('__')) {
+                  // Ignorar el mensaje automático de escalamiento que envía el bot justo después
+                  if (m.content.includes('fila prioritaria para hablar con un asesor humano')) return false;
+                  return true;
+                }
+                return false;
               });
+
+              if (handledIdxRev === -1) {
+                newAlerts.push({
+                  id: conv.id,
+                  name: conv.customer_name || conv.name || 'Sin nombre',
+                  time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
+                });
+              }
             }
           }
         }
