@@ -100,7 +100,9 @@ export async function GET(req: NextRequest) {
 
     const conversationPage = (conversations || []).slice(0, 500);
 
-    const chatting = conversationPage.filter((c) => c.status === 'chatting');
+    const chatting = conversationPage
+      .filter((c) => c.status === 'chatting' || c.status === 'requires_attention')
+      .map((c) => c.status === 'requires_attention' ? { ...c, status: 'chatting', is_paused: true } : c);
     const interested = conversationPage.filter((c) => c.status === 'interested');
     const bought = conversationPage.filter((c) => c.status === 'bought');
 
