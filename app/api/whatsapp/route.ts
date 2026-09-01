@@ -2325,6 +2325,56 @@ async function readProviderResponse(response: Response, maxBytes = 256 * 1024): 
   }
 }
 
+// Helper: Send a WhatsApp template message when the 24h window is closed
+async function sendTemplateMessage(
+  phoneId: string, 
+  token: string, 
+  to: string,
+): Promise<{ ok: boolean; data: any }> {
+  const templatePayload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: 'hello_world',
+      language: { code: 'en_US' },
+    },
+  };
+
+  const res = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(templatePayload),
+    signal: AbortSignal.timeout(15_000),
+  });
+  
+  let data;
+  try { data = await res.json(); } catch { data = {}; }
+  return { ok: res.ok, data };
+}
+
+// Helper: Check if error is due to 24h window expiration
+function is24hWindowError(waResult: any): boolean {
+  const errorCode = waResult?.error?.code;
+  const errorSubcode = waResult?.error?.error_subcode;
+  const errorMsg = (waResult?.error?.message || '').toLowerCase();
+  
+  return (
+    errorCode === 131047 ||
+    errorCode === 131026 ||
+    errorCode === 130472 ||
+    errorSubcode === 2534050 ||
+    errorMsg.includes('24') ||
+    errorMsg.includes('session') ||
+    errorMsg.includes('window') ||
+    errorMsg.includes('re-engage') ||
+    errorMsg.includes('template')
+  );
+}
+
 async function sendWhatsAppMessage(
   to: string,
   text: string,
@@ -2394,7 +2444,25 @@ async function sendWhatsAppMessage(
       result = {};
     }
     if (!response.ok) {
-      const errStr = `Meta API status ${response.status}`;
+      if (is24hWindowError(result)) {
+        const templateResult = await sendTemplateMessage(phoneId, token, to);
+        if (templateResult.ok) {
+          try {
+            const { data: conv } = await supabase.from('conversations').select('id')
+              .eq('tenant_id', tenantId).eq('phone_number', to).limit(1).maybeSingle();
+            if (conv) {
+              await supabase.from('messages').insert({
+                conversation_id: conv.id,
+                role: 'assistant',
+                content: `[Template de contingencia por 24h enviado]\nOriginalmente intentó enviar: ${text.substring(0, 100)}...`
+              });
+            }
+          } catch { /* ignore */ }
+          return; // Terminar exitosamente usando el fallback
+        }
+      }
+
+      const errStr = `Meta API status ${response.status}: ${JSON.stringify(result).substring(0, 200)}`;
       console.error('❌ Error de Meta API:', response.status);
       try {
         const { data: conv } = await supabase.from('conversations').select('id')
