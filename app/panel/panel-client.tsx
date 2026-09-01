@@ -4846,7 +4846,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               if (idx > reqIdx) return false; // Solo buscar en mensajes más nuevos
               if (m.content === '__SYSTEM_RESUME__') return true;
               // Si el admin envió un mensaje manual desde el panel
-              if (m.role === 'assistant' && m.content && !m.content.startsWith('__')) return true;
+              if (m.role === 'assistant' && m.content && !m.content.startsWith('__')) {
+                // Ignorar el mensaje automático de escalamiento que envía el bot justo después
+                if (m.content.includes('fila prioritaria para hablar con un asesor humano')) return false;
+                return true;
+              }
               return false;
             });
 
