@@ -71,33 +71,32 @@ export async function getCalendarCredentials(tenantId: string): Promise<Calendar
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error || !account?.encrypted_access_token || !account.encryption_iv || !account.encryption_tag) {
-      if (error) console.error('[Google Calendar] Credential lookup failed:', error.code || 'database_error');
-      return null;
-    }
+    if (error) throw new Error('DB_ERROR:' + (error.message || error.code));
+    if (!account) throw new Error('ACCOUNT_NOT_FOUND');
+    if (!account.encrypted_access_token || !account.encryption_iv || !account.encryption_tag) throw new Error('MISSING_ENCRYPTION_FIELDS');
 
     let credentials: CalendarCredentials | null = null;
     try {
-      credentials = validCredentials(JSON.parse(decryptToken(
+      const decrypted = decryptToken(
         account.encrypted_access_token,
         account.encryption_iv,
         account.encryption_tag,
-      )));
-    } catch {
-      console.error('[Google Calendar] Stored credential payload is invalid');
-      return null;
+      );
+      credentials = validCredentials(JSON.parse(decrypted));
+    } catch (err: any) {
+      throw new Error('DECRYPT_ERROR:' + err.message);
     }
-    if (!credentials) return null;
+    if (!credentials) throw new Error('INVALID_CREDENTIALS');
 
     const expiration = typeof account.token_expires_at === 'string'
       ? Date.parse(account.token_expires_at)
       : Number.NaN;
     const expiredOrNearExpiry = !Number.isFinite(expiration) || expiration <= Date.now() + 60_000;
     if (!expiredOrNearExpiry) return credentials;
-    if (!credentials.refresh_token) return null;
+    if (!credentials.refresh_token) throw new Error('EXPIRED_NO_REFRESH');
 
     const refreshed = await refreshAccessToken(credentials.refresh_token);
-    if (!refreshed) return null;
+    if (!refreshed) throw new Error('REFRESH_FAILED');
     const nextCredentials = {
       access_token: refreshed.access_token,
       refresh_token: credentials.refresh_token,
@@ -114,11 +113,10 @@ export async function getCalendarCredentials(tenantId: string): Promise<Calendar
       })
       .eq('tenant_id', tenantId)
       .eq('platform', 'google_calendar');
-    if (updateError) console.error('[Google Calendar] Refreshed credential persistence failed:', updateError.code || 'database_error');
+    if (updateError) throw new Error('UPDATE_ERROR:' + updateError.message);
     return nextCredentials;
-  } catch {
-    console.error('[Google Calendar] Credential resolution failed');
-    return null;
+  } catch (err: any) {
+    throw new Error('GET_CAL_ERROR:' + err.message);
   }
 }
 

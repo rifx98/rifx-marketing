@@ -1111,7 +1111,13 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
     // 4.3 Inyectar instrucciones de agendamiento de Google Calendar (solo en modo servicios)
     let isCalendarConnected = false;
     if (!extConfig.dropi_enabled && tenantId) {
-      const calendarCreds = await getCalendarCredentials(tenantId);
+      let debugCalError = '';
+      let calendarCreds = null;
+      try {
+        calendarCreds = await getCalendarCredentials(tenantId);
+      } catch (err: any) {
+        debugCalError = err.message;
+      }
       if (calendarCreds) {
         isCalendarConnected = true;
 
@@ -1185,8 +1191,9 @@ IMPORTANTE:
         console.log(`📅 Calendar: Instrucciones de agendamiento inyectadas para tenant ${tenantId} (enlaces estáticos sanitizados)`);
       } else {
         // Fallback when calendar credentials exist but are invalid/expired, OR not connected at all
-        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DESCONECTADO]:
-ACTUALMENTE NO TIENES ACCESO AL CALENDARIO. ESTÁ ESTRICTAMENTE PROHIBIDO confirmar citas, agendar reuniones o proponer horarios. Si el cliente pide agendar, dile amablemente que en este momento no puedes procesar citas automáticamente y que un asesor humano se pondrá en contacto para agendar, o indícale que te deje sus datos. NUNCA digas "quedo agendado" ni inventes confirmaciones.`;
+        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DESCONECTADO (DEBUG: calendarCreds is null. tenantId=${tenantId}, error=${debugCalError})]:
+ACTUALMENTE NO TIENES ACCESO AL CALENDARIO. ESTÁ ESTRICTAMENTE PROHIBIDO confirmar citas, agendar reuniones o proponer horarios. Si el cliente pide agendar, dile amablemente que en este momento no puedes procesar citas automáticamente y que un asesor humano se pondrá en contacto para agendar, o indícale que te deje sus datos. NUNCA digas "quedo agendado" ni inventes confirmaciones.
+¡MUY IMPORTANTE!: SI LEES ESTE BLOQUE [SISTEMA DE AGENDAMIENTO DESCONECTADO], DEBES EMPEZAR TU RESPUESTA CON LA PALABRA "DEBUG_ERROR_CODE:" SEGUIDO DE: tenantId=${tenantId}, error=${debugCalError}`;
       }
     } else if (!extConfig.dropi_enabled) {
         // Dropi is disabled and no tenantId or no calendar configured
