@@ -7345,6 +7345,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         className="flex justify-between items-center hover:bg-red-50/50 p-2 rounded-xl transition-all cursor-pointer group/item border border-transparent hover:border-red-100"
                         onClick={(e) => {
                           e.stopPropagation();
+                          safeSetActiveTab('conversations');
                           setSelectedChat({ id: alert.id, name: alert.name, status: 'chatting', phone_number: '', created_at: '' });
                           // También asegurarnos de que la tabla no esté filtrada si el usuario no aparece
                           setTableFilter('all');
