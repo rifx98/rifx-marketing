@@ -4840,13 +4840,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
           // Solo alertar si hay solicitud Y la conversación no está ya en modo humano
           if (hasHumanReq) {
-            // Verificar que no hay un __SYSTEM_PAUSE__ más reciente que el __HUMAN_REQUEST__
-            const lastHumanReq = [...convData.messages].reverse().findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
-            const lastPause = [...convData.messages].reverse().findIndex((m: any) => m.content === '__SYSTEM_PAUSE__');
-            if (lastPause === -1 || lastHumanReq < lastPause) {
+            // Verificar que no hay un __SYSTEM_RESUME__ más reciente que el __HUMAN_REQUEST__
+            const reqIdx = convData.messages.findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
+            const resIdx = convData.messages.findIndex((m: any) => m.content === '__SYSTEM_RESUME__');
+            if (resIdx === -1 || reqIdx < resIdx) {
               newAlerts.push({
                 id: conv.id,
-                name: conv.customer_name,
+                name: conv.customer_name || conv.name || 'Sin nombre',
                 time: new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' }),
               });
             }
