@@ -4840,10 +4840,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
           // Solo alertar si hay solicitud Y la conversación no está ya en modo humano
           if (hasHumanReq) {
-            // Verificar que no hay un __SYSTEM_RESUME__ más reciente que el __HUMAN_REQUEST__
+            // Considerar atendido si hay un __SYSTEM_RESUME__ o un mensaje manual del admin (role: assistant sin __) más reciente
             const reqIdx = convData.messages.findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
-            const resIdx = convData.messages.findIndex((m: any) => m.content === '__SYSTEM_RESUME__');
-            if (resIdx === -1 || reqIdx < resIdx) {
+            const handledIdx = convData.messages.findIndex((m: any, idx: number) => {
+              if (idx > reqIdx) return false; // Solo buscar en mensajes más nuevos
+              if (m.content === '__SYSTEM_RESUME__') return true;
+              // Si el admin envió un mensaje manual desde el panel
+              if (m.role === 'assistant' && m.content && !m.content.startsWith('__')) return true;
+              return false;
+            });
+
+            if (handledIdx === -1) {
               newAlerts.push({
                 id: conv.id,
                 name: conv.customer_name || conv.name || 'Sin nombre',
