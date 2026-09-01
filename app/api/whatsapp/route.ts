@@ -1775,7 +1775,7 @@ Transportadora: *${orderResult.carrier}*`;
         const followUpMessages = [
           ...chatMessages,
           { role: 'assistant' as const, content: aiResponse || 'Déjame revisar la disponibilidad...' },
-          { role: 'user' as const, content: `[SISTEMA: Horarios disponibles para ${requestedDate}]:\n${slotsText}\n\n${userRequestedTimeHint ? userRequestedTimeHint : `Presenta estos horarios al cliente de forma amigable y pregunta cuál prefiere.`} No menciones que consultaste un sistema.` }
+          { role: 'user' as const, content: `[SISTEMA: Horarios disponibles para ${requestedDate}]:\n${slotsText}\n\n${userRequestedTimeHint ? userRequestedTimeHint : `Dile al cliente que sí hay disponibilidad. MUY IMPORTANTE: NO LISTES TODOS LOS HORARIOS. Solo dale 2 o 3 opciones como máximo (ej. uno en la mañana y uno en la tarde), o pregúntale a qué hora le gustaría más..`} No menciones que consultaste un sistema.` }
         ];
 
         try {
