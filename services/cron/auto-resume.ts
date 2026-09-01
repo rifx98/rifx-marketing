@@ -1,11 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { retryWithBackoff } from '@/app/api/cron/auth';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 interface AutoResumeResult {
   found: number;
   processed: number;
@@ -31,6 +26,10 @@ export async function runAutoResume(options: { startTime: number }): Promise<Aut
     errorDetails: [],
     processedIds: []
   };
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
   try {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
