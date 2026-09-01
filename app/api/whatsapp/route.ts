@@ -600,107 +600,6 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     console.log(`[WhatsApp ${providerMessageId}] Mensaje validado para tenant ${tenantId}`);
 
     // ============================================
-    // 0.5 PROXY DE ADMINISTRADOR (WHATSAPP-TO-WHATSAPP)
-    // ============================================
-    if (adminNotificationPhone && customerPhone === adminNotificationPhone && customerMessage.startsWith('!')) {
-      const args = customerMessage.trim().split(' ');
-      const command = args[0].toLowerCase();
-      
-      if (command === '!r' && args.length >= 3) {
-        const targetPhone = args[1];
-        const adminReply = args.slice(2).join(' ');
-        
-        const { data: targetConv } = await supabase
-          .from('conversations')
-          .select('*')
-          .eq('phone_number', targetPhone)
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-          
-        if (targetConv) {
-          try {
-            await supabase.from('messages').insert({
-              conversation_id: targetConv.id,
-              role: 'assistant',
-              content: adminReply
-            });
-          } catch (dbErr) {
-            console.error('[WhatsApp] Admin proxy: error guardando mensaje en DB:', dbErr instanceof Error ? dbErr.message : dbErr);
-          }
-          
-          try {
-            await sendWhatsAppMessage(targetPhone, adminReply, config, 'admin_proxy_reply');
-            await sendWhatsAppMessage(adminNotificationPhone, `✅ Mensaje enviado a ${targetPhone}`, config, 'admin_proxy_ack');
-          } catch (sendErr) {
-            console.error('[WhatsApp] Admin proxy: error enviando respuesta:', sendErr instanceof Error ? sendErr.message : sendErr);
-          }
-          await finalizeWebhookEvent('processed');
-          return NextResponse.json({ status: 'admin_proxy_reply_sent' });
-        } else {
-          try {
-            await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_reply_not_found');
-          } catch (sendErr) {
-            console.error('[WhatsApp] Admin proxy: error notificando not-found:', sendErr instanceof Error ? sendErr.message : sendErr);
-          }
-          await finalizeWebhookEvent('ignored', 'admin_proxy_target_not_found');
-          return NextResponse.json({ status: 'admin_proxy_not_found' });
-        }
-      }
-      
-      if (command === '!bot' && args.length >= 2) {
-        const targetPhone = args[1];
-        
-        const { data: targetConv } = await supabase
-          .from('conversations')
-          .select('*')
-          .eq('phone_number', targetPhone)
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-          
-        if (targetConv) {
-          try {
-            await supabase.from('messages').insert({
-              conversation_id: targetConv.id,
-              role: 'assistant',
-              content: '__SYSTEM_RESUME__'
-            });
-            
-            await supabase
-              .from('conversations')
-              .update({ status: 'chatting', updated_at: new Date().toISOString() })
-              .eq('id', targetConv.id)
-              .eq('tenant_id', tenantId);
-          } catch (dbErr) {
-            console.error('[WhatsApp] Admin proxy !bot: error actualizando DB:', dbErr instanceof Error ? dbErr.message : dbErr);
-          }
-             
-          try {
-            await sendWhatsAppMessage(adminNotificationPhone, `🤖 ✅ Bot reactivado para ${targetPhone}`, config, 'admin_proxy_bot_resumed');
-          } catch (sendErr) {
-            console.error('[WhatsApp] Admin proxy !bot: error notificando:', sendErr instanceof Error ? sendErr.message : sendErr);
-          }
-          await finalizeWebhookEvent('processed');
-          return NextResponse.json({ status: 'admin_proxy_bot_resumed' });
-        } else {
-          try {
-            await sendWhatsAppMessage(adminNotificationPhone, `❌ Error: No se encontró conversación con ${targetPhone}`, config, 'admin_proxy_bot_not_found');
-          } catch (sendErr) {
-            console.error('[WhatsApp] Admin proxy !bot: error notificando not-found:', sendErr instanceof Error ? sendErr.message : sendErr);
-          }
-          await finalizeWebhookEvent('ignored', 'admin_proxy_target_not_found');
-          return NextResponse.json({ status: 'admin_proxy_not_found' });
-        }
-      }
-      
-      try {
-        await sendWhatsAppMessage(adminNotificationPhone, `⚠️ Comando no reconocido.\nUsos:\n!r [numero] [mensaje]\n!bot [numero]`, config, 'admin_proxy_invalid_command');
-      } catch (sendErr) {
-        console.error('[WhatsApp] Admin proxy: error notificando comando inválido:', sendErr instanceof Error ? sendErr.message : sendErr);
-      }
-      await finalizeWebhookEvent('ignored', 'admin_proxy_invalid_command');
-      return NextResponse.json({ status: 'admin_proxy_invalid_command' });
-    }
-
     // 1. Buscar o crear conversación (filtrar por tenant_id para aislamiento multi-tenant)
     const conversationQuery = supabase
       .from('conversations')
@@ -807,10 +706,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           `👤 *${customerName}*\n` +
           `📞 +${customerPhone}\n\n` +
           `_"${customerMessage.substring(0, 200)}"_\n\n` +
-          `✍️ *Para responder desde aquí:*\n` +
-          `!r ${customerPhone} tu mensaje\n\n` +
-          `🤖 *Para reactivar el bot:*\n` +
-          `!bot ${customerPhone}`;
+          `👉 *Ingresa al panel para responder o reactivar el bot.*`;
         try {
           await sendWhatsAppMessage(adminPhone, notifMsg, config, 'human_mode_notification');
           console.log(`🔔 Notificación enviada al admin (${adminPhone}) — cliente en modo humano`);
@@ -917,10 +813,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
             `📞 +${customerPhone}\n\n` +
             `_"${customerMessage.substring(0, 200)}"_\n\n` +
             `⏸️ El bot ha sido PAUSADO.\n\n` +
-            `✍️ *Para responderle desde aquí:*\n` +
-            `!r ${customerPhone} tu mensaje\n\n` +
-            `🤖 *Para reactivar el bot:*\n` +
-            `!bot ${customerPhone}`;
+            `👉 *Ingresa al panel para responderle.*`;
           try {
             await sendWhatsAppMessage(adminPhone, alertMsg, config, 'human_escalation_notification');
             console.log(`🚨 Alerta urgente enviada al admin (${adminPhone})`);
