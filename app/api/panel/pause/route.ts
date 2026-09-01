@@ -12,7 +12,7 @@ import {
 const PAUSE_SIGNAL = '__SYSTEM_PAUSE__';
 const RESUME_SIGNAL = '__SYSTEM_RESUME__';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const RESUME_MESSAGE = 'Hola de nuevo. Gracias por tu paciencia. Nuestro equipo esta de vuelta para ayudarte. ¿En que podemos servirte?';
+const RESUME_MESSAGE = 'Espero que hayamos podido solucionar tu consulta. ¿Hay algo más en lo que pueda ayudarte el día de hoy?';
 
 async function authorize(req: NextRequest, attempts: number) {
   const tenant = await getTenantFromRequest(req);
