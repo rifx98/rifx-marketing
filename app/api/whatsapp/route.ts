@@ -1887,7 +1887,7 @@ Transportadora: *${orderResult.carrier}*`;
               const { error: dbUpdateErr } = await supabase
                 .from('appointments')
                 .update({
-                  event_id: result.eventId,
+                  event_id: result.eventId,\n                  customer_name: clientName,\n                  phone_number: clientPhone,
                   scheduled_time: scheduledTimeISO,
                   service: service,
                   status: 'rescheduled',
@@ -1914,7 +1914,7 @@ Transportadora: *${orderResult.carrier}*`;
               const { error: dbInsertErr } = await supabase.from('appointments').insert({
                 tenant_id: tenantId,
                 conversation_id: conversation.id,
-                event_id: result.eventId,
+                event_id: result.eventId,\n                  customer_name: clientName,\n                  phone_number: clientPhone,
                 customer_name: clientName,
                 phone_number: clientPhone,
                 scheduled_time: scheduledTimeISO,
