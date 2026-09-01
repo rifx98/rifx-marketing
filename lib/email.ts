@@ -240,10 +240,18 @@ export async function sendAdminEscalationEmail(to: string, customerName: string,
     </div>
   `;
 
+  let finalTo = to;
+  // Si se envía desde Gmail al mismo Gmail, Gmail lo archiva automáticamente en "Enviados".
+  // Usamos un alias (+alerta) para forzar que aparezca en la bandeja de "Recibidos".
+  if (finalTo.toLowerCase() === fromAddress.toLowerCase() && fromAddress.includes('@gmail.com')) {
+    const [user, domain] = fromAddress.split('@');
+    finalTo = `${user}+alerta@${domain}`;
+  }
+
   try {
     await transporter.sendMail({
       from: `"RIFX Notificaciones" <${fromAddress}>`,
-      to,
+      to: finalTo,
       subject: `🚨 Atención Requerida: Cliente ${customerName} espera respuesta`,
       html,
     });
