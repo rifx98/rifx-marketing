@@ -716,7 +716,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         }
       }
       
-      const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER;
+      const adminEmail = config.alert_email || process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER;
       if (adminEmail) {
         await sendAdminEscalationEmail(adminEmail, customerName, customerPhone, customerMessage);
       }
@@ -828,7 +828,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           }
         }
         
-        const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER;
+        const adminEmail = config.alert_email || process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER;
         if (adminEmail) {
           await sendAdminEscalationEmail(adminEmail, customerName, customerPhone, customerMessage);
         }
