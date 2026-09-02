@@ -282,8 +282,8 @@ export async function sendAdminEscalationEmail(to: string, customerName: string,
                 Por favor, ingresa al panel para responderle directamente por WhatsApp y reanudar el servicio.
               </p>
               
-              <a href="${dashboardUrl}" style="display:inline-block;background-color:#111827;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 24px;border-radius:6px;transition:background-color 0.2s;">
-                Abrir Chat
+              <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://rifx-marketing.com'}/panel" style="display:inline-block;background-color:#111827;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 24px;border-radius:6px;transition:background-color 0.2s;">
+                Abrir Panel
               </a>
             </td>
           </tr>
@@ -312,41 +312,33 @@ export async function sendAdminEscalationEmail(to: string, customerName: string,
                 ¡Mantente conectado!
               </p>
               
-              <div style="margin-bottom:25px;">
-                <a href="https://facebook.com/rifxmarketing" target="_blank" style="text-decoration:none;margin:0 8px;display:inline-block;">
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/2021_Facebook_icon.svg/2048px-2021_Facebook_icon.svg.png" width="24" height="24" alt="Facebook" style="border:0;filter:grayscale(100%) opacity(50%);">
-                </a>
-                <a href="https://instagram.com/rifx.marketing" target="_blank" style="text-decoration:none;margin:0 8px;display:inline-block;">
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/2048px-Instagram_logo_2016.svg.png" width="24" height="24" alt="Instagram" style="border:0;filter:grayscale(100%) opacity(50%);">
-                </a>
-                <a href="https://tiktok.com/@rifx.marketing" target="_blank" style="text-decoration:none;margin:0 8px;display:inline-block;">
-                  <img src="https://icon-library.com/images/tiktok-icon/tiktok-icon-9.jpg" width="24" height="24" alt="TikTok" style="border:0;filter:grayscale(100%) opacity(50%);">
-                </a>
-                <a href="https://youtube.com/@rifx.marketing" target="_blank" style="text-decoration:none;margin:0 8px;display:inline-block;">
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/YouTube_full-color_icon_%282017%29.svg/2560px-YouTube_full-color_icon_%282017%29.svg.png" width="24" height="24" alt="YouTube" style="border:0;filter:grayscale(100%) opacity(50%);">
-                </a>
-              </div>
+              <!-- Social Icons -->
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 25px;">
+                <tr>
+                  <td style="padding:0 10px;"><a href="https://www.facebook.com/profile.php?id=61556910667259" target="_blank"><img src="https://img.icons8.com/ios-filled/50/9ca3af/facebook-new.png" width="22" alt="Facebook"></a></td>
+                  <td style="padding:0 10px;"><a href="https://www.instagram.com/rifxmarketing/" target="_blank"><img src="https://img.icons8.com/ios-filled/50/9ca3af/instagram-new--v1.png" width="22" alt="Instagram"></a></td>
+                  <td style="padding:0 10px;"><a href="https://www.tiktok.com/@rifxmarketing" target="_blank"><img src="https://img.icons8.com/ios-filled/50/9ca3af/tiktok--v1.png" width="22" alt="TikTok"></a></td>
+                  <td style="padding:0 10px;"><a href="https://www.youtube.com/@RIFX_Marketing" target="_blank"><img src="https://img.icons8.com/ios-filled/50/9ca3af/youtube-play.png" width="22" alt="YouTube"></a></td>
+                </tr>
+              </table>
 
               <!-- Security Warning -->
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border:1px solid #e5e7eb;border-radius:6px;padding:12px;">
                 <tr>
-                  <td style="background-color:#ffffff;border:1px solid #e5e7eb;border-radius:6px;padding:16px;">
-                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td style="font-size:12px;color:#6b7280;line-height:1.5;text-align:left;">
-                          Como medida de protección, recuerda que este correo es confidencial para el equipo administrativo. <a href="https://rifx-marketing.com/terms" style="color:#eab308;text-decoration:none;font-weight:600;">Aprende más aquí</a>.
-                        </td>
-                        <td width="90" style="text-align:right;">
-                          <div style="background-color:#fef08a;color:#a16207;font-size:11px;font-weight:700;padding:4px 8px;border-radius:4px;display:inline-block;text-transform:uppercase;">
-                            Interno
-                          </div>
-                        </td>
-                      </tr>
-                    </table>
+                  <td style="text-align:left;padding-right:15px;vertical-align:middle;">
+                    <p style="margin:0;color:#4b5563;font-size:12px;line-height:1.5;">
+                      Como medida de protección, recuerda que este correo es confidencial para el equipo administrativo. <a href="https://rifx-marketing.com/seguridad" style="color:#eab308;text-decoration:none;font-weight:bold;">Aprende más aquí</a>.
+                    </p>
+                  </td>
+                  <td width="90" style="text-align:right;vertical-align:middle;">
+                    <div style="background-color:#fef08a;color:#854d0e;padding:6px 12px;border-radius:4px;font-weight:bold;font-size:12px;display:inline-block;white-space:nowrap;border:1px solid #fde047;text-transform:uppercase;">
+                      Interno
+                    </div>
                   </td>
                 </tr>
               </table>
               
+              <!-- Footer Text -->
               <p style="margin:20px 0 0;font-size:11px;color:#9ca3af;line-height:1.5;">
                 RIFX Marketing © ${new Date().getFullYear()}. Todos los derechos reservados.<br>
                 Este mensaje fue enviado de forma automática.
