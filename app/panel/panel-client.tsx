@@ -5,7 +5,6 @@ import FlowEditor from './FlowEditor';
 import FlowZapBuilder from './components/FlowZapBuilder';
 import FlowZapAI from './components/FlowZapAI';
 import FlowZapVersions from './components/FlowZapVersions';
-import FlowZapSettings from './components/FlowZapSettings';
 import FlowZapInbox from './components/FlowZapInbox';
 import CampaignsTab from './CampaignsTab';
 import AILedger from './AILedger';
@@ -1179,7 +1178,7 @@ export default function PanelClient() {
 
   const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
-  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions' | 'config'>('constructor');
+  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions'>('constructor');
 
   // Appointments states
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
@@ -10319,7 +10318,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   { key: 'constructor', icon: 'account_tree', label: language === 'en' ? 'Builder' : 'Constructor' },
                   { key: 'flowzap',     icon: 'psychology',   label: 'FlowZap AI' },
                   { key: 'versions',    icon: 'history',      label: language === 'en' ? 'Versions' : 'Versiones' },
-                  { key: 'config',      icon: 'settings',     label: language === 'en' ? 'Settings' : 'Configuración' },
                 ].map(item => (
                   <button
                     key={item.key}
@@ -10354,9 +10352,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 )}
                 {botSection === 'versions' && (
                   <FlowZapVersions />
-                )}
-                {botSection === 'config' && (
-                  <FlowZapSettings />
                 )}
               </main>
             </div>
