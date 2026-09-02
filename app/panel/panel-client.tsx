@@ -1174,6 +1174,13 @@ export default function PanelClient() {
 
   const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
+  const [isBotMenuOpen, setIsBotMenuOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (['basic_bot', 'bot_constructor', 'bot_flowzap', 'bot_versions', 'bot_config'].includes(activeTab)) {
+      setIsBotMenuOpen(true);
+    }
+  }, [activeTab]);
 
   // Appointments states
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
@@ -7137,34 +7144,68 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
             ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
           ].map(item => {
-            const isActive = activeTab === item.key;
-            const isLocked = isTabLocked(item.key);
-            return (
-              <button
-                key={item.key}
-                onClick={() => safeSetActiveTab(item.key as any)}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${
-                  isActive 
-                    ? (isLocked 
-                        ? 'bg-red-50 text-red-600 shadow-md font-bold scale-[0.98]' 
-                        : 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]') 
-                    : (isLocked 
-                        ? 'text-red-400 hover:text-red-500 hover:bg-red-50/20' 
-                        : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50')
-                }`}
-                onMouseEnter={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setHoveredTab({
-                    label: language === 'en' ? item.labelEn : item.labelEs,
-                    top: rect.top + rect.height / 2,
-                    isLocked: !!isLocked
-                  });
-                }}
-                onMouseLeave={() => setHoveredTab(null)}
-              >
-                <span className="material-symbols-outlined text-xl shrink-0" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
-              </button>
-            );
+            const renderButton = (btnItem: any, isSub: boolean = false) => {
+              const isActive = activeTab === btnItem.key;
+              const isLocked = isTabLocked(btnItem.key);
+              return (
+                <button
+                  key={btnItem.key}
+                  onClick={() => {
+                    if (btnItem.key === 'basic_bot') {
+                      setIsBotMenuOpen(!isBotMenuOpen);
+                      safeSetActiveTab('bot_constructor' as any);
+                    } else {
+                      safeSetActiveTab(btnItem.key as any);
+                    }
+                  }}
+                  className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${isSub ? 'scale-90 opacity-80' : ''} ${
+                    isActive 
+                      ? (isLocked 
+                          ? 'bg-red-50 text-red-600 shadow-md font-bold scale-[0.98]' 
+                          : 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]') 
+                      : (isLocked 
+                          ? 'text-red-400 hover:text-red-500 hover:bg-red-50/20' 
+                          : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50')
+                  }`}
+                  onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setHoveredTab({
+                      label: language === 'en' ? btnItem.labelEn : btnItem.labelEs,
+                      top: rect.top + rect.height / 2,
+                      isLocked: !!isLocked
+                    });
+                  }}
+                  onMouseLeave={() => setHoveredTab(null)}
+                >
+                  <span className="material-symbols-outlined text-xl shrink-0" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>{btnItem.icon}</span>
+                </button>
+              );
+            };
+
+            if (item.key === 'basic_bot') {
+              return (
+                <div key="basic_bot_group" className={`flex flex-col gap-1 items-center rounded-2xl p-1 transition-all ${isBotMenuOpen ? 'bg-slate-50/50 border border-slate-200/50 shadow-inner' : ''}`}>
+                  {renderButton(item)}
+                  <AnimatePresence>
+                    {isBotMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                        exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                        className="flex flex-col gap-1 items-center overflow-hidden w-full pt-1 border-t border-slate-200/50 mt-1"
+                      >
+                        {renderButton({ key: 'bot_constructor', icon: 'account_tree', labelEs: 'Constructor', labelEn: 'Builder' }, true)}
+                        {renderButton({ key: 'bot_flowzap', icon: 'psychology', labelEs: 'FlowZap AI', labelEn: 'FlowZap AI' }, true)}
+                        {renderButton({ key: 'bot_versions', icon: 'history', labelEs: 'Versiones', labelEn: 'Versions' }, true)}
+                        {renderButton({ key: 'bot_config', icon: 'settings', labelEs: 'Configuración', labelEn: 'Settings' }, true)}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            }
+
+            return renderButton(item);
           })}
         </nav>
 
@@ -7250,29 +7291,69 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
                 ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
               ].map(item => {
-                const isActive = activeTab === item.key;
-                const locked = isTabLocked(item.key);
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => { safeSetActiveTab(item.key as any); setIsMobileMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${
-                      isActive
-                        ? (locked ? 'bg-red-50 text-red-600 font-bold' : 'bg-primary-container/10 text-primary-container font-bold')
-                        : (locked ? 'text-red-400 hover:bg-red-50/30' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50')
-                    }`}
-                  >
-                    <span className={`material-symbols-outlined text-xl ${isActive ? (locked ? 'text-red-600' : 'text-primary-container') : (locked ? 'text-red-400' : 'text-slate-400')}`} style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
-                      {item.icon}
-                    </span>
-                    {language === 'en' ? item.labelEn : item.labelEs}
-                    {locked && (
-                      <span className="ml-auto text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
-                        {language === 'en' ? 'Locked' : 'Bloqueado'}
+                const renderButton = (btnItem: any, isSub: boolean = false) => {
+                  const isActive = activeTab === btnItem.key;
+                  const locked = isTabLocked(btnItem.key);
+                  return (
+                    <button
+                      key={btnItem.key}
+                      onClick={() => {
+                        if (btnItem.key === 'basic_bot') {
+                          setIsBotMenuOpen(!isBotMenuOpen);
+                          safeSetActiveTab('bot_constructor' as any);
+                        } else {
+                          safeSetActiveTab(btnItem.key as any);
+                          setIsMobileMenuOpen(false);
+                        }
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${isSub ? 'pl-10 text-[13px] bg-slate-50/50' : ''} ${
+                        isActive
+                          ? (locked ? 'bg-red-50 text-red-600 font-bold' : 'bg-primary-container/10 text-primary-container font-bold')
+                          : (locked ? 'text-red-400 hover:bg-red-50/30' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50')
+                      }`}
+                    >
+                      <span className={`material-symbols-outlined text-xl ${isActive ? (locked ? 'text-red-600' : 'text-primary-container') : (locked ? 'text-red-400' : 'text-slate-400')} ${isSub ? 'text-[18px]' : ''}`} style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
+                        {btnItem.icon}
                       </span>
-                    )}
-                  </button>
-                );
+                      <span className="flex-1">{language === 'en' ? btnItem.labelEn : btnItem.labelEs}</span>
+                      {btnItem.key === 'basic_bot' && (
+                        <span className="material-symbols-outlined text-slate-400 transition-transform" style={{ transform: isBotMenuOpen ? 'rotate(180deg)' : 'none' }}>
+                          expand_more
+                        </span>
+                      )}
+                      {locked && (
+                        <span className="ml-auto text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                          {language === 'en' ? 'Locked' : 'Bloqueado'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                };
+
+                if (item.key === 'basic_bot') {
+                  return (
+                    <div key="basic_bot_group" className="flex flex-col">
+                      {renderButton(item)}
+                      <AnimatePresence>
+                        {isBotMenuOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="flex flex-col gap-1 overflow-hidden"
+                          >
+                            {renderButton({ key: 'bot_constructor', icon: 'account_tree', labelEs: 'Constructor', labelEn: 'Builder' }, true)}
+                            {renderButton({ key: 'bot_flowzap', icon: 'psychology', labelEs: 'FlowZap AI', labelEn: 'FlowZap AI' }, true)}
+                            {renderButton({ key: 'bot_versions', icon: 'history', labelEs: 'Versiones', labelEn: 'Versions' }, true)}
+                            {renderButton({ key: 'bot_config', icon: 'settings', labelEs: 'Configuración', labelEn: 'Settings' }, true)}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                }
+
+                return renderButton(item);
               })}
             </div>
             {/* Drawer Footer â€” Logout */}
@@ -10277,7 +10358,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <InboxClient />
             </motion.div>
         )}
-        {activeTab === 'basic_bot' && (
+        {activeTab === 'bot_flowzap' && (
+          <motion.div key="bot_flowzap" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
+            <header className="max-w-4xl"><h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">FlowZap AI</h2></header>
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Configuración de FlowZap AI próximamente.</p></div>
+          </motion.div>
+        )}
+        {activeTab === 'bot_versions' && (
+          <motion.div key="bot_versions" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
+            <header className="max-w-4xl"><h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">Versiones</h2></header>
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Control de versiones próximamente.</p></div>
+          </motion.div>
+        )}
+        {activeTab === 'bot_config' && (
+          <motion.div key="bot_config" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
+            <header className="max-w-4xl"><h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">Configuración</h2></header>
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Opciones de configuración del bot próximamente.</p></div>
+          </motion.div>
+        )}
+        {(activeTab === 'basic_bot' || activeTab === 'bot_constructor') && (
           <motion.div key="basic_bot" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
             <header className="max-w-4xl">
               <div className="flex items-center space-x-4 mb-4">
