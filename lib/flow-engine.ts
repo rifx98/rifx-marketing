@@ -19,18 +19,38 @@ interface FlowConfig {
   edges: FlowEdge[];
 }
 
+// Helper to interpolate variables in text
+function interpolateText(text: string, variables: Record<string, any>) {
+  if (!text) return '';
+  return text.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+    return variables[key.trim()] !== undefined ? variables[key.trim()] : match;
+  });
+}
+
+// Evaluate condition
+function evaluateCondition(operator: string, actual: any, expected: any) {
+  if (actual === undefined || actual === null) actual = '';
+  const aStr = String(actual).toLowerCase();
+  const eStr = String(expected).toLowerCase();
+  
+  switch (operator) {
+    case '==': return aStr === eStr;
+    case '!=': return aStr !== eStr;
+    case 'contains': return aStr.includes(eStr);
+    case '>': return Number(actual) > Number(expected);
+    case '<': return Number(actual) < Number(expected);
+    default: return false;
+  }
+}
+
 export async function processFlowEngineMessage(
   messageData: any,
   botMenuConfig: any,
   customerPhone: string,
   tenantId: string
 ) {
-  // If no config or not a valid flow config
   if (!botMenuConfig || !Array.isArray(botMenuConfig.nodes) || botMenuConfig.nodes.length === 0) {
-    return {
-      type: 'text',
-      content: 'Bienvenido. (El administrador aún no ha configurado el flujo visual).'
-    };
+    return null; // Fallback or ignored if no flow
   }
 
   const supabase = createSupabaseAdmin();
@@ -38,7 +58,7 @@ export async function processFlowEngineMessage(
   // 1. Get or create conversation
   let { data: conversation } = await supabase
     .from('conversations')
-    .select('id, current_node_id, is_human_mode, status')
+    .select('id, current_node_id, is_human_mode, status, flow_variables')
     .eq('tenant_id', tenantId)
     .eq('phone_number', customerPhone)
     .maybeSingle();
@@ -49,31 +69,35 @@ export async function processFlowEngineMessage(
 
   const config = botMenuConfig as FlowConfig;
   let currentNodeId = conversation?.current_node_id;
+  let variables = conversation?.flow_variables || {};
+  let variablesUpdated = false;
+
+  const userText = messageData?.text?.body?.toLowerCase().trim() || '';
 
   // 2. Identify Start node if no current node
   if (!currentNodeId) {
     const startNode = config.nodes.find(n => n.type === 'start');
     currentNodeId = startNode ? startNode.id : config.nodes[0].id;
   } else {
-    // 3. Process user response against current node to find next node
-    const userText = messageData?.text?.body?.toLowerCase().trim() || '';
-    
-    // Find edges originating from current node
+    // 3. Process user response against current node
+    const currentNode = config.nodes.find(n => n.id === currentNodeId);
     const outgoingEdges = config.edges.filter(e => e.source === currentNodeId);
     let nextNodeId = null;
 
-    // Check if the current node was a buttons/menu node
-    const currentNode = config.nodes.find(n => n.id === currentNodeId);
     if (currentNode?.type === 'buttons') {
-      // Find edge matching the button response
-      const matchingEdge = outgoingEdges.find(e => {
-        // e.sourceHandle could match the button id or text
-        return e.sourceHandle && e.sourceHandle.toLowerCase() === userText;
-      });
+      const matchingEdge = outgoingEdges.find(e => e.sourceHandle && e.sourceHandle.toLowerCase() === userText);
       if (matchingEdge) nextNodeId = matchingEdge.target;
-      else if (outgoingEdges.length > 0) nextNodeId = outgoingEdges[0].target; // fallback
-    } else {
-      // Default jump to the first outgoing edge
+      else if (outgoingEdges.length > 0) nextNodeId = outgoingEdges[0].target; 
+    } 
+    else if (currentNode?.type === 'question') {
+      // Save answer to variable
+      if (currentNode.data?.variable) {
+        variables[currentNode.data.variable] = messageData?.text?.body || '';
+        variablesUpdated = true;
+      }
+      if (outgoingEdges.length > 0) nextNodeId = outgoingEdges[0].target;
+    }
+    else {
       if (outgoingEdges.length > 0) nextNodeId = outgoingEdges[0].target;
     }
 
@@ -82,38 +106,58 @@ export async function processFlowEngineMessage(
     }
   }
 
-  const nextNode = config.nodes.find(n => n.id === currentNodeId);
+  // 4. Auto-traverse non-blocking nodes (like Condition) immediately
+  let nextNode = config.nodes.find(n => n.id === currentNodeId);
   
+  while (nextNode && nextNode.type === 'condition') {
+    const varValue = variables[nextNode.data?.variable || ''];
+    const result = evaluateCondition(nextNode.data?.operator || '==', varValue, nextNode.data?.value || '');
+    
+    const conditionEdges = config.edges.filter(e => e.source === nextNode!.id);
+    const targetHandle = result ? 'true' : 'false';
+    const edge = conditionEdges.find(e => e.sourceHandle === targetHandle);
+    
+    if (edge) {
+      currentNodeId = edge.target;
+      nextNode = config.nodes.find(n => n.id === currentNodeId);
+    } else {
+      break;
+    }
+  }
+
   if (!nextNode) {
-    return { type: 'text', content: 'Flujo terminado o configurado incorrectamente.' };
+    return { type: 'text', content: 'Flujo terminado.' };
   }
 
   // Update conversation with new state
   if (conversation) {
+    const updatePayload: any = { current_node_id: currentNodeId };
+    if (variablesUpdated) updatePayload.flow_variables = variables;
+    
     await supabase.from('conversations')
-      .update({ current_node_id: currentNodeId })
+      .update(updatePayload)
       .eq('id', conversation.id);
   }
 
-  // 4. Generate response based on next node type
-  if (nextNode.type === 'message' || nextNode.type === 'start') {
+  // 5. Generate Response
+  if (nextNode.type === 'message' || nextNode.type === 'start' || nextNode.type === 'question') {
     return {
       type: 'text',
-      content: nextNode.data?.text || 'Mensaje no configurado'
+      content: interpolateText(nextNode.data?.text || '', variables)
     };
   }
   
   if (nextNode.type === 'buttons') {
     const buttons = Array.isArray(nextNode.data?.buttons) ? nextNode.data.buttons : [];
     if (buttons.length === 0) {
-      return { type: 'text', content: nextNode.data?.text || 'Opciones' };
+      return { type: 'text', content: interpolateText(nextNode.data?.text || 'Opciones', variables) };
     }
     return {
       type: 'interactive',
-      content: nextNode.data?.text || 'Elige una opción',
+      content: interpolateText(nextNode.data?.text || 'Elige una opción', variables),
       interactive: {
         type: 'button',
-        body: { text: nextNode.data?.text || 'Elige una opción' },
+        body: { text: interpolateText(nextNode.data?.text || 'Elige una opción', variables) },
         action: {
           buttons: buttons.map((btn: any) => ({
             type: 'reply',
@@ -121,6 +165,18 @@ export async function processFlowEngineMessage(
           }))
         }
       }
+    };
+  }
+
+  if (nextNode.type === 'media') {
+    const mediaType = nextNode.data?.mediaType || 'image';
+    const url = nextNode.data?.url || '';
+    if (!url) return { type: 'text', content: 'Archivo adjunto no disponible.' };
+    
+    return {
+      type: mediaType, // 'image', 'document', 'video'
+      url: url,
+      caption: interpolateText(nextNode.data?.text || '', variables)
     };
   }
 
@@ -132,12 +188,9 @@ export async function processFlowEngineMessage(
     }
     return {
       type: 'text',
-      content: nextNode.data?.text || 'Un asesor humano se conectará contigo en breve.'
+      content: interpolateText(nextNode.data?.text || 'Un asesor humano se conectará contigo en breve.', variables)
     };
   }
 
-  return {
-    type: 'text',
-    content: 'Paso no reconocido.'
-  };
+  return { type: 'text', content: 'Paso procesado.' };
 }

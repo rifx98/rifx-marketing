@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import FlowEditor from './FlowEditor';
+import InboxClient from './inbox/inbox-client';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -10230,6 +10231,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         {/* Other tabs Coming Soon placeholders can be moved here if needed, 
             but the redundant dashboard block must be removed. */}
 
+                {activeTab === 'inbox' && (
+            <motion.div key="inbox" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="h-full">
+              <InboxClient />
+            </motion.div>
+        )}
         {activeTab === 'basic_bot' && (
           <motion.div key="basic_bot" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
             <header className="max-w-4xl">
@@ -10240,7 +10246,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <p className="text-xl text-slate-500 max-w-2xl font-normal leading-relaxed">{language === 'en' ? 'Edit the structured flow and menu options for your basic bot. This bot does not use AI, ensuring maximum economy and control.' : 'Edita el flujo estructurado y las opciones de menú de tu bot básico. Este bot no utiliza IA, asegurando máxima economía y control total.'}</p>
             </header>
             
-                                        <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm max-w-[1200px] w-full">
+                                        <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-6 shadow-sm w-full flex flex-col h-[calc(100vh-140px)]">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-6">
                    <div className="flex items-center gap-4">
                      <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner">
@@ -10253,7 +10259,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                    </div>
                 </div>
                 
-                <div className="w-full rounded-2xl overflow-hidden border border-slate-200 relative shadow-inner">
+                <div className="w-full flex-1 overflow-hidden relative">
                   <FlowEditor 
                     initialData={configData.bot_menu_config} 
                     onSave={(data) => handleConfigUpdate({ bot_menu_config: data })} 
