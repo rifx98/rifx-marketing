@@ -2,21 +2,21 @@
 import React from 'react';
 import styles from './builder.module.css';
 
-export type PaletteItem = { type:string; icon:string; name:string; description:string };
+export type PaletteItem = { type:string; icon:string; name:string; description:string; tooltip:string };
 
 export const DEFAULT_PALETTE: PaletteItem[] = [
-  {type:'start',icon:'▶️',name:'Inicio',description:'Punto inicial'},
-  {type:'message',icon:'💬',name:'Mensaje',description:'Enviar texto'},
-  {type:'menu',icon:'📋',name:'Menú',description:'Opciones numeradas'},
-  {type:'buttons',icon:'🔘',name:'Botones',description:'Acciones rápidas'},
-  {type:'question',icon:'✍️',name:'Pregunta',description:'Guardar respuesta'},
-  {type:'condition',icon:'🔀',name:'Condición',description:'IF / ELSE'},
-  {type:'media',icon:'🖼️',name:'Multimedia',description:'Imagen, video o PDF'},
-  {type:'tag',icon:'🏷️',name:'Etiqueta',description:'Agregar o quitar tags'},
-  {type:'wait',icon:'⏳',name:'Espera',description:'Pausa programada'},
-  {type:'human',icon:'👤',name:'Humano',description:'Pasar a asesor'},
-  {type:'ai',icon:'🧠',name:'IA Premium',description:'Módulo opcional'},
-  {type:'end',icon:'⛔',name:'Finalizar',description:'Cerrar flujo'},
+  {type:'start',icon:'▶️',name:'Inicio',description:'Punto inicial',tooltip:'El flujo siempre comienza aquí. No se puede eliminar.'},
+  {type:'message',icon:'💬',name:'Mensaje',description:'Enviar texto',tooltip:'Muestra un simple mensaje de texto al usuario.'},
+  {type:'menu',icon:'📋',name:'Menú',description:'Opciones numeradas',tooltip:'Crea un menú interactivo con varias opciones. Cada opción se convierte en un camino diferente.'},
+  {type:'buttons',icon:'🔘',name:'Botones',description:'Acciones rápidas',tooltip:'Muestra botones seleccionables en pantalla.'},
+  {type:'question',icon:'✍️',name:'Pregunta',description:'Guardar respuesta',tooltip:'Pide un dato al usuario y lo guarda en una variable (ej. nombre, email).'},
+  {type:'condition',icon:'🔀',name:'Condición',description:'IF / ELSE',tooltip:'Toma una decisión basada en el valor de una variable guardada (ej. si el nombre es vacío, ir por un camino).'},
+  {type:'media',icon:'🖼️',name:'Multimedia',description:'Imagen, video o PDF',tooltip:'Envía un archivo multimedia adjunto al chat.'},
+  {type:'tag',icon:'🏷️',name:'Etiqueta',description:'Agregar o quitar tags',tooltip:'Asigna una etiqueta interna al cliente para segmentarlo (ej. cliente-vip).'},
+  {type:'wait',icon:'⏳',name:'Espera',description:'Pausa programada',tooltip:'Detiene el bot por un tiempo determinado antes de seguir al siguiente paso.'},
+  {type:'human',icon:'👤',name:'Humano',description:'Pasar a asesor',tooltip:'Detiene el bot permanentemente y asigna el chat a un asesor humano.'},
+  {type:'ai',icon:'🧠',name:'IA Premium',description:'Módulo opcional',tooltip:'Usa inteligencia artificial conectada a tu base de datos para responder de forma abierta.'},
+  {type:'end',icon:'⛔',name:'Finalizar',description:'Cerrar flujo',tooltip:'Marca el final de la conversación o de esta rama del flujo.'},
 ];
 
 export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, canvas, inspector, onFlowNameChange, onAddNode, onUndo, onRedo, onSearch, onValidate, onSimulate, onSave, onPublish, onVersions }: {
@@ -24,7 +24,7 @@ export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, ca
   onFlowNameChange?:(v:string)=>void; onAddNode?:(type:string)=>void; onUndo?:()=>void; onRedo?:()=>void; onSearch?:(q:string)=>void; onValidate?:()=>void; onSimulate?:()=>void; onSave?:()=>void; onPublish?:()=>void; onVersions?:()=>void;
 }) {
   return <div className={styles.shell}>
-    <aside className={styles.left}><div className={styles.flowName}><label>Nombre del bot</label><input value={flowName} onChange={(e)=>onFlowNameChange?.(e.target.value)}/>{dirty&&<small>● Cambios sin guardar</small>}</div><div className={styles.panelTitle}>Bloques</div><p className={styles.hint}>Añade bloques al canvas del constructor existente.</p><div className={styles.palette}>{palette.map((p)=><button key={p.type} onClick={()=>onAddNode?.(p.type)}><span>{p.icon}</span><div><strong>{p.name}</strong><small>{p.description}</small></div></button>)}</div><div className={styles.bottom}><button onClick={onVersions}>🗂️ Versiones</button><button onClick={onValidate}>✓ Revisar flujo</button></div></aside>
+    <aside className={styles.left}><div className={styles.flowName}><label>Nombre del bot</label><input value={flowName} onChange={(e)=>onFlowNameChange?.(e.target.value)}/>{dirty&&<small>● Cambios sin guardar</small>}</div><div className={styles.panelTitle}>Bloques</div><p className={styles.hint}>Añade bloques al canvas del constructor existente.</p><div className={styles.palette}>{palette.map((p)=><button key={p.type} onClick={()=>onAddNode?.(p.type)} className="relative group"><span>{p.icon}</span><div style={{flex:1}}><strong>{p.name}</strong><small>{p.description}</small></div><span title={p.tooltip} className="material-symbols-outlined text-[14px] text-slate-300 hover:text-blue-500 absolute right-2 top-1/2 -translate-y-1/2" style={{cursor: 'help'}}>help</span></button>)}</div><div className={styles.bottom}><button onClick={onVersions}>🗂️ Versiones</button><button onClick={onValidate}>✓ Revisar flujo</button></div></aside>
     <section className={styles.center}><div className={styles.toolbar}><div><button onClick={onUndo}>↶</button><button onClick={onRedo}>↷</button></div><input placeholder="Buscar bloque..." onKeyDown={(e)=>{if(e.key==='Enter')onSearch?.((e.target as HTMLInputElement).value)}}/><div><button onClick={onSimulate}>🧪 Probar</button><button onClick={onSave}>Guardar</button><button className={styles.publish} onClick={onPublish}>🚀 Publicar</button></div></div><div className={styles.canvasSlot}>{canvas}</div></section>
     <aside className={styles.right}><div className={styles.panelTitle}>Propiedades</div><p className={styles.hint}>Configura aquí el nodo seleccionado.</p>{inspector}</aside>
   </div>;

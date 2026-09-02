@@ -15,26 +15,47 @@ export default function FlowZapVersions() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={5} className="p-12 text-center text-slate-500 border-b border-slate-100">
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-3xl mb-2">🗂️</span>
-                  <strong className="text-slate-800 text-xs font-bold block mb-1">Aún no hay versiones</strong>
-                  <p className="text-[10px] max-w-xs mx-auto leading-relaxed">
-                    Se crea una versión de forma automática cada vez que guardas o publicas un flujo de conversación.
-                  </p>
-                </div>
+
+            <tr className="hover:bg-slate-50 transition-colors">
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">01/09/2026, 14:00</td>
+              <td className="p-3 border-b border-slate-100">
+                <strong className="text-[11px] text-slate-800 block">Bot Captación VIP</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Plantilla predeterminada</small>
+              </td>
+              <td className="p-3 border-b border-slate-100">
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-blue-100 text-blue-700 font-bold tracking-wide">plantilla</span>
+              </td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v3</td>
+              <td className="p-3 border-b border-slate-100 text-right">
+                <button className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Restaurar
+                </button>
               </td>
             </tr>
-            {/* Example row (commented out or conditionally rendered later)
             <tr className="hover:bg-slate-50 transition-colors">
-              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">02/09/2026, 10:30</td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">28/08/2026, 09:15</td>
               <td className="p-3 border-b border-slate-100">
-                <strong className="text-[11px] text-slate-800 block">Mi chatbot</strong>
-                <small className="text-[8px] text-slate-500 block mt-0.5">Guardado manual</small>
+                <strong className="text-[11px] text-slate-800 block">Soporte Técnico</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Plantilla predeterminada</small>
               </td>
               <td className="p-3 border-b border-slate-100">
-                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-green-100 text-green-700 font-bold tracking-wide">publicado</span>
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-blue-100 text-blue-700 font-bold tracking-wide">plantilla</span>
+              </td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v2</td>
+              <td className="p-3 border-b border-slate-100 text-right">
+                <button className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Restaurar
+                </button>
+              </td>
+            </tr>
+            <tr className="hover:bg-slate-50 transition-colors">
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">15/08/2026, 11:30</td>
+              <td className="p-3 border-b border-slate-100">
+                <strong className="text-[11px] text-slate-800 block">Bienvenida Inicial</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Plantilla predeterminada</small>
+              </td>
+              <td className="p-3 border-b border-slate-100">
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-blue-100 text-blue-700 font-bold tracking-wide">plantilla</span>
               </td>
               <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v1</td>
               <td className="p-3 border-b border-slate-100 text-right">
@@ -42,7 +63,7 @@ export default function FlowZapVersions() {
                   Restaurar
                 </button>
               </td>
-            </tr> */}
+            </tr>
           </tbody>
         </table>
       </div>
