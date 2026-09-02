@@ -4,7 +4,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIp, normalizeEmail, rateLimitKey } from '@/lib/security';
 import { readLimitedJsonObject } from '@/lib/request-guards';
 import { sendVerificationEmail } from '@/lib/email';
-import { setMemoryVerification } from '../verify-email/route';
+import { setMemoryVerification } from '@/lib/memory-store';
 
 export async function POST(req: NextRequest) {
   try {

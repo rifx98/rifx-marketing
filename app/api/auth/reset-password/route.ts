@@ -4,7 +4,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { getClientIp, normalizeEmail, rateLimitKey, validatePassword } from '@/lib/security';
 import { readLimitedJsonObject } from '@/lib/request-guards';
 import { attachSessionCookie, signToken } from '@/lib/auth';
-import { checkMemoryStore } from '../verify-email/route';
+import { checkMemoryStore } from '@/lib/memory-store';
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: NextRequest) {
