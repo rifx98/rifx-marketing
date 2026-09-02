@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/cron/auto-resume",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
