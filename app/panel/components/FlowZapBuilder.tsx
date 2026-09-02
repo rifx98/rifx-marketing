@@ -98,12 +98,81 @@ const HumanNode = ({ data }: any) => (
   </div>
 );
 
+const ConditionNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-cyan-500`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="🔀" title={data.name || "Condición"} typeLabel="CONDICIÓN" color="#06b6d4" />
+    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 text-[10px] text-slate-600">
+      Si <strong>{data.variable || 'var'}</strong> {data.operator || '=='} <strong>{data.value || 'valor'}</strong>
+    </div>
+    <div className="flex justify-between mt-2 text-[9px] font-bold">
+      <span className="text-emerald-600">Verdadero</span>
+      <span className="text-rose-600">Falso</span>
+    </div>
+    <Handle type="source" position={Position.Right} id="true" style={{ ...handleStyle, top: '70%', right: -6, backgroundColor: '#10b981' }} />
+    <Handle type="source" position={Position.Right} id="false" style={{ ...handleStyle, top: '90%', right: -6, backgroundColor: '#ef4444' }} />
+  </div>
+);
+
+const MediaNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-pink-500`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="🖼️" title={data.name || "Multimedia"} typeLabel="MULTIMEDIA" color="#ec4899" />
+    <div className="bg-slate-50 border border-slate-100 rounded-lg p-2 mt-2 text-[10px] text-slate-600 break-all">
+      {data.mediaType || 'Imagen'} {data.url ? `· ${data.url.substring(0, 20)}...` : '· Sin archivo'}
+    </div>
+    <Handle type="source" position={Position.Right} style={{ ...handleStyle, right: -6 }} />
+  </div>
+);
+
+const TagNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-lime-500`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="🏷️" title={data.name || "Etiqueta"} typeLabel="ETIQUETA" color="#84cc16" />
+    <p className="text-[10px] text-slate-600 mt-1">{data.action === 'remove' ? 'Quitar' : 'Agregar'}: <strong>{data.tag || 'tag'}</strong></p>
+    <Handle type="source" position={Position.Right} style={{ ...handleStyle, right: -6 }} />
+  </div>
+);
+
+const WaitNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-orange-400`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="⏳" title={data.name || "Espera"} typeLabel="ESPERA" color="#fb923c" />
+    <p className="text-[10px] text-slate-600 mt-1">Pausa por <strong>{data.time || '1'} {data.unit || 'minutos'}</strong></p>
+    <Handle type="source" position={Position.Right} style={{ ...handleStyle, right: -6 }} />
+  </div>
+);
+
+const AiNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-indigo-500`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="🧠" title={data.name || "IA Premium"} typeLabel="IA PREMIUM" color="#6366f1" />
+    <p className="text-[10px] text-slate-500 mt-1">Generará respuesta basada en conocimiento.</p>
+    <Handle type="source" position={Position.Right} style={{ ...handleStyle, right: -6 }} />
+  </div>
+);
+
+const EndNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-slate-700`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="⛔" title={data.name || "Final"} typeLabel="FINAL" color="#334155" />
+    <p className="text-[10px] text-slate-500 mt-1">Finalizar conversación</p>
+  </div>
+);
+
 const nodeTypes: NodeTypes = {
   start: StartNode,
   message: MessageNode,
   menu: ButtonsNode,
+  buttons: ButtonsNode,
   question: QuestionNode,
   human: HumanNode,
+  condition: ConditionNode,
+  media: MediaNode,
+  tag: TagNode,
+  wait: WaitNode,
+  ai: AiNode,
+  end: EndNode,
 };
 
 // --- MAIN COMPONENT ---
@@ -137,8 +206,14 @@ export default function FlowZapBuilder() {
       id: `${type}_${Date.now()}`,
       type,
       position: { x: Math.random() * 200 + 400, y: Math.random() * 200 + 100 },
-      data: type === 'menu' ? { name: 'Opciones', text: 'Elige:', buttons: [{ label: 'Opción 1' }] } 
+      data: type === 'menu' || type === 'buttons' ? { name: 'Opciones', text: 'Elige:', buttons: [{ label: 'Opción 1' }] } 
           : type === 'question' ? { name: 'Pregunta', text: '¿Cual es tu nombre?', variable: 'nombre' }
+          : type === 'condition' ? { name: 'Condición', variable: 'nombre', operator: '==', value: 'Juan' }
+          : type === 'media' ? { name: 'Multimedia', mediaType: 'image', url: '', text: '', fileName: '' }
+          : type === 'tag' ? { name: 'Etiqueta', action: 'add', tag: 'nuevo-cliente' }
+          : type === 'wait' ? { name: 'Espera', time: '1', unit: 'minutos' }
+          : type === 'ai' ? { name: 'IA Premium' }
+          : type === 'end' ? { name: 'Fin' }
           : { name: 'Mensaje', text: 'Nuevo mensaje' },
     };
     setNodes((nds) => [...nds, newNode]);
@@ -325,7 +400,7 @@ export default function FlowZapBuilder() {
         <input type="text" value={selectedNode.data.name || ''} onChange={(e) => updateSelectedNodeData('name', e.target.value)} />
       </InspectorField>
 
-      {['message', 'menu', 'question'].includes(selectedNode.type) && (
+      {['message', 'menu', 'buttons', 'question'].includes(selectedNode.type) && (
         <InspectorField label="Contenido del mensaje" help="Texto que enviará el bot">
           <textarea 
             value={selectedNode.data.text || ''} 
@@ -334,7 +409,7 @@ export default function FlowZapBuilder() {
         </InspectorField>
       )}
 
-      {selectedNode.type === 'menu' && (
+      {(selectedNode.type === 'menu' || selectedNode.type === 'buttons') && (
         <div style={{marginTop: 15}}>
           <label style={{fontSize: 9, fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', display: 'block', marginBottom: 5}}>Opciones del menú</label>
           {(selectedNode.data.buttons || []).map((btn: any, idx: number) => (
@@ -372,6 +447,84 @@ export default function FlowZapBuilder() {
         <InspectorField label="Guardar respuesta en variable">
           <input type="text" value={selectedNode.data.variable || ''} onChange={(e) => updateSelectedNodeData('variable', e.target.value)} placeholder="Ej: email, nombre..." />
         </InspectorField>
+      )}
+
+      {selectedNode.type === 'media' && (
+        <>
+          <InspectorField label="Tipo">
+            <select value={selectedNode.data.mediaType || 'image'} onChange={(e) => updateSelectedNodeData('mediaType', e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'10px'}}>
+              <option value="image">Imagen</option>
+              <option value="video">Video</option>
+              <option value="document">PDF / Documento</option>
+              <option value="audio">Audio</option>
+            </select>
+          </InspectorField>
+          <InspectorField label="URL PÚBLICA DEL ARCHIVO">
+            <input type="text" value={selectedNode.data.url || ''} onChange={(e) => updateSelectedNodeData('url', e.target.value)} placeholder="https://..." />
+          </InspectorField>
+          <InspectorField label="TEXTO / DESCRIPCIÓN">
+            <textarea value={selectedNode.data.text || ''} onChange={(e) => updateSelectedNodeData('text', e.target.value)} />
+          </InspectorField>
+          {selectedNode.data.mediaType === 'document' && (
+            <InspectorField label="NOMBRE DEL ARCHIVO para documentos">
+              <input type="text" value={selectedNode.data.fileName || ''} onChange={(e) => updateSelectedNodeData('fileName', e.target.value)} placeholder="catalogo.pdf" />
+            </InspectorField>
+          )}
+        </>
+      )}
+
+      {selectedNode.type === 'condition' && (
+        <>
+          <InspectorField label="Variable a evaluar">
+            <input type="text" value={selectedNode.data.variable || ''} onChange={(e) => updateSelectedNodeData('variable', e.target.value)} placeholder="nombre_variable" />
+          </InspectorField>
+          <InspectorField label="Condición">
+            <select value={selectedNode.data.operator || '=='} onChange={(e) => updateSelectedNodeData('operator', e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'10px'}}>
+              <option value="==">Es igual a</option>
+              <option value="!=">No es igual a</option>
+              <option value="contains">Contiene</option>
+              <option value=">">Mayor que</option>
+              <option value="<">Menor que</option>
+            </select>
+          </InspectorField>
+          <InspectorField label="Valor esperado">
+            <input type="text" value={selectedNode.data.value || ''} onChange={(e) => updateSelectedNodeData('value', e.target.value)} />
+          </InspectorField>
+        </>
+      )}
+
+      {selectedNode.type === 'tag' && (
+        <>
+          <InspectorField label="Acción">
+            <select value={selectedNode.data.action || 'add'} onChange={(e) => updateSelectedNodeData('action', e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'10px'}}>
+              <option value="add">Agregar etiqueta</option>
+              <option value="remove">Quitar etiqueta</option>
+            </select>
+          </InspectorField>
+          <InspectorField label="Nombre de la etiqueta">
+            <input type="text" value={selectedNode.data.tag || ''} onChange={(e) => updateSelectedNodeData('tag', e.target.value)} />
+          </InspectorField>
+        </>
+      )}
+
+      {selectedNode.type === 'wait' && (
+        <div style={{display:'flex', gap:'10px'}}>
+          <div style={{flex:1}}>
+            <InspectorField label="Tiempo">
+              <input type="number" value={selectedNode.data.time || '1'} onChange={(e) => updateSelectedNodeData('time', e.target.value)} />
+            </InspectorField>
+          </div>
+          <div style={{flex:1}}>
+            <InspectorField label="Unidad">
+              <select value={selectedNode.data.unit || 'minutos'} onChange={(e) => updateSelectedNodeData('unit', e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'10px'}}>
+                <option value="segundos">Segundos</option>
+                <option value="minutos">Minutos</option>
+                <option value="horas">Horas</option>
+                <option value="dias">Días</option>
+              </select>
+            </InspectorField>
+          </div>
+        </div>
       )}
 
       <InspectorDivider />
