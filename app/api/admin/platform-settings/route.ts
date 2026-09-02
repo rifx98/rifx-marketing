@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    let finalAiConfig = global_ai_config || existing?.global_ai_config || { enabled: false, provider: '', model: '', apiKey: '' };
+    const finalAiConfig = global_ai_config || existing?.global_ai_config || { enabled: false, provider: '', model: '', apiKey: '' };
     
     // If the frontend sends '***' for the api key, preserve the existing one in the database
     if (global_ai_config && (global_ai_config as any).apiKey === '***') {
