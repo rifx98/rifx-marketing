@@ -10,7 +10,7 @@ export default function FlowZapInbox() {
     { id: 'agent_1', name: 'Agente Humano 1', status: 'Ausente' },
   ];
 
-  const mockConversations: ConversationSummary[] = [
+  const [conversations, setConversations] = useState<ConversationSummary[]>([
     {
       phone: '5215551234567',
       name: 'Cliente Demo',
@@ -29,7 +29,9 @@ export default function FlowZapInbox() {
     }
   ];
 
-  const mockDetails: Record<string, ConversationDetail> = {
+  ]);
+
+  const [details, setDetails] = useState<Record<string, ConversationDetail>>({
     '5215551234567': {
       phone: '+52 1 555 123 4567',
       name: 'Cliente Demo',
@@ -66,18 +68,64 @@ export default function FlowZapInbox() {
         fields: {}
       }
     }
-  };
+  });
 
   const [selectedPhone, setSelectedPhone] = useState<string>('5215551234567');
+
+  const handleSend = (text: string) => {
+    if (!selectedPhone || !details[selectedPhone]) return;
+    
+    const newMsg = {
+      id: Date.now().toString(),
+      direction: 'out' as const,
+      text,
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setDetails(prev => ({
+      ...prev,
+      [selectedPhone]: {
+        ...prev[selectedPhone],
+        messages: [...prev[selectedPhone].messages, newMsg]
+      }
+    }));
+
+    setConversations(prev => prev.map(c => {
+      if (c.phone === selectedPhone) {
+        return { ...c, lastMessage: text, lastMessageAt: 'Ahora' };
+      }
+      return c;
+    }));
+  };
+
+  const toggleBot = () => {
+    if (!selectedPhone || !details[selectedPhone]) return;
+    
+    setDetails(prev => ({
+      ...prev,
+      [selectedPhone]: {
+        ...prev[selectedPhone],
+        botPaused: !prev[selectedPhone].botPaused
+      }
+    }));
+
+    setConversations(prev => prev.map(c => {
+      if (c.phone === selectedPhone) {
+        return { ...c, botPaused: !c.botPaused };
+      }
+      return c;
+    }));
+  };
 
   return (
     <div style={{ height: 'calc(100vh - 140px)' }}>
       <ConversationsModule 
-        conversations={mockConversations}
-        selected={mockDetails[selectedPhone] || null}
+        conversations={conversations}
+        selected={details[selectedPhone] || null}
         advisors={advisors}
         onSelect={(phone) => setSelectedPhone(phone)}
-        onSend={(text) => alert(`Enviando: ${text}`)}
+        onSend={handleSend}
+        onToggleBot={toggleBot}
       />
     </div>
   );
