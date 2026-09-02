@@ -1174,13 +1174,7 @@ export default function PanelClient() {
 
   const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
-  const [isBotMenuOpen, setIsBotMenuOpen] = useState(false);
-
-  React.useEffect(() => {
-    if (['basic_bot', 'bot_constructor', 'bot_flowzap', 'bot_versions', 'bot_config'].includes(activeTab)) {
-      setIsBotMenuOpen(true);
-    }
-  }, [activeTab]);
+  const [botSection, setBotSection] = useState<'constructor' | 'flowzap' | 'versions' | 'config'>('constructor');
 
   // Appointments states
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
@@ -7117,7 +7111,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     <>
     <div className={`panel-root min-h-screen ${language === 'es' ? 'lang-es' : 'lang-en'} bg-crm-surface text-on-surface overflow-x-hidden font-inter`}>
       {/* SideNavBar */}
-      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-slate-200/50 bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${activeTab === 'settings' ? '-translate-x-full' : 'translate-x-0'}`}>
+      <aside className={`fixed left-0 top-0 h-screen w-20 border-r border-slate-200/50 bg-[#f3f4f5] flex flex-col py-6 px-2 gap-6 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-50 transition-transform duration-300 overflow-x-hidden ${(activeTab === 'settings' || activeTab === 'basic_bot') ? '-translate-x-full' : 'translate-x-0'}`}>
         <div className="flex justify-center px-2 mb-2 select-none mt-2">
           <div className="w-12 h-12 flex items-center justify-center shrink-0 overflow-hidden">
             <img src="/images/rifx-logo-particles-clean.png" alt="RIFX" className="w-10 h-10 object-contain" />
@@ -7144,68 +7138,34 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
             ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
           ].map(item => {
-            const renderButton = (btnItem: any, isSub: boolean = false) => {
-              const isActive = activeTab === btnItem.key;
-              const isLocked = isTabLocked(btnItem.key);
-              return (
-                <button
-                  key={btnItem.key}
-                  onClick={() => {
-                    if (btnItem.key === 'basic_bot') {
-                      setIsBotMenuOpen(!isBotMenuOpen);
-                      safeSetActiveTab('bot_constructor' as any);
-                    } else {
-                      safeSetActiveTab(btnItem.key as any);
-                    }
-                  }}
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${isSub ? 'scale-90 opacity-80' : ''} ${
-                    isActive 
-                      ? (isLocked 
-                          ? 'bg-red-50 text-red-600 shadow-md font-bold scale-[0.98]' 
-                          : 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]') 
-                      : (isLocked 
-                          ? 'text-red-400 hover:text-red-500 hover:bg-red-50/20' 
-                          : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50')
-                  }`}
-                  onMouseEnter={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setHoveredTab({
-                      label: language === 'en' ? btnItem.labelEn : btnItem.labelEs,
-                      top: rect.top + rect.height / 2,
-                      isLocked: !!isLocked
-                    });
-                  }}
-                  onMouseLeave={() => setHoveredTab(null)}
-                >
-                  <span className="material-symbols-outlined text-xl shrink-0" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>{btnItem.icon}</span>
-                </button>
-              );
-            };
-
-            if (item.key === 'basic_bot') {
-              return (
-                <div key="basic_bot_group" className={`flex flex-col gap-1 items-center rounded-2xl p-1 transition-all ${isBotMenuOpen ? 'bg-slate-50/50 border border-slate-200/50 shadow-inner' : ''}`}>
-                  {renderButton(item)}
-                  <AnimatePresence>
-                    {isBotMenuOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, height: 'auto', scale: 1 }}
-                        exit={{ opacity: 0, height: 0, scale: 0.95 }}
-                        className="flex flex-col gap-1 items-center overflow-hidden w-full pt-1 border-t border-slate-200/50 mt-1"
-                      >
-                        {renderButton({ key: 'bot_constructor', icon: 'account_tree', labelEs: 'Constructor', labelEn: 'Builder' }, true)}
-                        {renderButton({ key: 'bot_flowzap', icon: 'psychology', labelEs: 'FlowZap AI', labelEn: 'FlowZap AI' }, true)}
-                        {renderButton({ key: 'bot_versions', icon: 'history', labelEs: 'Versiones', labelEn: 'Versions' }, true)}
-                        {renderButton({ key: 'bot_config', icon: 'settings', labelEs: 'Configuración', labelEn: 'Settings' }, true)}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            }
-
-            return renderButton(item);
+            const isActive = activeTab === item.key;
+            const isLocked = isTabLocked(item.key);
+            return (
+              <button
+                key={item.key}
+                onClick={() => safeSetActiveTab(item.key as any)}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 shrink-0 ${
+                  isActive 
+                    ? (isLocked 
+                        ? 'bg-red-50 text-red-600 shadow-md font-bold scale-[0.98]' 
+                        : 'bg-white text-[#000080] shadow-md font-bold scale-[0.98]') 
+                    : (isLocked 
+                        ? 'text-red-400 hover:text-red-500 hover:bg-red-50/20' 
+                        : 'text-slate-500 hover:text-[#000080] hover:bg-slate-100/50')
+                }`}
+                onMouseEnter={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setHoveredTab({
+                    label: language === 'en' ? item.labelEn : item.labelEs,
+                    top: rect.top + rect.height / 2,
+                    isLocked: !!isLocked
+                  });
+                }}
+                onMouseLeave={() => setHoveredTab(null)}
+              >
+                <span className="material-symbols-outlined text-xl shrink-0" style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>{item.icon}</span>
+              </button>
+            );
           })}
         </nav>
 
@@ -7291,69 +7251,29 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
                 ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
               ].map(item => {
-                const renderButton = (btnItem: any, isSub: boolean = false) => {
-                  const isActive = activeTab === btnItem.key;
-                  const locked = isTabLocked(btnItem.key);
-                  return (
-                    <button
-                      key={btnItem.key}
-                      onClick={() => {
-                        if (btnItem.key === 'basic_bot') {
-                          setIsBotMenuOpen(!isBotMenuOpen);
-                          safeSetActiveTab('bot_constructor' as any);
-                        } else {
-                          safeSetActiveTab(btnItem.key as any);
-                          setIsMobileMenuOpen(false);
-                        }
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${isSub ? 'pl-10 text-[13px] bg-slate-50/50' : ''} ${
-                        isActive
-                          ? (locked ? 'bg-red-50 text-red-600 font-bold' : 'bg-primary-container/10 text-primary-container font-bold')
-                          : (locked ? 'text-red-400 hover:bg-red-50/30' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50')
-                      }`}
-                    >
-                      <span className={`material-symbols-outlined text-xl ${isActive ? (locked ? 'text-red-600' : 'text-primary-container') : (locked ? 'text-red-400' : 'text-slate-400')} ${isSub ? 'text-[18px]' : ''}`} style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
-                        {btnItem.icon}
+                const isActive = activeTab === item.key;
+                const locked = isTabLocked(item.key);
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => { safeSetActiveTab(item.key as any); setIsMobileMenuOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${
+                      isActive
+                        ? (locked ? 'bg-red-50 text-red-600 font-bold' : 'bg-primary-container/10 text-primary-container font-bold')
+                        : (locked ? 'text-red-400 hover:bg-red-50/30' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50')
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-xl ${isActive ? (locked ? 'text-red-600' : 'text-primary-container') : (locked ? 'text-red-400' : 'text-slate-400')}`} style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}>
+                      {item.icon}
+                    </span>
+                    {language === 'en' ? item.labelEn : item.labelEs}
+                    {locked && (
+                      <span className="ml-auto text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
+                        {language === 'en' ? 'Locked' : 'Bloqueado'}
                       </span>
-                      <span className="flex-1">{language === 'en' ? btnItem.labelEn : btnItem.labelEs}</span>
-                      {btnItem.key === 'basic_bot' && (
-                        <span className="material-symbols-outlined text-slate-400 transition-transform" style={{ transform: isBotMenuOpen ? 'rotate(180deg)' : 'none' }}>
-                          expand_more
-                        </span>
-                      )}
-                      {locked && (
-                        <span className="ml-auto text-[9px] bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">
-                          {language === 'en' ? 'Locked' : 'Bloqueado'}
-                        </span>
-                      )}
-                    </button>
-                  );
-                };
-
-                if (item.key === 'basic_bot') {
-                  return (
-                    <div key="basic_bot_group" className="flex flex-col">
-                      {renderButton(item)}
-                      <AnimatePresence>
-                        {isBotMenuOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="flex flex-col gap-1 overflow-hidden"
-                          >
-                            {renderButton({ key: 'bot_constructor', icon: 'account_tree', labelEs: 'Constructor', labelEn: 'Builder' }, true)}
-                            {renderButton({ key: 'bot_flowzap', icon: 'psychology', labelEs: 'FlowZap AI', labelEn: 'FlowZap AI' }, true)}
-                            {renderButton({ key: 'bot_versions', icon: 'history', labelEs: 'Versiones', labelEn: 'Versions' }, true)}
-                            {renderButton({ key: 'bot_config', icon: 'settings', labelEs: 'Configuración', labelEn: 'Settings' }, true)}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                }
-
-                return renderButton(item);
+                    )}
+                  </button>
+                );
               })}
             </div>
             {/* Drawer Footer â€” Logout */}
@@ -7371,7 +7291,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       )}
 
       {/* TopAppBar */}
-      <header className={`fixed top-0 right-0 ${activeTab === 'settings' ? 'left-0' : 'left-20'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>
+      <header className={`fixed top-0 right-0 ${(activeTab === 'settings' || activeTab === 'basic_bot') ? 'left-0' : 'left-20'} flex justify-between items-center px-8 h-16 bg-slate-50 border-b border-slate-100/10 z-40 transition-all duration-300`}>
         <div className="flex items-center gap-4 flex-1">
           {/* Mobile hamburger menu */}
           <button
@@ -7562,7 +7482,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       </header>
 
       {/* Main Content Canvas */}
-      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${activeTab === 'settings' ? 'ml-0' : 'ml-20'}`}>
+      <main className={`transition-all duration-300 pt-24 pb-12 px-10 relative overflow-y-auto h-screen ${(activeTab === 'settings' || activeTab === 'basic_bot') ? 'ml-0' : 'ml-20'}`}>
         {isTabLocked(activeTab) ? (
           <motion.div
             key="tab-locked-screen"
@@ -10358,54 +10278,98 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <InboxClient />
             </motion.div>
         )}
-        {activeTab === 'bot_flowzap' && (
-          <motion.div key="bot_flowzap" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
-            <header className="max-w-4xl"><h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">FlowZap AI</h2></header>
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Configuración de FlowZap AI próximamente.</p></div>
-          </motion.div>
-        )}
-        {activeTab === 'bot_versions' && (
-          <motion.div key="bot_versions" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
-            <header className="max-w-4xl"><h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">Versiones</h2></header>
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Control de versiones próximamente.</p></div>
-          </motion.div>
-        )}
-        {activeTab === 'bot_config' && (
-          <motion.div key="bot_config" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
-            <header className="max-w-4xl"><h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">Configuración</h2></header>
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Opciones de configuración del bot próximamente.</p></div>
-          </motion.div>
-        )}
-        {(activeTab === 'basic_bot' || activeTab === 'bot_constructor') && (
-          <motion.div key="basic_bot" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
-            <header className="max-w-4xl">
-              <div className="flex items-center space-x-4 mb-4">
-                <span className="px-3 py-1 bg-secondary-container text-primary text-[10px] font-black tracking-widest uppercase rounded-full">System v2.4</span>
+        {activeTab === 'basic_bot' && (
+          <motion.div
+            key="basic_bot"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="pb-32"
+          >
+            {/* Page Header */}
+            <header className="mb-8 flex items-center gap-4">
+              <button 
+                onClick={() => safeSetActiveTab('dashboard')}
+                className="p-2.5 hover:bg-slate-100 active:scale-95 rounded-full transition-all flex items-center justify-center border border-slate-200 bg-white shadow-sm"
+                title={language === 'en' ? 'Back to Dashboard' : 'Volver al Panel'}
+              >
+                <span className="material-symbols-outlined text-[#000080] text-xl">arrow_back</span>
+              </button>
+              <div>
+                <h2 className="text-3xl font-extrabold text-[#0b1c30] tracking-tight">
+                  {language === 'en' ? 'Interactive Menu Bot' : 'Bot Interactivo (Sin IA)'}
+                </h2>
+                <p className="text-slate-400 mt-0.5 text-sm font-medium">
+                  {language === 'en' ? 'Edit the structured flow and menu options for your basic bot.' : 'Edita el flujo estructurado y las opciones de menú de tu bot básico.'}
+                </p>
               </div>
-              <h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">{language === 'en' ? 'Interactive Menu Bot' : 'Bot Interactivo (Sin IA)'}</h2>
-              <p className="text-xl text-slate-500 max-w-2xl font-normal leading-relaxed">{language === 'en' ? 'Edit the structured flow and menu options for your basic bot. This bot does not use AI, ensuring maximum economy and control.' : 'Edita el flujo estructurado y las opciones de menú de tu bot básico. Este bot no utiliza IA, asegurando máxima economía y control total.'}</p>
             </header>
-            
-                                        <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-6 shadow-sm w-full flex flex-col h-[calc(100vh-140px)]">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-6">
-                   <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner">
-                        <span className="material-symbols-outlined text-2xl">account_tree</span>
-                     </div>
-                     <div>
-                        <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'Visual Flow Builder' : 'Creador Visual de Flujos'}</h3>
-                        <p className="text-sm text-slate-500">{language === 'en' ? 'Design your WhatsApp conversational flows visually.' : 'Diseña tus flujos conversacionales de WhatsApp visualmente.'}</p>
-                     </div>
-                   </div>
-                </div>
-                
-                <div className="w-full flex-1 overflow-hidden relative">
-                  <FlowEditor 
-                    initialData={configData.bot_menu_config} 
-                    onSave={(data) => setConfigData((prev: any) => ({ ...prev, bot_menu_config: data }))} 
-                  />
-                </div>
-              </div>
+
+            {/* Two-column layout */}
+            <div className="flex gap-8 items-start">
+              {/* ─── LEFT NAV SIDEBAR ─── */}
+              <aside className="w-56 shrink-0 sticky top-8 space-y-1">
+                {[
+                  { key: 'constructor', icon: 'account_tree', label: language === 'en' ? 'Builder' : 'Constructor' },
+                  { key: 'flowzap',     icon: 'psychology',   label: 'FlowZap AI' },
+                  { key: 'versions',    icon: 'history',      label: language === 'en' ? 'Versions' : 'Versiones' },
+                  { key: 'config',      icon: 'settings',     label: language === 'en' ? 'Settings' : 'Configuración' },
+                ].map(item => (
+                  <button
+                    key={item.key}
+                    onClick={() => setBotSection(item.key as any)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
+                      botSection === item.key
+                        ? 'bg-[#0058bc]/8 text-[#0058bc] font-bold'
+                        : 'text-slate-500 hover:text-[#0b1c30] hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-[18px] ${botSection === item.key ? 'text-[#0058bc]' : 'text-slate-400'}`} style={{ fontVariationSettings: botSection === item.key ? "'FILL' 1" : "'FILL' 0" }}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                    {botSection === item.key && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#0058bc]" />
+                    )}
+                  </button>
+                ))}
+              </aside>
+
+              {/* ─── MAIN CONTENT ─── */}
+              <main className="flex-1 min-w-0 flex flex-col gap-8">
+                {botSection === 'constructor' && (
+                  <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-6 shadow-sm w-full flex flex-col h-[calc(100vh-140px)]">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-6">
+                       <div className="flex items-center gap-4">
+                         <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner">
+                            <span className="material-symbols-outlined text-2xl">account_tree</span>
+                         </div>
+                         <div>
+                            <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'Visual Flow Builder' : 'Creador Visual de Flujos'}</h3>
+                            <p className="text-sm text-slate-500">{language === 'en' ? 'Design your WhatsApp conversational flows visually.' : 'Diseña tus flujos conversacionales de WhatsApp visualmente.'}</p>
+                         </div>
+                       </div>
+                    </div>
+                    
+                    <div className="w-full flex-1 overflow-hidden relative">
+                      <FlowEditor 
+                        initialData={configData.bot_menu_config} 
+                        onSave={(data) => setConfigData((prev: any) => ({ ...prev, bot_menu_config: data }))} 
+                      />
+                    </div>
+                  </div>
+                )}
+                {botSection === 'flowzap' && (
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Configuración de FlowZap AI próximamente.</p></div>
+                )}
+                {botSection === 'versions' && (
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Control de versiones próximamente.</p></div>
+                )}
+                {botSection === 'config' && (
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Opciones de configuración del bot próximamente.</p></div>
+                )}
+              </main>
+            </div>
           </motion.div>
         )}
 
