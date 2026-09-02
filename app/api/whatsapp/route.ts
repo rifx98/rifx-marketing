@@ -358,9 +358,11 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
     const claimedTenantId = req.headers.get('x-rifx-whatsapp-tenant-id') || '';
     const claimedProviderMessageId = req.headers.get('x-rifx-whatsapp-provider-message-id') || '';
+    const claimedDestinationPhoneId = req.headers.get('x-rifx-whatsapp-destination-phone-id') || '';
     if (
       !TENANT_ID_PATTERN.test(claimedTenantId)
       || !PROVIDER_MESSAGE_ID_PATTERN.test(claimedProviderMessageId)
+      || !PHONE_ID_PATTERN.test(claimedDestinationPhoneId)
     ) {
       return NextResponse.json({ error: 'Invalid worker claim identity' }, { status: 400 });
     }
@@ -402,21 +404,34 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
     // Keep the tenant selected when the event entered the durable queue. If
     // ownership changed meanwhile, fail closed instead of routing it again.
-    const { data: matchedConfig, error: configError } = await supabase
-      .from('config')
+    const { data: matchedAccount, error: accountError } = await supabase
+      .from('whatsapp_accounts')
       .select('*')
       .eq('tenant_id', claimedTenantId)
-      .eq('whatsapp_phone_id', webhookPhoneId)
+      .eq('phone_number_id', claimedDestinationPhoneId)
       .maybeSingle();
-    if (configError) {
+    if (accountError) {
       console.error('[WhatsApp] Claimed destination lookup failed');
       return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
     }
-    if (!matchedConfig) {
-      console.error('[WhatsApp] Claimed tenant no longer owns the destination phone ID');
+    if (!matchedAccount || matchedAccount.status !== 'active') {
+      console.error('[WhatsApp] Claimed tenant no longer owns or is inactive for the destination phone ID');
       return NextResponse.json({ status: 'ignored_unknown_destination' });
     }
-    const config: Record<string, any> = matchedConfig;
+    const whatsappAccount: Record<string, any> = matchedAccount;
+    // We also need the tenant's config for openai key if AI bot is used, but FlowZap V3 moves it to ai_provider_configs.
+    // Let's still fetch config for legacy support for now.
+    const { data: matchedConfig } = await supabase
+      .from('config')
+      .select('*')
+      .eq('tenant_id', claimedTenantId)
+      .maybeSingle();
+      
+    const config: Record<string, any> = matchedConfig || {};
+    // Override whatsapp tokens so legacy code uses the specific account
+    config.whatsapp_token = whatsappAccount.access_token;
+    config.whatsapp_phone_id = whatsappAccount.phone_number_id;
+    config.__whatsapp_account_id = whatsappAccount.id;
     const tenantId = claimedTenantId;
 
     try {
@@ -609,7 +624,8 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       .from('conversations')
       .select('*')
       .eq('phone_number', customerPhone)
-      .eq('tenant_id', tenantId);
+      .eq('tenant_id', tenantId)
+      .eq('whatsapp_account_id', whatsappAccount.id);
     let { data: conversation } = await conversationQuery.maybeSingle();
 
     if (!conversation) {
@@ -617,6 +633,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         .from('conversations')
         .insert({
           tenant_id: tenantId,
+          whatsapp_account_id: whatsappAccount.id,
           phone_number: customerPhone,
           customer_name: String(customerName).slice(0, 160),
           status: 'chatting',
@@ -628,7 +645,8 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       // race. Fetch the canonical row instead of creating a second tenant link.
       if (!conversation && insertConversationError?.code === '23505') {
         const retry = await supabase.from('conversations').select('*')
-          .eq('tenant_id', tenantId).eq('phone_number', customerPhone).maybeSingle();
+          .eq('tenant_id', tenantId).eq('phone_number', customerPhone)
+          .eq('whatsapp_account_id', whatsappAccount.id).maybeSingle();
         conversation = retry.data;
       }
     } else {
@@ -2304,9 +2322,10 @@ async function sendWhatsAppMessage(
   const token = config?.whatsapp_token;
   const phoneId = config?.whatsapp_phone_id;
   const tenantId = config?.tenant_id;
+  const whatsappAccountId = config?.__whatsapp_account_id;
   const sourceMessageId = config?.__source_message_id;
 
-  if (!token || !phoneId || !tenantId || !sourceMessageId || !/^[a-z0-9_]{3,80}$/.test(deliveryPurpose)) {
+  if (!token || !phoneId || !tenantId || !whatsappAccountId || !sourceMessageId || !/^[a-z0-9_]{3,80}$/.test(deliveryPurpose)) {
     console.error('❌ Faltan credenciales o identidad durable de WhatsApp');
     throw new Error('whatsapp_delivery_configuration_unavailable');
   }
@@ -2369,7 +2388,7 @@ async function sendWhatsAppMessage(
         if (templateResult.ok) {
           try {
             const { data: conv } = await supabase.from('conversations').select('id')
-              .eq('tenant_id', tenantId).eq('phone_number', to).limit(1).maybeSingle();
+              .eq('tenant_id', tenantId).eq('phone_number', to).eq('whatsapp_account_id', whatsappAccountId).limit(1).maybeSingle();
             if (conv) {
               await supabase.from('messages').insert({
                 conversation_id: conv.id,
@@ -2445,9 +2464,10 @@ async function sendWhatsAppPayload(
   const token = config?.whatsapp_token;
   const phoneId = config?.whatsapp_phone_id;
   const tenantId = config?.tenant_id;
+  const whatsappAccountId = config?.__whatsapp_account_id;
   const sourceMessageId = config?.__source_message_id;
 
-  if (!token || !phoneId || !tenantId || !sourceMessageId || !/^[a-z0-9_]{3,80}$/.test(deliveryPurpose)) {
+  if (!token || !phoneId || !tenantId || !whatsappAccountId || !sourceMessageId || !/^[a-z0-9_]{3,80}$/.test(deliveryPurpose)) {
     console.error('❌ Faltan credenciales o identidad durable de WhatsApp');
     throw new Error('whatsapp_delivery_configuration_unavailable');
   }

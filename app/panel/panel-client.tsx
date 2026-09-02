@@ -2,6 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import FlowEditor from './FlowEditor';
+import CampaignsTab from './CampaignsTab';
+import AILedger from './AILedger';
+import TeamTab from './TeamTab';
+
+
+
 import InboxClient from './inbox/inbox-client';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -790,7 +796,9 @@ export const SIDEBAR_ITEMS = [
   { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
   { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
   { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+              { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
   { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+              { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
   { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
   { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
   { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
@@ -3824,6 +3832,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // Estados para datos reales
   const [conversationsData, setConversationsData] = useState<any>(null);
+  const [whatsappAccounts, setWhatsappAccounts] = useState<any[]>([]);
+  const [activeAccountId, setActiveAccountId] = useState<string>('');
   const [statsData, setStatsData] = useState<any>(null);
   const [configData, setConfigData] = useState<any>({
     whatsapp_token: '',
@@ -4585,8 +4595,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
   };
 
-  const fetchConversations = () => {
-    authFetch('/api/panel/conversations')
+  const fetchWhatsappAccounts = () => {
+    authFetch('/api/panel/whatsapp-accounts')
+      .then(res => res.json())
+      .then(data => {
+        if (data.accounts) {
+          setWhatsappAccounts(data.accounts);
+          if (data.accounts.length > 0 && !activeAccountId) {
+            const defaultAcc = data.accounts.find((a: any) => a.is_default) || data.accounts[0];
+            setActiveAccountId(defaultAcc.id);
+          }
+        }
+      })
+      .catch(console.error);
+  };
+
+  const fetchConversations = (accId?: string) => {
+    const idToUse = accId || activeAccountId;
+    const url = '/api/panel/conversations' + (idToUse ? '?accountId=' + idToUse : '');
+    authFetch(url)
       .then(res => res.json())
       .then(data => {
         setConversationsData(data);
@@ -4715,8 +4742,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   React.useEffect(() => {
     if (isLoggedIn) {
       // Trigger limpieza silenciosa en background
-      // Cargar CRM
-      fetchConversations();
+      // Cargar CRM y Accounts
+      fetchWhatsappAccounts();
+      fetchConversations(activeAccountId);
       
       // Cargar Estadísticas
       authFetch('/api/panel/stats')
@@ -4839,6 +4867,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setDetectedEmail('');
     }
   }, [chatMessages]);
+
+  // Fetch conversations when activeAccountId changes
+  React.useEffect(() => {
+    if (isLoggedIn && activeAccountId && activeTab === 'conversations') {
+      fetchConversations(activeAccountId);
+    }
+  }, [activeAccountId]);
 
   // Función para detectar solicitudes de humano en las conversaciones
   const checkHumanAlerts = async (data: any) => {
@@ -7087,7 +7122,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
             { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
             { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+              { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
             { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+              { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
             { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
             { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
@@ -7198,7 +7235,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
                 { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
                 { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+              { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
                 { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+              { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
                 { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
                 { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
@@ -7283,7 +7322,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
                       { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
                       { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+              { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
                       { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+              { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
                       { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
                       { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                       { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
@@ -17742,7 +17783,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <h1 className="text-4xl font-extrabold text-primary tracking-tight mb-3">{language === 'en' ? 'Conversations' : 'Conversaciones'}</h1>
                 <p className="text-base text-slate-500 font-light">{language === 'en' ? 'View and manage all your WhatsApp conversations in one place.' : 'Visualiza y gestiona todas tus conversaciones de WhatsApp en un solo lugar.'}</p>
               </div>
-              <div className="flex gap-1 bg-white p-1 rounded-lg border border-slate-200">
+              
+              <div className="flex gap-4 items-center">
+                {whatsappAccounts.length > 0 && (
+                  <select
+                    value={activeAccountId}
+                    onChange={(e) => setActiveAccountId(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary-container/20 focus:border-primary-container/30 transition-all text-slate-700 bg-white shadow-sm"
+                  >
+                    <option value="">{language === 'en' ? 'All Accounts' : 'Todas las cuentas'}</option>
+                    {whatsappAccounts.map((acc: any) => (
+                      <option key={acc.id} value={acc.id}>{acc.name || acc.phone_number_id} {acc.is_default ? '(Default)' : ''}</option>
+                    ))}
+                  </select>
+                )}
+                <div className="flex gap-1 bg-white p-1 rounded-lg border border-slate-200">
                 <button
                   onClick={() => setViewMode('table')}
                   className={`px-3 py-1.5 text-[11px] font-bold rounded-md transition-all flex items-center gap-1.5 ${viewMode === 'table' ? 'bg-primary-container text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}

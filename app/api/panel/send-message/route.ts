@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
     let fileBuffer: Buffer | null = null;
     let isBulkSend = false;
     let directPhone: string | null = null;
+    let accountId: string | null = null;
 
     if (contentType.includes('multipart/form-data')) {
       const declaredLength = Number(req.headers.get('content-length'));
@@ -129,8 +130,10 @@ export async function POST(req: NextRequest) {
       const conversationValue = formData.get('conversationId');
       const messageValue = formData.get('message');
       const fileValue = formData.get('file');
+      const accountValue = formData.get('accountId');
       conversationId = typeof conversationValue === 'string' ? conversationValue.trim() : null;
       message = typeof messageValue === 'string' ? messageValue.trim() : null;
+      accountId = typeof accountValue === 'string' ? accountValue.trim() : null;
       file = fileValue instanceof File ? fileValue : null;
 
       if (file) {
@@ -170,6 +173,7 @@ export async function POST(req: NextRequest) {
       const json = bodyResult.body;
       conversationId = typeof json.conversationId === 'string' ? json.conversationId.trim() : null;
       message = typeof json.message === 'string' ? json.message.trim() : null;
+      accountId = typeof json.accountId === 'string' ? json.accountId.trim() : null;
       isBulkSend = json.bulk === true;
       directPhone = typeof json.phone === 'string' ? json.phone.trim().replace(/^\+/, '') : null;
       if (!message || message.length > 4_096) {
@@ -180,40 +184,38 @@ export async function POST(req: NextRequest) {
         if (!PHONE_PATTERN.test(directPhone)) {
           return NextResponse.json({ error: 'Número de teléfono inválido' }, { status: 400 });
         }
-        const { data: conv, error: convLookupError } = await supabase
+        let query = supabase
           .from('conversations')
           .select('id')
           .eq('phone_number', directPhone)
-          .eq('tenant_id', tenant.tenantId)
-          .maybeSingle();
+          .eq('tenant_id', tenant.tenantId);
+        
+        if (accountId) query = query.eq('whatsapp_account_id', accountId);
+
+        const { data: conv, error: convLookupError } = await query.maybeSingle();
         if (convLookupError) return internalApiError();
         if (conv) {
           conversationId = conv.id;
         } else {
           // Send directly via WhatsApp API without a conversation record
-          const { data: config, error: configError } = await supabase
-            .from('config')
-            .select('openai_key, whatsapp_token, whatsapp_phone_id')
+          let accountQuery = supabase
+            .from('whatsapp_accounts')
+            .select('access_token, phone_number_id')
             .eq('tenant_id', tenant.tenantId)
-            .limit(1)
-            .single();
-          if (configError) return internalApiError();
-          
-          // Decode bulk WA credentials from JSON-encoded openai_key column
-          let bulkToken = '';
-          let bulkPhoneId = '';
-          try {
-            const parsed = JSON.parse(config?.openai_key || '{}');
-            bulkToken = parsed.bulk_wa_token || '';
-            bulkPhoneId = parsed.bulk_wa_phone_id || '';
-          } catch {}
-          
-          // Use bulk credentials if available, otherwise fall back to main
-          const token = bulkToken || config?.whatsapp_token;
-          const phoneId = bulkPhoneId || config?.whatsapp_phone_id;
-          if (!token || !phoneId) {
-            return NextResponse.json({ error: 'Faltan credenciales de WhatsApp' }, { status: 500 });
+            .eq('status', 'active');
+            
+          if (accountId) {
+            accountQuery = accountQuery.eq('id', accountId);
+          } else {
+            accountQuery = accountQuery.eq('is_default', true);
           }
+          
+          const { data: matchedAccount, error: accountError } = await accountQuery.limit(1).maybeSingle();
+          if (accountError) return internalApiError();
+          if (!matchedAccount) return NextResponse.json({ error: 'Faltan credenciales de WhatsApp' }, { status: 500 });
+          
+          const token = matchedAccount.access_token;
+          const phoneId = matchedAccount.phone_number_id;
           
           // First try regular text message
           const waResponse = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
@@ -272,7 +274,7 @@ export async function POST(req: NextRequest) {
     // Obtener la conversación (VULN fix: solo del tenant autenticado, evita IDOR entre tenants)
     const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
-      .select('id, phone_number')
+      .select('id, phone_number, whatsapp_account_id')
       .eq('id', conversationId)
       .eq('tenant_id', tenant.tenantId)
       .maybeSingle();
@@ -283,30 +285,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Obtener config para credenciales de WhatsApp
-    const { data: config, error: configError } = await supabase
-      .from('config')
-      .select('openai_key, whatsapp_token, whatsapp_phone_id')
+    let accountQuery = supabase
+      .from('whatsapp_accounts')
+      .select('access_token, phone_number_id')
       .eq('tenant_id', tenant.tenantId)
-      .limit(1)
-      .single();
-    if (configError) return internalApiError();
-    
-    // For bulk sends, prefer bulk WA credentials
-    let bulkToken = '';
-    let bulkPhoneId = '';
-    if (isBulkSend) {
-      try {
-        const parsed = JSON.parse(config?.openai_key || '{}');
-        bulkToken = parsed.bulk_wa_token || '';
-        bulkPhoneId = parsed.bulk_wa_phone_id || '';
-      } catch {}
+      .eq('status', 'active');
+      
+    if (conversation.whatsapp_account_id) {
+      accountQuery = accountQuery.eq('id', conversation.whatsapp_account_id);
+    } else if (accountId) {
+      accountQuery = accountQuery.eq('id', accountId);
+    } else {
+      accountQuery = accountQuery.eq('is_default', true);
     }
-    const token = (isBulkSend && bulkToken) ? bulkToken : config?.whatsapp_token;
-    const phoneId = (isBulkSend && bulkPhoneId) ? bulkPhoneId : config?.whatsapp_phone_id;
 
-    if (!token || !phoneId) {
+    const { data: matchedAccount, error: accountError } = await accountQuery.limit(1).maybeSingle();
+    if (accountError) return internalApiError();
+    
+    if (!matchedAccount) {
       return NextResponse.json({ error: 'Faltan credenciales de WhatsApp' }, { status: 500 });
     }
+    
+    const token = matchedAccount.access_token;
+    const phoneId = matchedAccount.phone_number_id;
 
     let mediaId = null;
     let panelMediaUrl = '';

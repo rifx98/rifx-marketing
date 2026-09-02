@@ -20,6 +20,7 @@ interface ClaimedIngress {
   ingress_id: string;
   tenant_id: string;
   provider_message_id: string;
+  destination_phone_id: string;
   payload: Record<string, unknown>;
   attempt_count: number;
 }
@@ -164,6 +165,7 @@ export async function POST(req: NextRequest) {
             'x-rifx-whatsapp-worker': '1',
             'x-rifx-whatsapp-tenant-id': claim.tenant_id,
             'x-rifx-whatsapp-provider-message-id': claim.provider_message_id,
+            'x-rifx-whatsapp-destination-phone-id': claim.destination_phone_id,
           },
           body: rawBody,
           redirect: 'error',

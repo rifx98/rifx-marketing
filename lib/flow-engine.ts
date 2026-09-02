@@ -27,7 +27,6 @@ function interpolateText(text: string, variables: Record<string, any>) {
   });
 }
 
-// Evaluate condition
 function evaluateCondition(operator: string, actual: any, expected: any) {
   if (actual === undefined || actual === null) actual = '';
   const aStr = String(actual).toLowerCase();
@@ -37,8 +36,15 @@ function evaluateCondition(operator: string, actual: any, expected: any) {
     case '==': return aStr === eStr;
     case '!=': return aStr !== eStr;
     case 'contains': return aStr.includes(eStr);
+    case 'not_contains': return !aStr.includes(eStr);
+    case 'startsWith': return aStr.startsWith(eStr);
+    case 'endsWith': return aStr.endsWith(eStr);
     case '>': return Number(actual) > Number(expected);
     case '<': return Number(actual) < Number(expected);
+    case '>=': return Number(actual) >= Number(expected);
+    case '<=': return Number(actual) <= Number(expected);
+    case 'regex': 
+      try { return new RegExp(String(expected), 'i').test(String(actual)); } catch { return false; }
     default: return false;
   }
 }
@@ -106,19 +112,46 @@ export async function processFlowEngineMessage(
     }
   }
 
-  // 4. Auto-traverse non-blocking nodes (like Condition) immediately
+  // 4. Auto-traverse non-blocking nodes (like Condition, Webhook) immediately
   let nextNode = config.nodes.find(n => n.id === currentNodeId);
   
-  while (nextNode && nextNode.type === 'condition') {
-    const varValue = variables[nextNode.data?.variable || ''];
-    const result = evaluateCondition(nextNode.data?.operator || '==', varValue, nextNode.data?.value || '');
+  while (nextNode && (nextNode.type === 'condition' || nextNode.type === 'webhook')) {
+    let nextNodeTarget = null;
+
+    if (nextNode.type === 'condition') {
+      const varValue = variables[nextNode.data?.variable || ''];
+      const result = evaluateCondition(nextNode.data?.operator || '==', varValue, nextNode.data?.value || '');
+      
+      const conditionEdges = config.edges.filter(e => e.source === nextNode!.id);
+      const targetHandle = result ? 'true' : 'false';
+      const edge = conditionEdges.find(e => e.sourceHandle === targetHandle);
+      if (edge) nextNodeTarget = edge.target;
+    } 
+    else if (nextNode.type === 'webhook') {
+      try {
+        const url = interpolateText(nextNode.data?.url || '', variables);
+        const method = nextNode.data?.method || 'GET';
+        if (url) {
+          const res = await fetch(url, { method });
+          if (res.ok) {
+            const json = await res.json().catch(() => ({}));
+            // Store response in a variable if specified
+            if (nextNode.data?.variable) {
+              variables[nextNode.data.variable] = JSON.stringify(json);
+              variablesUpdated = true;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Webhook node failed:', err);
+      }
+      
+      const webhookEdges = config.edges.filter(e => e.source === nextNode!.id);
+      if (webhookEdges.length > 0) nextNodeTarget = webhookEdges[0].target;
+    }
     
-    const conditionEdges = config.edges.filter(e => e.source === nextNode!.id);
-    const targetHandle = result ? 'true' : 'false';
-    const edge = conditionEdges.find(e => e.sourceHandle === targetHandle);
-    
-    if (edge) {
-      currentNodeId = edge.target;
+    if (nextNodeTarget) {
+      currentNodeId = nextNodeTarget;
       nextNode = config.nodes.find(n => n.id === currentNodeId);
     } else {
       break;

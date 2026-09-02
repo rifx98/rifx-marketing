@@ -9,13 +9,17 @@ export type PanelFeature =
   | 'campaigns'
   | 'appointments'
   | 'analytics'
-  | 'orders';
+  | 'orders'
+  | 'wa_campaigns'
+  | 'flow_builder'
+  | 'ai_premium'
+  | 'team';
 
 const PLAN_FEATURES: Readonly<Record<string, ReadonlySet<PanelFeature>>> = {
   trial: new Set<PanelFeature>(),
-  start: new Set<PanelFeature>(['crm', 'playground', 'orders']),
-  plus: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'appointments', 'analytics', 'orders']),
-  master: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'campaigns', 'appointments', 'analytics', 'orders']),
+  start: new Set<PanelFeature>(['crm', 'playground', 'orders', 'team', 'flow_builder']),
+  plus: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'appointments', 'analytics', 'orders', 'team', 'flow_builder', 'wa_campaigns']),
+  master: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'campaigns', 'appointments', 'analytics', 'orders', 'team', 'flow_builder', 'wa_campaigns', 'ai_premium']),
 };
 
 function normalizedPlan(plan: string | undefined): string {

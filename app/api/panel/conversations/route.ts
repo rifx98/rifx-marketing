@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
     const conversationId = req.nextUrl.searchParams.get('id');
+    const accountId = req.nextUrl.searchParams.get('accountId');
 
     // Si se pide una conversación específica, devolver con sus mensajes
     if (conversationId) {
@@ -90,12 +91,18 @@ export async function GET(req: NextRequest) {
     }
 
     // Obtener todas las conversaciones
-    const { data: conversations, error: conversationsError } = await supabase
+    let query = supabase
       .from('conversations')
       .select('*')
       .eq('tenant_id', tenant.tenantId)
       .order('updated_at', { ascending: false })
       .limit(501);
+
+    if (accountId) {
+      query = query.eq('whatsapp_account_id', accountId);
+    }
+
+    const { data: conversations, error: conversationsError } = await query;
     if (conversationsError) {
       console.error('Conversation list lookup failed:', conversationsError.code || 'database_error');
       return NextResponse.json({ error: 'No se pudieron consultar las conversaciones' }, { status: 500 });

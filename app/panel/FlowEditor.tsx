@@ -147,7 +147,39 @@ const HumanNode = ({ data }: any) => (
   </div>
 );
 
+
+
+const DelayNode = ({ data }: any) => (
+  <div style={{ ...nodeStyle, borderTop: '4px solid #6b7280' }}>
+    <Handle type="target" position={Position.Top} />
+    <div style={headerStyle}>
+      <span className="material-symbols-outlined text-sm">schedule</span>
+      Espera (Delay)
+    </div>
+    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>
+      Tiempo: {data.time || '1'} {data.unit || 'minutos'}
+    </div>
+    <Handle type="source" position={Position.Bottom} />
+  </div>
+);
+
+const WebhookNode = ({ data }: any) => (
+  <div style={{ ...nodeStyle, borderTop: '4px solid #f97316' }}>
+    <Handle type="target" position={Position.Top} />
+    <div style={headerStyle}>
+      <span className="material-symbols-outlined text-sm">webhook</span>
+      Webhook (API)
+    </div>
+    <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px', wordBreak: 'break-all' }}>
+      {data.method || 'GET'} {data.url || 'https://...'}
+    </div>
+    <div style={{ fontSize: '10px', color: '#64748b' }}>Guardar en: {data.variable || 'ninguna'}</div>
+    <Handle type="source" position={Position.Bottom} />
+  </div>
+);
+
 const nodeTypes: NodeTypes = {
+
   start: StartNode,
   message: MessageNode,
   buttons: ButtonsNode,
@@ -155,6 +187,8 @@ const nodeTypes: NodeTypes = {
   condition: ConditionNode,
   media: MediaNode,
   human: HumanNode,
+  webhook: WebhookNode,
+  delay: DelayNode,
 };
 
 // --- MAIN COMPONENT ---
@@ -191,8 +225,19 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
     setSelectedNode(node);
   };
 
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [simulatorMessages, setSimulatorMessages] = useState<{role: string, content: string}[]>([]);
+  const [simulatorInput, setSimulatorInput] = useState('');
+  const [simulatorVars, setSimulatorVars] = useState<Record<string, any>>({});
+  const [simulatorCurrentNode, setSimulatorCurrentNode] = useState<string>('');
+
   const handleSave = () => {
-    onSave({ nodes, edges });
+    // Validaciones basicas
+    const startNode = nodes.find(n => n.type === 'start');
+    if (!startNode) return alert("Error: No hay nodo de Inicio.");
+    
+    // Add schema version wrapper
+    onSave({ nodes, edges, flow_schema_version: 2 });
   };
 
   const addNode = (type: string) => {
@@ -203,10 +248,124 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
       data: type === 'buttons' ? { text: 'Elige:', buttons: [{ label: 'Opción 1' }] } 
           : type === 'condition' ? { variable: 'nombre', operator: '==', value: 'Juan' }
           : type === 'question' ? { text: '¿Cual es tu nombre?', variable: 'nombre' }
-          : type === 'media' ? { mediaType: 'image', url: '', text: '' }
+                    : type === 'media' ? { mediaType: 'image', url: '', text: '' }
+          : type === 'webhook' ? { method: 'GET', url: 'https://api.example.com/data', variable: 'api_response' }
+          : type === 'delay' ? { time: '1', unit: 'minutos' }
           : { text: 'Nuevo mensaje' },
     };
     setNodes((nds) => [...nds, newNode]);
+  };
+
+  const processSimulatorTurn = (currentNodeId: string, currentVars: any, userMessage: string) => {
+    let vars = { ...currentVars };
+    let nextNodeId = currentNodeId;
+    let node = nodes.find(n => n.id === nextNodeId);
+    let handledUserInput = false;
+
+    if (userMessage && node) {
+      const outEdges = edges.filter(e => e.source === node!.id);
+      if (node.type === 'buttons') {
+        const edge = outEdges.find(e => e.sourceHandle?.toLowerCase() === userMessage.toLowerCase());
+        if (edge) nextNodeId = edge.target;
+        else if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+        handledUserInput = true;
+      } else if (node.type === 'question') {
+        if (node.data?.variable) vars[node.data.variable] = userMessage;
+        if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+        handledUserInput = true;
+      } else {
+        if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+        handledUserInput = true;
+      }
+      node = nodes.find(n => n.id === nextNodeId);
+    }
+
+    let iterations = 0;
+    const botReplies: string[] = [];
+
+    while (node && iterations < 20) {
+      iterations++;
+      let autoAdvance = false;
+
+      if (node.type === 'start') {
+        autoAdvance = true;
+      } 
+      else if (node.type === 'condition') {
+        // Evaluate
+        const varValue = vars[node.data?.variable || ''];
+        const op = node.data?.operator || '==';
+        const expected = node.data?.value || '';
+        let result = false;
+        try {
+          const a = String(varValue||'').toLowerCase();
+          const e = String(expected).toLowerCase();
+          if (op==='==') result = (a===e);
+          else if(op==='!=') result = (a!==e);
+          else if(op==='contains') result = a.includes(e);
+        } catch {}
+
+        const edge = edges.find(e => e.source === node!.id && e.sourceHandle === (result ? 'true' : 'false'));
+        if (edge) {
+          nextNodeId = edge.target;
+          node = nodes.find(n => n.id === nextNodeId);
+          continue;
+        } else break;
+      }
+      else if (node.type === 'message') {
+        let text = node.data?.text || '';
+        text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
+        botReplies.push(text);
+        autoAdvance = true;
+      }
+      else if (node.type === 'media') {
+        botReplies.push(`[${node.data?.mediaType || 'media'}: ${node.data?.url || ''}]`);
+        autoAdvance = true;
+      }
+      else if (node.type === 'human') {
+        botReplies.push('PAUSA - Asesor humano conectando...');
+        break; // Stop
+      }
+      else if (node.type === 'webhook') {
+        botReplies.push(`[Ejecutando Webhook ${node.data?.method || 'GET'}...]`);
+        if (node.data?.variable) vars[node.data.variable] = '{"simulated": true}';
+        autoAdvance = true;
+      }
+      else if (node.type === 'buttons') {
+        let text = node.data?.text || 'Opciones:';
+        text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
+        const btns = (node.data?.buttons || []).map((b:any)=>`[${b.label}]`).join(' ');
+        botReplies.push(`${text} ${btns}`);
+        break; // Stop and wait for user
+      }
+      else if (node.type === 'question') {
+        let text = node.data?.text || 'Pregunta:';
+        text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
+        botReplies.push(text);
+        break; // Stop and wait for user
+      }
+
+      if (autoAdvance) {
+        const outEdges = edges.filter(e => e.source === node!.id);
+        if (outEdges.length > 0) {
+          nextNodeId = outEdges[0].target;
+          node = nodes.find(n => n.id === nextNodeId);
+        } else break;
+      } else break;
+    }
+
+    if (botReplies.length > 0) {
+      setTimeout(() => {
+        setSimulatorMessages(prev => [
+          ...prev, 
+          ...botReplies.map(r => ({role: 'bot', content: r}))
+        ]);
+        setSimulatorVars(vars);
+        setSimulatorCurrentNode(nextNodeId);
+      }, 300);
+    } else {
+      setSimulatorVars(vars);
+      setSimulatorCurrentNode(nextNodeId);
+    }
   };
 
   const updateSelectedNodeData = (key: string, value: any) => {
@@ -247,7 +406,9 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
             <button onClick={() => addNode('question')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">help</span> Pregunta</button>
             <button onClick={() => addNode('condition')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">alt_route</span> Condición</button>
             <button onClick={() => addNode('media')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1"><span className="material-symbols-outlined text-[14px]">perm_media</span> Media</button>
-            <button onClick={() => addNode('human')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1 text-red-600"><span className="material-symbols-outlined text-[14px]">support_agent</span> Humano</button>
+                        <button onClick={() => addNode('human')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1 text-red-600"><span className="material-symbols-outlined text-[14px]">support_agent</span> Humano</button>
+            <button onClick={() => addNode('delay')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1 text-slate-600"><span className="material-symbols-outlined text-[14px]">schedule</span> Espera</button>
+            <button onClick={() => addNode('webhook')} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 flex items-center gap-1 text-orange-600"><span className="material-symbols-outlined text-[14px]">webhook</span> API</button>
           </Panel>
           <Panel position="top-right">
             <button onClick={handleSave} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-indigo-700">
@@ -258,14 +419,35 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
       </div>
 
       {/* Sidebar de Configuración */}
-      <div className="w-80 bg-white border-l border-slate-200 p-4 overflow-y-auto z-10 shadow-xl">
-        <h3 className="font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Propiedades del Bloque</h3>
+      <div className="w-80 bg-white border-l border-slate-200 flex flex-col z-10 shadow-xl overflow-hidden">
         
-        {!selectedNode ? (
-          <div className="text-xs text-slate-400 text-center mt-10">Selecciona un bloque para editarlo</div>
-        ) : (
-          <div className="space-y-4">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{selectedNode.type}</div>
+        {/* Toggle Editor/Simulador */}
+        <div className="flex border-b border-slate-200 bg-slate-50">
+          <button onClick={() => setSimulatorOpen(false)} className={`flex-1 py-3 text-xs font-bold ${!simulatorOpen ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+            PROPIEDADES
+          </button>
+          <button onClick={() => {
+            setSimulatorOpen(true);
+            setSimulatorMessages([]);
+            setSimulatorVars({});
+            const startNode = nodes.find(n => n.type === 'start');
+            if(startNode) {
+              setSimulatorCurrentNode(startNode.id);
+              processSimulatorTurn(startNode.id, {}, '');
+            }
+          }} className={`flex-1 py-3 text-xs font-bold ${simulatorOpen ? 'text-indigo-600 border-b-2 border-indigo-600 bg-white' : 'text-slate-500 hover:bg-slate-100'}`}>
+            SIMULADOR
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {!simulatorOpen ? (
+            <>
+              {!selectedNode ? (
+                <div className="text-xs text-slate-400 text-center mt-10">Selecciona un bloque para editarlo</div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{selectedNode.type}</div>
             
             {['message', 'buttons', 'question', 'media'].includes(selectedNode.type) && (
               <div>
@@ -372,11 +554,82 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
               </div>
             )}
             
+                        
+            {selectedNode.type === 'delay' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tiempo</label>
+                  <input type="number" value={selectedNode.data.time || '1'} onChange={(e) => updateSelectedNodeData('time', e.target.value)} className="w-full text-sm border border-slate-200 rounded-lg p-2 outline-none" min="1" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Unidad</label>
+                  <select value={selectedNode.data.unit || 'minutos'} onChange={(e) => updateSelectedNodeData('unit', e.target.value)} className="w-full text-sm border border-slate-200 rounded-lg p-2 outline-none">
+                    <option value="minutos">Minutos</option>
+                    <option value="horas">Horas</option>
+                    <option value="dias">Días</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selectedNode.type === 'webhook' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Método HTTP</label>
+                  <select value={selectedNode.data.method || 'GET'} onChange={(e) => updateSelectedNodeData('method', e.target.value)} className="w-full text-sm border border-slate-200 rounded-lg p-2 outline-none">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">URL (soporta variables {'{{var}}'})</label>
+                  <input type="url" value={selectedNode.data.url || ''} onChange={(e) => updateSelectedNodeData('url', e.target.value)} className="w-full text-sm border border-slate-200 rounded-lg p-2 outline-none" placeholder="https://api.example.com" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Guardar respuesta en variable</label>
+                  <input type="text" value={selectedNode.data.variable || ''} onChange={(e) => updateSelectedNodeData('variable', e.target.value)} className="w-full text-sm border border-slate-200 rounded-lg p-2 outline-none" placeholder="api_data" />
+                </div>
+              </div>
+            )}
+            
             <button onClick={() => setNodes(nodes.filter(n => n.id !== selectedNode.id))} className="w-full mt-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 flex justify-center items-center gap-1">
               <span className="material-symbols-outlined text-sm">delete</span> Eliminar Nodo
             </button>
-          </div>
-        )}
+            </div>
+            )}
+            </>
+          ) : (
+            <div className="flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+                {simulatorMessages.map((msg, idx) => (
+                  <div key={idx} className={`p-2 rounded-lg text-sm max-w-[85%] ${msg.role === 'bot' ? 'bg-indigo-50 text-indigo-900 self-start mr-auto' : 'bg-slate-100 text-slate-800 self-end ml-auto'}`}>
+                    {msg.content}
+                  </div>
+                ))}
+                {simulatorMessages.length === 0 && <div className="text-center text-xs text-slate-400 mt-10">Iniciando simulador...</div>}
+              </div>
+              <div className="mt-auto">
+                <input 
+                  type="text" 
+                  value={simulatorInput} 
+                  onChange={(e) => setSimulatorInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && simulatorInput.trim()) {
+                      const input = simulatorInput.trim();
+                      setSimulatorMessages(prev => [...prev, {role: 'user', content: input}]);
+                      setSimulatorInput('');
+                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input);
+                    }
+                  }}
+                  placeholder="Escribe un mensaje..."
+                  className="w-full text-sm border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
