@@ -787,6 +787,7 @@ const TABS_TO_MANAGE = [
   { key: 'crm', label: 'Usuarios / CRM' },
   { key: 'settings', label: 'Configuraciones' },
   { key: 'playground', label: 'Playground IA' },
+  { key: 'basic_bot', label: 'Bot Básico (Sin IA)' },
   { key: 'campaigns', label: 'Pautas Publicitarias' },
   { key: 'banners', label: 'Crear Pancartas' },
   { key: 'segments', label: 'Segmentos' },
