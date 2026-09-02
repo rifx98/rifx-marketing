@@ -56,6 +56,7 @@ interface ExtendedConfig {
   business_days: number[];
   business_start_hour: string;
   business_end_hour: string;
+  n8n_webhook_url: string;
 }
 
 const EXTENDED_DEFAULTS: ExtendedConfig = {
@@ -85,6 +86,7 @@ const EXTENDED_DEFAULTS: ExtendedConfig = {
   business_days: [1, 2, 3, 4, 5],
   business_start_hour: '09:00',
   business_end_hour: '18:00',
+  n8n_webhook_url: '',
 };
 
 const EMPTY_CONFIG = {
@@ -112,6 +114,7 @@ const EMPTY_CONFIG = {
   payphone_token_configured: false,
   facebook_access_token_configured: false,
   dropi_token_configured: false,
+  n8n_webhook_url: '',
 };
 
 class ConfigInputError extends Error {}
@@ -172,6 +175,7 @@ function decodeExtendedConfig(stored: unknown): ExtendedConfig {
     business_days: Array.isArray(parsed.business_days) ? parsed.business_days : EXTENDED_DEFAULTS.business_days,
     business_start_hour: storedString(parsed.business_start_hour, 5, EXTENDED_DEFAULTS.business_start_hour),
     business_end_hour: storedString(parsed.business_end_hour, 5, EXTENDED_DEFAULTS.business_end_hour),
+    n8n_webhook_url: storedString(parsed.n8n_webhook_url, 8192),
   };
 }
 
@@ -367,6 +371,7 @@ export async function POST(req: NextRequest) {
         business_days: Array.isArray(body.business_days) ? body.business_days.filter(d => typeof d === 'number' && d >= 0 && d <= 6) : current.business_days || EXTENDED_DEFAULTS.business_days,
         business_start_hour: updatedString(body.business_start_hour, current.business_start_hour || EXTENDED_DEFAULTS.business_start_hour, 5),
         business_end_hour: updatedString(body.business_end_hour, current.business_end_hour || EXTENDED_DEFAULTS.business_end_hour, 5),
+        n8n_webhook_url: updatedString(body.n8n_webhook_url, current.n8n_webhook_url || EXTENDED_DEFAULTS.n8n_webhook_url, 8192),
       };
       assertPattern(next.bulk_wa_phone_id, PHONE_ID_PATTERN, 'Phone ID masivo');
       assertPattern(next.facebook_ad_account_id, META_AD_ACCOUNT_PATTERN, 'Cuenta publicitaria');

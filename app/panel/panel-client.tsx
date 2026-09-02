@@ -83,6 +83,7 @@ const createInitialPanelConfig = () => ({
   admin_notification_phone: '',
   business_days: [1, 2, 3, 4, 5],
   business_start_hour: '09:00',
+      n8n_webhook_url: '',
   business_end_hour: '18:00',
 });
 
@@ -3858,6 +3859,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     support_prompt: '',
     business_days: [1, 2, 3, 4, 5],
     business_start_hour: '09:00',
+      n8n_webhook_url: '',
     business_end_hour: '18:00',
   });
   const originalConfigRef = React.useRef<any>(null);
@@ -10237,40 +10239,49 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <p className="text-xl text-slate-500 max-w-2xl font-normal leading-relaxed">{language === 'en' ? 'Edit the structured flow and menu options for your basic bot. This bot does not use AI, ensuring maximum economy and control.' : 'Edita el flujo estructurado y las opciones de menú de tu bot básico. Este bot no utiliza IA, asegurando máxima economía y control total.'}</p>
             </header>
             
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm max-w-4xl">
-              <div className="flex items-center gap-4 mb-6">
-                 <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-                    <span className="material-symbols-outlined text-2xl">forum</span>
-                 </div>
-                 <div>
-                    <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'Bot JSON Configuration' : 'Configuración JSON del Bot'}</h3>
-                    <p className="text-sm text-slate-500">{language === 'en' ? 'Define the welcome message and the buttons for your WhatsApp bot.' : 'Define el mensaje de bienvenida y los botones para tu bot de WhatsApp.'}</p>
-                 </div>
+                          <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm max-w-4xl">
+                <div className="flex items-center gap-4 mb-6">
+                   <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                      <span className="material-symbols-outlined text-2xl">webhook</span>
+                   </div>
+                   <div>
+                      <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'n8n Webhook Integration' : 'Integración con n8n (Webhook)'}</h3>
+                      <p className="text-sm text-slate-500">{language === 'en' ? 'Forward incoming WhatsApp messages directly to your n8n workflows for custom logic.' : 'Redirecciona los mensajes entrantes de WhatsApp directamente a tus flujos de n8n.'}</p>
+                   </div>
+                </div>
+                
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'n8n Webhook URL (Production)' : 'URL del Webhook de n8n (Producción)'}</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <span className="material-symbols-outlined text-slate-400">link</span>
+                      </div>
+                      <input 
+                        type="url" 
+                        value={configData.n8n_webhook_url || ''}
+                        onChange={(e) => setConfigData({...configData, n8n_webhook_url: e.target.value})}
+                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono"
+                        placeholder="https://tu-instancia.n8n.cloud/webhook/..."
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">{language === 'en' ? 'When enabled, all messages will be POSTed to this URL. The n8n workflow must handle the WhatsApp Cloud API responses.' : 'Al configurarse, todos los mensajes se enviarán por POST a esta URL. El flujo de n8n debe encargarse de enviar las respuestas mediante la API de Meta.'}</p>
+                  </div>
+
+                  <div className="flex justify-end pt-4 border-t border-slate-100">
+                    <button 
+                      onClick={() => handleConfigUpdate({ n8n_webhook_url: configData.n8n_webhook_url })}
+                      disabled={isSaving}
+                      className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl font-bold shadow-sm shadow-primary/20 transition-all flex items-center space-x-2 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-xl">
+                        {isSaving ? 'sync' : 'save'}
+                      </span>
+                      <span>{language === 'en' ? (isSaving ? 'Saving...' : 'Save Webhook') : (isSaving ? 'Guardando...' : 'Guardar Webhook')}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-              
-              <div className="bg-slate-900 rounded-xl p-5 overflow-x-auto">
-                <pre className="text-emerald-400 font-mono text-sm leading-relaxed">
-{`{
-  "welcome_message": "¡Hola! Gracias por contactarnos. ¿En qué podemos ayudarte hoy?",
-  "buttons": [
-    { "id": "btn_services", "title": "Servicios" },
-    { "id": "btn_contact", "title": "Hablar con Asesor" }
-  ],
-  "responses": {
-    "btn_services": "Nuestros servicios incluyen soluciones personalizadas para tu empresa.",
-    "btn_contact": "En un momento un asesor humano se conectará contigo. Por favor, espera."
-  }
-}`}
-                </pre>
-              </div>
-              
-              <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-                <span className="material-symbols-outlined text-amber-500">info</span>
-                <p className="text-sm text-amber-800">
-                  {language === 'en' ? 'To edit this configuration, you currently need to update the `bot_menu_config` JSON field directly in the Supabase `config` table.' : 'Para editar esta configuración, actualmente necesitas actualizar el campo JSON `bot_menu_config` directamente en la tabla `config` desde Supabase.'}
-                </p>
-              </div>
-            </div>
           </motion.div>
         )}
 

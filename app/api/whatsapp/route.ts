@@ -850,13 +850,36 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       }
     }
 
-        // 2.7b Intercepción para plan Básico (Bot sin IA)
+        // 2.7b Intercepción para plan Básico (Bot sin IA) - n8n Webhook
     if (planOwner.plan === 'basic') {
       console.log(`[WhatsApp ${providerMessageId}] Bot básico (Sin IA)`);
-      const responseJson = processStaticBotMessage(messageData, matchedConfig.bot_menu_config || {}, customerPhone);
-      await sendWhatsAppPayload(customerPhone, responseJson, config, 'static_bot_response');
+      
+      if (extConfig.n8n_webhook_url) {
+        console.log(`[WhatsApp ${providerMessageId}] Forwarding to n8n webhook: ${extConfig.n8n_webhook_url}`);
+        try {
+          // Fire and forget, no await to block Meta response
+          fetch(extConfig.n8n_webhook_url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messageData,
+              customerPhone,
+              providerMessageId,
+              tenantId
+            }),
+            signal: AbortSignal.timeout(5000)
+          }).catch(err => {
+            console.error(`[WhatsApp ${providerMessageId}] Failed to deliver to n8n:`, err.message);
+          });
+        } catch (e: any) {
+          console.error(`[WhatsApp ${providerMessageId}] Failed to dispatch n8n fetch:`, e.message);
+        }
+      } else {
+        console.log(`[WhatsApp ${providerMessageId}] No n8n_webhook_url configured for basic plan.`);
+      }
+
       await finalizeWebhookEvent('processed');
-      return NextResponse.json({ status: 'static_reply' });
+      return NextResponse.json({ status: 'forwarded_to_n8n' });
     }
 
     // 2.8 🆕 Intent Router — Clasificar intención del mensaje
