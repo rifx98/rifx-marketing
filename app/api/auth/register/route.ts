@@ -5,7 +5,7 @@ import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp, normalizeEmail, rateLimitKey, validatePassword } from '@/lib/security';
 import { readLimitedJsonObject } from '@/lib/request-guards';
 import { sendVerificationEmail } from '@/lib/email';
-import { setMemoryVerification } from '../verify-email/route';
+import { setMemoryVerification } from '@/lib/memory-store';
 import bcrypt from 'bcryptjs';
 
 // POST: Registrar nuevo tenant

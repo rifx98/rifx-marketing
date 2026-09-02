@@ -63,13 +63,27 @@ import Footer from './components/Footer';
 import AnimatedCursor from './components/AnimatedCursor';
 import LenisProvider from './components/LenisProvider';
 import GlobalTextReveal from './components/GlobalTextReveal';
+import CookieBanner from './components/CookieBanner';
 import { Analytics } from '@vercel/analytics/next';
+import { createSupabaseAdmin } from '@/lib/supabase';
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let trackingPixels = null;
+  
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const supabase = createSupabaseAdmin();
+      const { data } = await supabase.from('platform_settings').select('tracking_pixels').limit(1).single();
+      trackingPixels = data?.tracking_pixels || null;
+    } catch (err) {
+      console.warn('Error fetching tracking pixels for layout:', err);
+    }
+  }
+
   return (
     <html lang="es">
       <head>
@@ -83,6 +97,7 @@ export default function RootLayout({
           <div className="flex-grow">
             {children}
           </div>
+          <CookieBanner trackingPixels={trackingPixels} />
           <Footer />
         </LenisProvider>
         <Analytics />

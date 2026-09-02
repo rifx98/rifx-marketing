@@ -3,6 +3,9 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import { denyUnlessFeature } from '@/lib/feature-access';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_PATCH_BYTES = 8 * 1024;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from('platform_settings')
-      .select('id,platform_name,platform_logo,sidebar_order,plan_permissions,global_ai_config,updated_at')
+      .select('id,platform_name,platform_logo,sidebar_order,plan_permissions,global_ai_config,tracking_pixels,updated_at')
       .limit(1)
       .single();
 
@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
         platform_name: 'Sovereign',
         platform_logo: null,
         sidebar_order: ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
-        global_ai_config: { enabled: false, provider: '', model: '', apiKey: '' }
+        global_ai_config: { enabled: false, provider: '', model: '', apiKey: '' },
+        tracking_pixels: { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' }
       });
     }
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     const parsedBody = await readLimitedJsonObject(request, 64 * 1024);
     if (!parsedBody.ok) return parsedBody.response;
     const body = parsedBody.body;
-    const { platform_name, platform_logo, sidebar_order, global_ai_config } = body;
+    const { platform_name, platform_logo, sidebar_order, global_ai_config, tracking_pixels } = body;
 
     if (
       typeof platform_name !== 'string'
@@ -91,17 +92,20 @@ export async function POST(request: NextRequest) {
       finalAiConfig.apiKey = (existing?.global_ai_config as any)?.apiKey || '';
     }
 
+    // Ensure tracking_pixels is valid json
+    const finalTrackingPixels = tracking_pixels || existing?.tracking_pixels || { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' };
+
     let result;
     if (existing) {
       result = await supabase
         .from('platform_settings')
-        .update({ platform_name, platform_logo, sidebar_order, global_ai_config: finalAiConfig, updated_at: new Date().toISOString() })
+        .update({ platform_name, platform_logo, sidebar_order, global_ai_config: finalAiConfig, tracking_pixels: finalTrackingPixels, updated_at: new Date().toISOString() })
         .eq('id', existing.id)
         .select();
     } else {
       result = await supabase
         .from('platform_settings')
-        .insert({ platform_name, platform_logo, sidebar_order, global_ai_config: finalAiConfig })
+        .insert({ platform_name, platform_logo, sidebar_order, global_ai_config: finalAiConfig, tracking_pixels: finalTrackingPixels })
         .select();
     }
 

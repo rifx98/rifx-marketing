@@ -10,5 +10,6 @@ export async function POST() {
     expires: new Date(0),
   });
   response.headers.set('Cache-Control', 'no-store');
+  response.headers.set('Clear-Site-Data', '"cache", "cookies", "storage"');
   return response;
 }

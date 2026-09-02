@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 type JsonObject = Record<string, unknown>;
 
 function asObject(value: unknown): JsonObject {

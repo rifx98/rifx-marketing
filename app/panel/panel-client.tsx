@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -89,7 +89,7 @@ const createInitialPanelConfig = () => ({
 const createInitialApiHelperMessages = () => ([
   {
     sender: 'agent',
-    text: '¡Hola! Soy tu Asistente de Configuración de APIs de RIFX. Te ayudaré a conectar tus servicios sin pedirte ni mostrar credenciales privadas.\n\n¿Qué API deseas configurar hoy?',
+    text: 'Â¡Hola! Soy tu Asistente de ConfiguraciÃ³n de APIs de RIFX. Te ayudarÃ© a conectar tus servicios sin pedirte ni mostrar credenciales privadas.\n\nÂ¿QuÃ© API deseas configurar hoy?',
     timestamp: new Date(),
     chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads'],
   },
@@ -251,7 +251,7 @@ const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { co
             <span className="text-sm">{classification.emoji}</span>
             <p className="font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-primary transition-colors">{conv.customer_name || 'Usuario'}</p>
           </div>
-          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{conv.phone_number || 'Sin número'}</p>
+          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{conv.phone_number || 'Sin nÃºmero'}</p>
           <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
             <span className="material-symbols-outlined text-[10px]">auto_awesome</span>
             <span className="truncate">{formatIntent(conv.intent)}</span>
@@ -266,9 +266,9 @@ const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { co
         </div>
         
         <div>
-          <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Próxima acción:</p>
+          <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">PrÃ³xima acciÃ³n:</p>
           <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 line-clamp-2">
-            {conv.next_action || 'Continuar conversación'}
+            {conv.next_action || 'Continuar conversaciÃ³n'}
           </p>
         </div>
       </div>
@@ -286,14 +286,14 @@ const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { co
   );
 };
 
-// Simulación de datos de ventas por IA
+// SimulaciÃ³n de datos de ventas por IA
 const mockSales = [
-  { id: 1, customer: 'Ana García', amount: 850, service: 'Diseño Web Inmersivo', time: 'Hace 5 min', status: 'completed' },
-  { id: 2, customer: 'Carlos López', amount: 300, service: 'WhatsApp IA', time: 'Hace 45 min', status: 'completed' },
+  { id: 1, customer: 'Ana GarcÃ­a', amount: 850, service: 'DiseÃ±o Web Inmersivo', time: 'Hace 5 min', status: 'completed' },
+  { id: 2, customer: 'Carlos LÃ³pez', amount: 300, service: 'WhatsApp IA', time: 'Hace 45 min', status: 'completed' },
   { id: 3, customer: 'Empresa XYZ', amount: 1200, service: 'Ecommerce Interestelar', time: 'Hace 2 horas', status: 'completed' },
 ];
 
-// Datos simulados de ingresos por día del mes (Mayo 2026)
+// Datos simulados de ingresos por dÃ­a del mes (Mayo 2026)
 const monthlyIncomeData: Record<string, Record<number, number>> = {
   '2026-05': {
     1: 150, 2: 300, 3: 200, 4: 500, 5: 850, 6: 150, 7: 200,
@@ -323,7 +323,7 @@ function getFirstDayOfWeek(year: number, month: number) {
 }
 
 // Convierte la VAPID public key (base64url) al formato Uint8Array que
-// pide pushManager.subscribe — boilerplate estandar de Web Push.
+// pide pushManager.subscribe â€” boilerplate estandar de Web Push.
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -349,7 +349,7 @@ function formatRelativeTime(dateString: string | undefined, lang: string) {
   const diffInHours = Math.floor(diffInMinutes / 60);
   if (diffInHours < 24) return lang === 'es' ? `Hace ${diffInHours} horas` : `${diffInHours} hours ago`;
   const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 30) return lang === 'es' ? `Hace ${diffInDays} días` : `${diffInDays} days ago`;
+  if (diffInDays < 30) return lang === 'es' ? `Hace ${diffInDays} dÃ­as` : `${diffInDays} days ago`;
   return date.toLocaleDateString();
 }
 
@@ -376,7 +376,7 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
     if (chatMapRef.current && (window as any).L) {
       chatMarkersRef.current.forEach((m, i) => {
         if (m.circle) m.circle.setRadius(radius * 1000);
-        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[i]?.name || '📍'}</b><br>${radius}km`);
+        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[i]?.name || 'ðŸ“'}</b><br>${radius}km`);
       });
       setSelectedLocs(prev => prev.map(loc => ({ ...loc, radius })));
     }
@@ -473,7 +473,7 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
         }).addTo(map);
 
         const marker = L.marker([lat, lng]).addTo(map)
-          .bindPopup(`<b>📍</b><br>${radiusRefLocal.current}km`);
+          .bindPopup(`<b>ðŸ“</b><br>${radiusRefLocal.current}km`);
         chatMarkersRef.current.push({ circle, marker });
 
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
@@ -546,7 +546,7 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[500] px-4">
             <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow border border-slate-200 text-center">
               <p className="text-[10px] text-slate-600 font-medium">
-                {language === 'en' ? 'Click the map to add a location — click again for more' : 'Clic en el mapa para agregar una ubicación — podés hacer clic varias veces para agregar más'}
+                {language === 'en' ? 'Click the map to add a location â€” click again for more' : 'Clic en el mapa para agregar una ubicaciÃ³n â€” podÃ©s hacer clic varias veces para agregar mÃ¡s'}
               </p>
             </div>
           </div>
@@ -593,7 +593,7 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
         <span className="material-symbols-outlined text-sm">check_circle</span>
         {selectedLocs.length > 1
           ? (language === 'en' ? `Confirm ${selectedLocs.length} Locations` : `Confirmar ${selectedLocs.length} Ubicaciones`)
-          : (language === 'en' ? 'Confirm Target Location' : 'Confirmar Ubicación y Radio')}
+          : (language === 'en' ? 'Confirm Target Location' : 'Confirmar UbicaciÃ³n y Radio')}
       </button>
     </div>
   );
@@ -617,18 +617,18 @@ function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummar
   const dailyConvsMax = Math.round(budget * 36);
 
   const goalLabel = goal === 'local' 
-    ? (language === 'en' ? 'Local Store Traffic' : 'Tráfico al Local Físico')
+    ? (language === 'en' ? 'Local Store Traffic' : 'TrÃ¡fico al Local FÃ­sico')
     : goal === 'whatsapp'
     ? (language === 'en' ? 'WhatsApp Sales' : 'Ventas por WhatsApp')
     : (language === 'en' ? 'Website Conversions' : 'Conversiones en Web');
 
-  const locName = answers.address || 'Ubicación seleccionada';
+  const locName = answers.address || 'UbicaciÃ³n seleccionada';
 
   return (
     <div className="mt-3 p-5 bg-white border border-[#cbd5e1] rounded-2xl space-y-4 shadow-sm text-left max-w-full text-slate-800">
       <div className="flex items-center gap-2 pb-2 border-b border-[#f1f5f9]">
         <span className="material-symbols-outlined text-green-600 font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-        <h4 className="text-xs font-bold text-[#0b1c30] uppercase tracking-wider">{language === 'en' ? 'AI Ads Campaign Diagnosis' : 'Diagnóstico de Campaña IA'}</h4>
+        <h4 className="text-xs font-bold text-[#0b1c30] uppercase tracking-wider">{language === 'en' ? 'AI Ads Campaign Diagnosis' : 'DiagnÃ³stico de CampaÃ±a IA'}</h4>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-[11px] text-[#414754]">
@@ -638,10 +638,10 @@ function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummar
         </div>
         <div>
           <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wide">{language === 'en' ? 'Daily Budget' : 'Presupuesto Diario'}</span>
-          <span className="font-bold text-[#0b1c30]">${budget} USD / {language === 'en' ? 'day' : 'día'}</span>
+          <span className="font-bold text-[#0b1c30]">${budget} USD / {language === 'en' ? 'day' : 'dÃ­a'}</span>
         </div>
         <div className="col-span-2">
-          <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wide">{language === 'en' ? 'Target Location' : 'Segmentación Geográfica'}</span>
+          <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wide">{language === 'en' ? 'Target Location' : 'SegmentaciÃ³n GeogrÃ¡fica'}</span>
           <span className="font-bold text-[#0b1c30] flex items-center gap-1 truncate">
             <span className="material-symbols-outlined text-xs text-[#0058bc]">distance</span>
             {locName} (+{radius}km)
@@ -651,30 +651,30 @@ function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummar
 
       <div className="bg-[#eff4ff]/60 border border-[#cbd5e1] rounded-xl p-3.5 space-y-3.5">
         <div className="flex items-center justify-between text-xs font-bold text-[#0b1c30]">
-          <span>📊 {language === 'en' ? 'Estimated Daily Results' : 'Resultados Diarios Estimados'}</span>
-          <span className="bg-blue-100 text-blue-800 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-extrabold">{language === 'en' ? 'Advantage+ Enabled' : 'Segmentación de Meta'}</span>
+          <span>ðŸ“Š {language === 'en' ? 'Estimated Daily Results' : 'Resultados Diarios Estimados'}</span>
+          <span className="bg-blue-100 text-blue-800 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded font-extrabold">{language === 'en' ? 'Advantage+ Enabled' : 'SegmentaciÃ³n de Meta'}</span>
         </div>
         
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-0.5">
             <div className="text-[10px] text-slate-500 font-semibold">{language === 'en' ? 'Estimated Daily Reach' : 'Alcance Diario Estimado'}</div>
             <div className="text-base font-extrabold text-[#0058bc] tracking-tight">{dailyReachMin.toLocaleString()} - {dailyReachMax.toLocaleString()}</div>
-            <div className="text-[9px] text-slate-400">{language === 'en' ? 'people reached per day' : 'personas alcanzadas al día'}</div>
+            <div className="text-[9px] text-slate-400">{language === 'en' ? 'people reached per day' : 'personas alcanzadas al dÃ­a'}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] text-slate-500 font-semibold">{language === 'en' ? 'Estimated Clicks/Leads' : 'Conversiones Diarias'}</div>
             <div className="text-base font-extrabold text-emerald-600 tracking-tight">{dailyConvsMin} - {dailyConvsMax}</div>
-            <div className="text-[9px] text-slate-400">{language === 'en' ? 'actions/messages per day' : 'acciones/mensajes al día'}</div>
+            <div className="text-[9px] text-slate-400">{language === 'en' ? 'actions/messages per day' : 'acciones/mensajes al dÃ­a'}</div>
           </div>
         </div>
       </div>
 
       <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-800 leading-relaxed">
-        <strong>💡 {language === 'en' ? 'Expert Strategy Recommendation:' : 'Recomendación Estratégica del Experto:'}</strong>
+        <strong>ðŸ’¡ {language === 'en' ? 'Expert Strategy Recommendation:' : 'RecomendaciÃ³n EstratÃ©gica del Experto:'}</strong>
         <p className="mt-1">
           {language === 'en' 
             ? 'We have optimized your dynamic copy templates and enabled Meta Advantage+ detailed targeting. This campaign is primed for immediate conversions with the chosen promotional structure.'
-            : 'Hemos optimizado la estructura de tus textos y activado la segmentación inteligente de Meta Advantage+. Esta configuración maximiza la conversión local con tu presupuesto diario.'}
+            : 'Hemos optimizado la estructura de tus textos y activado la segmentaciÃ³n inteligente de Meta Advantage+. Esta configuraciÃ³n maximiza la conversiÃ³n local con tu presupuesto diario.'}
         </p>
       </div>
 
@@ -684,7 +684,7 @@ function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummar
         className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg hover:opacity-95 transition-opacity active:scale-98"
       >
         <span className="material-symbols-outlined text-sm">bolt</span>
-        {language === 'en' ? 'Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar'}
+        {language === 'en' ? 'Apply Campaign Setup' : 'âš¡ Aplicar ConfiguraciÃ³n y Continuar'}
       </button>
     </div>
   );
@@ -701,30 +701,30 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
   const [activeTab, setActiveTab] = useState<'aida' | 'storytelling' | 'direct'>('aida');
   
   const prod = answers.productName || (language === 'en' ? 'our premium product' : 'nuestro producto estrella');
-  const price = answers.price || (language === 'en' ? 'special promotion' : 'promoción especial');
+  const price = answers.price || (language === 'en' ? 'special promotion' : 'promociÃ³n especial');
   const name = answers.businessName || (language === 'en' ? 'our store' : 'nuestro negocio');
   const phone = answers.phone || '';
   const address = answers.address || '';
   const web = answers.webUrl || '';
   
   const ctaText = phone 
-    ? (language === 'en' ? `Contact us on WhatsApp: https://wa.me/${phone.replace(/[^0-9]/g, '')}` : `Escríbenos directamente por WhatsApp haciendo clic aquí: https://wa.me/${phone.replace(/[^0-9]/g, '')}`)
+    ? (language === 'en' ? `Contact us on WhatsApp: https://wa.me/${phone.replace(/[^0-9]/g, '')}` : `EscrÃ­benos directamente por WhatsApp haciendo clic aquÃ­: https://wa.me/${phone.replace(/[^0-9]/g, '')}`)
     : web 
-    ? (language === 'en' ? `Order directly on our website: ${web}` : `Ordena directamente en nuestra tienda online aquí: ${web}`)
-    : (language === 'en' ? `Visit us at: ${address}` : `Visítanos directamente en: ${address}`);
+    ? (language === 'en' ? `Order directly on our website: ${web}` : `Ordena directamente en nuestra tienda online aquÃ­: ${web}`)
+    : (language === 'en' ? `Visit us at: ${address}` : `VisÃ­tanos directamente en: ${address}`);
 
   const copies = {
     aida: language === 'en' 
-      ? `🚨 ATTENTION! Looking for the best ${prod}? 🚨\n\nIf you want top-tier quality and premium customer service, this is for you! At ${name}, we have exactly what you need.\n\n✨ Why choose us?\n✅ Guaranteed Premium Quality\n✅ Elite Support & Service\n✅ Exclusive limited-time promotion\n\n💰 SPECIAL PRICE: ${price}!\n\n👉 Do not miss this opportunity! ${ctaText}\n\n#${prod.replace(/\s+/g, '')} #BestOffer #PremiumService #MetaAds`
-      : `🚨 ¡ATENCIÓN! ¿Buscando el mejor ${prod}? 🚨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\n✨ ¿Por qué elegirnos?\n✅ Calidad Premium 100% Garantizada\n✅ Atención de primera\n✅ Oferta exclusiva por tiempo limitado\n\n💰 PROMOCIÓN ESPECIAL: ¡${price}!\n\n👉 ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
+      ? `ðŸš¨ ATTENTION! Looking for the best ${prod}? ðŸš¨\n\nIf you want top-tier quality and premium customer service, this is for you! At ${name}, we have exactly what you need.\n\nâœ¨ Why choose us?\nâœ… Guaranteed Premium Quality\nâœ… Elite Support & Service\nâœ… Exclusive limited-time promotion\n\nðŸ’° SPECIAL PRICE: ${price}!\n\nðŸ‘‰ Do not miss this opportunity! ${ctaText}\n\n#${prod.replace(/\s+/g, '')} #BestOffer #PremiumService #MetaAds`
+      : `ðŸš¨ Â¡ATENCIÃ“N! Â¿Buscando el mejor ${prod}? ðŸš¨\n\nSi buscas la mÃ¡xima calidad y un servicio inigualable, Â¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\nâœ¨ Â¿Por quÃ© elegirnos?\nâœ… Calidad Premium 100% Garantizada\nâœ… AtenciÃ³n de primera\nâœ… Oferta exclusiva por tiempo limitado\n\nðŸ’° PROMOCIÃ“N ESPECIAL: Â¡${price}!\n\nðŸ‘‰ Â¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
       
     storytelling: language === 'en'
-      ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... 😔\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! 🌟\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\n🔥 Limited Offer: ${price}!\n\n📲 Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
-      : `Había intentado de todo para encontrar un ${prod} que realmente cumpliera con su promesa, pero siempre terminaba decepcionado... 😔\n\nHasta que descubrí a los expertos de ${name}. Desde el primer día, la diferencia fue como el día y la noche. ¡La calidad, el trato y los resultados superaron mis expectativas! 🌟\n\nSi tú también estás cansado de lo mismo de siempre, tienes que probar esto. Y lo mejor de todo es que tienen una súper promoción:\n\n🔥 Oferta por tiempo limitado: ¡${price}!\n\n📲 Haz clic abajo y compruébalo tú mismo. ${ctaText}\n\n#CasoDeExito #CalidadReal #PremiumExperience #MetaAds`,
+      ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... ðŸ˜”\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! ðŸŒŸ\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\nðŸ”¥ Limited Offer: ${price}!\n\nðŸ“² Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
+      : `HabÃ­a intentado de todo para encontrar un ${prod} que realmente cumpliera con su promesa, pero siempre terminaba decepcionado... ðŸ˜”\n\nHasta que descubrÃ­ a los expertos de ${name}. Desde el primer dÃ­a, la diferencia fue como el dÃ­a y la noche. Â¡La calidad, el trato y los resultados superaron mis expectativas! ðŸŒŸ\n\nSi tÃº tambiÃ©n estÃ¡s cansado de lo mismo de siempre, tienes que probar esto. Y lo mejor de todo es que tienen una sÃºper promociÃ³n:\n\nðŸ”¥ Oferta por tiempo limitado: Â¡${price}!\n\nðŸ“² Haz clic abajo y compruÃ©balo tÃº mismo. ${ctaText}\n\n#CasoDeExito #CalidadReal #PremiumExperience #MetaAds`,
       
     direct: language === 'en'
-      ? `⚡ SUPER OFFER! Get your ${prod} at ${name} for the best price. ⚡\n\nNo hassle, straightforward quality, and 100% satisfaction guarantee.\n\n💵 Promo Price: ${price}!\n\n🚀 Extremely limited stock! Click and order yours now:\n👉 ${ctaText}\n\n#DirectResponse #ExpressShipping #LimitedStock #MetaAds`
-      : `⚡ ¡SÚPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. ⚡\n\nSin rodeos, directo a lo que necesitas y con garantía de satisfacción total.\n\n💵 Precio Especial: ¡${price}!\n\n🚀 ¡Stock limitado! Haz clic y ordena el tuyo ahora mismo:\n👉 ${ctaText}\n\n#CompraDirecta #EnvioExpress #DescuentoEspecial #MetaAds`
+      ? `âš¡ SUPER OFFER! Get your ${prod} at ${name} for the best price. âš¡\n\nNo hassle, straightforward quality, and 100% satisfaction guarantee.\n\nðŸ’µ Promo Price: ${price}!\n\nðŸš€ Extremely limited stock! Click and order yours now:\nðŸ‘‰ ${ctaText}\n\n#DirectResponse #ExpressShipping #LimitedStock #MetaAds`
+      : `âš¡ Â¡SÃšPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. âš¡\n\nSin rodeos, directo a lo que necesitas y con garantÃ­a de satisfacciÃ³n total.\n\nðŸ’µ Precio Especial: Â¡${price}!\n\nðŸš€ Â¡Stock limitado! Haz clic y ordena el tuyo ahora mismo:\nðŸ‘‰ ${ctaText}\n\n#CompraDirecta #EnvioExpress #DescuentoEspecial #MetaAds`
   };
 
   const activeCopy = copies[activeTab];
@@ -737,7 +737,7 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
           {language === 'en' ? 'AI Dynamic Ad Copywriter' : 'Redactor Publicitario IA Premium'}
         </span>
         <span className="bg-blue-100 text-[#0058bc] text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-extrabold">
-          {language === 'en' ? 'Conversion Copy' : 'Fórmulas Persuasivas'}
+          {language === 'en' ? 'Conversion Copy' : 'FÃ³rmulas Persuasivas'}
         </span>
       </div>
 
@@ -776,7 +776,7 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
         className="w-full py-2 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-98 font-sans"
       >
         <span className="material-symbols-outlined text-xs">assignment_turned_in</span>
-        {language === 'en' ? 'Use This Text for Campaign' : '📋 Aplicar este Texto de Anuncio'}
+        {language === 'en' ? 'Use This Text for Campaign' : 'ðŸ“‹ Aplicar este Texto de Anuncio'}
       </button>
     </div>
   );
@@ -790,10 +790,10 @@ const TABS_TO_MANAGE = [
   { key: 'campaigns', label: 'Pautas Publicitarias' },
   { key: 'banners', label: 'Crear Pancartas' },
   { key: 'segments', label: 'Segmentos' },
-  { key: 'analytics', label: 'Análisis' },
+  { key: 'analytics', label: 'AnÃ¡lisis' },
   { key: 'social', label: 'OmniPublish' },
   { key: 'appointments', label: 'Citas y Reservas' },
-  { key: 'pricing', label: 'Catálogo de Precios' }
+  { key: 'pricing', label: 'CatÃ¡logo de Precios' }
 ];
 
 const PLANS = ['trial', 'start', 'plus', 'master'];
@@ -819,7 +819,7 @@ export default function PanelClient() {
   const [tenantData, setTenantData] = useState<any>(null);
   
   const [testMessages, setTestMessages] = useState<any[]>([
-    { role: 'assistant', content: '¡Hola! Soy el asistente de clasificación. Escribe un mensaje de usuario para ver cómo lo categorizo.' }
+    { role: 'assistant', content: 'Â¡Hola! Soy el asistente de clasificaciÃ³n. Escribe un mensaje de usuario para ver cÃ³mo lo categorizo.' }
   ]);
   const [testInput, setTestInput] = useState('');
   const [isTestingAi, setIsTestingAi] = useState(false);
@@ -840,9 +840,9 @@ export default function PanelClient() {
   const [kbUploading, setKbUploading] = useState(false);
   const botKbFileRef = React.useRef<HTMLInputElement>(null);
   const [botPreviewMessages, setBotPreviewMessages] = useState<{role: 'bot' | 'user', content: string, time: string, isKb?: boolean}[]>([
-    { role: 'bot', content: '¡Hola! Soy Alpha-One. ¿En qué puedo ayudarte hoy con nuestro portafolio de servicios?', time: '10:12 AM' },
-    { role: 'user', content: '¿Puedes explicarme la política de reembolso del plan Pro?', time: '10:13 AM' },
-    { role: 'bot', content: 'Según nuestra Guía de Producto, el plan Pro ofrece una garantía de devolución completa de 30 días. ¿Deseas que inicie una solicitud?', time: '10:13 AM', isKb: true },
+    { role: 'bot', content: 'Â¡Hola! Soy Alpha-One. Â¿En quÃ© puedo ayudarte hoy con nuestro portafolio de servicios?', time: '10:12 AM' },
+    { role: 'user', content: 'Â¿Puedes explicarme la polÃ­tica de reembolso del plan Pro?', time: '10:13 AM' },
+    { role: 'bot', content: 'SegÃºn nuestra GuÃ­a de Producto, el plan Pro ofrece una garantÃ­a de devoluciÃ³n completa de 30 dÃ­as. Â¿Deseas que inicie una solicitud?', time: '10:13 AM', isKb: true },
   ]);
   const [botPreviewInput, setBotPreviewInput] = useState('');
 
@@ -868,7 +868,7 @@ export default function PanelClient() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setLoginError(data.error || 'Error al iniciar sesión con Google');
+          setLoginError(data.error || 'Error al iniciar sesiÃ³n con Google');
           setIsLoggingIn(false);
           return;
         }
@@ -876,9 +876,9 @@ export default function PanelClient() {
         setTenantData(data.tenant);
         setCurrentPlan(data.tenant.plan || 'trial');
         setIsLoggedIn(true);
-        setToast({ message: language === 'en' ? '✅ Signed in with Google!' : '✅ ¡Sesión iniciada con Google!', type: 'success' });
+        setToast({ message: language === 'en' ? 'âœ… Signed in with Google!' : 'âœ… Â¡SesiÃ³n iniciada con Google!', type: 'success' });
       } catch (err) {
-        setLoginError('Error de conexión con Google. Intenta de nuevo.');
+        setLoginError('Error de conexiÃ³n con Google. Intenta de nuevo.');
       } finally {
         setIsLoggingIn(false);
       }
@@ -917,7 +917,7 @@ export default function PanelClient() {
     if (oauthSuccess === 'true') {
       setToast({
         type: 'success',
-        message: language === 'en' ? '✅ Meta account connected successfully!' : '✅ ¡Cuenta de Meta vinculada exitosamente!'
+        message: language === 'en' ? 'âœ… Meta account connected successfully!' : 'âœ… Â¡Cuenta de Meta vinculada exitosamente!'
       });
       // Clean query parameters from URL without reloading
       const newUrl = window.location.pathname;
@@ -925,7 +925,7 @@ export default function PanelClient() {
     } else if (calendarSuccess === 'true') {
       setToast({
         type: 'success',
-        message: language === 'en' ? '✅ Google Calendar connected successfully!' : '✅ ¡Google Calendar vinculado exitosamente!'
+        message: language === 'en' ? 'âœ… Google Calendar connected successfully!' : 'âœ… Â¡Google Calendar vinculado exitosamente!'
       });
       setSettingsSection('whatsapp');
       const newUrl = window.location.pathname;
@@ -933,7 +933,7 @@ export default function PanelClient() {
     } else if (oauthError) {
       setToast({
         type: 'error',
-        message: language === 'en' ? `❌ OAuth Error: ${oauthError}` : `❌ Error de Vinculación: ${oauthError}`
+        message: language === 'en' ? `âŒ OAuth Error: ${oauthError}` : `âŒ Error de VinculaciÃ³n: ${oauthError}`
       });
       if (oauthError.toLowerCase().includes('calendar')) {
         setSettingsSection('whatsapp');
@@ -1113,7 +1113,7 @@ export default function PanelClient() {
       const data = await res.json();
       if (res.ok && data.success) {
         await fetchKBFiles(); // Reload the list
-        console.log(`KB subido: ${file.name} (${data.extractedChars} chars extraídos)`);
+        console.log(`KB subido: ${file.name} (${data.extractedChars} chars extraÃ­dos)`);
       } else {
         setToast({ message: `Error: ${data.error}`, type: 'error' });
       }
@@ -1308,10 +1308,10 @@ export default function PanelClient() {
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión' });
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexiÃ³n' });
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+      setToast({ type: 'error', message: err.message || 'Error de conexiÃ³n con el servidor' });
     }
   };
 
@@ -1328,10 +1328,10 @@ export default function PanelClient() {
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de TikTok' });
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexiÃ³n de TikTok' });
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+      setToast({ type: 'error', message: err.message || 'Error de conexiÃ³n con el servidor' });
     }
   };
 
@@ -1348,10 +1348,10 @@ export default function PanelClient() {
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de YouTube' });
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexiÃ³n de YouTube' });
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+      setToast({ type: 'error', message: err.message || 'Error de conexiÃ³n con el servidor' });
     }
   };
 
@@ -1368,10 +1368,10 @@ export default function PanelClient() {
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexión de Google Calendar' });
+        setToast({ type: 'error', message: data.error || 'Error al obtener la URL de conexiÃ³n de Google Calendar' });
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+      setToast({ type: 'error', message: err.message || 'Error de conexiÃ³n con el servidor' });
     }
   };
 
@@ -1413,7 +1413,7 @@ export default function PanelClient() {
   };
 
   const handleDeleteSocialAccount = async (id: string) => {
-    if (!confirm('¿Estás seguro de desconectar esta cuenta?')) return;
+    if (!confirm('Â¿EstÃ¡s seguro de desconectar esta cuenta?')) return;
     try {
       const headers: Record<string, string> = {};
 
@@ -1460,7 +1460,7 @@ export default function PanelClient() {
 
       const data = await res.json();
       if (data.success && data.postId) {
-        setToast({ type: 'success', message: 'Publicación encolada con éxito. Siguiendo el progreso...' });
+        setToast({ type: 'success', message: 'PublicaciÃ³n encolada con Ã©xito. Siguiendo el progreso...' });
         setCurrentPostId(data.postId);
         setTrackingPostIds([data.postId]);
 
@@ -1476,11 +1476,11 @@ export default function PanelClient() {
           });
         }
       } else {
-        setToast({ type: 'error', message: data.error || 'Error al registrar publicación' });
+        setToast({ type: 'error', message: data.error || 'Error al registrar publicaciÃ³n' });
         setIsPublishing(false);
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor' });
+      setToast({ type: 'error', message: err.message || 'Error de conexiÃ³n con el servidor' });
       setIsPublishing(false);
     }
   };
@@ -1498,7 +1498,7 @@ export default function PanelClient() {
         generating: false
       }));
       setUploadedVideos(prev => [...prev, ...newItems]);
-      setToast({ type: 'success', message: `¡${files.length} video(s) subido(s) con éxito!` });
+      setToast({ type: 'success', message: `Â¡${files.length} video(s) subido(s) con Ã©xito!` });
     } else {
       setUploadedVideoPath(files[0].path);
       setToast({ type: 'success', message: 'Video subido exitosamente a Supabase Storage' });
@@ -1515,16 +1515,16 @@ export default function PanelClient() {
     // Validar
     for (const video of uploadedVideos) {
       if (!video.caption.trim()) {
-        setToast({ type: 'error', message: `La descripción es requerida para el video: ${video.name}` });
+        setToast({ type: 'error', message: `La descripciÃ³n es requerida para el video: ${video.name}` });
         return;
       }
       if (video.isScheduled && !video.scheduledAt) {
-        setToast({ type: 'error', message: `Por favor selecciona fecha y hora de programación para: ${video.name}` });
+        setToast({ type: 'error', message: `Por favor selecciona fecha y hora de programaciÃ³n para: ${video.name}` });
         return;
       }
       if (video.isScheduled && video.scheduledAt) {
         if (new Date(video.scheduledAt).getTime() < Date.now()) {
-          setToast({ type: 'error', message: `La fecha y hora de programación debe ser en el futuro para: ${video.name}` });
+          setToast({ type: 'error', message: `La fecha y hora de programaciÃ³n debe ser en el futuro para: ${video.name}` });
           return;
         }
       }
@@ -1572,13 +1572,13 @@ export default function PanelClient() {
       }
 
       if (createdPostIds.length > 0) {
-        setToast({ type: 'success', message: `¡Se encolaron ${createdPostIds.length} publicaciones con éxito!` });
+        setToast({ type: 'success', message: `Â¡Se encolaron ${createdPostIds.length} publicaciones con Ã©xito!` });
         setTrackingPostIds(createdPostIds);
         // Utilizar la primera como referencia si es necesario
         setCurrentPostId(createdPostIds[0]);
         setUploadedVideos([]);
       } else {
-        setToast({ type: 'error', message: 'No se pudo registrar ninguna publicación.' });
+        setToast({ type: 'error', message: 'No se pudo registrar ninguna publicaciÃ³n.' });
         setIsPublishing(false);
       }
     } catch (err: any) {
@@ -1592,7 +1592,7 @@ export default function PanelClient() {
     if (!video) return;
 
     if (!video.title?.trim() && !video.caption?.trim()) {
-      setToast({ type: 'error', message: 'Por favor, escribe un borrador, ideas o palabras clave en el título o descripción primero.' });
+      setToast({ type: 'error', message: 'Por favor, escribe un borrador, ideas o palabras clave en el tÃ­tulo o descripciÃ³n primero.' });
       return;
     }
 
@@ -1623,7 +1623,7 @@ export default function PanelClient() {
         setUploadedVideos(prev => prev.map(v => v.id === itemId ? { ...v, generating: false } : v));
       }
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Error de conexión con el servidor.' });
+      setToast({ type: 'error', message: err.message || 'Error de conexiÃ³n con el servidor.' });
       setUploadedVideos(prev => prev.map(v => v.id === itemId ? { ...v, generating: false } : v));
     }
   };
@@ -1696,11 +1696,13 @@ export default function PanelClient() {
   }, [activeTab]);
   const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
   const [adminGlobalAi, setAdminGlobalAi] = useState<{enabled: boolean, provider: string, model: string, apiKey: string} | null>(null);
+  const [adminTrackingPixels, setAdminTrackingPixels] = useState<{google_analytics: string, facebook_pixel: string, tiktok_pixel: string} | null>(null);
   
   useEffect(() => {
     if (settingsSection === 'ai' && tenantData?.isAdmin) {
       authFetch('/api/admin/platform-settings').then(res => res.json()).then(data => {
         if (data && data.global_ai_config) setAdminGlobalAi(data.global_ai_config);
+        if (data && data.tracking_pixels) setAdminTrackingPixels(data.tracking_pixels);
       }).catch(err => console.error(err));
     }
   }, [settingsSection, tenantData?.isAdmin]);
@@ -1711,7 +1713,7 @@ export default function PanelClient() {
   const [apiHelperMessages, setApiHelperMessages] = useState<any[]>([
     {
       sender: 'agent',
-      text: '¡Hola! Soy tu Asistente de Configuración de APIs de RIFX. Estoy aquí para guiarte paso a paso en la conexión de tus servicios de forma fácil y sin errores.\n\n¿Qué API deseas configurar hoy? Selecciona una de las opciones de abajo.',
+      text: 'Â¡Hola! Soy tu Asistente de ConfiguraciÃ³n de APIs de RIFX. Estoy aquÃ­ para guiarte paso a paso en la conexiÃ³n de tus servicios de forma fÃ¡cil y sin errores.\n\nÂ¿QuÃ© API deseas configurar hoy? Selecciona una de las opciones de abajo.',
       timestamp: new Date(),
       chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']
     }
@@ -1804,32 +1806,32 @@ export default function PanelClient() {
 
       const faqKeywords = [
         {
-          keys: ['token permanente', 'usuario del sistema', 'system user', 'token de acceso permanente', 'usuario de sistema', 'por qué expira', 'por que expira'],
-          reply: 'Un **token de acceso permanente** (System User Token) es una credencial de seguridad de tiempo ilimitado generada a nombre de un "Usuario del Sistema" en Meta Business Suite. A diferencia del token temporal de prueba (que caduca en 24 horas y desconecta tu bot), el token permanente nunca expira.\n\n**¿Cómo se crea?**\n1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\n2️⃣ Ve a **Usuarios** > **Usuarios del sistema**.\n3️⃣ Haz clic en **Agregar** para crear un nuevo usuario y asígnale el rol de **Administrador**.\n4️⃣ Selecciónalo, haz clic en **Generar nuevo token**, asocia tu App de Meta y marca los permisos necesarios (como `whatsapp_business_messaging`).\n5️⃣ Copia el token generado y guárdalo.'
+          keys: ['token permanente', 'usuario del sistema', 'system user', 'token de acceso permanente', 'usuario de sistema', 'por quÃ© expira', 'por que expira'],
+          reply: 'Un **token de acceso permanente** (System User Token) es una credencial de seguridad de tiempo ilimitado generada a nombre de un "Usuario del Sistema" en Meta Business Suite. A diferencia del token temporal de prueba (que caduca en 24 horas y desconecta tu bot), el token permanente nunca expira.\n\n**Â¿CÃ³mo se crea?**\n1ï¸âƒ£ Entra a la [ConfiguraciÃ³n del Negocio de Meta](https://business.facebook.com/settings/).\n2ï¸âƒ£ Ve a **Usuarios** > **Usuarios del sistema**.\n3ï¸âƒ£ Haz clic en **Agregar** para crear un nuevo usuario y asÃ­gnale el rol de **Administrador**.\n4ï¸âƒ£ SelecciÃ³nalo, haz clic en **Generar nuevo token**, asocia tu App de Meta y marca los permisos necesarios (como `whatsapp_business_messaging`).\n5ï¸âƒ£ Copia el token generado y guÃ¡rdalo.'
         },
         {
-          keys: ['webhook', 'callback', 'devolución', 'verificación', 'messages', 'webhooks'],
-          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. RIFX registra el webhook durante la conexión con Facebook.\n\n1️⃣ Entra a tu App en **Meta Developers** > **WhatsApp** > **Configuración**.\n2️⃣ Confirma que la URL de devolución sea `https://rifx-marketing.com/api/whatsapp`.\n3️⃣ Haz clic en **Administrar** y confirma que **`messages`** aparezca como **Suscrito**.\n4️⃣ Si Meta solicita verificar nuevamente el webhook, reconecta WhatsApp desde el panel. No inventes ni compartas un token: el servidor administra esa credencial privada.'
+          keys: ['webhook', 'callback', 'devoluciÃ³n', 'verificaciÃ³n', 'messages', 'webhooks'],
+          reply: 'El **Webhook** es el canal que usa Meta para enviar los mensajes que escriben tus clientes directamente a RIFX en tiempo real. RIFX registra el webhook durante la conexiÃ³n con Facebook.\n\n1ï¸âƒ£ Entra a tu App en **Meta Developers** > **WhatsApp** > **ConfiguraciÃ³n**.\n2ï¸âƒ£ Confirma que la URL de devoluciÃ³n sea `https://rifx-marketing.com/api/whatsapp`.\n3ï¸âƒ£ Haz clic en **Administrar** y confirma que **`messages`** aparezca como **Suscrito**.\n4ï¸âƒ£ Si Meta solicita verificar nuevamente el webhook, reconecta WhatsApp desde el panel. No inventes ni compartas un token: el servidor administra esa credencial privada.'
         },
         {
-          keys: ['id de teléfono', 'phone id', 'id de telefono', 'phone number id', 'obtener el id de teléfono', 'dónde está el id'],
-          reply: 'El **ID de número de teléfono** (Phone Number ID) es una cadena numérica de 15 dígitos que identifica a tu número en Meta.\n\n**¿Dónde encontrarlo?**\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) y selecciona tu app.\n2️⃣ En la barra lateral izquierda, despliega **WhatsApp** y entra en **Primeros pasos**.\n3️⃣ En el panel central, verás la sección "Envía y recibe mensajes". Busca el campo **ID de número de teléfono** (Phone Number ID) y copia el número largo que aparece allí.'
+          keys: ['id de telÃ©fono', 'phone id', 'id de telefono', 'phone number id', 'obtener el id de telÃ©fono', 'dÃ³nde estÃ¡ el id'],
+          reply: 'El **ID de nÃºmero de telÃ©fono** (Phone Number ID) es una cadena numÃ©rica de 15 dÃ­gitos que identifica a tu nÃºmero en Meta.\n\n**Â¿DÃ³nde encontrarlo?**\n1ï¸âƒ£ Entra a [Meta for Developers](https://developers.facebook.com/) y selecciona tu app.\n2ï¸âƒ£ En la barra lateral izquierda, despliega **WhatsApp** y entra en **Primeros pasos**.\n3ï¸âƒ£ En el panel central, verÃ¡s la secciÃ³n "EnvÃ­a y recibe mensajes". Busca el campo **ID de nÃºmero de telÃ©fono** (Phone Number ID) y copia el nÃºmero largo que aparece allÃ­.'
         },
         {
           keys: ['id de cuenta publicitaria', 'ad account id', 'cuenta publicitaria', 'cuenta de anuncios', 'publicitaria'],
-          reply: 'El **ID de Cuenta Publicitaria** (Ad Account ID) identifica tu cuenta de anunciante para facturación de anuncios de Meta. \n\nTiene el formato `act_XXXXXXXXXXXXXXXX`. \n\n**¿Dónde encontrarlo?**\n1️⃣ Abre el [Administrador de Anuncios](https://adsmanager.facebook.com/) o la **Configuración del negocio de Meta**.\n2️⃣ Ve a **Cuentas** > **Cuentas publicitarias**.\n3️⃣ Selecciona tu cuenta y verás el identificador numérico arriba o al lado de su nombre.'
+          reply: 'El **ID de Cuenta Publicitaria** (Ad Account ID) identifica tu cuenta de anunciante para facturaciÃ³n de anuncios de Meta. \n\nTiene el formato `act_XXXXXXXXXXXXXXXX`. \n\n**Â¿DÃ³nde encontrarlo?**\n1ï¸âƒ£ Abre el [Administrador de Anuncios](https://adsmanager.facebook.com/) o la **ConfiguraciÃ³n del negocio de Meta**.\n2ï¸âƒ£ Ve a **Cuentas** > **Cuentas publicitarias**.\n3ï¸âƒ£ Selecciona tu cuenta y verÃ¡s el identificador numÃ©rico arriba o al lado de su nombre.'
         },
         {
-          keys: ['page id', 'id de página', 'id de pagina', 'página de facebook', 'facebook page id', 'id pagina'],
-          reply: 'El **Page ID** (ID de Página) es el número único de tu fanpage o página comercial de Facebook.\n\n**¿Dónde encontrarlo?**\n1️⃣ Entra a tu página de Facebook usando el perfil de administrador.\n2️⃣ Ve a la sección **Información** (debajo de tu portada) y busca la pestaña **Transparencia de la página**.\n3️⃣ Allí verás el número de ID de la página (ej: `104828192019281`).'
+          keys: ['page id', 'id de pÃ¡gina', 'id de pagina', 'pÃ¡gina de facebook', 'facebook page id', 'id pagina'],
+          reply: 'El **Page ID** (ID de PÃ¡gina) es el nÃºmero Ãºnico de tu fanpage o pÃ¡gina comercial de Facebook.\n\n**Â¿DÃ³nde encontrarlo?**\n1ï¸âƒ£ Entra a tu pÃ¡gina de Facebook usando el perfil de administrador.\n2ï¸âƒ£ Ve a la secciÃ³n **InformaciÃ³n** (debajo de tu portada) y busca la pestaÃ±a **Transparencia de la pÃ¡gina**.\n3ï¸âƒ£ AllÃ­ verÃ¡s el nÃºmero de ID de la pÃ¡gina (ej: `104828192019281`).'
         },
         {
           keys: ['permisos', 'permissions', 'whatsapp_business_messaging', 'ads_management'],
-          reply: 'Para que todo funcione de manera perfecta, los tokens generados deben tener habilitados estos permisos exactos:\n\n🔑 **Para WhatsApp Business API**:\n- `whatsapp_business_messaging` (enviar mensajes)\n- `whatsapp_business_management` (gestionar números y plantillas)\n\n🔑 **Para Meta Ads API**:\n- `ads_management` (crear y editar campañas)\n- `ads_read` (leer analíticas)\n- `pages_show_list` y `pages_read_engagement` (listar tus marcas)\n- `pages_manage_ads` (publicar anuncios de marca)'
+          reply: 'Para que todo funcione de manera perfecta, los tokens generados deben tener habilitados estos permisos exactos:\n\nðŸ”‘ **Para WhatsApp Business API**:\n- `whatsapp_business_messaging` (enviar mensajes)\n- `whatsapp_business_management` (gestionar nÃºmeros y plantillas)\n\nðŸ”‘ **Para Meta Ads API**:\n- `ads_management` (crear y editar campaÃ±as)\n- `ads_read` (leer analÃ­ticas)\n- `pages_show_list` y `pages_read_engagement` (listar tus marcas)\n- `pages_manage_ads` (publicar anuncios de marca)'
         },
         {
           keys: ['ayuda', 'error', 'falla', 'no conecta', 'no funciona', 'reintentar', 'problema'],
-          reply: 'Si estás experimentando errores al configurar o verificar, te recomiendo revisar estos 3 puntos críticos:\n\n1️⃣ **Espacios en blanco**: Al copiar tokens o IDs, asegúrate de no arrastrar espacios vacíos al principio o al final.\n2️⃣ **Tokens expirados**: Asegúrate de no estar usando un Token Temporal de Meta que ya haya caducado (duran 24 horas). Te recomiendo usar un token permanente de Usuario del Sistema.\n3️⃣ **IDs equivocados**: Compara minuciosamente tu ID de teléfono en Meta Developer. No pongas tu número de celular personal en ese campo.'
+          reply: 'Si estÃ¡s experimentando errores al configurar o verificar, te recomiendo revisar estos 3 puntos crÃ­ticos:\n\n1ï¸âƒ£ **Espacios en blanco**: Al copiar tokens o IDs, asegÃºrate de no arrastrar espacios vacÃ­os al principio o al final.\n2ï¸âƒ£ **Tokens expirados**: AsegÃºrate de no estar usando un Token Temporal de Meta que ya haya caducado (duran 24 horas). Te recomiendo usar un token permanente de Usuario del Sistema.\n3ï¸âƒ£ **IDs equivocados**: Compara minuciosamente tu ID de telÃ©fono en Meta Developer. No pongas tu nÃºmero de celular personal en ese campo.'
         }
       ];
 
@@ -1855,10 +1857,10 @@ export default function PanelClient() {
         return;
       }
 
-      if (lowerText.includes('volver al inicio') || lowerText.includes('inicio') || (text === 'Atrás' && apiHelperStep === 0)) {
+      if (lowerText.includes('volver al inicio') || lowerText.includes('inicio') || (text === 'AtrÃ¡s' && apiHelperStep === 0)) {
         newFlow = 'idle';
         newStep = 0;
-        replyText = 'Entendido. He cancelado el proceso actual y limpiado la conversación.\n\n¿Qué API deseas configurar ahora? Selecciona una de las opciones de abajo.';
+        replyText = 'Entendido. He cancelado el proceso actual y limpiado la conversaciÃ³n.\n\nÂ¿QuÃ© API deseas configurar ahora? Selecciona una de las opciones de abajo.';
         nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
         setApiHelperFlow(newFlow);
         setApiHelperStep(newStep);
@@ -1881,76 +1883,76 @@ export default function PanelClient() {
         if (lowerText.includes('whatsapp')) {
           newFlow = 'whatsapp';
           newStep = 0;
-          replyText = 'Has seleccionado **WhatsApp Business API**.\n\nPara comenzar, asegúrate de cumplir con estos 3 requisitos:\n1️⃣ Tener una **cuenta de desarrollador** activa en Meta for Developers.\n2️⃣ Tener un **Administrador Comercial** (Meta Business Manager) activo.\n3️⃣ Disponer de un **número de teléfono limpio** (que no tenga una cuenta de WhatsApp activa en este momento; si la tiene, debes eliminarla desde la app móvil antes de continuar).\n\n¿Tienes todo esto listo para continuar?';
-          nextChips = ['¡Sí, tengo todo listo!', 'No tengo cuenta de desarrollador', 'No tengo cuenta comercial', 'Volver al inicio'];
+          replyText = 'Has seleccionado **WhatsApp Business API**.\n\nPara comenzar, asegÃºrate de cumplir con estos 3 requisitos:\n1ï¸âƒ£ Tener una **cuenta de desarrollador** activa en Meta for Developers.\n2ï¸âƒ£ Tener un **Administrador Comercial** (Meta Business Manager) activo.\n3ï¸âƒ£ Disponer de un **nÃºmero de telÃ©fono limpio** (que no tenga una cuenta de WhatsApp activa en este momento; si la tiene, debes eliminarla desde la app mÃ³vil antes de continuar).\n\nÂ¿Tienes todo esto listo para continuar?';
+          nextChips = ['Â¡SÃ­, tengo todo listo!', 'No tengo cuenta de desarrollador', 'No tengo cuenta comercial', 'Volver al inicio'];
         } else if (lowerText.includes('meta ads') || lowerText.includes('publicidad')) {
           newFlow = 'meta';
           newStep = 0;
-          replyText = 'Has seleccionado la **API de Facebook & Meta Ads**.\n\nEsta integración te permitirá crear anuncios, publicar campañas con creativos de IA y monitorear el rendimiento publicitario directamente desde tu panel.\n\n¿Comenzamos con la configuración?';
-          nextChips = ['Sí, iniciar setup', 'Volver al inicio'];
+          replyText = 'Has seleccionado la **API de Facebook & Meta Ads**.\n\nEsta integraciÃ³n te permitirÃ¡ crear anuncios, publicar campaÃ±as con creativos de IA y monitorear el rendimiento publicitario directamente desde tu panel.\n\nÂ¿Comenzamos con la configuraciÃ³n?';
+          nextChips = ['SÃ­, iniciar setup', 'Volver al inicio'];
         } else {
           replyText = 'Por favor, selecciona una de las opciones de abajo para configurar tu API de forma guiada:';
           nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
         }
       } else if (newFlow === 'whatsapp') {
         if (newStep === 0) {
-          if (lowerText.includes('tengo todo listo') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {
+          if (lowerText.includes('tengo todo listo') || lowerText.includes('sÃ­') || lowerText.includes('si') || lowerText.includes('continuar')) {
             newStep = 1;
-            replyText = '**Paso 1: Crear una Aplicación en Meta**\n\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión con tu cuenta de Facebook.\n2️⃣ Ve a la sección **Mis apps** (arriba a la derecha) y pulsa **Crear app**.\n3️⃣ En el tipo de app, selecciona **Otro** y pulsa Siguiente.\n4️⃣ Selecciona el caso de uso **Negocios** (Business) y pulsa Siguiente.\n5️⃣ Escribe un nombre para mostrar (ej: *RIFX Bot*), tu correo de contacto e indica tu cuenta comercial de Business Manager. Luego haz clic en **Crear app**.\n\n![Paso 1: Crear App en Meta](/images/setup/meta_create_app.png)\n\n¿Terminaste de crear la aplicación en Meta?';
-            nextChips = ['Sí, app creada', '¿Cómo creo la app?', 'Volver al inicio'];
+            replyText = '**Paso 1: Crear una AplicaciÃ³n en Meta**\n\n1ï¸âƒ£ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesiÃ³n con tu cuenta de Facebook.\n2ï¸âƒ£ Ve a la secciÃ³n **Mis apps** (arriba a la derecha) y pulsa **Crear app**.\n3ï¸âƒ£ En el tipo de app, selecciona **Otro** y pulsa Siguiente.\n4ï¸âƒ£ Selecciona el caso de uso **Negocios** (Business) y pulsa Siguiente.\n5ï¸âƒ£ Escribe un nombre para mostrar (ej: *RIFX Bot*), tu correo de contacto e indica tu cuenta comercial de Business Manager. Luego haz clic en **Crear app**.\n\n![Paso 1: Crear App en Meta](/images/setup/meta_create_app.png)\n\nÂ¿Terminaste de crear la aplicaciÃ³n en Meta?';
+            nextChips = ['SÃ­, app creada', 'Â¿CÃ³mo creo la app?', 'Volver al inicio'];
           } else if (lowerText.includes('desarrollador')) {
-            replyText = 'Crear una cuenta de desarrollador de Meta es gratuito:\n\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/).\n2️⃣ Pulsa **Empezar** (o *Get Started*) arriba a la derecha y sigue las instrucciones usando tu perfil personal de Facebook.\n3️⃣ Completa el registro seleccionando tu rol (ej. Desarrollador).\n\nCuando la tengas lista, avísame escribiendo "listo".';
+            replyText = 'Crear una cuenta de desarrollador de Meta es gratuito:\n\n1ï¸âƒ£ Entra a [Meta for Developers](https://developers.facebook.com/).\n2ï¸âƒ£ Pulsa **Empezar** (o *Get Started*) arriba a la derecha y sigue las instrucciones usando tu perfil personal de Facebook.\n3ï¸âƒ£ Completa el registro seleccionando tu rol (ej. Desarrollador).\n\nCuando la tengas lista, avÃ­same escribiendo "listo".';
             nextChips = ['Listo, continuar', 'Volver al inicio'];
           } else if (lowerText.includes('comercial')) {
-            replyText = 'Para el Business Manager de Meta:\n\n1️⃣ Entra a [Meta Business Manager](https://business.facebook.com/overview).\n2️⃣ Pulsa **Crear cuenta** y rellena el formulario de tu negocio.\n3️⃣ Valida tu dirección de correo electrónico en la bandeja de entrada.\n\nCuando la tengas lista, indícamelo escribiendo "listo".';
+            replyText = 'Para el Business Manager de Meta:\n\n1ï¸âƒ£ Entra a [Meta Business Manager](https://business.facebook.com/overview).\n2ï¸âƒ£ Pulsa **Crear cuenta** y rellena el formulario de tu negocio.\n3ï¸âƒ£ Valida tu direcciÃ³n de correo electrÃ³nico en la bandeja de entrada.\n\nCuando la tengas lista, indÃ­camelo escribiendo "listo".';
             nextChips = ['Listo, continuar', 'Volver al inicio'];
           } else {
             newStep = 1;
-            replyText = 'Continuemos con el **Paso 1: Crear una Aplicación en Meta**.\n\n1️⃣ Inicia sesión en [Meta for Developers](https://developers.facebook.com/).\n2️⃣ Haz clic en **Mis apps** > **Crear app**.\n3️⃣ Elige **Otro** > **Negocios** y ponle un nombre (ej. *RIFX Connector*).\n\n¿Ya creaste la app?';
-            nextChips = ['Sí, app creada', 'Volver al inicio'];
+            replyText = 'Continuemos con el **Paso 1: Crear una AplicaciÃ³n en Meta**.\n\n1ï¸âƒ£ Inicia sesiÃ³n en [Meta for Developers](https://developers.facebook.com/).\n2ï¸âƒ£ Haz clic en **Mis apps** > **Crear app**.\n3ï¸âƒ£ Elige **Otro** > **Negocios** y ponle un nombre (ej. *RIFX Connector*).\n\nÂ¿Ya creaste la app?';
+            nextChips = ['SÃ­, app creada', 'Volver al inicio'];
           }
         } else if (newStep === 1) {
           newStep = 2;
-          replyText = '**Paso 2: Agregar el Producto WhatsApp**\n\n1️⃣ Dentro del panel de tu App de Meta recién creada, desplázate por el panel central o ve a la barra lateral izquierda y entra a **Agregar productos**.\n2️⃣ Busca **WhatsApp** y haz clic en el botón **Configurar**.\n3️⃣ Selecciona tu cuenta comercial (Business Manager) si te lo solicita y haz clic en **Continuar**.\n\n![Paso 2: Agregar WhatsApp](/images/setup/meta_add_whatsapp.png)\n\nEsto habilitará la plataforma de WhatsApp en tu aplicación de Meta.\n\n¿Lograste agregar el producto WhatsApp?';
-          nextChips = ['Sí, WhatsApp agregado', 'Volver al inicio'];
+          replyText = '**Paso 2: Agregar el Producto WhatsApp**\n\n1ï¸âƒ£ Dentro del panel de tu App de Meta reciÃ©n creada, desplÃ¡zate por el panel central o ve a la barra lateral izquierda y entra a **Agregar productos**.\n2ï¸âƒ£ Busca **WhatsApp** y haz clic en el botÃ³n **Configurar**.\n3ï¸âƒ£ Selecciona tu cuenta comercial (Business Manager) si te lo solicita y haz clic en **Continuar**.\n\n![Paso 2: Agregar WhatsApp](/images/setup/meta_add_whatsapp.png)\n\nEsto habilitarÃ¡ la plataforma de WhatsApp en tu aplicaciÃ³n de Meta.\n\nÂ¿Lograste agregar el producto WhatsApp?';
+          nextChips = ['SÃ­, WhatsApp agregado', 'Volver al inicio'];
         } else if (newStep === 2) {
           newStep = 3;
-          replyText = '**Paso 3: Obtener el ID de Teléfono (Phone Number ID)**\n\n1️⃣ En el panel principal de tu App de Meta, bajo **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a través de WhatsApp**:\n\n![1. Abrir Configuración de WhatsApp](/images/setup/meta_add_whatsapp_dashboard.png)\n\n2️⃣ En el menú lateral izquierdo, bajo la sección de WhatsApp, haz clic en **Configuración de la API** (o *Inicio rápido*):\n\n![2. Ir a Configuración de la API](/images/setup/meta_api_settings_click.png)\n\n3️⃣ En el panel derecho, busca la sección "Envía y recibe mensajes" y copia el **Identificador de número de teléfono** (Phone Number ID):\n\n![3. Copiar ID de Teléfono](/images/setup/meta_phone_id.png)\n\nPor favor, copia ese ID de teléfono y **pégalo en este chat** para guardarlo automáticamente:';
+          replyText = '**Paso 3: Obtener el ID de TelÃ©fono (Phone Number ID)**\n\n1ï¸âƒ£ En el panel principal de tu App de Meta, bajo **Casos de uso en esta app**, haz clic en **Conectarte con los clientes a travÃ©s de WhatsApp**:\n\n![1. Abrir ConfiguraciÃ³n de WhatsApp](/images/setup/meta_add_whatsapp_dashboard.png)\n\n2ï¸âƒ£ En el menÃº lateral izquierdo, bajo la secciÃ³n de WhatsApp, haz clic en **ConfiguraciÃ³n de la API** (o *Inicio rÃ¡pido*):\n\n![2. Ir a ConfiguraciÃ³n de la API](/images/setup/meta_api_settings_click.png)\n\n3ï¸âƒ£ En el panel derecho, busca la secciÃ³n "EnvÃ­a y recibe mensajes" y copia el **Identificador de nÃºmero de telÃ©fono** (Phone Number ID):\n\n![3. Copiar ID de TelÃ©fono](/images/setup/meta_phone_id.png)\n\nPor favor, copia ese ID de telÃ©fono y **pÃ©galo en este chat** para guardarlo automÃ¡ticamente:';
           nextChips = ['Volver al inicio'];
         } else if (newStep === 3) {
           const cleanId = text.replace(/[^0-9]/g, '');
           if (cleanId.length >= 12 && cleanId.length <= 18) {
             setConfigData((prev: any) => ({ ...prev, whatsapp_phone_id: cleanId }));
-            replyText = '✅ ¡ID de Teléfono configurado con éxito: `' + cleanId + '`!\n\n';
+            replyText = 'âœ… Â¡ID de TelÃ©fono configurado con Ã©xito: `' + cleanId + '`!\n\n';
             newStep = 4;
           } else {
-            replyText = '⚠️ El ID de teléfono ingresado no parece válido (debe tener entre 12 y 18 números enteros). Por favor, revisa y vuelve a ingresarlo:';
+            replyText = 'âš ï¸ El ID de telÃ©fono ingresado no parece vÃ¡lido (debe tener entre 12 y 18 nÃºmeros enteros). Por favor, revisa y vuelve a ingresarlo:';
             nextChips = ['Volver al inicio'];
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
           }
-          replyText += '**Paso 4: Obtener el Token de Acceso Permanente**\n\nPara que tu bot no se desconecte cada 24 horas, debes generar un Token Permanente en tu Business Manager:\n1️⃣ Abre la [Configuración del Negocio de Meta](https://business.facebook.com/settings/).\n2️⃣ En la barra lateral, ve a **Usuarios** > **Usuarios del sistema**.\n3️⃣ Haz clic en **Agregar** para crear un nuevo usuario y ponle rol de **Administrador**.\n4️⃣ Selecciónalo, haz clic en **Generar nuevo token**, elige tu App de Meta y marca los permisos:\n   - `whatsapp_business_messaging`\n   - `whatsapp_business_management`\n5️⃣ Copia el token largo que se te mostrará.\n\n![Paso 4: Token del Sistema](/images/setup/meta_system_user.png)\n\nPor favor, **pega el Token de Acceso Permanente aquí en el chat** para guardarlo:';
+          replyText += '**Paso 4: Obtener el Token de Acceso Permanente**\n\nPara que tu bot no se desconecte cada 24 horas, debes generar un Token Permanente en tu Business Manager:\n1ï¸âƒ£ Abre la [ConfiguraciÃ³n del Negocio de Meta](https://business.facebook.com/settings/).\n2ï¸âƒ£ En la barra lateral, ve a **Usuarios** > **Usuarios del sistema**.\n3ï¸âƒ£ Haz clic en **Agregar** para crear un nuevo usuario y ponle rol de **Administrador**.\n4ï¸âƒ£ SelecciÃ³nalo, haz clic en **Generar nuevo token**, elige tu App de Meta y marca los permisos:\n   - `whatsapp_business_messaging`\n   - `whatsapp_business_management`\n5ï¸âƒ£ Copia el token largo que se te mostrarÃ¡.\n\n![Paso 4: Token del Sistema](/images/setup/meta_system_user.png)\n\nPor favor, **pega el Token de Acceso Permanente aquÃ­ en el chat** para guardarlo:';
           nextChips = ['Volver al inicio'];
         } else if (newStep === 4) {
           if (text.length > 50 && text.startsWith('EAAS')) {
             setConfigData((prev: any) => ({ ...prev, whatsapp_token: text }));
-            replyText = '✅ ¡Token de Acceso guardado correctamente!\n\n';
+            replyText = 'âœ… Â¡Token de Acceso guardado correctamente!\n\n';
             newStep = 5;
           } else {
-            replyText = '⚠️ El Token ingresado no parece válido. Debe ser un código largo y usualmente empieza por "EAAS...". Por favor, revísalo y vuelve a pegarlo:';
+            replyText = 'âš ï¸ El Token ingresado no parece vÃ¡lido. Debe ser un cÃ³digo largo y usualmente empieza por "EAAS...". Por favor, revÃ­salo y vuelve a pegarlo:';
             nextChips = ['Volver al inicio'];
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
           }
-          replyText += '**Paso 5: Activar el Webhook de Recepción**\n\nRIFX registra el webhook oficial durante la conexión con Facebook. No inventes ni compartas un token de verificación.\n\n1️⃣ En Meta Developers, ve a **WhatsApp** > **Configuración**.\n2️⃣ Confirma que la **URL de devolución de llamada** sea exactamente:\n   `https://rifx-marketing.com/api/whatsapp`\n3️⃣ En la lista de Webhooks de WhatsApp, haz clic en **Administrar** y confirma que **`messages`** aparezca como **Suscrito**.\n4️⃣ Si Meta solicita volver a verificar el webhook, reconecta WhatsApp desde el panel de RIFX. El token de verificación es privado y lo administra el servidor.\n\n![Paso 5: Configuración de Webhook](/images/setup/meta_webhook.png)\n\n¿El webhook oficial y la suscripción a `messages` están activos?';
-          nextChips = ['Sí, webhooks listos', 'Volver al inicio'];
+          replyText += '**Paso 5: Activar el Webhook de RecepciÃ³n**\n\nRIFX registra el webhook oficial durante la conexiÃ³n con Facebook. No inventes ni compartas un token de verificaciÃ³n.\n\n1ï¸âƒ£ En Meta Developers, ve a **WhatsApp** > **ConfiguraciÃ³n**.\n2ï¸âƒ£ Confirma que la **URL de devoluciÃ³n de llamada** sea exactamente:\n   `https://rifx-marketing.com/api/whatsapp`\n3ï¸âƒ£ En la lista de Webhooks de WhatsApp, haz clic en **Administrar** y confirma que **`messages`** aparezca como **Suscrito**.\n4ï¸âƒ£ Si Meta solicita volver a verificar el webhook, reconecta WhatsApp desde el panel de RIFX. El token de verificaciÃ³n es privado y lo administra el servidor.\n\n![Paso 5: ConfiguraciÃ³n de Webhook](/images/setup/meta_webhook.png)\n\nÂ¿El webhook oficial y la suscripciÃ³n a `messages` estÃ¡n activos?';
+          nextChips = ['SÃ­, webhooks listos', 'Volver al inicio'];
         } else if (newStep === 5) {
           newStep = 6;
-          replyText = '**Paso 6: Guardar y Validar Conexión**\n\nHemos completado la carga de credenciales. Guardaremos tu configuración y probaremos la conexión.\n\n¿Quieres verificar la conexión con WhatsApp en este momento?';
+          replyText = '**Paso 6: Guardar y Validar ConexiÃ³n**\n\nHemos completado la carga de credenciales. Guardaremos tu configuraciÃ³n y probaremos la conexiÃ³n.\n\nÂ¿Quieres verificar la conexiÃ³n con WhatsApp en este momento?';
           nextChips = ['Verificar y guardar ahora', 'Volver al inicio'];
         } else if (newStep === 6) {
           if (lowerText.includes('verificar') || lowerText.includes('reintentar')) {
-            replyText = 'Probando la conexión con la API de WhatsApp en los servidores de Meta...';
+            replyText = 'Probando la conexiÃ³n con la API de WhatsApp en los servidores de Meta...';
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date() }]);
 
             authFetch('/api/panel/connections/verify', {
@@ -1966,24 +1968,24 @@ export default function PanelClient() {
               const verification = await res.json();
               if (res.ok && verification.valid === true) {
                 setWaStatus('success');
-                setWaStatusMsg('¡Conexión de WhatsApp verificada!');
+                setWaStatusMsg('Â¡ConexiÃ³n de WhatsApp verificada!');
                 handleSaveSettings({ preventDefault: () => {} } as any);
                 setApiHelperFlow('idle');
                 setApiHelperStep(0);
                 setApiHelperMessages(prev => [...prev, {
                   sender: 'agent',
-                  text: '✅ ¡Conexión con Meta exitosa! El ID de teléfono y el Token son válidos. Toda la configuración ha sido guardada en la base de datos de forma segura.\n\n¿Deseas configurar otra API?',
+                  text: 'âœ… Â¡ConexiÃ³n con Meta exitosa! El ID de telÃ©fono y el Token son vÃ¡lidos. Toda la configuraciÃ³n ha sido guardada en la base de datos de forma segura.\n\nÂ¿Deseas configurar otra API?',
                   timestamp: new Date(),
                   chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']
                 }]);
               } else {
                 setWaStatus('error');
-                setWaStatusMsg('Token o ID de teléfono inválido');
+                setWaStatusMsg('Token o ID de telÃ©fono invÃ¡lido');
                 setApiHelperMessages(prev => [...prev, {
                   sender: 'agent',
-                  text: '❌ Falló la verificación de Meta. El servidor de Facebook devolvió un error (credenciales inválidas). Por favor, asegúrate de que tu ID de teléfono e ID de token sean correctos.\n\n¿Qué deseas hacer?',
+                  text: 'âŒ FallÃ³ la verificaciÃ³n de Meta. El servidor de Facebook devolviÃ³ un error (credenciales invÃ¡lidas). Por favor, asegÃºrate de que tu ID de telÃ©fono e ID de token sean correctos.\n\nÂ¿QuÃ© deseas hacer?',
                   timestamp: new Date(),
-                  chips: ['Reintentar verificación', 'Volver al inicio']
+                  chips: ['Reintentar verificaciÃ³n', 'Volver al inicio']
                 }]);
               }
             })
@@ -1992,14 +1994,14 @@ export default function PanelClient() {
               setWaStatusMsg('Error de red');
               setApiHelperMessages(prev => [...prev, {
                 sender: 'agent',
-                text: '❌ Error de red al conectar con Meta. Por favor, asegúrate de tener acceso a internet y reintenta.',
+                text: 'âŒ Error de red al conectar con Meta. Por favor, asegÃºrate de tener acceso a internet y reintenta.',
                 timestamp: new Date(),
-                chips: ['Reintentar verificación', 'Volver al inicio']
+                chips: ['Reintentar verificaciÃ³n', 'Volver al inicio']
               }]);
             });
             return;
           } else {
-            replyText = 'Por favor, realiza la verificación de la conexión para continuar y guardar los datos correctamente:';
+            replyText = 'Por favor, realiza la verificaciÃ³n de la conexiÃ³n para continuar y guardar los datos correctamente:';
             nextChips = ['Verificar y guardar ahora', 'Volver al inicio'];
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
@@ -2007,86 +2009,86 @@ export default function PanelClient() {
         }
       } else if (newFlow === 'meta') {
         if (newStep === 0) {
-          if (lowerText.includes('iniciar') || lowerText.includes('sí') || lowerText.includes('si') || lowerText.includes('continuar')) {
+          if (lowerText.includes('iniciar') || lowerText.includes('sÃ­') || lowerText.includes('si') || lowerText.includes('continuar')) {
             newStep = 1;
-            replyText = '**Paso 1: Crear la App y Generar el Token de Acceso (Meta Ads)**\n\nPara que RIFX pueda gestionar tus anuncios y medir conversiones, primero debes crear una aplicación de tipo Marketing API y generar su token de acceso:\n\nA) **Crear la App en Meta Developers**:\n1️⃣ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesión.\n2️⃣ Haz clic en **My Apps** (Mis apps) en la esquina superior derecha:\n   ![1. Ir a Mis Apps](/images/setup/meta_develop_home.png)\n3️⃣ Haz clic en el botón verde **Create App** (Crear app):\n   ![2. Crear Aplicación](/images/setup/meta_create_app.png)\n4️⃣ En la sección "Use cases" (Casos de uso), marca la opción **Create & manage ads with Marketing API** (Crear y gestionar anuncios con Marketing API) y haz clic en Siguiente:\n   ![3. Seleccionar Marketing API](/images/setup/meta_ads_app_usecase.png)\n5️⃣ En la sección "Business", selecciona tu cuenta comercial (Business Portfolio) y haz clic en Siguiente:\n   ![4. Seleccionar Cuenta Comercial](/images/setup/meta_ads_app_business.png)\n6️⃣ Ponle un nombre a tu App (ej: *RIFX Ads*), tu correo y haz clic en **Create App** para finalizar la creación.\n\nB) **Generar el Token de Acceso**:\n1️⃣ Dentro del panel de tu App de Meta recién creada, haz clic en **Tools** (Herramientas) en el menú superior:\n   ![5. Ir a Herramientas](/images/setup/meta_ads_dashboard_tools.png)\n2️⃣ En el menú desplegable, selecciona **Graph API Explorer**:\n   ![6. Abrir Graph Explorer](/images/setup/meta_ads_dashboard_graph_explorer.png)\n3️⃣ En el panel derecho de Graph API Explorer:\n   - Asegúrate de que tu nueva aplicación está seleccionada en el campo **Meta App**.\n   - En **User or Page**, selecciona "Get User Access Token".\n   - En la sección **Permissions** (Permisos), haz clic en el buscador e ingresa y selecciona estos dos permisos obligatorios:\n     - `ads_management`\n     - `ads_read`\n4️⃣ Haz clic en el botón azul **Generate Access Token**:\n   ![7. Generar Token de Acceso](/images/setup/meta_ads_graph_explorer_token_generation.png)\n5️⃣ Copia el token largo generado en el recuadro superior y **pégalo aquí en el chat** para guardarlo:';
+            replyText = '**Paso 1: Crear la App y Generar el Token de Acceso (Meta Ads)**\n\nPara que RIFX pueda gestionar tus anuncios y medir conversiones, primero debes crear una aplicaciÃ³n de tipo Marketing API y generar su token de acceso:\n\nA) **Crear la App en Meta Developers**:\n1ï¸âƒ£ Entra a [Meta for Developers](https://developers.facebook.com/) e inicia sesiÃ³n.\n2ï¸âƒ£ Haz clic en **My Apps** (Mis apps) en la esquina superior derecha:\n   ![1. Ir a Mis Apps](/images/setup/meta_develop_home.png)\n3ï¸âƒ£ Haz clic en el botÃ³n verde **Create App** (Crear app):\n   ![2. Crear AplicaciÃ³n](/images/setup/meta_create_app.png)\n4ï¸âƒ£ En la secciÃ³n "Use cases" (Casos de uso), marca la opciÃ³n **Create & manage ads with Marketing API** (Crear y gestionar anuncios con Marketing API) y haz clic en Siguiente:\n   ![3. Seleccionar Marketing API](/images/setup/meta_ads_app_usecase.png)\n5ï¸âƒ£ En la secciÃ³n "Business", selecciona tu cuenta comercial (Business Portfolio) y haz clic en Siguiente:\n   ![4. Seleccionar Cuenta Comercial](/images/setup/meta_ads_app_business.png)\n6ï¸âƒ£ Ponle un nombre a tu App (ej: *RIFX Ads*), tu correo y haz clic en **Create App** para finalizar la creaciÃ³n.\n\nB) **Generar el Token de Acceso**:\n1ï¸âƒ£ Dentro del panel de tu App de Meta reciÃ©n creada, haz clic en **Tools** (Herramientas) en el menÃº superior:\n   ![5. Ir a Herramientas](/images/setup/meta_ads_dashboard_tools.png)\n2ï¸âƒ£ En el menÃº desplegable, selecciona **Graph API Explorer**:\n   ![6. Abrir Graph Explorer](/images/setup/meta_ads_dashboard_graph_explorer.png)\n3ï¸âƒ£ En el panel derecho de Graph API Explorer:\n   - AsegÃºrate de que tu nueva aplicaciÃ³n estÃ¡ seleccionada en el campo **Meta App**.\n   - En **User or Page**, selecciona "Get User Access Token".\n   - En la secciÃ³n **Permissions** (Permisos), haz clic en el buscador e ingresa y selecciona estos dos permisos obligatorios:\n     - `ads_management`\n     - `ads_read`\n4ï¸âƒ£ Haz clic en el botÃ³n azul **Generate Access Token**:\n   ![7. Generar Token de Acceso](/images/setup/meta_ads_graph_explorer_token_generation.png)\n5ï¸âƒ£ Copia el token largo generado en el recuadro superior y **pÃ©galo aquÃ­ en el chat** para guardarlo:';
             nextChips = ['Volver al inicio'];
           } else {
             newFlow = 'idle';
             newStep = 0;
-            replyText = 'Proceso cancelado. ¿Qué API deseas configurar ahora?';
+            replyText = 'Proceso cancelado. Â¿QuÃ© API deseas configurar ahora?';
             nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
           }
         } else if (newStep === 1) {
           if (text.length > 50 && text.startsWith('EAAS')) {
             setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));
-            replyText = '✅ ¡Token de Meta Ads guardado correctamente!\n\n';
+            replyText = 'âœ… Â¡Token de Meta Ads guardado correctamente!\n\n';
             newStep = 2;
           } else {
-            replyText = '⚠️ El Token de Meta Ads no parece válido. Asegúrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por "EAAS..."):';
+            replyText = 'âš ï¸ El Token de Meta Ads no parece vÃ¡lido. AsegÃºrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por "EAAS..."):';
             nextChips = ['Volver al inicio'];
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
           }
           replyText += '**Paso 2: Obtener el ID de la Cuenta Publicitaria (Ad Account ID)**\n\nAhora vincularemos tu cuenta de publicidad para poder lanzar anuncios desde RIFX:\n\n' +
-            '1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu cuenta comercial/negocio:\n' +
+            '1ï¸âƒ£ Entra a la [ConfiguraciÃ³n del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu cuenta comercial/negocio:\n' +
             '![1. Seleccionar negocio](/images/setup/meta_ads_select_business.png)\n\n' +
-            '2️⃣ En la barra lateral izquierda, ve a **Cuentas** > **Cuentas publicitarias**:\n' +
+            '2ï¸âƒ£ En la barra lateral izquierda, ve a **Cuentas** > **Cuentas publicitarias**:\n' +
             '![2. Ir a Cuentas publicitarias](/images/setup/meta_ads_cuentas_menu.png)\n\n' +
-            '3️⃣ Selecciona tu cuenta publicitaria y copia el número de **Identificador** largo que aparece debajo de su nombre:\n' +
+            '3ï¸âƒ£ Selecciona tu cuenta publicitaria y copia el nÃºmero de **Identificador** largo que aparece debajo de su nombre:\n' +
             '![3. Copiar ID de Cuenta Publicitaria](/images/setup/meta_ads_account_id.png)\n\n' +
-            '4️⃣ **¡VITAL PARA QUE FUNCIONE!** Debes asegurarte de que tu Usuario del Sistema tenga acceso a la cuenta:\n' +
-            '   - Haz clic en el botón **Asignar personas**:\n' +
+            '4ï¸âƒ£ **Â¡VITAL PARA QUE FUNCIONE!** Debes asegurarte de que tu Usuario del Sistema tenga acceso a la cuenta:\n' +
+            '   - Haz clic en el botÃ³n **Asignar personas**:\n' +
             '   ![4. Asignar personas](/images/setup/meta_ads_assign_people.png)\n' +
             '   - En la ventana emergente, selecciona tu Usuario de Sistema en la lista de la izquierda, activa el switch de **Control total** (Administrar cuenta publicitaria) en la derecha, y haz clic en **Asignar**:\n' +
             '   ![5. Activar permisos y Guardar](/images/setup/meta_ads_assign_permissions.png)\n\n' +
-            'Por favor, **pega aquí tu ID de Cuenta Publicitaria** (solo el número largo de 15 o 16 dígitos):';
+            'Por favor, **pega aquÃ­ tu ID de Cuenta Publicitaria** (solo el nÃºmero largo de 15 o 16 dÃ­gitos):';
           nextChips = ['Volver al inicio'];
         } else if (newStep === 2) {
           const numId = text.replace(/[^0-9]/g, '');
           if (numId.length >= 8 && numId.length <= 18) {
             const formatted = 'act_' + numId;
             setConfigData((prev: any) => ({ ...prev, facebook_ad_account_id: formatted }));
-            replyText = '✅ ¡ID de Cuenta Publicitaria configurado como `' + formatted + '`!\n\n';
+            replyText = 'âœ… Â¡ID de Cuenta Publicitaria configurado como `' + formatted + '`!\n\n';
             newStep = 3;
           } else {
-            replyText = '⚠️ El ID de cuenta publicitaria ingresado no parece válido. Debe tener entre 8 y 18 dígitos. Por favor ingresa el ID correcto:';
+            replyText = 'âš ï¸ El ID de cuenta publicitaria ingresado no parece vÃ¡lido. Debe tener entre 8 y 18 dÃ­gitos. Por favor ingresa el ID correcto:';
             nextChips = ['Volver al inicio'];
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
           }
-          replyText += '**Paso 3: Obtener tu ID de Página (Page ID)**\n\n' +
-            'Por último, vincularemos la página de Facebook de tu marca comercial bajo la cual se publicarán los anuncios creados por la IA:\n\n' +
-            '1️⃣ Entra a la [Configuración del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu negocio/cuenta comercial:\n' +
+          replyText += '**Paso 3: Obtener tu ID de PÃ¡gina (Page ID)**\n\n' +
+            'Por Ãºltimo, vincularemos la pÃ¡gina de Facebook de tu marca comercial bajo la cual se publicarÃ¡n los anuncios creados por la IA:\n\n' +
+            '1ï¸âƒ£ Entra a la [ConfiguraciÃ³n del Negocio de Meta](https://business.facebook.com/settings/) y selecciona tu negocio/cuenta comercial:\n' +
             '![1. Seleccionar negocio](/images/setup/meta_page_select_business.png)\n\n' +
-            '2️⃣ En la barra lateral izquierda, ve a **Cuentas** > **Páginas**:\n' +
-            '![2. Ir a Páginas](/images/setup/meta_page_cuentas_menu.png)\n\n' +
-            '3️⃣ Selecciona tu página comercial y copia el número de **Identificador** largo que aparece debajo de su nombre:\n' +
-            '![3. Copiar ID de Página](/images/setup/meta_page_id_details.png)\n\n' +
-            '4️⃣ **¡IMPORTANTE!** Asegúrate de que el Usuario del Sistema tenga acceso a la página:\n' +
-            '   - Haz clic en el botón **Asignar personas** (resaltado en la captura anterior).\n' +
-            '   - En la ventana emergente, selecciona tu Usuario del Sistema en la lista, activa el switch de **Control total** (Administrar página) en la derecha, y haz clic en **Asignar**.\n\n' +
-            'Por favor, **pega aquí tu ID de Página (Page ID)** (solo el número entero de 15 o 16 dígitos):';
+            '2ï¸âƒ£ En la barra lateral izquierda, ve a **Cuentas** > **PÃ¡ginas**:\n' +
+            '![2. Ir a PÃ¡ginas](/images/setup/meta_page_cuentas_menu.png)\n\n' +
+            '3ï¸âƒ£ Selecciona tu pÃ¡gina comercial y copia el nÃºmero de **Identificador** largo que aparece debajo de su nombre:\n' +
+            '![3. Copiar ID de PÃ¡gina](/images/setup/meta_page_id_details.png)\n\n' +
+            '4ï¸âƒ£ **Â¡IMPORTANTE!** AsegÃºrate de que el Usuario del Sistema tenga acceso a la pÃ¡gina:\n' +
+            '   - Haz clic en el botÃ³n **Asignar personas** (resaltado en la captura anterior).\n' +
+            '   - En la ventana emergente, selecciona tu Usuario del Sistema en la lista, activa el switch de **Control total** (Administrar pÃ¡gina) en la derecha, y haz clic en **Asignar**.\n\n' +
+            'Por favor, **pega aquÃ­ tu ID de PÃ¡gina (Page ID)** (solo el nÃºmero entero de 15 o 16 dÃ­gitos):';
           nextChips = ['Volver al inicio'];
         } else if (newStep === 3) {
           const cleanPageId = text.replace(/[^0-9]/g, '');
           if (cleanPageId.length >= 8 && cleanPageId.length <= 18) {
             setConfigData((prev: any) => ({ ...prev, facebook_page_id: cleanPageId }));
-            replyText = '✅ ¡ID de Página guardado con éxito: `' + cleanPageId + '`!\n\n';
+            replyText = 'âœ… Â¡ID de PÃ¡gina guardado con Ã©xito: `' + cleanPageId + '`!\n\n';
             newStep = 4;
           } else {
-            replyText = '⚠️ El ID de página ingresado no parece válido. Debe tener entre 8 y 18 dígitos. Por favor ingresa el ID correcto:';
+            replyText = 'âš ï¸ El ID de pÃ¡gina ingresado no parece vÃ¡lido. Debe tener entre 8 y 18 dÃ­gitos. Por favor ingresa el ID correcto:';
             nextChips = ['Volver al inicio'];
             setApiHelperMessages(prev => [...prev, { sender: 'agent', text: replyText, timestamp: new Date(), chips: nextChips }]);
             return;
           }
-          replyText += '**Paso 4: Finalizar y Guardar**\n\nHemos cargado todos los campos para Meta Ads. ¿Deseas guardar los cambios y activar la integración publicitaria ahora mismo?';
+          replyText += '**Paso 4: Finalizar y Guardar**\n\nHemos cargado todos los campos para Meta Ads. Â¿Deseas guardar los cambios y activar la integraciÃ³n publicitaria ahora mismo?';
           nextChips = ['Guardar y Activar ahora', 'Volver al inicio'];
         } else if (newStep === 4) {
           handleSaveSettings({ preventDefault: () => {} } as any);
           newFlow = 'idle';
           newStep = 0;
-          replyText = '¡Felicidades! Se han guardado y activado tus credenciales de Meta Ads. Ya puedes publicar anuncios con creativos e imágenes generadas por IA directamente desde tu panel.\n\n¿Quieres configurar alguna otra API?';
+          replyText = 'Â¡Felicidades! Se han guardado y activado tus credenciales de Meta Ads. Ya puedes publicar anuncios con creativos e imÃ¡genes generadas por IA directamente desde tu panel.\n\nÂ¿Quieres configurar alguna otra API?';
           nextChips = ['Configurar WhatsApp Business', 'Configurar Meta Ads'];
         }
       }
@@ -2180,7 +2182,7 @@ export default function PanelClient() {
       mapMarkersRef.current.forEach(m => {
         if (m.circle) m.circle.setRadius(adLocationRadius * 1000);
         if (m.marker) m.marker.setPopupContent(
-          `<b>${m.marker.getPopup()?.getContent()?.toString().match(/<b>(.*?)<\/b>/)?.[1] || '📍'}</b><br>${adLocationRadius}km`
+          `<b>${m.marker.getPopup()?.getContent()?.toString().match(/<b>(.*?)<\/b>/)?.[1] || 'ðŸ“'}</b><br>${adLocationRadius}km`
         );
       });
       // Update all locations radius
@@ -2200,7 +2202,7 @@ export default function PanelClient() {
       return {
         text: language === 'en'
           ? "Excellent choice. Local geo-marketing is highly effective. What is the commercial name of your business?"
-          : "Excelente elección. El marketing geolocalizado es la mejor forma de llenar tu negocio. ¿Cuál es el nombre comercial de tu local?",
+          : "Excelente elecciÃ³n. El marketing geolocalizado es la mejor forma de llenar tu negocio. Â¿CuÃ¡l es el nombre comercial de tu local?",
       };
     }
     if (goal === 'whatsapp') {
@@ -2208,58 +2210,58 @@ export default function PanelClient() {
       if (connectedWaPhone) {
         return {
           text: language === 'en'
-            ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) — want to use it for this ad, or a different number?`
-            : `¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. Veo que ya tenés WhatsApp conectado (${connectedWaPhone}) — ¿querés usar ese número para este anuncio, o preferís escribir otro?`,
-          options: [{ label: `✅ ${connectedWaPhone}`, value: connectedWaPhone }],
+            ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) â€” want to use it for this ad, or a different number?`
+            : `Â¡Estupendo! Las campaÃ±as de WhatsApp tienen tasas de cierre altÃ­simas. Veo que ya tenÃ©s WhatsApp conectado (${connectedWaPhone}) â€” Â¿querÃ©s usar ese nÃºmero para este anuncio, o preferÃ­s escribir otro?`,
+          options: [{ label: `âœ… ${connectedWaPhone}`, value: connectedWaPhone }],
         };
       }
       return {
         text: language === 'en'
-          ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)\n\n💡 You can also connect your WhatsApp Business number below so it's ready automatically next time."
-          : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).\n\n💡 También podés conectar tu WhatsApp Business abajo para tenerlo listo automáticamente la próxima vez.",
-        options: [{ label: language === 'en' ? '🔗 Connect my WhatsApp Business' : '🔗 Conectar mi WhatsApp Business', value: '__connect_whatsapp__' }],
+          ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)\n\nðŸ’¡ You can also connect your WhatsApp Business number below so it's ready automatically next time."
+          : "Â¡Estupendo! Las campaÃ±as de WhatsApp tienen tasas de cierre altÃ­simas. Â¿CuÃ¡l es tu nÃºmero de WhatsApp de atenciÃ³n al cliente? (Por favor inclÃºyelo con cÃ³digo de paÃ­s, ej: +593987654321).\n\nðŸ’¡ TambiÃ©n podÃ©s conectar tu WhatsApp Business abajo para tenerlo listo automÃ¡ticamente la prÃ³xima vez.",
+        options: [{ label: language === 'en' ? 'ðŸ”— Connect my WhatsApp Business' : 'ðŸ”— Conectar mi WhatsApp Business', value: '__connect_whatsapp__' }],
       };
     }
     return {
       text: language === 'en'
         ? "Perfect! Automating website sales is the best way to scale. What is the URL of your website or online store? (e.g., https://mystore.com)"
-        : "¡Excelente! Vender de manera automatizada a través de tu sitio web te permitirá escalar tus ventas. ¿Cuál es la URL de tu página o tienda online? (Ej: https://mitienda.com)",
+        : "Â¡Excelente! Vender de manera automatizada a travÃ©s de tu sitio web te permitirÃ¡ escalar tus ventas. Â¿CuÃ¡l es la URL de tu pÃ¡gina o tienda online? (Ej: https://mitienda.com)",
     };
   };
 
   const generateCopywritingPrompt = (answers: Record<string, any>) => {
     const goalText = agentGoal === 'local' 
-      ? `Reconocimiento local para el negocio físico "${answers.businessName}" ubicado en "${answers.address}". Radio de segmentación: ${answers.radius}km.`
+      ? `Reconocimiento local para el negocio fÃ­sico "${answers.businessName}" ubicado en "${answers.address}". Radio de segmentaciÃ³n: ${answers.radius}km.`
       : agentGoal === 'whatsapp'
-      ? `Conseguir ventas por WhatsApp al número de teléfono "${answers.phone}".`
-      : `Conseguir ventas en la tienda en línea/sitio web "${answers.webUrl}".`;
+      ? `Conseguir ventas por WhatsApp al nÃºmero de telÃ©fono "${answers.phone}".`
+      : `Conseguir ventas en la tienda en lÃ­nea/sitio web "${answers.webUrl}".`;
 
     const detailsText = `
 - **Nombre comercial**: ${answers.businessName || 'Negocio'}
 - **Producto o servicio estrella**: ${answers.productName}
-- **Precio o promoción**: ${answers.price}
-- **Beneficios o características clave**: ${answers.benefits || 'Alta calidad, atención premium'}
+- **Precio o promociÃ³n**: ${answers.price}
+- **Beneficios o caracterÃ­sticas clave**: ${answers.benefits || 'Alta calidad, atenciÃ³n premium'}
     `;
 
-    return `Actúa como un Copywriter Experto en Meta Ads de nivel Senior mundial. Necesito que diseñes la estructura de texto publicitario perfecto para una campaña en Meta (Facebook & Instagram Ads).
+    return `ActÃºa como un Copywriter Experto en Meta Ads de nivel Senior mundial. Necesito que diseÃ±es la estructura de texto publicitario perfecto para una campaÃ±a en Meta (Facebook & Instagram Ads).
 
 Mi objetivo comercial es: ${goalText}
 
-Aquí están los detalles clave del producto y negocio:
+AquÃ­ estÃ¡n los detalles clave del producto y negocio:
 ${detailsText}
 
 Quiero que me generes 3 variantes de copy publicitario de alto impacto optimizadas para conseguir conversiones:
-1. **Fórmula AIDA** (Atención, Interés, Deseo, Acción): Variante persuasiva y enfocada en el beneficio principal.
-2. **Variante de Storytelling**: Narrando una situación cotidiana donde el cliente experimenta el problema y cómo nuestro producto es la solución perfecta.
-3. **Variante Ultra-Directa (Direct Response)**: Muy corta, enfocada en la oferta/precio y con un llamado a la acción súper directo.
+1. **FÃ³rmula AIDA** (AtenciÃ³n, InterÃ©s, Deseo, AcciÃ³n): Variante persuasiva y enfocada en el beneficio principal.
+2. **Variante de Storytelling**: Narrando una situaciÃ³n cotidiana donde el cliente experimenta el problema y cÃ³mo nuestro producto es la soluciÃ³n perfecta.
+3. **Variante Ultra-Directa (Direct Response)**: Muy corta, enfocada en la oferta/precio y con un llamado a la acciÃ³n sÃºper directo.
 
 Cada variante debe incluir:
 - Un **Gancho (Hook)** inicial irresistible de menos de 100 caracteres.
-- El **Cuerpo del texto** estructurado con emojis amigables y viñetas limpias para legibilidad.
-- Un **Llamado a la Acción (CTA)** claro (ej. "Toca aquí para comprar con Envío Gratis" o "Haz clic y escríbenos por WhatsApp").
-- 4 Hashtags altamente segmentados e idóneos para este nicho.
+- El **Cuerpo del texto** estructurado con emojis amigables y viÃ±etas limpias para legibilidad.
+- Un **Llamado a la AcciÃ³n (CTA)** claro (ej. "Toca aquÃ­ para comprar con EnvÃ­o Gratis" o "Haz clic y escrÃ­benos por WhatsApp").
+- 4 Hashtags altamente segmentados e idÃ³neos para este nicho.
 
-Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y conversacional.`;
+Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico y conversacional.`;
   };
 
   const completeAgentSetup = (finalAnswers: Record<string, any>) => {
@@ -2273,15 +2275,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     if (agentGoal === 'local') {
       setAdAddress(finalAnswers.address || '');
       setAdPhone('');
-      setAdDescription(`¡Visítanos en ${finalAnswers.businessName}! 📍 ${finalAnswers.address}\n\nTenemos el mejor ${finalAnswers.productName} con una promoción especial: ¡${finalAnswers.price}! 🍕🎉\n\nNo te lo pierdas, ¡esperamos verte pronto!`);
+      setAdDescription(`Â¡VisÃ­tanos en ${finalAnswers.businessName}! ðŸ“ ${finalAnswers.address}\n\nTenemos el mejor ${finalAnswers.productName} con una promociÃ³n especial: Â¡${finalAnswers.price}! ðŸ•ðŸŽ‰\n\nNo te lo pierdas, Â¡esperamos verte pronto!`);
     } else if (agentGoal === 'whatsapp') {
       setAdPhone(finalAnswers.phone || '');
       setAdAddress('');
-      setAdDescription(`🔥 ¡Consigue tu ${finalAnswers.productName} hoy mismo!\n\n💰 Precio especial: ¡Solo ${finalAnswers.price}!\n\n📲 Escríbenos directamente por WhatsApp haciendo clic en el anuncio o al ${finalAnswers.phone} para hacer tu pedido ahora.`);
+      setAdDescription(`ðŸ”¥ Â¡Consigue tu ${finalAnswers.productName} hoy mismo!\n\nðŸ’° Precio especial: Â¡Solo ${finalAnswers.price}!\n\nðŸ“² EscrÃ­benos directamente por WhatsApp haciendo clic en el anuncio o al ${finalAnswers.phone} para hacer tu pedido ahora.`);
     } else if (agentGoal === 'web') {
       setAdAddress('');
       setAdPhone('');
-      setAdDescription(`🚀 ¡Ya disponible en nuestra tienda en línea!\n\nCompra hoy tu ${finalAnswers.productName} por tan solo ${finalAnswers.price}.\n\n🌐 Haz clic en 'Comprar' y consíguelo directamente aquí: ${finalAnswers.webUrl}`);
+      setAdDescription(`ðŸš€ Â¡Ya disponible en nuestra tienda en lÃ­nea!\n\nCompra hoy tu ${finalAnswers.productName} por tan solo ${finalAnswers.price}.\n\nðŸŒ Haz clic en 'Comprar' y consÃ­guelo directamente aquÃ­: ${finalAnswers.webUrl}`);
     }
 
     // 3. Map locations configuration
@@ -2305,13 +2307,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     if (value === '__connect_whatsapp__') {
       safeSetActiveTab('settings');
       setSettingsSection('whatsapp');
-      setToast({ message: language === 'en' ? 'Connect WhatsApp here, then come back to Creative Lab to continue.' : 'Conectá tu WhatsApp acá y después volvé a Creative Lab para continuar.', type: 'info' });
+      setToast({ message: language === 'en' ? 'Connect WhatsApp here, then come back to Creative Lab to continue.' : 'ConectÃ¡ tu WhatsApp acÃ¡ y despuÃ©s volvÃ© a Creative Lab para continuar.', type: 'info' });
       return;
     }
 
     if (value === '__connect_meta__') {
       handleMetaFacebookLogin();
-      setToast({ message: language === 'en' ? 'Connect your Meta Ads account in the popup, then come back here.' : 'Conectá tu cuenta de Meta Ads en la ventana emergente y después volvé acá.', type: 'info' });
+      setToast({ message: language === 'en' ? 'Connect your Meta Ads account in the popup, then come back here.' : 'ConectÃ¡ tu cuenta de Meta Ads en la ventana emergente y despuÃ©s volvÃ© acÃ¡.', type: 'info' });
       return;
     }
 
@@ -2330,7 +2332,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             sender: 'agent' as const,
             text: language === 'en'
               ? `Done! We'll publish using "${account.name}"${metaPages[0]?.name ? ` on Page "${metaPages[0].name}"` : ''}. Continuing with your campaign...`
-              : `¡Listo! Vamos a publicar usando "${account.name}"${metaPages[0]?.name ? ` en la página "${metaPages[0].name}"` : ''}. Seguimos con tu campaña...`,
+              : `Â¡Listo! Vamos a publicar usando "${account.name}"${metaPages[0]?.name ? ` en la pÃ¡gina "${metaPages[0].name}"` : ''}. Seguimos con tu campaÃ±a...`,
           }]);
         });
       }
@@ -2339,7 +2341,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
     // Justo despues de elegir el objetivo (paso 0): la cuenta/pagina a usar
     // ya se elige en los selectores de arriba (barra de Meta Ads), asi que
-    // acá solo confirmamos con cual se va a publicar y seguimos derecho,
+    // acÃ¡ solo confirmamos con cual se va a publicar y seguimos derecho,
     // sin volver a preguntarlo en el chat.
     if (agentChatStep === 0 && ['local', 'whatsapp', 'web'].includes(value)) {
       const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
@@ -2358,7 +2360,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             text: pageName
               ? (language === 'en'
                   ? `We'll publish using ad account "${accountName}" on Page "${pageName}".`
-                  : `Vamos a publicitar con la cuenta "${accountName}" en la página "${pageName}".`)
+                  : `Vamos a publicitar con la cuenta "${accountName}" en la pÃ¡gina "${pageName}".`)
               : (language === 'en'
                   ? `We'll publish using ad account "${accountName}".`
                   : `Vamos a publicitar con la cuenta "${accountName}".`),
@@ -2383,11 +2385,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           sender: 'agent' as const,
           text: language === 'en'
             ? "No problem! To get started, tell me: what is your primary marketing goal?"
-            : "¡Sin problema! Para empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+            : "Â¡Sin problema! Para empezar, dime: Â¿CuÃ¡l es el objetivo principal de tu campaÃ±a?",
           options: [
-            { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
-            { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
-            { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+            { label: language === 'en' ? "ðŸª Attract clients to my Local Store" : "ðŸª Atraer clientes a mi Local FÃ­sico", value: 'local' },
+            { label: language === 'en' ? "ðŸ’¬ Drive Sales via WhatsApp" : "ðŸ’¬ Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+            { label: language === 'en' ? "ðŸŒ Sell from my Website" : "ðŸŒ Vender desde mi PÃ¡gina Web o tienda online", value: 'web' },
           ]
         }]);
         setAgentIsTyping(false);
@@ -2437,73 +2439,73 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         }
         nextMsgText = language === 'en'
           ? "Perfect. What star product or service do you want to promote today in your ad?"
-          : "Perfecto. ¿Cuál es el producto o servicio estrella que deseas promocionar y vender en esta campaña?";
+          : "Perfecto. Â¿CuÃ¡l es el producto o servicio estrella que deseas promocionar y vender en esta campaÃ±a?";
       } else if (currentStep === 2) {
         newAnswers.productName = value;
         nextMsgText = language === 'en'
           ? "Understood. What is the special price or promotion for this campaign? (e.g. 2x1 Thursdays, $14.99, Free Shipping, etc.)"
-          : "Entendido. ¿Cuál es el precio o la promoción especial de este producto para llamar la atención en el anuncio? (Ej: Solo $19.99, 2x1 los jueves, Envío Gratis, etc.)";
+          : "Entendido. Â¿CuÃ¡l es el precio o la promociÃ³n especial de este producto para llamar la atenciÃ³n en el anuncio? (Ej: Solo $19.99, 2x1 los jueves, EnvÃ­o Gratis, etc.)";
       } else if (currentStep === 3) {
         newAnswers.price = value;
         nextMsgText = language === 'en'
-          ? "Excellent offer. Now, where do you want your ads to show up and at what distance? 🗺️\n\nPlease use the interactive map below to pinpoint your business location and establish your local coverage radius:"
-          : "Excelente oferta. Ahora, ¿dónde deseas que se muestre tu publicidad y a qué distancia a la redonda de tu negocio? 🗺️\n\nPor favor, utiliza el buscador de abajo para encontrar tu ciudad o zona, haz clic sobre el mapa para fijar tu ubicación y arrastra la barra de distancia para establecer tu radio de cobertura local:";
+          ? "Excellent offer. Now, where do you want your ads to show up and at what distance? ðŸ—ºï¸\n\nPlease use the interactive map below to pinpoint your business location and establish your local coverage radius:"
+          : "Excelente oferta. Ahora, Â¿dÃ³nde deseas que se muestre tu publicidad y a quÃ© distancia a la redonda de tu negocio? ðŸ—ºï¸\n\nPor favor, utiliza el buscador de abajo para encontrar tu ciudad o zona, haz clic sobre el mapa para fijar tu ubicaciÃ³n y arrastra la barra de distancia para establecer tu radio de cobertura local:";
         isMapStep = true;
       } else if (currentStep === 4) {
         try {
           const mapData = JSON.parse(value);
           newAnswers.locations = mapData.locations;
           newAnswers.radius = mapData.radius;
-          newAnswers.address = mapData.name || 'Ubicación de Campaña';
+          newAnswers.address = mapData.name || 'UbicaciÃ³n de CampaÃ±a';
           
           setAdLocations(mapData.locations);
           setAdLocationRadius(mapData.radius);
-          setAdAddress(mapData.name || 'Ubicación de Campaña');
+          setAdAddress(mapData.name || 'UbicaciÃ³n de CampaÃ±a');
         } catch (e) {
           console.error("Error parsing map data", e);
         }
         
         nextMsgText = language === 'en'
           ? "Location configured successfully! What is your suggested daily budget in USD? (The higher the budget, the more local potential clients we can reach)."
-          : "¡Ubicación configurada con éxito! Para completar el diseño de tu pauta publicitaria, ¿cuál es tu presupuesto diario sugerido en dólares USD para esta campaña? (A mayor presupuesto diario, Meta Ads podrá mostrar tu anuncio a más personas dentro de tu radio local):";
+          : "Â¡UbicaciÃ³n configurada con Ã©xito! Para completar el diseÃ±o de tu pauta publicitaria, Â¿cuÃ¡l es tu presupuesto diario sugerido en dÃ³lares USD para esta campaÃ±a? (A mayor presupuesto diario, Meta Ads podrÃ¡ mostrar tu anuncio a mÃ¡s personas dentro de tu radio local):";
         options = [
-          { label: "$5 USD / día", value: "5" },
-          { label: "$10 USD / día", value: "10" },
-          { label: "$20 USD / día", value: "20" },
-          { label: "$50 USD / día", value: "50" },
+          { label: "$5 USD / dÃ­a", value: "5" },
+          { label: "$10 USD / dÃ­a", value: "10" },
+          { label: "$20 USD / dÃ­a", value: "20" },
+          { label: "$50 USD / dÃ­a", value: "50" },
         ];
       } else if (currentStep === 5) {
         newAnswers.budget = Number(value) || 5;
         nextMsgText = language === 'en'
-          ? "Great! Last thing: how many days do you want this campaign to run? 📅\n\nIf you pick 14 days or more, I'll automatically split it into two phases for you: the first half to reach and learn from new people, and the second half as a dedicated remarketing campaign targeting the people who engaged during the first phase."
-          : "¡Perfecto! Última pregunta: ¿por cuántos días querés que corra esta campaña? 📅\n\nSi elegís 14 días o más, la voy a dividir automáticamente en dos fases: la primera mitad para llegar a gente nueva y aprender, y la segunda mitad como campaña de remarketing dedicada a las personas que interactuaron durante la primera fase.";
+          ? "Great! Last thing: how many days do you want this campaign to run? ðŸ“…\n\nIf you pick 14 days or more, I'll automatically split it into two phases for you: the first half to reach and learn from new people, and the second half as a dedicated remarketing campaign targeting the people who engaged during the first phase."
+          : "Â¡Perfecto! Ãšltima pregunta: Â¿por cuÃ¡ntos dÃ­as querÃ©s que corra esta campaÃ±a? ðŸ“…\n\nSi elegÃ­s 14 dÃ­as o mÃ¡s, la voy a dividir automÃ¡ticamente en dos fases: la primera mitad para llegar a gente nueva y aprender, y la segunda mitad como campaÃ±a de remarketing dedicada a las personas que interactuaron durante la primera fase.";
         options = [
-          { label: "7 días", value: "7" },
-          { label: "14 días", value: "14" },
-          { label: "30 días", value: "30" },
-          { label: "60 días", value: "60" },
+          { label: "7 dÃ­as", value: "7" },
+          { label: "14 dÃ­as", value: "14" },
+          { label: "30 dÃ­as", value: "30" },
+          { label: "60 dÃ­as", value: "60" },
         ];
       } else if (currentStep === 6) {
         newAnswers.duration_days = Math.max(1, Math.min(90, Number(value) || 30));
         const willSplit = newAnswers.duration_days >= 14;
         nextMsgText = (language === 'en'
           ? "Incredible! I have processed all marketing parameters.\n\n"
-          : "¡Increíble! He procesado todos los parámetros comerciales y geográficos de tu campaña.\n\n") +
+          : "Â¡IncreÃ­ble! He procesado todos los parÃ¡metros comerciales y geogrÃ¡ficos de tu campaÃ±a.\n\n") +
           (willSplit
             ? (language === 'en'
                 ? `I'll run this as two linked campaigns: ~${Math.ceil(newAnswers.duration_days / 2)} days of reach/learning, then ~${newAnswers.duration_days - Math.ceil(newAnswers.duration_days / 2)} days of remarketing to the people reached in phase 1.\n\n`
-                : `La voy a correr como dos campañas encadenadas: ~${Math.ceil(newAnswers.duration_days / 2)} días de alcance/aprendizaje, y luego ~${newAnswers.duration_days - Math.ceil(newAnswers.duration_days / 2)} días de remarketing a quienes interactuaron en la fase 1.\n\n`)
+                : `La voy a correr como dos campaÃ±as encadenadas: ~${Math.ceil(newAnswers.duration_days / 2)} dÃ­as de alcance/aprendizaje, y luego ~${newAnswers.duration_days - Math.ceil(newAnswers.duration_days / 2)} dÃ­as de remarketing a quienes interactuaron en la fase 1.\n\n`)
             : '') +
           (language === 'en'
             ? "I have generated the AI Strategy Diagnosis and campaign preview for you here. Review it and press 'Apply Configuration' to complete:"
-            : "He diseñado el Diagnóstico de Estrategia IA y el simulador de resultados para ti aquí abajo.\n\nRevísalo y presiona 'Aplicar Configuración' para ver tu campaña completamente configurada en el Paso 2 de publicación:");
+            : "He diseÃ±ado el DiagnÃ³stico de Estrategia IA y el simulador de resultados para ti aquÃ­ abajo.\n\nRevÃ­salo y presiona 'Aplicar ConfiguraciÃ³n' para ver tu campaÃ±a completamente configurada en el Paso 2 de publicaciÃ³n:");
         isSummaryStep = true;
       } else if (currentStep === 7) {
         if (value === 'apply') {
           completeAgentSetup(newAnswers);
           setChatgptFlowStep(2);
           setPromptCopied(false);
-          setToast({ message: language === 'en' ? '🎉 Campaign setup successfully pre-filled!' : '🎉 ¡Campaña configurada y lista con éxito!', type: 'success' });
+          setToast({ message: language === 'en' ? 'ðŸŽ‰ Campaign setup successfully pre-filled!' : 'ðŸŽ‰ Â¡CampaÃ±a configurada y lista con Ã©xito!', type: 'success' });
           setAgentIsTyping(false);
           return;
         }
@@ -2641,9 +2643,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } finally { setFbLoading(false); }
   };
 
-  // Refresco automatico cada 60s mientras se esta viendo la pestaña de
+  // Refresco automatico cada 60s mientras se esta viendo la pestaÃ±a de
   // Analiticas y la pagina esta visible (se pausa si el usuario cambia de
-  // pestaña del navegador, para no gastar cuota de la API sin necesidad).
+  // pestaÃ±a del navegador, para no gastar cuota de la API sin necesidad).
   useEffect(() => {
     if (activeTab !== 'campaigns' || campaignSubTab !== 'analytics' || !fbInsights) return;
     const interval = setInterval(() => {
@@ -2683,7 +2685,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         logging: false,
         onclone: (clonedDoc: Document) => {
           // Los iconos de Material Symbols son ligaduras de fuente (el texto
-          // real detras es "error", "warning", etc.) — html2canvas dibuja
+          // real detras es "error", "warning", etc.) â€” html2canvas dibuja
           // texto caracter por caracter en un canvas 2D y no puede resolver
           // ligaduras OpenType, asi que sale el nombre literal en vez del
           // glifo. Los ocultamos para el export en vez de mostrar texto roto.
@@ -2735,7 +2737,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     return values.map(v => Math.max(4, Math.round((v / max) * 100)));
   };
   const toggleFbCampaign = async (id:string, status:string) => { const s = status==='ACTIVE'?'PAUSED':'ACTIVE'; try { const r = await authFetch('/api/panel/facebook/campaigns',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaign_id:id,status:s})}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
-  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaña?')) return; try { const r = await authFetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
+  const deleteFbCampaign = async (id:string) => { if(!confirm('Eliminar esta campaÃ±a?')) return; try { const r = await authFetch('/api/panel/facebook/campaigns?campaign_id='+id,{method:'DELETE'}); const d = await r.json(); if(d.success) loadFbCampaigns(); else setToast({ message: d.error, type: 'error' }); } catch(e:any){setToast({ message: e.message, type: 'error' })} };
   const [fbPublishing, setFbPublishing] = useState(false);
   const [showMetaPermissionsModal, setShowMetaPermissionsModal] = useState(false);
   const [showMetaNoApiModal, setShowMetaNoApiModal] = useState(false);
@@ -2773,13 +2775,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setToast({
         message: language === 'en'
           ? `Select ${MAX_CREATIVE_ASSETS} images or videos to publish (${totalCreatives}/${MAX_CREATIVE_ASSETS} so far)`
-          : `Seleccioná ${MAX_CREATIVE_ASSETS} imágenes o videos para publicar (llevás ${totalCreatives}/${MAX_CREATIVE_ASSETS})`,
+          : `SeleccionÃ¡ ${MAX_CREATIVE_ASSETS} imÃ¡genes o videos para publicar (llevÃ¡s ${totalCreatives}/${MAX_CREATIVE_ASSETS})`,
         type: 'info'
       });
       return;
     }
     if (adCountries.length === 0) {
-      setToast({ message: language === 'en' ? 'Select at least one target country' : 'Selecciona al menos un país destino', type: 'info' }); 
+      setToast({ message: language === 'en' ? 'Select at least one target country' : 'Selecciona al menos un paÃ­s destino', type: 'info' }); 
       return; 
     }
     setFbPublishing(true);
@@ -2856,10 +2858,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }
 
       // Subir las creatividades adicionales (imagen/video) para los otros
-      // anuncios del conjunto — la principal (imageUrl) ya se subio arriba.
+      // anuncios del conjunto â€” la principal (imageUrl) ya se subio arriba.
       let creativeAssets: Array<{ url: string; type: 'image' | 'video' }> = [{ url: imageUrl, type: 'image' }];
       if (extraCreativeAssets.length > 0) {
-        setToast({ message: language === 'en' ? `Uploading ${extraCreativeAssets.length} more creatives...` : `Subiendo ${extraCreativeAssets.length} creatividades más...`, type: 'info' });
+        setToast({ message: language === 'en' ? `Uploading ${extraCreativeAssets.length} more creatives...` : `Subiendo ${extraCreativeAssets.length} creatividades mÃ¡s...`, type: 'info' });
         const uploadedExtras = await Promise.all(extraCreativeAssets.map(async (asset) => ({
           url: await uploadFileToR2(asset.file, `extra-${asset.type}-${Date.now()}`),
           type: asset.type,
@@ -2867,7 +2869,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         creativeAssets = [...creativeAssets, ...uploadedExtras];
       }
 
-      setToast({ message: language === 'en' ? 'Publishing campaign to Meta...' : 'Publicando campaña en Meta...', type: 'info' });
+      setToast({ message: language === 'en' ? 'Publishing campaign to Meta...' : 'Publicando campaÃ±a en Meta...', type: 'info' });
 
       const caption = campaignResult?.caption || adDescription || campaignDesc || '';
       const hashtagsBlock = campaignResult?.hashtags ? '\n' + campaignResult.hashtags : '';
@@ -2875,7 +2877,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const aud = campaignResult?.target_audience || {};
 
       // Variantes de texto para poder publicar minimo 6 anuncios por conjunto
-      // (A/B testing de copy) — usa el hook principal + variantes generadas
+      // (A/B testing de copy) â€” usa el hook principal + variantes generadas
       // por IA. El backend rellena hasta 6 si vienen menos.
       const hooks = [campaignResult?.hook, ...(campaignResult?.hook_variants || [])].filter(Boolean);
       const trimmedCaption = caption.trim();
@@ -2889,21 +2891,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         return `${trimmedHook}\n\n${trimmedCaption}${hashtagsBlock}`.trim();
       });
 
-      // Validate objective — cada objetivo de negocio usa el objetivo de
-      // campaña de Meta que mejor le sirve, en vez de dejarlo a lo que
+      // Validate objective â€” cada objetivo de negocio usa el objetivo de
+      // campaÃ±a de Meta que mejor le sirve, en vez de dejarlo a lo que
       // sugiera la IA:
-      //  - "Atraer clientes a mi Local Físico" -> Interacción (ENGAGEMENT):
-      //    maximiza likes/comentarios/seguidores de la Página, que es la
-      //    señal que alimenta el público personalizado de remarketing.
+      //  - "Atraer clientes a mi Local FÃ­sico" -> InteracciÃ³n (ENGAGEMENT):
+      //    maximiza likes/comentarios/seguidores de la PÃ¡gina, que es la
+      //    seÃ±al que alimenta el pÃºblico personalizado de remarketing.
       //  - "Recibir mensajes y vender por WhatsApp" -> Ventas (SALES): el
-      //    objetivo apunta directo a la conversión (venta) por chat, ya que
+      //    objetivo apunta directo a la conversiÃ³n (venta) por chat, ya que
       //    el paso anterior recolecta el numero de WhatsApp del negocio.
-      //  - "Vender desde mi Página Web o tienda online" -> Ventas (SALES):
-      //    igual, apunta a conversión, esta vez con destino la página/tienda
-      //    web que se pidió en el paso anterior.
-      // El público de remarketing de la fase 2 (page_engaged,
+      //  - "Vender desde mi PÃ¡gina Web o tienda online" -> Ventas (SALES):
+      //    igual, apunta a conversiÃ³n, esta vez con destino la pÃ¡gina/tienda
+      //    web que se pidiÃ³ en el paso anterior.
+      // El pÃºblico de remarketing de la fase 2 (page_engaged,
       // page_post_interaction, page_liked, page_cta_clicked) se arma igual
-      // para los 3 objetivos — no depende del objetivo elegido.
+      // para los 3 objetivos â€” no depende del objetivo elegido.
       const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
       const objective = agentGoal === 'local'
         ? 'OUTCOME_ENGAGEMENT'
@@ -2923,7 +2925,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           language,
           objective,
           sales_destination: agentGoal === 'whatsapp' ? 'whatsapp' : agentGoal === 'web' ? 'web' : undefined,
-          targeting_mode: 'simple', // Advantage+ audience — Meta optimiza siempre
+          targeting_mode: 'simple', // Advantage+ audience â€” Meta optimiza siempre
           countries: adCountries,
           custom_locations: adLocations.map(l => ({ lat: l.lat, lng: l.lng, radius: l.radius })),
           age_min: aud.age_min || 18,
@@ -2938,12 +2940,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const d = await r.json();
       if (d.success) {
         const phasesMsg = d.phases === 2
-          ? (language === 'en' ? ` • 2 phases (learning + remarketing)` : ` • 2 fases (aprendizaje + remarketing)`)
+          ? (language === 'en' ? ` â€¢ 2 phases (learning + remarketing)` : ` â€¢ 2 fases (aprendizaje + remarketing)`)
           : '';
-        const adsMsg = d.ads_created ? ` • ${d.ads_created} ${language === 'en' ? 'ads' : 'anuncios'}` : '';
+        const adsMsg = d.ads_created ? ` â€¢ ${d.ads_created} ${language === 'en' ? 'ads' : 'anuncios'}` : '';
         setToast({ message: language === 'en'
-          ? `Campaign published! Advantage+ Audience${adsMsg}${phasesMsg} • PAUSED`
-          : `¡Campaña publicada! Audiencia Advantage+${adsMsg}${phasesMsg} • PAUSADA`,
+          ? `Campaign published! Advantage+ Audience${adsMsg}${phasesMsg} â€¢ PAUSED`
+          : `Â¡CampaÃ±a publicada! Audiencia Advantage+${adsMsg}${phasesMsg} â€¢ PAUSADA`,
           type: 'success'
         });
         loadFbCampaigns();
@@ -2975,7 +2977,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (isNoMetaApiError(e.message)) {
         setShowMetaNoApiModal(true);
       } else {
-        setToast({ message: 'Error de conexión: ' + e.message, type: 'error' }); 
+        setToast({ message: 'Error de conexiÃ³n: ' + e.message, type: 'error' }); 
       }
     } finally { 
       setFbPublishing(false); 
@@ -3028,7 +3030,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [generatedBanner, setGeneratedBanner] = useState<string | null>(null);
   const [isGeneratingBanner, setIsGeneratingBanner] = useState(false);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('9:16');
-  const [costSaverEnabled, setCostSaverEnabled] = useState(true); // 💰 Modo económico ON por defecto en desarrollo
+  const [costSaverEnabled, setCostSaverEnabled] = useState(true); // ðŸ’° Modo econÃ³mico ON por defecto en desarrollo
   const [debugTimestamp, setDebugTimestamp] = useState<number | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
 
@@ -3092,7 +3094,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
     img.onload = () => resolve(img);
     img.onerror = (e) => {
-      console.error('❌ [loadImage] Error cargando imagen:', src?.substring(0, 80), e);
+      console.error('âŒ [loadImage] Error cargando imagen:', src?.substring(0, 80), e);
       reject(new Error(`Failed to load image: ${src?.substring(0, 60)}...`));
     };
     img.src = src;
@@ -3120,7 +3122,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const hasRef = !!campaignImagePreview;
       const hasProd = !!productImagePreview;
 
-      console.log('🎨 [Ecom Magic] Generando banner con:', {
+      console.log('ðŸŽ¨ [Ecom Magic] Generando banner con:', {
         template: t.name,
         templateId: t.id,
         hasRef,
@@ -3136,26 +3138,26 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         return;
       }
 
-      // ===== CASO B: Generación directa con IA =====
+      // ===== CASO B: GeneraciÃ³n directa con IA =====
       let finalProductImageToSend = '';
 
       if (productImage) {
         try {
           finalProductImageToSend = await getProductImageBase64(productImage);
-          console.log(`  ✅ Usando productImage convertido a base64 (${finalProductImageToSend.length} chars)`);
+          console.log(`  âœ… Usando productImage convertido a base64 (${finalProductImageToSend.length} chars)`);
         } catch (e) {
           console.error('Error reading product image as base64:', e);
         }
       } else {
-        console.warn(`  ❌ NO HAY IMAGEN DE PRODUCTO — finalProductImageToSend será vacío`);
+        console.warn(`  âŒ NO HAY IMAGEN DE PRODUCTO â€” finalProductImageToSend serÃ¡ vacÃ­o`);
       }
 
-      console.log(`  📦 finalProductImageToSend: ${finalProductImageToSend ? `${finalProductImageToSend.substring(0, 50)}... (${finalProductImageToSend.length} chars)` : 'VACÍO'}`);
+      console.log(`  ðŸ“¦ finalProductImageToSend: ${finalProductImageToSend ? `${finalProductImageToSend.substring(0, 50)}... (${finalProductImageToSend.length} chars)` : 'VACÃO'}`);
 
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
-      console.log('🔮 [Ecom Magic] Enviando template + imagen de producto para adaptación inteligente...');
-      console.log(`🎨 [VISUAL PROVIDER] provider: ${configData.visual_render_provider || 'openai'} | mode: ${configData.visual_render_provider === 'flux' ? 'inpainting' : 'compositing'}`);
+      console.log('ðŸ”® [Ecom Magic] Enviando template + imagen de producto para adaptaciÃ³n inteligente...');
+      console.log(`ðŸŽ¨ [VISUAL PROVIDER] provider: ${configData.visual_render_provider || 'openai'} | mode: ${configData.visual_render_provider === 'flux' ? 'inpainting' : 'compositing'}`);
       const aiRes = await fetch('/api/panel/generate-image', {
         method: 'POST',
         headers,
@@ -3176,47 +3178,47 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setGeneratedBanner(aiData.image);
         setDebugTimestamp(Date.now());
         setShowDebugPanel(true);
-        console.log('✅ [Ecom Magic] Imagen del banner generada exitosamente por la IA');
+        console.log('âœ… [Ecom Magic] Imagen del banner generada exitosamente por la IA');
         
         if (aiData.qa_results) {
-          console.log('%c📊 [QA Engine] INFORME DE CALIDAD FINAL (27 métricas):', 'color: #3b82f6; font-weight: bold;');
-          console.log(`  Passed: ${aiData.qa_results.passed ? '✅ SÍ' : '❌ NO'}`);
-          console.log(`  --- ESTRUCTURA (≥85) ---`);
+          console.log('%cðŸ“Š [QA Engine] INFORME DE CALIDAD FINAL (27 mÃ©tricas):', 'color: #3b82f6; font-weight: bold;');
+          console.log(`  Passed: ${aiData.qa_results.passed ? 'âœ… SÃ' : 'âŒ NO'}`);
+          console.log(`  --- ESTRUCTURA (â‰¥85) ---`);
           console.log(`  Template Similarity: ${aiData.qa_results.template_similarity_score}/100`);
           console.log(`  Layout Preservation: ${aiData.qa_results.layout_preservation_score}/100`);
           console.log(`  Product Identity: ${aiData.qa_results.product_identity_score}/100`);
-          console.log(`  Icon Count: ${aiData.qa_results.icon_count_preservation ? '✅' : '❌'} | Icon Column: ${aiData.qa_results.icon_column_position_preserved ? '✅' : '❌'} | Text Zones: ${aiData.qa_results.text_zone_preservation ? '✅' : '❌'}`);
-          console.log(`  --- GEOMETRÍA & ESPACIADO (≥85) ---`);
+          console.log(`  Icon Count: ${aiData.qa_results.icon_count_preservation ? 'âœ…' : 'âŒ'} | Icon Column: ${aiData.qa_results.icon_column_position_preserved ? 'âœ…' : 'âŒ'} | Text Zones: ${aiData.qa_results.text_zone_preservation ? 'âœ…' : 'âŒ'}`);
+          console.log(`  --- GEOMETRÃA & ESPACIADO (â‰¥85) ---`);
           console.log(`  Background Geometry: ${aiData.qa_results.background_geometry_score}/100`);
           console.log(`  Pedestal Similarity: ${aiData.qa_results.pedestal_similarity_score}/100`);
           console.log(`  Spacing Similarity: ${aiData.qa_results.spacing_similarity_score}/100`);
           console.log(`  Visual Balance: ${aiData.qa_results.visual_balance_score}/100`);
           console.log(`  Template Geometry: ${aiData.qa_results.template_geometry_preservation_score}/100`);
-          console.log(`  --- COLOR & ILUMINACIÓN (≥85) ---`);
+          console.log(`  --- COLOR & ILUMINACIÃ“N (â‰¥85) ---`);
           console.log(`  Color Palette: ${aiData.qa_results.color_palette_match_score}/100`);
           console.log(`  Shadow Match: ${aiData.qa_results.shadow_match_score}/100`);
           console.log(`  Lighting Match: ${aiData.qa_results.lighting_match_score}/100`);
           console.log(`  Render Quality: ${aiData.qa_results.premium_render_similarity_score}/100`);
           console.log(`  Color Harmony: ${aiData.qa_results.color_harmony_score}/100`);
-          console.log(`  Product→Env Influence: ${aiData.qa_results.product_color_environment_influence_score}/100`);
-          console.log(`  --- ESCALA & TIPOGRAFÍA (≥85) ---`);
+          console.log(`  Productâ†’Env Influence: ${aiData.qa_results.product_color_environment_influence_score}/100`);
+          console.log(`  --- ESCALA & TIPOGRAFÃA (â‰¥85) ---`);
           console.log(`  Product Scale: ${aiData.qa_results.product_scale_similarity_score}/100`);
           console.log(`  Visual Weight: ${aiData.qa_results.visual_weight_similarity_score}/100`);
           console.log(`  Typography Structure: ${aiData.qa_results.typography_structure_preservation_score}/100`);
-          console.log(`  --- FIDELIDAD QUIRÚRGICA ---`);
-          console.log(`  Reinterpretation: ${aiData.qa_results.template_reinterpretation_score}/100 ${aiData.qa_results.template_reinterpretation_score > 15 ? '❌ FAIL (>15)' : '✅ OK (≤15)'}`);
-          console.log(`  Text Leakage: ${aiData.qa_results.template_text_leakage_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
-          console.log(`  --- 🔒 REGION FREEZE ---`);
+          console.log(`  --- FIDELIDAD QUIRÃšRGICA ---`);
+          console.log(`  Reinterpretation: ${aiData.qa_results.template_reinterpretation_score}/100 ${aiData.qa_results.template_reinterpretation_score > 15 ? 'âŒ FAIL (>15)' : 'âœ… OK (â‰¤15)'}`);
+          console.log(`  Text Leakage: ${aiData.qa_results.template_text_leakage_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  --- ðŸ”’ REGION FREEZE ---`);
           console.log(`  Frozen Region Integrity: ${aiData.qa_results.frozen_region_integrity_score}/100`);
-          console.log(`  BG Reconstruction: ${aiData.qa_results.background_reconstruction_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
-          console.log(`  Geometry Shift: ${aiData.qa_results.geometry_shift_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
-          console.log(`  Spacing Shift: ${aiData.qa_results.spacing_shift_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
-          console.log(`  Typography Reflow: ${aiData.qa_results.typography_reflow_detected ? '❌ DETECTED (FAIL)' : '✅ NONE'}`);
-          console.log(`  Retry: ${aiData.qa_results.retry_triggered ? '🔄 SÍ' : '🛑 NO'}`);
+          console.log(`  BG Reconstruction: ${aiData.qa_results.background_reconstruction_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  Geometry Shift: ${aiData.qa_results.geometry_shift_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  Spacing Shift: ${aiData.qa_results.spacing_shift_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  Typography Reflow: ${aiData.qa_results.typography_reflow_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  Retry: ${aiData.qa_results.retry_triggered ? 'ðŸ”„ SÃ' : 'ðŸ›‘ NO'}`);
           console.log(`  Reason: ${aiData.qa_results.reason}`);
         }
         if (aiData.environment_palette) {
-          console.log('%c🎨 [Color Fusion] ENVIRONMENT PALETTE:', 'color: #8b5cf6; font-weight: bold;');
+          console.log('%cðŸŽ¨ [Color Fusion] ENVIRONMENT PALETTE:', 'color: #8b5cf6; font-weight: bold;');
           console.log(`  Product Primary: ${aiData.environment_palette.product_primary}`);
           console.log(`  Product Secondary: ${aiData.environment_palette.product_secondary}`);
           console.log(`  Shadow Tint: ${aiData.environment_palette.shadow_tint}`);
@@ -3227,36 +3229,36 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           console.log(`  Template Primary: ${aiData.environment_palette.template_primary}`);
         }
         if (aiData.cost_saver_mode) {
-          console.log('%c💰 [COST SAVER MODE] QA y retry omitidos para ahorrar saldo.', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
+          console.log('%cðŸ’° [COST SAVER MODE] QA y retry omitidos para ahorrar saldo.', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
         }
         if (aiData.compositing_mode) {
-          console.log('%c🎯 [COMPOSITING ENGINE] Modo mask-based compositing ACTIVO — template frozen, solo producto editado.', 'color: #10b981; font-weight: bold; font-size: 14px;');
+          console.log('%cðŸŽ¯ [COMPOSITING ENGINE] Modo mask-based compositing ACTIVO â€” template frozen, solo producto editado.', 'color: #10b981; font-weight: bold; font-size: 14px;');
           if (aiData.product_slot_used) {
             const ps = aiData.product_slot_used;
             console.log(`  Product Slot: x=${ps.x}, y=${ps.y}, w=${ps.width}, h=${ps.height}, shape=${ps.shape}`);
           }
           if (aiData.text_slots_used > 0) {
-            console.log(`%c📝 [PHASE 2] Text Slots: ${aiData.text_slots_used} zonas de texto editadas`, 'color: #8b5cf6; font-weight: bold;');
+            console.log(`%cðŸ“ [PHASE 2] Text Slots: ${aiData.text_slots_used} zonas de texto editadas`, 'color: #8b5cf6; font-weight: bold;');
             if (aiData.text_slot_content) {
               for (const [slotId, content] of Object.entries(aiData.text_slot_content)) {
-                console.log(`    → [${slotId}]: "${(content as string)?.substring(0, 50)}"`);
+                console.log(`    â†’ [${slotId}]: "${(content as string)?.substring(0, 50)}"`);
               }
             }
           }
         } else {
-          console.log('%c⚠️ [LEGACY MODE] Generación completa sin mask — template no tiene product_slot.', 'color: #f59e0b; font-weight: bold;');
+          console.log('%câš ï¸ [LEGACY MODE] GeneraciÃ³n completa sin mask â€” template no tiene product_slot.', 'color: #f59e0b; font-weight: bold;');
         }
 
         if (aiData.template_visual_dna) {
           const dna = aiData.template_visual_dna;
-          console.log('%c🧬 [TEMPLATE VISUAL DNA]', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
-          console.log(`  🎨 Dominant Palette: ${(dna.dominant_palette || []).join(', ')}`);
-          console.log(`  🌟 Secondary: ${(dna.secondary_palette || []).join(', ')}`);
-          console.log(`  💡 Lighting: ${dna.lighting_style || '-'}`);
-          console.log(`  🎬 Mood: ${dna.cinematic_mood || '-'}`);
-          console.log(`  ✨ Glow: ${dna.glow_style || '-'}`);
-          console.log(`  🌡️ Temperature: ${dna.visual_temperature || '-'}`);
-          console.log(`  💎 Render Style: ${dna.premium_render_style || '-'}`);
+          console.log('%cðŸ§¬ [TEMPLATE VISUAL DNA]', 'color: #f59e0b; font-weight: bold; font-size: 14px;');
+          console.log(`  ðŸŽ¨ Dominant Palette: ${(dna.dominant_palette || []).join(', ')}`);
+          console.log(`  ðŸŒŸ Secondary: ${(dna.secondary_palette || []).join(', ')}`);
+          console.log(`  ðŸ’¡ Lighting: ${dna.lighting_style || '-'}`);
+          console.log(`  ðŸŽ¬ Mood: ${dna.cinematic_mood || '-'}`);
+          console.log(`  âœ¨ Glow: ${dna.glow_style || '-'}`);
+          console.log(`  ðŸŒ¡ï¸ Temperature: ${dna.visual_temperature || '-'}`);
+          console.log(`  ðŸ’Ž Render Style: ${dna.premium_render_style || '-'}`);
         }
 
         if (aiData.detected_product) {
@@ -3267,29 +3269,29 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             material: aiData.detected_product.material || '',
             type: aiData.detected_product.shape || ''
           });
-          console.log('%c🧠 [PRODUCT-AWARE CREATIVE INTELLIGENCE]', 'color: #8b5cf6; font-weight: bold; font-size: 14px;');
-          console.log(`  📦 Category: ${aiData.detected_product.category} / ${aiData.detected_product.subcategory || '-'}`);
-          console.log(`  🎨 Visual Style: ${aiData.detected_product.visual_style || '-'}`);
-          console.log(`  👥 Audience: ${aiData.detected_product.audience || '-'}`);
-          console.log(`  🎭 Aesthetic: ${aiData.detected_product.aesthetic || '-'}`);
-          console.log(`  💼 Commercial Tone: ${aiData.detected_product.commercial_tone || '-'}`);
-          console.log(`  ✨ Luxury Level: ${aiData.detected_product.luxury_level || '-'}`);
-          console.log(`  🔑 Mood: ${(aiData.detected_product.mood_keywords || []).join(', ')}`);
-          console.log(`  📣 Marketing Angles: ${(aiData.detected_product.marketing_angles || []).join(', ')}`);
-          console.log(`  🏙️ Lifestyle: ${aiData.detected_product.lifestyle_context || '-'}`);
-          console.log(`  💎 Premium Features: ${(aiData.detected_product.premium_features || []).join(', ')}`);
-          console.log(`  ⚡ Visual Energy: ${aiData.detected_product.visual_energy || '-'}`);
+          console.log('%cðŸ§  [PRODUCT-AWARE CREATIVE INTELLIGENCE]', 'color: #8b5cf6; font-weight: bold; font-size: 14px;');
+          console.log(`  ðŸ“¦ Category: ${aiData.detected_product.category} / ${aiData.detected_product.subcategory || '-'}`);
+          console.log(`  ðŸŽ¨ Visual Style: ${aiData.detected_product.visual_style || '-'}`);
+          console.log(`  ðŸ‘¥ Audience: ${aiData.detected_product.audience || '-'}`);
+          console.log(`  ðŸŽ­ Aesthetic: ${aiData.detected_product.aesthetic || '-'}`);
+          console.log(`  ðŸ’¼ Commercial Tone: ${aiData.detected_product.commercial_tone || '-'}`);
+          console.log(`  âœ¨ Luxury Level: ${aiData.detected_product.luxury_level || '-'}`);
+          console.log(`  ðŸ”‘ Mood: ${(aiData.detected_product.mood_keywords || []).join(', ')}`);
+          console.log(`  ðŸ“£ Marketing Angles: ${(aiData.detected_product.marketing_angles || []).join(', ')}`);
+          console.log(`  ðŸ™ï¸ Lifestyle: ${aiData.detected_product.lifestyle_context || '-'}`);
+          console.log(`  ðŸ’Ž Premium Features: ${(aiData.detected_product.premium_features || []).join(', ')}`);
+          console.log(`  âš¡ Visual Energy: ${aiData.detected_product.visual_energy || '-'}`);
         }
         if (aiData.adapted_text) {
           setAdTexts(aiData.adapted_text);
-          console.log('✅ [Ecom Magic] Copys inteligentes adaptados al producto:', aiData.adapted_text);
+          console.log('âœ… [Ecom Magic] Copys inteligentes adaptados al producto:', aiData.adapted_text);
         }
         if (aiData.adapted_colors) {
           setCompositorColors(aiData.adapted_colors);
-          console.log('✅ [Ecom Magic] Colores adaptados al producto:', aiData.adapted_colors);
+          console.log('âœ… [Ecom Magic] Colores adaptados al producto:', aiData.adapted_colors);
         }
       } else {
-        throw new Error(aiData.error || 'Error en la generación de IA');
+        throw new Error(aiData.error || 'Error en la generaciÃ³n de IA');
       }
     } catch (err: any) {
       console.error('Error generating banner:', err);
@@ -3313,11 +3315,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       link.click();
 
       setToast({
-        message: language === 'en' ? 'Banner downloaded successfully!' : '¡Anuncio premium descargado con éxito!',
+        message: language === 'en' ? 'Banner downloaded successfully!' : 'Â¡Anuncio premium descargado con Ã©xito!',
         type: 'success'
       });
     } catch (err: any) {
-      console.error('❌ Error downloading banner:', err);
+      console.error('âŒ Error downloading banner:', err);
       setToast({
         message: language === 'en' ? 'Error downloading banner: ' + err.message : 'Error al descargar el banner: ' + err.message,
         type: 'error'
@@ -3459,8 +3461,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.ok && data.accepted && data.pendingWebhook) {
         setToast({
           message: language === 'en'
-            ? 'Plan change accepted. Confirming the signed webhook…'
-            : 'Cambio de plan aceptado. Confirmando el webhook firmado…',
+            ? 'Plan change accepted. Confirming the signed webhookâ€¦'
+            : 'Cambio de plan aceptado. Confirmando el webhook firmadoâ€¦',
           type: 'info',
         });
 
@@ -3480,8 +3482,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         localStorage.removeItem('rifx_pending_plan');
         setToast({
           message: confirmed
-            ? (language === 'en' ? '✅ Plan updated successfully.' : '✅ Plan actualizado correctamente.')
-            : (language === 'en' ? 'The change is still being confirmed. Refresh shortly.' : 'El cambio aún se está confirmando. Actualiza en unos instantes.'),
+            ? (language === 'en' ? 'âœ… Plan updated successfully.' : 'âœ… Plan actualizado correctamente.')
+            : (language === 'en' ? 'The change is still being confirmed. Refresh shortly.' : 'El cambio aÃºn se estÃ¡ confirmando. Actualiza en unos instantes.'),
           type: confirmed ? 'success' : 'info',
         });
       } else if (res.ok && data.checkoutUrl) {
@@ -3497,7 +3499,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       } else if (res.ok && data.alreadyActive) {
         localStorage.removeItem('rifx_pending_plan');
         setToast({
-          message: language === 'en' ? 'This plan is already active.' : 'Este plan ya está activo.',
+          message: language === 'en' ? 'This plan is already active.' : 'Este plan ya estÃ¡ activo.',
           type: 'info',
         });
       } else {
@@ -3524,8 +3526,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setShowCancelPlanConfirm(false);
         setToast({ 
           message: language === 'en' 
-            ? 'Cancellation accepted by the payment provider. Confirming the signed webhook…'
-            : 'Cancelación aceptada por el proveedor. Confirmando el webhook firmado…',
+            ? 'Cancellation accepted by the payment provider. Confirming the signed webhookâ€¦'
+            : 'CancelaciÃ³n aceptada por el proveedor. Confirmando el webhook firmadoâ€¦',
           type: 'success' 
         });
 
@@ -3539,15 +3541,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (refreshedTenant.planStatus === 'cancelled') {
             setToast({
               message: language === 'en'
-                ? '✅ Auto-renewal cancelled. Access remains available through the paid period.'
-                : '✅ Renovación cancelada. El acceso continúa durante el periodo ya pagado.',
+                ? 'âœ… Auto-renewal cancelled. Access remains available through the paid period.'
+                : 'âœ… RenovaciÃ³n cancelada. El acceso continÃºa durante el periodo ya pagado.',
               type: 'success',
             });
             break;
           }
         }
       } else {
-        setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });
+        setToast({ message: language === 'en' ? 'Error cancelling subscription: ' + (data.error || 'Unknown') : 'Error al cancelar suscripciÃ³n: ' + (data.error || 'Desconocido'), type: 'error' });
       }
     } catch (e) {
       console.error(e);
@@ -3569,8 +3571,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.ok && data.accepted && data.pendingWebhook) {
         setToast({ 
           message: language === 'en' 
-            ? 'Reactivation accepted by the payment provider. Confirming the signed webhook…'
-            : 'Reactivación aceptada por el proveedor. Confirmando el webhook firmado…',
+            ? 'Reactivation accepted by the payment provider. Confirming the signed webhookâ€¦'
+            : 'ReactivaciÃ³n aceptada por el proveedor. Confirmando el webhook firmadoâ€¦',
           type: 'success' 
         });
 
@@ -3584,15 +3586,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (refreshedTenant.planStatus === 'active') {
             setToast({
               message: language === 'en'
-                ? '✅ Auto-renewal reactivated successfully!'
-                : '✅ ¡Renovación automática reactivada con éxito!',
+                ? 'âœ… Auto-renewal reactivated successfully!'
+                : 'âœ… Â¡RenovaciÃ³n automÃ¡tica reactivada con Ã©xito!',
               type: 'success',
             });
             break;
           }
         }
       } else {
-        setToast({ message: language === 'en' ? 'Error reactivating subscription: ' + (data.error || 'Unknown') : 'Error al reactivar suscripción: ' + (data.error || 'Desconocido'), type: 'error' });
+        setToast({ message: language === 'en' ? 'Error reactivating subscription: ' + (data.error || 'Unknown') : 'Error al reactivar suscripciÃ³n: ' + (data.error || 'Desconocido'), type: 'error' });
       }
     } catch (e) {
       console.error(e);
@@ -3631,12 +3633,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setActiveTab('dashboard');
           const confirmed = !pendingPlan || (refreshed.plan === pendingPlan && refreshed.planStatus === 'active');
           setToast({ message: confirmed
-            ? (language === 'en' ? '✅ Payment confirmed. Your plan is active.' : '✅ Pago confirmado. Tu plan está activo.')
-            : (language === 'en' ? 'Payment is still being confirmed. Refresh shortly.' : 'El pago aún se está confirmando. Actualiza en unos instantes.'), type: confirmed ? 'success' : 'info' });
+            ? (language === 'en' ? 'âœ… Payment confirmed. Your plan is active.' : 'âœ… Pago confirmado. Tu plan estÃ¡ activo.')
+            : (language === 'en' ? 'Payment is still being confirmed. Refresh shortly.' : 'El pago aÃºn se estÃ¡ confirmando. Actualiza en unos instantes.'), type: confirmed ? 'success' : 'info' });
         }
       } catch (e) {
         console.error('Error refreshing plan after payment:', e);
-        setToast({ message: language === 'en' ? 'Payment is being confirmed. Refresh shortly.' : 'El pago se está confirmando. Actualiza en unos instantes.', type: 'info' });
+        setToast({ message: language === 'en' ? 'Payment is being confirmed. Refresh shortly.' : 'El pago se estÃ¡ confirmando. Actualiza en unos instantes.', type: 'info' });
       } finally {
         localStorage.removeItem('rifx_pending_plan');
         window.history.replaceState({}, '', '/panel');
@@ -3659,7 +3661,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [showSuccess, setShowSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  // Estados para cambio de contraseña
+  // Estados para cambio de contraseÃ±a
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -3706,7 +3708,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? '✅ Plan permissions updated successfully!' : '✅ ¡Permisos de planes actualizados exitosamente!',
+          message: language === 'en' ? 'âœ… Plan permissions updated successfully!' : 'âœ… Â¡Permisos de planes actualizados exitosamente!',
           type: 'success'
         });
         await loadAdminData();
@@ -3779,7 +3781,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? '✅ Custom overrides updated!' : '✅ ¡Accesos especiales actualizados!',
+          message: language === 'en' ? 'âœ… Custom overrides updated!' : 'âœ… Â¡Accesos especiales actualizados!',
           type: 'success'
         });
         
@@ -3878,9 +3880,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         greetingSentRef.current = true;
         const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
         const goalOptions = [
-          { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
-          { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
-          { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+          { label: language === 'en' ? "ðŸª Attract clients to my Local Store" : "ðŸª Atraer clientes a mi Local FÃ­sico", value: 'local' },
+          { label: language === 'en' ? "ðŸ’¬ Drive Sales via WhatsApp" : "ðŸ’¬ Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+          { label: language === 'en' ? "ðŸŒ Sell from my Website" : "ðŸŒ Vender desde mi PÃ¡gina Web o tienda online", value: 'web' },
         ];
 
         if (!isMetaConnected) {
@@ -3889,11 +3891,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               id: 'meta-check',
               sender: 'agent',
               text: language === 'en'
-                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent.\n\nBefore we start: you haven't connected a Meta Ads account yet, so I don't know which Page or Ad Account (portfolio) to publish to. Connect it now, or continue and connect it later before publishing."
-                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads.\n\nAntes de empezar: todavía no conectaste una cuenta de Meta Ads, así que no sé en qué Página ni Cuenta Publicitaria (portafolio) publicar. Conectala ahora, o seguí y conectala más tarde antes de publicar.",
+                ? "Hi! ðŸ¤– I'm your Meta Ads AI Marketing Agent.\n\nBefore we start: you haven't connected a Meta Ads account yet, so I don't know which Page or Ad Account (portfolio) to publish to. Connect it now, or continue and connect it later before publishing."
+                : "Â¡Hola! ðŸ¤– Soy tu Agente Experto en Meta Ads.\n\nAntes de empezar: todavÃ­a no conectaste una cuenta de Meta Ads, asÃ­ que no sÃ© en quÃ© PÃ¡gina ni Cuenta Publicitaria (portafolio) publicar. Conectala ahora, o seguÃ­ y conectala mÃ¡s tarde antes de publicar.",
               options: [
-                { label: language === 'en' ? '🔗 Connect Meta Ads now' : '🔗 Conectar Meta Ads ahora', value: '__connect_meta__' },
-                { label: language === 'en' ? '➡️ Continue without connecting' : '➡️ Continuar sin conectar', value: '__continue_after_meta_check__' },
+                { label: language === 'en' ? 'ðŸ”— Connect Meta Ads now' : 'ðŸ”— Conectar Meta Ads ahora', value: '__connect_meta__' },
+                { label: language === 'en' ? 'âž¡ï¸ Continue without connecting' : 'âž¡ï¸ Continuar sin conectar', value: '__continue_after_meta_check__' },
               ]
             }
           ]);
@@ -3903,8 +3905,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               id: '1',
               sender: 'agent',
               text: language === 'en'
-                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
-                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+                ? "Hi! ðŸ¤– I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
+                : "Â¡Hola! ðŸ¤– Soy tu Agente Experto en Meta Ads. Estoy aquÃ­ para diseÃ±ar tu campaÃ±a de marketing perfecta de forma automÃ¡tica.\n\nPara empezar, dime: Â¿CuÃ¡l es el objetivo principal de tu campaÃ±a?",
               options: goalOptions
             }
           ]);
@@ -3924,9 +3926,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [selectAllContacts, setSelectAllContacts] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<{id: string, title: string, content: string}[]>([
-    { id: '1', title: 'Promoción de Lunes', content: '¡Hola {Nombre}! Empezamos la semana con una oferta especial solo para ti. Escr\u00EDbenos para m\u00E1s info.' },
-    { id: '2', title: 'Seguimiento', content: 'Hola {Nombre}, queríamos saber si pudiste revisar nuestra propuesta. Estamos aquí para ayudarte. ' },
-    { id: '3', title: 'Recordatorio Demo', content: '¡Hola {Nombre}! Solo un recordatorio de que tienes una demo pendiente con nosotros. ¿Te parece bien agendar?' },
+    { id: '1', title: 'PromociÃ³n de Lunes', content: 'Â¡Hola {Nombre}! Empezamos la semana con una oferta especial solo para ti. Escr\u00EDbenos para m\u00E1s info.' },
+    { id: '2', title: 'Seguimiento', content: 'Hola {Nombre}, querÃ­amos saber si pudiste revisar nuestra propuesta. Estamos aquÃ­ para ayudarte. ' },
+    { id: '3', title: 'Recordatorio Demo', content: 'Â¡Hola {Nombre}! Solo un recordatorio de que tienes una demo pendiente con nosotros. Â¿Te parece bien agendar?' },
   ]);
   const [templateTitle, setTemplateTitle] = useState('');
   const [sendDelay, setSendDelay] = useState(3);
@@ -3956,9 +3958,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [viewMode, setViewMode] = useState<'table' | 'pipeline'>('table');
 
   const getLeadClassification = (score: number) => {
-    if (score >= 70) return { emoji: '🔥', text: language === 'es' ? 'Caliente' : 'Hot', color: 'text-red-700 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/30' };
-    if (score >= 40) return { emoji: '🟡', text: language === 'es' ? 'Tibio' : 'Warm', color: 'text-amber-700 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30' };
-    return { emoji: '⚪', text: language === 'es' ? 'Frío' : 'Cold', color: 'text-slate-600 bg-slate-50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/30' };
+    if (score >= 70) return { emoji: 'ðŸ”¥', text: language === 'es' ? 'Caliente' : 'Hot', color: 'text-red-700 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/30' };
+    if (score >= 40) return { emoji: 'ðŸŸ¡', text: language === 'es' ? 'Tibio' : 'Warm', color: 'text-amber-700 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30' };
+    return { emoji: 'âšª', text: language === 'es' ? 'FrÃ­o' : 'Cold', color: 'text-slate-600 bg-slate-50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/30' };
   };
 
   const formatSalesStage = (stage: string) => {
@@ -3968,7 +3970,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       'discovery': language === 'es' ? 'Descubrimiento' : 'Discovery',
       'qualified': language === 'es' ? 'Calificado' : 'Qualified',
       'proposal': language === 'es' ? 'Propuesta' : 'Proposal',
-      'objection': language === 'es' ? 'Objeción' : 'Objection',
+      'objection': language === 'es' ? 'ObjeciÃ³n' : 'Objection',
       'closing': language === 'es' ? 'Cierre' : 'Closing',
       'won': language === 'es' ? 'Ganado' : 'Won',
       'lost': language === 'es' ? 'Perdido' : 'Lost',
@@ -3983,7 +3985,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       'sales_dropshipping': language === 'es' ? 'Venta Dropshipping' : 'Dropshipping Sale',
       'faq_pricing': language === 'es' ? 'Pregunta Precios' : 'Pricing FAQ',
       'human_request': language === 'es' ? 'Solicita Humano' : 'Human Request',
-      'support': language === 'es' ? 'Soporte Técnico' : 'Technical Support',
+      'support': language === 'es' ? 'Soporte TÃ©cnico' : 'Technical Support',
       'ambiguous': language === 'es' ? 'Consulta General' : 'General Query',
     };
     return mapping[intent] || intent.replace(/_/g, ' ');
@@ -4216,7 +4218,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   const handleSelectMetaAccount = async (account: any, page: any) => {
-    setToast({ message: language === 'en' ? 'Saving Meta connection...' : 'Guardando conexión Meta...', type: 'info' });
+    setToast({ message: language === 'en' ? 'Saving Meta connection...' : 'Guardando conexiÃ³n Meta...', type: 'info' });
     const res = await authFetch('/api/panel/meta/facebook-connect', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -4239,7 +4241,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         meta_page_name: page?.name || prev.meta_page_name,
       }));
       setMetaShowPicker(false);
-      setToast({ message: language === 'en' ? '✓ Meta Ads connected!' : '✓ Meta Ads conectado!', type: 'success' });
+      setToast({ message: language === 'en' ? 'âœ“ Meta Ads connected!' : 'âœ“ Meta Ads conectado!', type: 'success' });
     } else {
       setToast({ message: data.error || 'Error saving', type: 'error' });
     }
@@ -4279,9 +4281,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         sender: 'agent',
         text: language === 'en'
           ? 'Which ad account do you want to use to publish?'
-          : '¿Con qué cuenta publicitaria querés publicar?',
+          : 'Â¿Con quÃ© cuenta publicitaria querÃ©s publicar?',
         options: metaAdAccounts.map((account: any) => ({
-          label: `📊 ${account.name}`,
+          label: `ðŸ“Š ${account.name}`,
           value: `__select_meta_account__:${account.id}`,
         })),
       }]);
@@ -4453,16 +4455,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const serverQuotaLimited = verifyResult.reason === 'quota';
       const serverStatus = serverValid ? 'success' : 'error';
       const serverStatusMessage = serverValid
-        ? (language === 'en' ? 'Connection verified successfully!' : '¡Conexión verificada con éxito!')
-        : (language === 'en' ? 'Invalid key or connection failed' : 'Llave inválida o conexión fallida');
+        ? (language === 'en' ? 'Connection verified successfully!' : 'Â¡ConexiÃ³n verificada con Ã©xito!')
+        : (language === 'en' ? 'Invalid key or connection failed' : 'Llave invÃ¡lida o conexiÃ³n fallida');
       const serverCreditStatus: 'active' | 'exhausted' | 'error' = serverValid
         ? 'active'
         : serverQuotaLimited ? 'exhausted' : 'error';
       const serverCreditMessage = serverValid
-        ? (language === 'en' ? 'API active • Key valid' : 'API activa • Llave válida')
+        ? (language === 'en' ? 'API active â€¢ Key valid' : 'API activa â€¢ Llave vÃ¡lida')
         : serverQuotaLimited
-          ? (language === 'en' ? 'Quota or rate limit reached' : 'Cuota o límite de uso alcanzado')
-          : (language === 'en' ? 'Unable to check credits' : 'No se pudo verificar créditos');
+          ? (language === 'en' ? 'Quota or rate limit reached' : 'Cuota o lÃ­mite de uso alcanzado')
+          : (language === 'en' ? 'Unable to check credits' : 'No se pudo verificar crÃ©ditos');
 
       setAiKeyStatus(serverStatus);
       setAiKeyStatusMsg(serverStatusMessage);
@@ -4497,7 +4499,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Helper: fetch with auth token
   const authFetch = (url: string, options: RequestInit = {}) => {
     const headers: Record<string, string> = { ...(options.headers as Record<string, string> || {}) };
-    return fetch(url, { ...options, headers, credentials: 'same-origin', cache: 'no-store' });
+    const urlObj = new URL(url, window.location.origin);
+    urlObj.searchParams.set('_t', Date.now().toString());
+    return fetch(urlObj.toString(), { ...options, headers, credentials: 'same-origin', cache: 'no-store' });
   };
 
   const handleTogglePush = async (enabled: boolean) => {
@@ -4522,9 +4526,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subscription: sub.toJSON() }),
         });
-        if (!res.ok) throw new Error('No se pudo guardar la suscripción');
+        if (!res.ok) throw new Error('No se pudo guardar la suscripciÃ³n');
         setConfigData((prev: any) => ({ ...prev, push_notifications: true }));
-        setToast({ message: language === 'en' ? 'Push notifications enabled!' : '¡Notificaciones push activadas!', type: 'success' });
+        setToast({ message: language === 'en' ? 'Push notifications enabled!' : 'Â¡Notificaciones push activadas!', type: 'success' });
       } catch (e: any) {
         setToast({ message: (language === 'en' ? 'Error enabling push: ' : 'Error activando push: ') + e.message, type: 'error' });
       }
@@ -4560,7 +4564,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           ...prev, 
           [configData.dropi_enabled ? 'dropi_prompt' : 'ai_prompt']: data.prompt 
         }));
-        setToast({ type: 'success', message: language === 'en' ? '✓ Prompt generated successfully!' : '✓ ¡Prompt generado con éxito!' });
+        setToast({ type: 'success', message: language === 'en' ? 'âœ“ Prompt generated successfully!' : 'âœ“ Â¡Prompt generado con Ã©xito!' });
       } else {
         setToast({ type: 'error', message: data.error || 'Error' });
       }
@@ -4675,7 +4679,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.ok && data.success) {
         setToast({
           type: 'success',
-          message: language === 'en' ? `✓ Action completed: ${action}` : `✓ Acción completada: ${action === 'complete' ? 'asistió' : action === 'no_show' ? 'no asistió' : action === 'cancel' ? 'cancelada' : 'reagendada'}`
+          message: language === 'en' ? `âœ“ Action completed: ${action}` : `âœ“ AcciÃ³n completada: ${action === 'complete' ? 'asistiÃ³' : action === 'no_show' ? 'no asistiÃ³' : action === 'cancel' ? 'cancelada' : 'reagendada'}`
         });
         fetchAppointments();
         authFetch('/api/panel/stats')
@@ -4704,7 +4708,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       // Cargar CRM
       fetchConversations();
       
-      // Cargar Estadísticas
+      // Cargar EstadÃ­sticas
       authFetch('/api/panel/stats')
         .then(res => res.json())
         .then(data => setStatsData(data))
@@ -4719,7 +4723,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   }, [isLoggedIn]);
 
   // El polling pesado solo corre en vistas que consumen esos datos. Un
-  // intervalo de 60s evita multiplicar consultas completas por cada sesión.
+  // intervalo de 60s evita multiplicar consultas completas por cada sesiÃ³n.
   React.useEffect(() => {
     if (!isLoggedIn || !['dashboard', 'crm'].includes(activeTab)) return;
     let cancelled = false;
@@ -4743,7 +4747,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (!cancelled) setStatsData(data);
         }
       } catch {
-        // La siguiente iteración reintentará sin reemplazar datos válidos.
+        // La siguiente iteraciÃ³n reintentarÃ¡ sin reemplazar datos vÃ¡lidos.
       }
     };
     const interval = window.setInterval(refreshCrmAndStats, 60_000);
@@ -4826,7 +4830,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
   }, [chatMessages]);
 
-  // Función para detectar solicitudes de humano en las conversaciones
+  // FunciÃ³n para detectar solicitudes de humano en las conversaciones
   const checkHumanAlerts = async (data: any) => {
     if (!data) return;
     const allConvs = [...(data.chatting || []), ...(data.interested || []), ...(data.bought || [])];
@@ -4838,21 +4842,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         const convData = await res.json();
         if (convData.messages) {
           const hasHumanReq = convData.messages.some((m: any) => m.content === '__HUMAN_REQUEST__');
-          // Solo alertar si hay solicitud Y la conversación no está ya en modo humano
+          // Solo alertar si hay solicitud Y la conversaciÃ³n no estÃ¡ ya en modo humano
           if (hasHumanReq) {
-            // Los mensajes vienen del más antiguo al más nuevo.
-            // Para ver si la última acción fue una petición humana no atendida, buscamos de más nuevo a más antiguo.
+            // Los mensajes vienen del mÃ¡s antiguo al mÃ¡s nuevo.
+            // Para ver si la Ãºltima acciÃ³n fue una peticiÃ³n humana no atendida, buscamos de mÃ¡s nuevo a mÃ¡s antiguo.
             const reversedMsgs = [...convData.messages].reverse();
             const reqIdxRev = reversedMsgs.findIndex((m: any) => m.content === '__HUMAN_REQUEST__');
             
             if (reqIdxRev !== -1) {
               const handledIdxRev = reversedMsgs.findIndex((m: any, idx: number) => {
-                // Solo buscar en mensajes más nuevos que la petición humana
+                // Solo buscar en mensajes mÃ¡s nuevos que la peticiÃ³n humana
                 if (idx >= reqIdxRev) return false;
                 
                 if (m.content === '__SYSTEM_RESUME__') return true;
                 if (m.role === 'assistant' && m.content && !m.content.startsWith('__')) {
-                  // Ignorar el mensaje automático de escalamiento que envía el bot justo después
+                  // Ignorar el mensaje automÃ¡tico de escalamiento que envÃ­a el bot justo despuÃ©s
                   if (m.content.includes('fila prioritaria para hablar con un asesor humano')) return false;
                   return true;
                 }
@@ -4890,12 +4894,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         .then(res => res.json())
         .then(data => {
           if (data.messages) {
-            // Detectar modo humano desde señales
+            // Detectar modo humano desde seÃ±ales
             const signals = data.messages.filter((m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__');
             if (signals.length > 0) {
               setIsHumanMode(signals[signals.length - 1].content === '__SYSTEM_PAUSE__');
             }
-            // Filtrar señales para no mostrarlas en el chat
+            // Filtrar seÃ±ales para no mostrarlas en el chat
             const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__' && !(m.content && m.content.startsWith('__ORDER_DATA__:')));
             // Solo actualizar si los mensajes realmente cambiaron
             setChatMessages(prev => {
@@ -4923,7 +4927,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           } else {
             setIsHumanMode(false);
           }
-          // Filtrar señales
+          // Filtrar seÃ±ales
           const visibleMessages = data.messages.filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__' && !(m.content && m.content.startsWith('__ORDER_DATA__:')));
           setChatMessages(visibleMessages);
         }
@@ -4931,8 +4935,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       })
       .catch(() => setLoadingMessages(false));
 
-    // Auto-refrescar cada 5 segundos, solo mientras la pestaña esta visible;
-    // al volver a la pestaña se refresca de inmediato para no mostrar el
+    // Auto-refrescar cada 5 segundos, solo mientras la pestaÃ±a esta visible;
+    // al volver a la pestaÃ±a se refresca de inmediato para no mostrar el
     // chat desactualizado.
     const msgInterval = setInterval(() => {
       if (document.visibilityState === 'visible') loadMessages();
@@ -5012,7 +5016,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         });
         const data = await res.json();
         if (!res.ok) {
-          setLoginError(data.error || 'Email o contraseña incorrectos');
+          setLoginError(data.error || 'Email o contraseÃ±a incorrectos');
           setIsLoggingIn(false);
           return;
         }
@@ -5022,7 +5026,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setIsLoggedIn(true);
       }
     } catch (err: any) {
-      setLoginError('Error de conexión. Intenta de nuevo.');
+      setLoginError('Error de conexiÃ³n. Intenta de nuevo.');
     }
     setIsLoggingIn(false);
   };
@@ -5039,7 +5043,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.status === 429) {
         throw new Error(`429:${data.error || 'Demasiados intentos'}`);
       }
-      throw new Error(data.error || 'Email o contraseña incorrectos');
+      throw new Error(data.error || 'Email o contraseÃ±a incorrectos');
     }
     setFailedLoginAttempts(0);
     setAuthToken('cookie-session');
@@ -5098,7 +5102,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       body: JSON.stringify({ email, code, newPassword: password }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al cambiar la contraseña');
+    if (!res.ok) throw new Error(data.error || 'Error al cambiar la contraseÃ±a');
     
     // The API sets a session cookie, so reload after a short delay for success animation
     setTimeout(() => {
@@ -5203,7 +5207,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             prompt: tpl.config_json.prompt || '',
             colors: tpl.config_json.colors || { primary: '#6D28D9', accent: '#FFD700', text: '#FFFFFF', badgeBg: 'rgba(109,40,217,0.85)', badgeText: '#FFFFFF' },
             layout: tpl.config_json.layout || { align: 'left', productPos: { x: 580, y: 250, w: 420, h: 560 }, textW: 480, hasTestimonial: true, hasBenefits: true, hasReviewStars: true },
-            defaultText: tpl.config_json.defaultText || { badge: '✨ CUIDADO PREMIUM', hook: 'Hook', desc: 'Desc', benefits: [], cta: 'CTA' },
+            defaultText: tpl.config_json.defaultText || { badge: 'âœ¨ CUIDADO PREMIUM', hook: 'Hook', desc: 'Desc', benefits: [], cta: 'CTA' },
             skipProductOverlay: tpl.config_json.skipProductOverlay || false,
             style_identity: tpl.config_json.style_identity || '',
             composition_rules: tpl.config_json.composition_rules || '',
@@ -5261,7 +5265,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setToast({ message: language === 'en' ? 'File too large (max 5MB)' : 'Archivo demasiado grande (máx 5MB)', type: 'error' });
+        setToast({ message: language === 'en' ? 'File too large (max 5MB)' : 'Archivo demasiado grande (mÃ¡x 5MB)', type: 'error' });
         return;
       }
       setTplImageFile(file);
@@ -5293,17 +5297,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         hasReviewStars: true
       },
       defaultText: {
-        badge: "✨ PREMIUM",
+        badge: "âœ¨ PREMIUM",
         hook: "Descubre lo Mejor",
         desc: "Calidad que se siente en cada detalle.",
-        benefits: ["Calidad premium", "Diseño exclusivo", "Garantía oficial"],
+        benefits: ["Calidad premium", "DiseÃ±o exclusivo", "GarantÃ­a oficial"],
         cta: "COMPRAR AHORA",
-        testimonial: "\"Increíble calidad.\" – Cliente V."
+        testimonial: "\"IncreÃ­ble calidad.\" â€“ Cliente V."
       },
       skipProductOverlay: false,
 
       // ==========================================
-      // COMPOSITING ENGINE — Editable Zones Schema
+      // COMPOSITING ENGINE â€” Editable Zones Schema
       // ==========================================
       product_slot: {
         x: 0.50,
@@ -5473,7 +5477,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         currentConfig = tplConfigJson.trim() ? JSON.parse(tplConfigJson) : {};
       } catch { /* if invalid JSON, start fresh */ }
 
-      // Apply detected zones (as suggestions — user can edit before saving)
+      // Apply detected zones (as suggestions â€” user can edit before saving)
       if (detected.product_slot) {
         currentConfig.product_slot = detected.product_slot;
       }
@@ -5500,7 +5504,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const zoneCount = (detected.text_slots?.length || 0) + (detected.product_slot ? 1 : 0);
       const confidence = detected.confidence || 'medium';
       setToast({ 
-        message: `✅ ${zoneCount} zonas detectadas (confianza: ${confidence}). Revisa y ajusta las coordenadas antes de guardar.`, 
+        message: `âœ… ${zoneCount} zonas detectadas (confianza: ${confidence}). Revisa y ajusta las coordenadas antes de guardar.`, 
         type: 'success' 
       });
     } catch (e: any) {
@@ -5515,7 +5519,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const handleSaveCreativeTemplate = async () => {
     if (!tplName.trim() || !tplConfigJson.trim()) {
       setToast({ 
-        message: language === 'en' ? 'Name and config JSON are required' : 'El nombre y la configuración JSON son requeridos', 
+        message: language === 'en' ? 'Name and config JSON are required' : 'El nombre y la configuraciÃ³n JSON son requeridos', 
         type: 'error' 
       });
       return;
@@ -5527,7 +5531,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       parsedConfig = JSON.parse(tplConfigJson);
     } catch (e: any) {
       setToast({ 
-        message: (language === 'en' ? 'Invalid JSON format: ' : 'Formato JSON inválido: ') + e.message, 
+        message: (language === 'en' ? 'Invalid JSON format: ' : 'Formato JSON invÃ¡lido: ') + e.message, 
         type: 'error' 
       });
       return;
@@ -5543,23 +5547,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const hasDnaLock = parsedConfig.template_visual_dna_lock === true;
 
     if (!hasProductSlot) {
-      warnings.push('⚠️ Sin product_slot — el compositing engine estará deshabilitado. La plantilla usará generación completa (modo legacy).');
+      warnings.push('âš ï¸ Sin product_slot â€” el compositing engine estarÃ¡ deshabilitado. La plantilla usarÃ¡ generaciÃ³n completa (modo legacy).');
     }
     if (!hasTextSlots) {
-      warnings.push('⚠️ Sin text_slots — los textos originales de la plantilla NO serán reemplazados. Puede haber contaminación semántica.');
+      warnings.push('âš ï¸ Sin text_slots â€” los textos originales de la plantilla NO serÃ¡n reemplazados. Puede haber contaminaciÃ³n semÃ¡ntica.');
     } else {
       // Validate text_slots have required fields
       for (const ts of parsedConfig.text_slots) {
         if (!ts.id || !ts.type || ts.x === undefined || ts.y === undefined || ts.width === undefined || ts.height === undefined) {
-          warnings.push(`❌ text_slot "${ts.id || 'sin ID'}" incompleto — necesita: id, type, x, y, width, height`);
+          warnings.push(`âŒ text_slot "${ts.id || 'sin ID'}" incompleto â€” necesita: id, type, x, y, width, height`);
         }
       }
     }
     if (!hasSemanticIsolation) {
-      warnings.push('🔶 template_semantic_isolation no está activo — la plantilla puede contaminar el copy con su categoría original.');
+      warnings.push('ðŸ”¶ template_semantic_isolation no estÃ¡ activo â€” la plantilla puede contaminar el copy con su categorÃ­a original.');
     }
     if (!hasDnaLock) {
-      warnings.push('🔶 template_visual_dna_lock no está activo — el color grading puede no preservarse.');
+      warnings.push('ðŸ”¶ template_visual_dna_lock no estÃ¡ activo â€” el color grading puede no preservarse.');
     }
 
     // Compute readiness for display
@@ -5567,10 +5571,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     if (hasProductSlot && hasTextSlots && hasSemanticIsolation) readiness = 'ready';
     else if (hasProductSlot) readiness = 'draft';
 
-    // Collect warning info but DON'T show toast here — show it after save succeeds
+    // Collect warning info but DON'T show toast here â€” show it after save succeeds
     let warningInfo = '';
     if (warnings.length > 0) {
-      const readinessLabel = readiness === 'ready' ? '🟢 Ready' : readiness === 'draft' ? '🟡 Draft' : '🔴 Legacy';
+      const readinessLabel = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? 'ðŸŸ¡ Draft' : 'ðŸ”´ Legacy';
       const warningText = `[${readinessLabel}] ${warnings.join(' | ')}`;
       console.warn('[TEMPLATE VALIDATION]', warningText);
       warningInfo = ` (${readinessLabel})`;
@@ -5693,14 +5697,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setToast({ 
             message: language === 'en' 
               ? `Successfully synchronized ${data.count} base templates!` 
-              : `¡Se sincronizaron exitosamente ${data.count} plantillas base!`, 
+              : `Â¡Se sincronizaron exitosamente ${data.count} plantillas base!`, 
             type: 'success' 
           });
           loadAdminTemplates();
           loadDbTemplates();
         } else {
           setToast({ 
-            message: (language === 'en' ? 'Sync failed: ' : 'Fallo de sincronización: ') + (data.error || ''), 
+            message: (language === 'en' ? 'Sync failed: ' : 'Fallo de sincronizaciÃ³n: ') + (data.error || ''), 
             type: 'error' 
           });
         }
@@ -5754,7 +5758,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // Delete a template from database
   const handleDeleteCreativeTemplate = async (id: string) => {
-    if (!confirm(language === 'en' ? 'Are you sure you want to delete this template?' : '¿Estás seguro de que deseas eliminar esta plantilla?')) return;
+    if (!confirm(language === 'en' ? 'Are you sure you want to delete this template?' : 'Â¿EstÃ¡s seguro de que deseas eliminar esta plantilla?')) return;
     setAdminActionLoading(true);
     try {
       const deleteRes = await authFetch(`/api/admin/templates?id=${id}`, {
@@ -5866,14 +5870,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.ok) {
         resetAnnForm();
         loadAdminData();
-        setToast({ message: editingAnnId ? '✅ Anuncio actualizado' : '✅ Anuncio publicado', type: 'success' });
+        setToast({ message: editingAnnId ? 'âœ… Anuncio actualizado' : 'âœ… Anuncio publicado', type: 'success' });
       } else {
         const data = await res.json().catch(() => ({}));
         setToast({ message: `Error: ${data.error || 'No se pudo guardar el anuncio'}`, type: 'error' });
       }
     } catch (e: any) {
       console.error(e);
-      setToast({ message: 'Error de conexión: ' + e.message, type: 'error' });
+      setToast({ message: 'Error de conexiÃ³n: ' + e.message, type: 'error' });
     }
     setAdminActionLoading(false);
   };
@@ -6004,11 +6008,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         return;
       }
       setShowAdminSectionsFor(null);
-      setToast({ message: language === 'en' ? '✅ Admin role updated!' : '✅ ¡Rol de administrador actualizado!', type: 'success' });
+      setToast({ message: language === 'en' ? 'âœ… Admin role updated!' : 'âœ… Â¡Rol de administrador actualizado!', type: 'success' });
       loadAdminData();
     } catch (e: any) {
       console.error(e);
-      setToast({ message: (language === 'en' ? 'Connection error: ' : 'Error de conexión: ') + e.message, type: 'error' });
+      setToast({ message: (language === 'en' ? 'Connection error: ' : 'Error de conexiÃ³n: ') + e.message, type: 'error' });
     } finally { setAdminActionLoading(false); }
   };
 
@@ -6018,12 +6022,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     companyName: string,
   ) => {
     if (!connectionId || !expectedPhoneNumberId) {
-      setToast({ message: 'No se puede identificar esta conexión de WhatsApp de forma segura.', type: 'error' });
+      setToast({ message: 'No se puede identificar esta conexiÃ³n de WhatsApp de forma segura.', type: 'error' });
       return;
     }
 
     const confirmed = window.confirm(
-      `¿Desconectar WhatsApp de la empresa "${companyName}"?\n\nPhone ID: ${expectedPhoneNumberId}\n\nEsta acción liberará únicamente esta conexión.`,
+      `Â¿Desconectar WhatsApp de la empresa "${companyName}"?\n\nPhone ID: ${expectedPhoneNumberId}\n\nEsta acciÃ³n liberarÃ¡ Ãºnicamente esta conexiÃ³n.`,
     );
     if (!confirmed) return;
 
@@ -6044,7 +6048,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setToast({ message: `Error: ${data.error || 'No se pudo desconectar WhatsApp'}`, type: 'error' });
         return;
       }
-      setToast({ message: `✅ WhatsApp ${expectedPhoneNumberId} desconectado de "${companyName}"`, type: 'success' });
+      setToast({ message: `âœ… WhatsApp ${expectedPhoneNumberId} desconectado de "${companyName}"`, type: 'success' });
       await loadAdminData();
     } catch (e: any) {
       setToast({ message: 'Error de conexi\u00f3n: ' + e.message, type: 'error' });
@@ -6065,7 +6069,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? '✅ User deactivated successfully!' : '✅ ¡Usuario desactivado correctamente!',
+          message: language === 'en' ? 'âœ… User deactivated successfully!' : 'âœ… Â¡Usuario desactivado correctamente!',
           type: 'success'
         });
         setTenantToDelete(null);
@@ -6095,7 +6099,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setShowSelfDeleteModal(false);
         setSelfDeleteConfirmEmail('');
         setToast({
-          message: language === 'en' ? '✅ Account deactivated successfully.' : '✅ Tu cuenta ha sido desactivada.',
+          message: language === 'en' ? 'âœ… Account deactivated successfully.' : 'âœ… Tu cuenta ha sido desactivada.',
           type: 'success'
         });
         handleLogout();
@@ -6189,7 +6193,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   const handleResetTestChat = () => {
     setTestMessages([
-      { role: 'assistant', content: '¡Hola! Soy el asistente de clasificación. Escribe un mensaje de usuario para ver cómo lo categorizo.' }
+      { role: 'assistant', content: 'Â¡Hola! Soy el asistente de clasificaciÃ³n. Escribe un mensaje de usuario para ver cÃ³mo lo categorizo.' }
     ]);
     setLastInference(null);
     setTestInput('');
@@ -6422,7 +6426,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     csv += `RIFX CRM - Segmento: ${segDetailLabel}\n`;
     csv += `Generado: ${new Date().toLocaleString('es')}\n`;
     csv += `Total contactos: ${contacts.length}\n\n`;
-    csv += 'Nombre,Teléfono,Estado,Última Actividad\n';
+    csv += 'Nombre,TelÃ©fono,Estado,Ãšltima Actividad\n';
     contacts.forEach((c: any) => {
       csv += `${c.customer_name || 'Sin nombre'},${c.phone_number || ''},${c.status || ''},${c.updated_at || c.created_at || ''}\n`;
     });
@@ -6540,11 +6544,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setPasswordSuccess(false);
 
     if (newPassword.length < 12) {
-      setPasswordError('La nueva contraseña debe tener al menos 12 caracteres');
+      setPasswordError('La nueva contraseÃ±a debe tener al menos 12 caracteres');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError('Las contraseñas no coinciden');
+      setPasswordError('Las contraseÃ±as no coinciden');
       return;
     }
 
@@ -6564,10 +6568,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setConfirmPassword('');
         setTimeout(() => setPasswordSuccess(false), 5000);
       } else {
-        setPasswordError(result.error || 'Error al cambiar la contraseña');
+        setPasswordError(result.error || 'Error al cambiar la contraseÃ±a');
       }
     } catch (err: any) {
-      setPasswordError(err?.message || 'Error de conexión');
+      setPasswordError(err?.message || 'Error de conexiÃ³n');
     } finally {
       setChangingPassword(false);
     }
@@ -6579,7 +6583,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setSaveError('');
     setShowSuccess(false);
     try {
-      // Solo enviar campos válidos de la DB
+      // Solo enviar campos vÃ¡lidos de la DB
       const payload = {
         whatsapp_token: configData.whatsapp_token,
         whatsapp_phone_id: configData.whatsapp_phone_id,
@@ -6629,20 +6633,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setShowSuccess(true);
         // Recargar config
         fetchConfig();
-        setToast({ message: language === 'en' ? '✓ Configuration saved successfully!' : '✓ ¡Configuración guardada con éxito!', type: 'success' });
+        setToast({ message: language === 'en' ? 'âœ“ Configuration saved successfully!' : 'âœ“ Â¡ConfiguraciÃ³n guardada con Ã©xito!', type: 'success' });
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
         const errMsg = result.error || 'Error desconocido al guardar';
         setSaveError(errMsg);
         console.error('X  Error guardando config:', errMsg);
-        setToast({ message: 'Error guardando configuración: ' + errMsg, type: 'error' });
+        setToast({ message: 'Error guardando configuraciÃ³n: ' + errMsg, type: 'error' });
         setTimeout(() => setSaveError(''), 8000);
       }
     } catch (err: any) {
       console.error(err);
-      const errMsg = err?.message || 'Error de conexión al guardar';
+      const errMsg = err?.message || 'Error de conexiÃ³n al guardar';
       setSaveError(errMsg);
-      setToast({ message: 'Error de conexión: ' + errMsg, type: 'error' });
+      setToast({ message: 'Error de conexiÃ³n: ' + errMsg, type: 'error' });
       setTimeout(() => setSaveError(''), 8000);
     } finally {
       setIsSaving(false);
@@ -6659,7 +6663,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     );
   }
 
-  // ========== GOOGLE SIGN-IN (compartido entre registro e inicio de sesión) ==========
+  // ========== GOOGLE SIGN-IN (compartido entre registro e inicio de sesiÃ³n) ==========
   const handleGoogleBtnClick = () => {
     try {
       const btn = document.querySelector<HTMLElement>('#google-signin-button div[role="button"]');
@@ -6890,7 +6894,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       value={registerOwner}
                       onChange={(e) => setRegisterOwner(e.target.value)}
                       className="w-full pl-11 pr-4 py-3 rounded-xl glass-input text-sm text-white placeholder-gray-600 focus:ring-0" 
-                      placeholder="Juan Pérez" 
+                      placeholder="Juan PÃ©rez" 
                     />
                   </div>
                 </div>
@@ -6991,11 +6995,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="mt-10 pt-6 border-t border-white/[0.04]">
               {!isRegistering ? (
                 <button type="button" onClick={() => setIsRegistering(true)} className="w-full text-center text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
-                  ¿No tienes cuenta? <span className="text-brand-blue">Crear Cuenta Gratis</span>
+                  Â¿No tienes cuenta? <span className="text-brand-blue">Crear Cuenta Gratis</span>
                 </button>
               ) : (
                 <button type="button" onClick={() => setIsRegistering(false)} className="w-full text-center text-[11px] text-gray-500 hover:text-white transition-colors uppercase tracking-wider font-bold">
-                  ¿Ya tienes cuenta? <span className="text-brand-blue">Iniciar Sesión</span>
+                  Â¿Ya tienes cuenta? <span className="text-brand-blue">Iniciar SesiÃ³n</span>
                 </button>
               )}
               <div className="flex items-center gap-3 text-[10px] text-gray-600 uppercase tracking-wider mt-4">
@@ -7080,8 +7084,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
             { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
             { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
-            { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
-            { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+            { key: 'analytics', icon: 'monitoring', labelEs: 'AnÃ¡lisis', labelEn: 'Analytics' },
+            { key: 'billing', icon: 'payments', labelEs: 'Planes y FacturaciÃ³n', labelEn: 'Billing' },
             { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
             ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
           ].map(item => {
@@ -7124,7 +7128,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               onMouseEnter={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 setHoveredTab({
-                  label: language === 'en' ? 'Logout' : 'Cerrar Sesión',
+                  label: language === 'en' ? 'Logout' : 'Cerrar SesiÃ³n',
                   top: rect.top + rect.height / 2,
                   isLocked: false
                 });
@@ -7158,7 +7162,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         </div>
       )}
 
-      {/* ═══ MOBILE DRAWER ═══ */}
+      {/* â•â•â• MOBILE DRAWER â•â•â• */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-[60] md:hidden mobile-drawer-overlay">
           {/* Backdrop */}
@@ -7177,7 +7181,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <span className="material-symbols-outlined text-slate-400">close</span>
               </button>
             </div>
-            {/* Drawer Navigation Items — synced with desktop sidebar */}
+            {/* Drawer Navigation Items â€” synced with desktop sidebar */}
             <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
               {[
                 { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
@@ -7190,8 +7194,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
                 { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
                 { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
-                { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
-                { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+                { key: 'analytics', icon: 'monitoring', labelEs: 'AnÃ¡lisis', labelEn: 'Analytics' },
+                { key: 'billing', icon: 'payments', labelEs: 'Planes y FacturaciÃ³n', labelEn: 'Billing' },
                 { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
                 ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
               ].map(item => {
@@ -7220,14 +7224,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 );
               })}
             </div>
-            {/* Drawer Footer — Logout */}
+            {/* Drawer Footer â€” Logout */}
             <div className="border-t border-slate-100 px-4 py-3">
               <button
                 onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-all text-left"
               >
                 <span className="material-symbols-outlined text-xl">logout</span>
-                {language === 'en' ? 'Logout' : 'Cerrar Sesión'}
+                {language === 'en' ? 'Logout' : 'Cerrar SesiÃ³n'}
               </button>
             </div>
           </nav>
@@ -7274,19 +7278,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
                       { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
                       { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
-                      { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
-                      { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+                      { key: 'analytics', icon: 'monitoring', labelEs: 'AnÃ¡lisis', labelEn: 'Analytics' },
+                      { key: 'billing', icon: 'payments', labelEs: 'Planes y FacturaciÃ³n', labelEn: 'Billing' },
                       { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
-                      { key: 'settings-profile', icon: 'person', labelEs: 'Perfil (Configuración)', labelEn: 'Profile (Settings)' },
-                      { key: 'settings-api_helper', icon: 'support_agent', labelEs: 'Asistente de APIs (Configuración)', labelEn: 'API Helper (Settings)' },
-                      { key: 'settings-ai', icon: 'psychology', labelEs: 'Proveedor IA (Configuración)', labelEn: 'AI Provider (Settings)' },
-                      { key: 'settings-whatsapp', icon: 'chat', labelEs: 'WhatsApp API (Configuración)', labelEn: 'WhatsApp (Settings)' },
-                      { key: 'settings-notifications', icon: 'notifications', labelEs: 'Notificaciones (Configuración)', labelEn: 'Notifications (Settings)' },
-                      { key: 'settings-meta', icon: 'campaign', labelEs: 'Meta Ads (Configuración)', labelEn: 'Meta Ads (Settings)' },
-                      { key: 'settings-memory', icon: 'memory', labelEs: 'Memoria (Configuración)', labelEn: 'Memory (Settings)' },
-                      { key: 'settings-security', icon: 'security', labelEs: 'Seguridad (Configuración)', labelEn: 'Security (Settings)' },
-                      { key: 'settings-dropi', icon: 'local_shipping', labelEs: 'Dropi Dropshipping (Configuración)', labelEn: 'Dropi (Settings)' },
-                      { key: 'settings-appearance', icon: 'palette', labelEs: 'Apariencia (Configuración)', labelEn: 'Appearance (Settings)' },
+                      { key: 'settings-profile', icon: 'person', labelEs: 'Perfil (ConfiguraciÃ³n)', labelEn: 'Profile (Settings)' },
+                      { key: 'settings-api_helper', icon: 'support_agent', labelEs: 'Asistente de APIs (ConfiguraciÃ³n)', labelEn: 'API Helper (Settings)' },
+                      { key: 'settings-ai', icon: 'psychology', labelEs: 'Proveedor IA (ConfiguraciÃ³n)', labelEn: 'AI Provider (Settings)' },
+                      { key: 'settings-whatsapp', icon: 'chat', labelEs: 'WhatsApp API (ConfiguraciÃ³n)', labelEn: 'WhatsApp (Settings)' },
+                      { key: 'settings-notifications', icon: 'notifications', labelEs: 'Notificaciones (ConfiguraciÃ³n)', labelEn: 'Notifications (Settings)' },
+                      { key: 'settings-meta', icon: 'campaign', labelEs: 'Meta Ads (ConfiguraciÃ³n)', labelEn: 'Meta Ads (Settings)' },
+                      { key: 'settings-memory', icon: 'memory', labelEs: 'Memoria (ConfiguraciÃ³n)', labelEn: 'Memory (Settings)' },
+                      { key: 'settings-security', icon: 'security', labelEs: 'Seguridad (ConfiguraciÃ³n)', labelEn: 'Security (Settings)' },
+                      { key: 'settings-dropi', icon: 'local_shipping', labelEs: 'Dropi Dropshipping (ConfiguraciÃ³n)', labelEn: 'Dropi (Settings)' },
+                      { key: 'settings-appearance', icon: 'palette', labelEs: 'Apariencia (ConfiguraciÃ³n)', labelEn: 'Appearance (Settings)' },
                       ...(tenantData?.isAdmin ? [{ key: 'admin', icon: 'admin_panel_settings', labelEs: 'Administrador', labelEn: 'Admin' }] : [])
                     ];
                     
@@ -7333,7 +7337,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           {/* Notification Bell for Human Requests */}
           <div className="relative group cursor-pointer" onClick={() => {
             if (humanAlerts.length > 0) {
-              // Si hay alertas, podríamos abrir el chat del primero o mostrar un mini panel
+              // Si hay alertas, podrÃ­amos abrir el chat del primero o mostrar un mini panel
               const first = humanAlerts[0];
               setSelectedChat({ id: first.id, name: first.name, status: 'chatting', phone_number: '', created_at: '' });
               setTableFilter('all');
@@ -7365,7 +7369,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           safeSetActiveTab('conversations');
                           setSelectedChat({ id: alert.id, name: alert.name, status: 'chatting', phone_number: '', created_at: '' });
                           setShowChartModal(true);
-                          // También asegurarnos de que la tabla no esté filtrada si el usuario no aparece
+                          // TambiÃ©n asegurarnos de que la tabla no estÃ© filtrada si el usuario no aparece
                           setTableFilter('all');
                         }}
                       >
@@ -7381,7 +7385,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     ))}
                     {humanAlerts.length > 5 && (
                       <p className="text-[10px] text-center text-slate-400 pt-2 border-t border-slate-50 mt-2">
-                        {language === 'es' ? `y ${humanAlerts.length - 5} más...` : `and ${humanAlerts.length - 5} more...`}
+                        {language === 'es' ? `y ${humanAlerts.length - 5} mÃ¡s...` : `and ${humanAlerts.length - 5} more...`}
                       </p>
                     )}
                   </div>
@@ -7394,7 +7398,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           <button 
             onClick={() => setLanguage(language === 'en' ? 'es' : 'en')} 
             className="relative group p-2 rounded-full bg-slate-100 text-slate-500 hover:bg-primary-container/10 hover:text-primary-container transition-all"
-            title={language === 'en' ? 'Cambiar a Español' : 'Switch to English'}
+            title={language === 'en' ? 'Cambiar a EspaÃ±ol' : 'Switch to English'}
           >
             <span className="material-symbols-outlined text-xl">translate</span>
             <span className="absolute -bottom-0.5 -right-0.5 text-[8px] font-black bg-primary-container text-white rounded-full w-4 h-4 flex items-center justify-center border border-white">
@@ -7402,14 +7406,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             </span>
             {/* Tooltip */}
             <div className="absolute top-full mt-2 right-0 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-50">
-              {language === 'en' ? 'Cambiar a Español' : 'Switch to English'}
+              {language === 'en' ? 'Cambiar a EspaÃ±ol' : 'Switch to English'}
             </div>
           </button>
 
           <button 
             onClick={() => { safeSetActiveTab('settings'); setSettingsSection('profile'); }}
             className="flex items-center gap-3 group cursor-pointer hover:opacity-80 transition-opacity"
-            title={language === 'en' ? 'Go to Profile Settings' : 'Ir a Configuración de Perfil'}
+            title={language === 'en' ? 'Go to Profile Settings' : 'Ir a ConfiguraciÃ³n de Perfil'}
           >
             <div className="text-right">
               <p className="text-xs font-bold text-primary group-hover:text-[#0058bc] transition-colors">{tenantData?.companyName || tenantData?.email?.split('@')[0] || 'Admin'}</p>
@@ -7443,7 +7447,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <h2 className="text-2xl font-black text-slate-800 mb-3">
               {isPlanExpired 
                 ? (language === 'es' ? 'Plan Expirado' : 'Plan Expired')
-                : (language === 'es' ? 'Sección no disponible' : 'Section unavailable')}
+                : (language === 'es' ? 'SecciÃ³n no disponible' : 'Section unavailable')}
             </h2>
             
             {/* Message */}
@@ -7451,7 +7455,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               {isPlanExpired ? (
                 language === 'es' ? (
                   <>
-                    Tu suscripción ha expirado. Para seguir usando esta sección o renovar tu servicio, cambia tu plan de suscripción en nuestra sección de facturación.
+                    Tu suscripciÃ³n ha expirado. Para seguir usando esta secciÃ³n o renovar tu servicio, cambia tu plan de suscripciÃ³n en nuestra secciÃ³n de facturaciÃ³n.
                   </>
                 ) : (
                   <>
@@ -7461,11 +7465,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               ) : (
                 language === 'es' ? (
                   <>
-                    Tu suscripción actual no te permite acceder a esta sección. Debes cambiarte al plan{' '}
+                    Tu suscripciÃ³n actual no te permite acceder a esta secciÃ³n. Debes cambiarte al plan{' '}
                     <strong className="text-primary font-extrabold text-red-500">
                       {getRequiredPlanForTab(activeTab)?.name || 'superior'}
                     </strong>{' '}
-                    para desbloquear esta función y otros módulos avanzados.
+                    para desbloquear esta funciÃ³n y otros mÃ³dulos avanzados.
                   </>
                 ) : (
                   <>
@@ -7487,7 +7491,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <span className="material-symbols-outlined text-lg">credit_card</span>
               {isPlanExpired
                 ? (language === 'es' ? 'Cambiar Plan / Renovar' : 'Change Plan / Renew')
-                : (language === 'es' ? 'Cambiar Plan de Suscripción' : 'Change Subscription Plan')}
+                : (language === 'es' ? 'Cambiar Plan de SuscripciÃ³n' : 'Change Subscription Plan')}
               <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">arrow_forward</span>
             </button>
           </motion.div>
@@ -7670,13 +7674,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="flex items-center justify-between mt-1.5">
                           <p className="text-[10px] text-white/70">
                             {isExpired 
-                              ? <><span className="text-white font-bold">Tu plan ha expirado.</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Renovar ahora</span></>
-                              : <>Tu plan {plan === 'trial' ? 'de prueba' : ''} expira el {expiresStr} · <span className="font-bold text-white">{daysLeft} {daysLeft === 1 ? 'd\u00eda' : 'd\u00edas'} restantes</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Ver planes</span></>
+                              ? <><span className="text-white font-bold">Tu plan ha expirado.</span> Â· <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Renovar ahora</span></>
+                              : <>Tu plan {plan === 'trial' ? 'de prueba' : ''} expira el {expiresStr} Â· <span className="font-bold text-white">{daysLeft} {daysLeft === 1 ? 'd\u00eda' : 'd\u00edas'} restantes</span> Â· <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Ver planes</span></>
                             }
                           </p>
                           <div className="flex gap-2">
                             <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">{contactCount}/{maxContacts.toLocaleString()}</div>
-                            <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">– {planBots[plan]}</div>
+                            <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">â€“ {planBots[plan]}</div>
                             <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20"> {planMembers[plan]}</div>
                             <div className="bg-white/15 backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold text-white border border-white/20">{storageUsed}/{planStorage[plan]}</div>
                           </div>
@@ -7684,7 +7688,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                     );
                   })()}
-                  {/* Expert Cards — reflejan el estado REAL de configuración de la cuenta */}
+                  {/* Expert Cards â€” reflejan el estado REAL de configuraciÃ³n de la cuenta */}
                   {(() => {
                     const experts = [
                       {
@@ -7694,7 +7698,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         onClick: () => { setActiveTab('settings'); setSettingsSection('whatsapp'); },
                       },
                       {
-                        name: 'Experto en logística',
+                        name: 'Experto en logÃ­stica',
                         icon: 'local_shipping',
                         active: !!configData.dropi_enabled,
                         onClick: () => { setActiveTab('settings'); setSettingsSection('dropi'); },
@@ -7741,7 +7745,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             ) : (
                               <>
                                 <span className="material-symbols-outlined text-green-500">check_circle</span>
-                                <span className="text-sm font-semibold">¡Todos tus expertos están configurados!</span>
+                                <span className="text-sm font-semibold">Â¡Todos tus expertos estÃ¡n configurados!</span>
                               </>
                             )}
                           </div>
@@ -7755,14 +7759,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   })()}
                 </div>
 
-                {/* Bottom two cards row — ambas alimentadas por el mismo sistema de Anuncios,
+                {/* Bottom two cards row â€” ambas alimentadas por el mismo sistema de Anuncios,
                     separadas por tipo: "training" va a Capacitaciones, el resto a Actualizaciones */}
                 {(() => {
                   const updates = platformAnnouncements.filter((a: any) => a.type === 'update');
                   const trainings = platformAnnouncements.filter((a: any) => a.type === 'training');
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Actualizaciones — datos reales del sistema de Anuncios */}
+                      {/* Actualizaciones â€” datos reales del sistema de Anuncios */}
                       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
                         <div className="bg-orange-500 p-4 flex justify-between items-center text-white rounded-t-2xl">
                           <div>
@@ -7788,7 +7792,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 info: { label: 'Info', bg: 'bg-blue-500' },
                                 update: { label: 'Nuevo', bg: 'bg-green-500' },
                                 warning: { label: 'Aviso', bg: 'bg-red-500' },
-                                promo: { label: 'Promoción', bg: 'bg-emerald-500' },
+                                promo: { label: 'PromociÃ³n', bg: 'bg-emerald-500' },
                               };
                               const badge = badgeConfig[ann.type] || badgeConfig.info;
                               return (
@@ -7801,7 +7805,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <p className="text-xs text-slate-600">{ann.message}</p>
                                   {ann.button_url && (
                                     <a href={ann.button_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-orange-600 text-xs font-bold hover:underline">
-                                      {ann.button_text || 'Ver más'} <span className="material-symbols-outlined text-xs">open_in_new</span>
+                                      {ann.button_text || 'Ver mÃ¡s'} <span className="material-symbols-outlined text-xs">open_in_new</span>
                                     </a>
                                   )}
                                 </div>
@@ -7811,12 +7815,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
                       </div>
 
-                      {/* Capacitaciones — anuncios de tipo "training" */}
+                      {/* Capacitaciones â€” anuncios de tipo "training" */}
                       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col h-[400px] overflow-hidden">
                         <div className="bg-primary-container p-4 flex justify-between items-center text-white rounded-t-2xl">
                           <div>
                             <h3 className="font-bold text-lg leading-none">Capacitaciones</h3>
-                            <p className="text-xs text-white/80 mt-1">Próximas sesiones importantes</p>
+                            <p className="text-xs text-white/80 mt-1">PrÃ³ximas sesiones importantes</p>
                           </div>
                           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
                         </div>
@@ -7859,7 +7863,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <span className="text-primary-container font-extrabold tracking-[0.2em] text-[10px] uppercase mb-2 block">Enterprise CRM</span>
                 <h1 className="text-5xl font-extrabold text-primary tracking-tight mb-4 font-headline">{language === 'en' ? 'Audience Intelligence' : 'Inteligencia de Audiencia'}</h1>
                 <p className="text-lg text-slate-500 font-light leading-relaxed">
-                  {language === 'en' ? 'Advanced orchestration of your WhatsApp ecosystem. Synchronize, segment, and influence your contact base with real-time AI behavioral detection.' : 'Orquestación avanzada de tu ecosistema WhatsApp. Sincroniza, segmenta e influye en tu base de contactos con detección de comportamiento de IA en tiempo real.'}
+                  {language === 'en' ? 'Advanced orchestration of your WhatsApp ecosystem. Synchronize, segment, and influence your contact base with real-time AI behavioral detection.' : 'OrquestaciÃ³n avanzada de tu ecosistema WhatsApp. Sincroniza, segmenta e influye en tu base de contactos con detecciÃ³n de comportamiento de IA en tiempo real.'}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -7897,7 +7901,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       const res = await authFetch('/api/panel/orders/export');
                       if (!res.ok) {
                         const err = await res.json().catch(() => ({}));
-                        setToast({ message: err.error || 'Error al exportar órdenes', type: 'error' });
+                        setToast({ message: err.error || 'Error al exportar Ã³rdenes', type: 'error' });
                         return;
                       }
                       const blob = await res.blob();
@@ -7907,9 +7911,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       a.download = `dropi_ecuador_orders_${new Date().toISOString().slice(0,10)}.csv`;
                       a.click();
                       URL.revokeObjectURL(url);
-                      setToast({ message: language === 'en' ? '✅ Orders exported successfully!' : '✅ ¡Pedidos exportados exitosamente!', type: 'success' });
+                      setToast({ message: language === 'en' ? 'âœ… Orders exported successfully!' : 'âœ… Â¡Pedidos exportados exitosamente!', type: 'success' });
                     } catch (err: any) {
-                      setToast({ message: err.message || 'Error de conexión', type: 'error' });
+                      setToast({ message: err.message || 'Error de conexiÃ³n', type: 'error' });
                     } finally {
                       setIsExportingDropi(false);
                     }
@@ -7957,7 +7961,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
                         <div>
                           <h3 className="font-bold text-lg">{language === 'es' ? 'Agregar Contacto' : 'Add Contact'}</h3>
-                          <p className="text-white/70 text-xs">{language === 'es' ? 'Crea un nuevo contacto y la IA le envía el primer mensaje' : 'Create a new contact and AI sends the first message'}</p>
+                          <p className="text-white/70 text-xs">{language === 'es' ? 'Crea un nuevo contacto y la IA le envÃ­a el primer mensaje' : 'Create a new contact and AI sends the first message'}</p>
                         </div>
                       </div>
                       <button onClick={() => setShowAddContact(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
@@ -8063,7 +8067,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               type="text"
                               value={newContact.name}
                               onChange={e => setNewContact((p: any) => ({ ...p, name: e.target.value }))}
-                              placeholder="Ej: Juan Pérez"
+                              placeholder="Ej: Juan PÃ©rez"
                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-container/30 focus:border-primary-container"
                             />
                           </div>
@@ -8295,7 +8299,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <span className="text-sm font-black text-indigo-300">{Math.min(99, Math.round((selectedConv.lead_score ?? 0) * 1.05 + 5))}%</span>
                         </div>
                         <div className="bg-white/10 p-3 rounded-lg border border-white/5">
-                          <p className="text-[10px] uppercase font-bold text-white/70 mb-1 tracking-wider">{language === 'en' ? 'Recommended Action:' : 'Acción recomendada:'}</p>
+                          <p className="text-[10px] uppercase font-bold text-white/70 mb-1 tracking-wider">{language === 'en' ? 'Recommended Action:' : 'AcciÃ³n recomendada:'}</p>
                           <p className="text-xs font-semibold text-amber-200 flex items-center gap-1">
                             <span className="material-symbols-outlined text-xs">auto_awesome</span>
                             {selectedConv.next_action || (language === 'es' ? 'Llamar hoy' : 'Call today')}
@@ -8316,7 +8320,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <>
                     <div>
                       <h4 className="text-lg font-bold mb-1">{language === 'en' ? 'Predictive Insights' : 'Insights Predictivos'}</h4>
-                      <p className="text-sm text-white/70 font-light">{language === 'en' ? 'AI detects contacts most likely to resume conversations in the next 24-48 hours.' : 'La IA detecta contactos con mayor probabilidad de retomar conversaciones en las próximas 24-48 horas.'}</p>
+                      <p className="text-sm text-white/70 font-light">{language === 'en' ? 'AI detects contacts most likely to resume conversations in the next 24-48 hours.' : 'La IA detecta contactos con mayor probabilidad de retomar conversaciones en las prÃ³ximas 24-48 horas.'}</p>
                     </div>
                     <button 
                       onClick={async () => {
@@ -8362,7 +8366,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-red-500/5 rounded-full blur-xl group-hover:bg-red-500/10 transition-colors"></div>
                 <div>
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
-                    <span>🔥</span>
+                    <span>ðŸ”¥</span>
                     {language === 'es' ? 'Leads Calientes' : 'Hot Leads'}
                   </p>
                   <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
@@ -8387,7 +8391,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/5 rounded-full blur-xl group-hover:bg-amber-500/10 transition-colors"></div>
                 <div>
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
-                    <span>🟡</span>
+                    <span>ðŸŸ¡</span>
                     {language === 'es' ? 'Leads Tibios' : 'Warm Leads'}
                   </p>
                   <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
@@ -8412,8 +8416,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-slate-500/5 rounded-full blur-xl group-hover:bg-slate-500/10 transition-colors"></div>
                 <div>
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
-                    <span>⚪</span>
-                    {language === 'es' ? 'Leads Fríos' : 'Cold Leads'}
+                    <span>âšª</span>
+                    {language === 'es' ? 'Leads FrÃ­os' : 'Cold Leads'}
                   </p>
                   <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
                     {allContacts.filter((c: any) => (c.lead_score ?? 0) >= 0 && (c.lead_score ?? 0) <= 39).length}
@@ -8435,7 +8439,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <span className="material-symbols-outlined text-white text-lg">psychology</span>
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-primary">{language === 'es' ? 'Contactos con Mayor Probabilidad de Retomar Conversación' : 'Contacts Most Likely to Re-engage'}</h3>
+                      <h3 className="text-sm font-bold text-primary">{language === 'es' ? 'Contactos con Mayor Probabilidad de Retomar ConversaciÃ³n' : 'Contacts Most Likely to Re-engage'}</h3>
                       <p className="text-[10px] text-slate-400">{language === 'es' ? `${predictions.length} contactos analizados por la IA` : `${predictions.length} contacts analyzed by AI`}</p>
                     </div>
                   </div>
@@ -8474,11 +8478,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       <div className="flex items-center justify-between">
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${p.status === 'interested' ? 'bg-amber-100 text-amber-700' : p.status === 'chatting' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {p.status === 'interested' ? (language === 'es' ? 'Interesado' : 'Interested') : p.status === 'chatting' ? (language === 'es' ? 'Activo' : 'Active') : (language === 'es' ? 'Compró' : 'Bought')}
+                          {p.status === 'interested' ? (language === 'es' ? 'Interesado' : 'Interested') : p.status === 'chatting' ? (language === 'es' ? 'Activo' : 'Active') : (language === 'es' ? 'ComprÃ³' : 'Bought')}
                         </span>
                         <button 
                           onClick={() => {
-                            setBulkMessage(`¡Hola ${p.name.split(' ')[0]}! `);
+                            setBulkMessage(`Â¡Hola ${p.name.split(' ')[0]}! `);
                             setSelectedContacts(new Set([p.id]));
                             setShowBulkPanel(true);
                             setShowPredictions(false);
@@ -8531,7 +8535,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                             }`}
                           >
-                            {temp === 'all' ? (language === 'es' ? 'Todos Temp' : 'All Temp') : temp === 'hot' ? (language === 'es' ? '🔥 Calientes' : '🔥 Hot') : temp === 'warm' ? (language === 'es' ? '🟡 Tibios' : '🟡 Warm') : (language === 'es' ? '⚪ Fríos' : '⚪ Cold')}
+                            {temp === 'all' ? (language === 'es' ? 'Todos Temp' : 'All Temp') : temp === 'hot' ? (language === 'es' ? 'ðŸ”¥ Calientes' : 'ðŸ”¥ Hot') : temp === 'warm' ? (language === 'es' ? 'ðŸŸ¡ Tibios' : 'ðŸŸ¡ Warm') : (language === 'es' ? 'âšª FrÃ­os' : 'âšª Cold')}
                           </span>
                         ))}
                       </div>
@@ -8543,8 +8547,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         onChange={e => { setTableSortBy(e.target.value as any); setTablePage(1); }}
                         className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 font-medium focus:outline-none focus:ring-1 focus:ring-primary-container/30 cursor-pointer"
                       >
-                        <option value="recent">{language === 'es' ? ' Más recientes' : ' Most recent'}</option>
-                        <option value="alpha">{language === 'es' ? ' Alfabético' : ' Alphabetical'}</option>
+                        <option value="recent">{language === 'es' ? ' MÃ¡s recientes' : ' Most recent'}</option>
+                        <option value="alpha">{language === 'es' ? ' AlfabÃ©tico' : ' Alphabetical'}</option>
                         <option value="active">{language === 'es' ? ' Activos primero' : ' Active first'}</option>
                       </select>
                       <button 
@@ -8561,10 +8565,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <tr className="bg-crm-surface-container-low/30 border-b border-slate-50">
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'User Identity' : 'Identidad del Usuario'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Lead Score' : 'Puntaje Lead'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Classification' : 'Clasificación'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Classification' : 'ClasificaciÃ³n'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Sales Stage' : 'Etapa de Venta'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'Próxima Acción'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Última Interacción'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'PrÃ³xima AcciÃ³n'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Ãšltima InteracciÃ³n'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
                       </tr>
                     </thead>
@@ -8572,7 +8576,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {pagedContacts.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-6 py-12 text-center text-slate-400 text-sm">
-                            {language === 'es' ? 'No hay contactos en esta categoría' : 'No contacts in this category'}
+                            {language === 'es' ? 'No hay contactos en esta categorÃ­a' : 'No contacts in this category'}
                           </td>
                         </tr>
                       ) : pagedContacts.map((conv: any, idx: number) => {
@@ -8595,7 +8599,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <div className="flex items-center gap-2">
                                     <p className="font-bold text-primary group-hover:text-primary-container transition-colors">{conv.customer_name || 'Usuario'}</p>
                                     <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-indigo-50 text-indigo-700 border border-indigo-150' : conv.status === 'interested' ? 'bg-amber-50 text-amber-700 border border-amber-150' : 'bg-emerald-50 text-emerald-700 border border-emerald-150'}`}>
-                                      {conv.status === 'chatting' ? (language === 'en' ? 'Chat' : 'Chat') : conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') : (language === 'en' ? 'Bought' : 'Compró')}
+                                      {conv.status === 'chatting' ? (language === 'en' ? 'Chat' : 'Chat') : conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') : (language === 'en' ? 'Bought' : 'ComprÃ³')}
                                     </span>
                                   </div>
                                   <p className="text-xs text-slate-400">{conv.phone_number}</p>
@@ -8610,7 +8614,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-5" data-label={language === 'en' ? 'Classification' : 'Clasificación'}>
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Classification' : 'ClasificaciÃ³n'}>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${classification.color}`}>
                                 <span>{classification.emoji}</span>
                                 <span>{classification.text}</span>
@@ -8621,16 +8625,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 {formatSalesStage(conv.sales_stage)}
                               </span>
                             </td>
-                            <td className="px-6 py-5" data-label={language === 'en' ? 'Next Action' : 'Próxima Acción'}>
-                              <p className="text-xs font-medium text-slate-500 max-w-[150px] truncate" title={conv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}>
-                                {conv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Next Action' : 'PrÃ³xima AcciÃ³n'}>
+                              <p className="text-xs font-medium text-slate-500 max-w-[150px] truncate" title={conv.next_action || (language === 'es' ? 'Continuar conversaciÃ³n' : 'Continue conversation')}>
+                                {conv.next_action || (language === 'es' ? 'Continuar conversaciÃ³n' : 'Continue conversation')}
                               </p>
                             </td>
-                            <td className="px-6 py-5" data-label={language === 'en' ? 'Last Engagement' : 'Última Interacción'}>
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Last Engagement' : 'Ãšltima InteracciÃ³n'}>
                               <p className="text-xs text-on-surface font-medium mb-1 truncate max-w-[180px]">
                                 {isActive 
                                   ? (language === 'es' ? ' Conversando ahora' : ' Chatting now')
-                                  : (language === 'es' ? 'Última actividad' : 'Last activity')}
+                                  : (language === 'es' ? 'Ãšltima actividad' : 'Last activity')}
                               </p>
                               <p className="text-[10px] text-slate-400">
                                 {lastDate ? new Date(lastDate).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '\u2014'}
@@ -8649,7 +8653,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   {/* Pagination */}
                   <div className="px-6 py-4 bg-white border-t border-slate-50 flex items-center justify-between">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                      {language === 'es' ? `Página ${tablePage} de ${totalTablePages} · ${tableContacts.length} contactos` : `Page ${tablePage} of ${totalTablePages} · ${tableContacts.length} contacts`}
+                      {language === 'es' ? `PÃ¡gina ${tablePage} de ${totalTablePages} Â· ${tableContacts.length} contactos` : `Page ${tablePage} of ${totalTablePages} Â· ${tableContacts.length} contacts`}
                     </p>
                     <div className="flex gap-1">
                       <button 
@@ -8790,7 +8794,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </div>
                               </div>
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Classification' : 'Clasificación'}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Classification' : 'ClasificaciÃ³n'}</p>
                                 {(() => {
                                   const classification = getLeadClassification(selectedConv.lead_score ?? 0);
                                   return (
@@ -8812,7 +8816,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </span>
                               </div>
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Detected Intent' : 'Intención IA'}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Detected Intent' : 'IntenciÃ³n IA'}</p>
                                 <span className="inline-block mt-1 px-2 py-0.5 rounded border border-indigo-100 text-indigo-600 bg-indigo-50/50 text-[10px] font-semibold capitalize font-sans">
                                   {formatIntent(selectedConv.intent)}
                                 </span>
@@ -8833,25 +8837,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </div>
                               </div>
 
-                              {/* Servicio de Interés */}
+                              {/* Servicio de InterÃ©s */}
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Service of Interest' : 'Servicio de Interés'}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Service of Interest' : 'Servicio de InterÃ©s'}</p>
                                 <p className="font-semibold text-slate-700 mt-0.5">{selectedConv.service_interest || (language === 'es' ? 'Ninguno' : 'None')}</p>
                               </div>
 
-                              {/* Última Objeción */}
+                              {/* Ãšltima ObjeciÃ³n */}
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Objection' : 'Última Objeción'}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Objection' : 'Ãšltima ObjeciÃ³n'}</p>
                                 <p className="font-semibold text-red-650 mt-0.5 bg-red-50/50 px-2 py-1 rounded border border-red-100/30 italic">
-                                  {selectedConv.last_objection ? `"${selectedConv.last_objection}"` : (language === 'es' ? 'Ninguna objeción' : 'No objection')}
+                                  {selectedConv.last_objection ? `"${selectedConv.last_objection}"` : (language === 'es' ? 'Ninguna objeciÃ³n' : 'No objection')}
                                 </p>
                               </div>
 
-                              {/* Próxima Acción */}
+                              {/* PrÃ³xima AcciÃ³n */}
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'Próxima Acción'}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'PrÃ³xima AcciÃ³n'}</p>
                                 <p className="font-semibold text-amber-700 mt-0.5 bg-amber-50 px-2 py-1 rounded border border-amber-100/30">
-                                  {selectedConv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}
+                                  {selectedConv.next_action || (language === 'es' ? 'Continuar conversaciÃ³n' : 'Continue conversation')}
                                 </p>
                               </div>
                             </div>
@@ -8945,7 +8949,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               </button>
               <div>
                 <h2 className="text-3xl font-extrabold text-[#0b1c30] tracking-tight">
-                  {language === 'en' ? 'Settings' : 'Configuración'}
+                  {language === 'en' ? 'Settings' : 'ConfiguraciÃ³n'}
                 </h2>
                 <p className="text-slate-400 mt-0.5 text-sm font-medium">
                   {language === 'en' ? 'Manage your account, integrations and preferences.' : 'Administra tu cuenta, integraciones y preferencias.'}
@@ -8956,7 +8960,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             {/* Two-column layout */}
             <div className="flex gap-8 items-start">
 
-              {/* ── LEFT NAV SIDEBAR ── */}
+              {/* â”€â”€ LEFT NAV SIDEBAR â”€â”€ */}
               <aside className="w-56 shrink-0 sticky top-8 space-y-1">
                 {[
                   { key: 'profile',       icon: 'manage_accounts', label: language === 'en' ? 'Profile' : 'Perfil' },
@@ -9011,19 +9015,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </button>
                     ) : null;
                   })()}
-                  {showSuccess && <p className="text-[10px] text-emerald-600 font-bold text-center mt-2">✓ {language === 'en' ? 'Saved!' : '¡Guardado!'}</p>}
+                  {showSuccess && <p className="text-[10px] text-emerald-600 font-bold text-center mt-2">âœ“ {language === 'en' ? 'Saved!' : 'Â¡Guardado!'}</p>}
                   {saveError && <p className="text-[10px] text-red-500 font-bold text-center mt-2">{saveError}</p>}
                 </div>
               </aside>
 
-              {/* ── RIGHT CONTENT AREA ── */}
+              {/* â”€â”€ RIGHT CONTENT AREA â”€â”€ */}
               <div className="flex-1 min-w-0">
 
-                {/* ════ API ASSISTANT ════ */}
+                {/* â•â•â•â• API ASSISTANT â•â•â•â• */}
                 {settingsSection === 'api_helper' && (
                   <div className="space-y-6 animate-fadeIn">
                     <div>
-                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'API Setup Assistant' : 'Asistente de Configuración de APIs'}</h3>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'API Setup Assistant' : 'Asistente de ConfiguraciÃ³n de APIs'}</h3>
                       <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure WhatsApp and Meta Ads step-by-step with conversational guidance.' : 'Configura WhatsApp y Meta Ads paso a paso con ayuda e indicaciones conversacionales.'}</p>
                     </div>
 
@@ -9082,7 +9086,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             }}
                             placeholder={
                               apiHelperFlow === 'idle'
-                                ? 'Pregúntame algo o selecciona una opción...'
+                                ? 'PregÃºntame algo o selecciona una opciÃ³n...'
                                 : 'Ingresa la credencial o responde al bot...'
                             }
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-600 outline-none focus:border-[#0058bc] focus:ring-1 focus:ring-[#0058bc]/30 transition-all"
@@ -9099,8 +9103,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {/* Right: Live Preview Panel */}
                       <div className="col-span-12 lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
                         <div>
-                          <h4 className="text-sm font-black uppercase tracking-widest text-[#0b1c30]">{language === 'en' ? 'Live Configuration' : 'Configuración en Tiempo Real'}</h4>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'See fields fill up as you converse.' : 'Observa cómo se completan los campos al chatear.'}</p>
+                          <h4 className="text-sm font-black uppercase tracking-widest text-[#0b1c30]">{language === 'en' ? 'Live Configuration' : 'ConfiguraciÃ³n en Tiempo Real'}</h4>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'See fields fill up as you converse.' : 'Observa cÃ³mo se completan los campos al chatear.'}</p>
                         </div>
 
                         {/* WhatsApp Status Card */}
@@ -9120,7 +9124,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-slate-400 font-bold uppercase tracking-wider">Bearer Token</span>
-                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm max-w-[150px] truncate">{configData.whatsapp_token ? '••••••••' + configData.whatsapp_token.substring(configData.whatsapp_token.length - 8) : <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm max-w-[150px] truncate">{configData.whatsapp_token ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' + configData.whatsapp_token.substring(configData.whatsapp_token.length - 8) : <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
                             </div>
                           </div>
                         </div>
@@ -9146,7 +9150,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-slate-400 font-bold uppercase tracking-wider">Access Token</span>
-                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm max-w-[150px] truncate">{configData.facebook_access_token ? '••••••••' + configData.facebook_access_token.substring(configData.facebook_access_token.length - 8) : <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
+                              <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-100 shadow-sm max-w-[150px] truncate">{configData.facebook_access_token ? 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢' + configData.facebook_access_token.substring(configData.facebook_access_token.length - 8) : <span className="italic text-slate-300 font-normal">Sin configurar</span>}</span>
                             </div>
                           </div>
                         </div>
@@ -9161,12 +9165,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* ════ PROFILE ════ */}
+                {/* â•â•â•â• PROFILE â•â•â•â• */}
                 {settingsSection === 'profile' && (
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Administrative Profile' : 'Perfil Administrativo'}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Update your name and contact information.' : 'Actualiza tu nombre e información de contacto.'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Update your name and contact information.' : 'Actualiza tu nombre e informaciÃ³n de contacto.'}</p>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
@@ -9193,7 +9197,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Email Address' : 'Correo Electrónico'}</label>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Email Address' : 'Correo ElectrÃ³nico'}</label>
                           <input
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none opacity-75 cursor-not-allowed"
                             type="email"
@@ -9222,19 +9226,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           className="px-6 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl transition-all active:scale-[0.98] flex items-center gap-2 border border-red-100"
                         >
                           <span className="material-symbols-outlined text-sm">logout</span>
-                          {language === 'en' ? 'Logout' : 'Cerrar Sesión'}
+                          {language === 'en' ? 'Logout' : 'Cerrar SesiÃ³n'}
                         </button>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* ════ AI PROVIDER ════ */}
+                {/* â•â•â•â• AI PROVIDER â•â•â•â• */}
                 {settingsSection === 'ai' && (
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'AI Provider & Engine' : 'Proveedor de IA y Motor'}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your AI provider and connection credentials.' : 'Configura tu proveedor de IA y credenciales de conexión.'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your AI provider and connection credentials.' : 'Configura tu proveedor de IA y credenciales de conexiÃ³n.'}</p>
                     </div>
 
 
@@ -9293,7 +9297,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       {/* API Key */}
                       <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">API Key — {selectedAiProvider.charAt(0).toUpperCase() + selectedAiProvider.slice(1)}</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">API Key â€” {selectedAiProvider.charAt(0).toUpperCase() + selectedAiProvider.slice(1)}</label>
                         <div className="relative">
                           <input
                             className={`w-full bg-slate-50 border-2 rounded-xl px-4 py-3 pr-20 text-xs font-mono text-slate-600 outline-none transition-all ${
@@ -9332,14 +9336,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         {aiKeyVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
                          aiKeyStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span> {language === 'en' ? 'Verified' : 'Verificado'}</> :
                          aiKeyStatus === 'error' ? <><span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Retry' : 'Reintentar'}</> :
-                         <><span className="material-symbols-outlined text-sm">shield</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
+                         <><span className="material-symbols-outlined text-sm">shield</span> {language === 'en' ? 'Verify Connection' : 'Verificar ConexiÃ³n'}</>}
                       </button>
                       {aiKeyStatusMsg && aiKeyStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${aiKeyStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{aiKeyStatusMsg}</p>}
                     </div>
 
                     {/* AI Settings */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                      <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Engine Parameters' : 'Parámetros del Motor'}</h4>
+                      <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Engine Parameters' : 'ParÃ¡metros del Motor'}</h4>
                       <div className="space-y-1.5">
                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Model' : 'Modelo IA'}</label>
                         <select
@@ -9361,8 +9365,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                       <div className="flex items-center justify-between py-3 border-t border-slate-50">
                         <div>
-                          <span className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Auto-Classification' : 'Auto-Clasificación'}</span>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'Real-time intent labeling' : 'Etiquetado de intención en tiempo real'}</p>
+                          <span className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Auto-Classification' : 'Auto-ClasificaciÃ³n'}</span>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'Real-time intent labeling' : 'Etiquetado de intenciÃ³n en tiempo real'}</p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" className="sr-only peer" checked={configData.auto_classification} onChange={e => setConfigData({...configData, auto_classification: e.target.checked})} />
@@ -9375,7 +9379,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* ════ WHATSAPP ════ */}
+                {/* â•â•â•â• WHATSAPP â•â•â•â• */}
                 {settingsSection === 'whatsapp' && (() => {
                   const isWaConnected = !!(
                     (configData.whatsapp_token_configured || configData.whatsapp_token)
@@ -9485,7 +9489,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   };
 
                   const handleSelectPhone = async (phone: any) => {
-                    setToast({ type: 'info', message: language === 'en' ? 'Saving connection...' : 'Guardando conexión...' });
+                    setToast({ type: 'info', message: language === 'en' ? 'Saving connection...' : 'Guardando conexiÃ³n...' });
                     const res = await authFetch('/api/panel/whatsapp/facebook-connect', {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
@@ -9505,11 +9509,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       }));
                       setWaShowPhonePicker(false);
                       setWaStatus('success');
-                      setWaStatusMsg(data.phoneNumber ? `✓ ${data.phoneNumber}` : '✓ Conectado');
+                      setWaStatusMsg(data.phoneNumber ? `âœ“ ${data.phoneNumber}` : 'âœ“ Conectado');
                       if (data.webhookSubscribed) {
-                        setToast({ type: 'success', message: language === 'en' ? '✓ WhatsApp connected! Incoming messages are active.' : '✓ WhatsApp conectado! Los mensajes entrantes están activos.' });
+                        setToast({ type: 'success', message: language === 'en' ? 'âœ“ WhatsApp connected! Incoming messages are active.' : 'âœ“ WhatsApp conectado! Los mensajes entrantes estÃ¡n activos.' });
                       } else {
-                        setToast({ type: 'error', message: (language === 'en' ? 'Connected, but incoming messages may not arrive: ' : 'Conectado, pero los mensajes entrantes podrían no llegar: ') + (data.webhookSubscribeError || '') });
+                        setToast({ type: 'error', message: (language === 'en' ? 'Connected, but incoming messages may not arrive: ' : 'Conectado, pero los mensajes entrantes podrÃ­an no llegar: ') + (data.webhookSubscribeError || '') });
                       }
                     } else {
                       setToast({ type: 'error', message: data.error || 'Error saving' });
@@ -9520,7 +9524,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="space-y-6">
                       <div>
                         <h3 className="text-base font-extrabold text-[#0b1c30]">WhatsApp Business</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Connect your WhatsApp number in one click via Facebook.' : 'Conecta tu número de WhatsApp en un clic con Facebook.'}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Connect your WhatsApp number in one click via Facebook.' : 'Conecta tu nÃºmero de WhatsApp en un clic con Facebook.'}</p>
                       </div>
 
                       {/* Main Connection Card */}
@@ -9533,7 +9537,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </div>
                             <div>
                               <p className="text-white font-bold text-sm">WhatsApp Business API</p>
-                              <p className="text-green-100 text-[10px]">OAuth 2.0 — Seguro y Oficial</p>
+                              <p className="text-green-100 text-[10px]">OAuth 2.0 â€” Seguro y Oficial</p>
                             </div>
                           </div>
                           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${isWaConnected ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30' : 'bg-white/10 text-white/60 border border-white/20'}`}>
@@ -9563,7 +9567,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {/* Phone picker */}
                           {waShowPhonePicker && waPhoneOptions.length > 0 && (
                             <div className="space-y-3">
-                              <p className="text-xs font-black text-slate-600 uppercase tracking-wider">{language === 'en' ? 'Select your WhatsApp number:' : 'Selecciona tu número de WhatsApp:'}</p>
+                              <p className="text-xs font-black text-slate-600 uppercase tracking-wider">{language === 'en' ? 'Select your WhatsApp number:' : 'Selecciona tu nÃºmero de WhatsApp:'}</p>
                               {waPhoneOptions.map((phone: any) => {
                                 const isTaken = phone.takenByAnotherTenant === true;
                                 return (
@@ -9583,7 +9587,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className={`text-sm font-black ${isTaken ? 'text-slate-400' : 'text-slate-800 group-hover:text-emerald-700'}`}>{phone.verifiedName || phone.displayPhone}</p>
-                                      <p className="text-[10px] text-slate-400 font-mono">{phone.displayPhone} · ID: {phone.phoneNumberId}</p>
+                                      <p className="text-[10px] text-slate-400 font-mono">{phone.displayPhone} Â· ID: {phone.phoneNumberId}</p>
                                       {isTaken
                                         ? <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full mt-1 bg-red-100 text-red-600"><span className="w-1 h-1 rounded-full bg-current" />{language === 'en' ? 'Used by another account' : 'En uso por otra cuenta'}</span>
                                         : <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full mt-1 ${phone.status === 'CONNECTED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><span className="w-1 h-1 rounded-full bg-current" />{phone.status || 'READY'}</span>
@@ -9608,8 +9612,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <div className="grid grid-cols-3 gap-3">
                                 {[
                                   { icon: 'login', label: '1. ' + (language === 'en' ? 'Login' : 'Ingresa'), desc: language === 'en' ? 'Facebook account' : 'Con tu cuenta' },
-                                  { icon: 'phone_iphone', label: '2. ' + (language === 'en' ? 'Select' : 'Elige'), desc: language === 'en' ? 'Your number' : 'Tu número WA' },
-                                  { icon: 'check_circle', label: '3. ' + (language === 'en' ? 'Done!' : '¡Listo!'), desc: language === 'en' ? 'Auto activated' : 'Activado auto' },
+                                  { icon: 'phone_iphone', label: '2. ' + (language === 'en' ? 'Select' : 'Elige'), desc: language === 'en' ? 'Your number' : 'Tu nÃºmero WA' },
+                                  { icon: 'check_circle', label: '3. ' + (language === 'en' ? 'Done!' : 'Â¡Listo!'), desc: language === 'en' ? 'Auto activated' : 'Activado auto' },
                                 ].map((step) => (
                                   <div key={step.icon} className="text-center p-3 bg-slate-50 rounded-xl">
                                     <span className="material-symbols-outlined text-[#1877F2] text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>{step.icon}</span>
@@ -9628,7 +9632,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <summary className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-slate-50 transition-colors">
                           <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-slate-400 text-sm">settings</span>
-                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">{language === 'en' ? 'Advanced — Manual Config' : 'Avanzado — Config. Manual'}</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">{language === 'en' ? 'Advanced â€” Manual Config' : 'Avanzado â€” Config. Manual'}</span>
                           </div>
                           <span className="material-symbols-outlined text-slate-300 text-sm group-open:rotate-180 transition-transform">expand_more</span>
                         </summary>
@@ -9648,7 +9652,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Phone Number ID' : 'ID de Teléfono'}</label>
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Phone Number ID' : 'ID de TelÃ©fono'}</label>
                               <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" type="text" value={configData.whatsapp_phone_id} onChange={e => setConfigData({...configData, whatsapp_phone_id: e.target.value})} />
                             </div>
                             <div className="space-y-1.5">
@@ -9659,7 +9663,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <button onClick={handleVerifyWhatsApp} disabled={waVerifying} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${waStatus === 'success' ? 'bg-[#25D366] text-white' : waStatus === 'error' ? 'bg-red-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}>
                             {waVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
                              waStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>{language === 'en' ? 'Verified' : 'Verificado'}</> :
-                             <><span className="material-symbols-outlined text-sm">verified</span>{language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
+                             <><span className="material-symbols-outlined text-sm">verified</span>{language === 'en' ? 'Verify Connection' : 'Verificar ConexiÃ³n'}</>}
                           </button>
                           {waStatusMsg && waStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${waStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{waStatusMsg}</p>}
                         </div>
@@ -9672,11 +9676,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-amber-600" style={{ fontVariationSettings: "'FILL' 1" }}>campaign</span>
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bulk Messaging Number' : 'Número para Masivos'}</h4>
-                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Separate number to protect your main bot' : 'Número separado para proteger tu bot principal'}</p>
+                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bulk Messaging Number' : 'NÃºmero para Masivos'}</h4>
+                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Separate number to protect your main bot' : 'NÃºmero separado para proteger tu bot principal'}</p>
                           </div>
                         </div>
-                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed">{language === 'en' ? 'This protects your main bot number from potential blocks when doing bulk sends.' : 'Esto protege tu número principal del bot de posibles bloqueos al hacer envíos masivos.'}</div>
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-[10px] text-amber-800 leading-relaxed">{language === 'en' ? 'This protects your main bot number from potential blocks when doing bulk sends.' : 'Esto protege tu nÃºmero principal del bot de posibles bloqueos al hacer envÃ­os masivos.'}</div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Token API Masivos</label>
@@ -9689,12 +9693,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-amber-600/70">Phone ID Masivos</label>
-                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition-all" type="text" placeholder="ID de teléfono..." value={configData.bulk_wa_phone_id || ''} onChange={e => setConfigData({...configData, bulk_wa_phone_id: e.target.value})} />
+                            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition-all" type="text" placeholder="ID de telÃ©fono..." value={configData.bulk_wa_phone_id || ''} onChange={e => setConfigData({...configData, bulk_wa_phone_id: e.target.value})} />
                           </div>
                         </div>
                         <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase border ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${configData.bulk_wa_token && configData.bulk_wa_phone_id ? 'bg-amber-500 animate-pulse' : 'bg-slate-300'}`} />
-                          {configData.bulk_wa_token && configData.bulk_wa_phone_id ? (language === 'en' ? 'Bulk number configured' : 'Número masivo configurado') : (language === 'en' ? 'Not configured — will use main number' : 'No configurado — usará número principal')}
+                          {configData.bulk_wa_token && configData.bulk_wa_phone_id ? (language === 'en' ? 'Bulk number configured' : 'NÃºmero masivo configurado') : (language === 'en' ? 'Not configured â€” will use main number' : 'No configurado â€” usarÃ¡ nÃºmero principal')}
                         </div>
                       </div>
 
@@ -9705,7 +9709,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Google Calendar Integration' : 'Integración de Google Calendar'}</h4>
+                            <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Google Calendar Integration' : 'IntegraciÃ³n de Google Calendar'}</h4>
                             <p className="text-[10px] text-slate-400">{language === 'en' ? 'Allow the bot to check availability and book meetings' : 'Permite al bot verificar disponibilidad y agendar citas'}</p>
                           </div>
                         </div>
@@ -9716,7 +9720,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100 font-sans">
                               <div className="flex items-center space-x-3 overflow-hidden">
                                 <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-emerald-200 shadow-sm">
-                                  <span className="text-sm">📅</span>
+                                  <span className="text-sm">ðŸ“…</span>
                                 </div>
                                 <div className="overflow-hidden">
                                   <span className="text-xs font-bold text-slate-800 block truncate leading-tight">
@@ -9749,12 +9753,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   );
                 })()}
 
-{/* ════ NOTIFICATIONS ════ */}
+{/* â•â•â•â• NOTIFICATIONS â•â•â•â• */}
                 {settingsSection === 'notifications' && (
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Notifications & Alerts' : 'Notificaciones y Alertas'}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Choose how and when you receive alerts.' : 'Elige cómo y cuándo recibes alertas.'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Choose how and when you receive alerts.' : 'Elige cÃ³mo y cuÃ¡ndo recibes alertas.'}</p>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
@@ -9767,14 +9771,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <input type="email" className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-[#0058bc]/20 transition-all" placeholder="alertas@ejemplo.com" value={configData.alert_email || ''} onChange={e => setConfigData({...configData, alert_email: e.target.value})} />
                           {configData.alert_email && <span className="absolute inset-y-0 right-0 pr-4 flex items-center"><span className="material-symbols-outlined text-emerald-500 text-sm" style={{fontVariationSettings: "'FILL' 1"}}>check_circle</span></span>}
                         </div>
-                        <p className="text-[10px] text-slate-400">{language === 'en' ? 'Errors and critical alerts will be sent here.' : 'Los errores y alertas críticas se enviarán aquí.'}</p>
+                        <p className="text-[10px] text-slate-400">{language === 'en' ? 'Errors and critical alerts will be sent here.' : 'Los errores y alertas crÃ­ticas se enviarÃ¡n aquÃ­.'}</p>
                       </div>
 
                       <div className="border-t border-slate-50 pt-5 space-y-3">
                         {[
-                          { key: 'email_alerts', icon: 'mail', label: language === 'en' ? 'Critical Email Alerts' : 'Alertas Críticas por Email', desc: language === 'en' ? 'Receive alerts for critical system events' : 'Recibe alertas para eventos críticos del sistema' },
+                          { key: 'email_alerts', icon: 'mail', label: language === 'en' ? 'Critical Email Alerts' : 'Alertas CrÃ­ticas por Email', desc: language === 'en' ? 'Receive alerts for critical system events' : 'Recibe alertas para eventos crÃ­ticos del sistema' },
                           { key: 'push_notifications', icon: 'notifications_active', label: language === 'en' ? 'Push Notifications' : 'Notificaciones Push', desc: language === 'en' ? 'Real-time browser notifications' : 'Notificaciones en tiempo real en el navegador', needsBrowserSetup: true },
-                          { key: 'monthly_briefing', icon: 'summarize', label: language === 'en' ? 'Monthly Summary' : 'Resumen Mensual', desc: language === 'en' ? 'Monthly summary of activity and metrics' : 'Resumen mensual de actividad y métricas' },
+                          { key: 'monthly_briefing', icon: 'summarize', label: language === 'en' ? 'Monthly Summary' : 'Resumen Mensual', desc: language === 'en' ? 'Monthly summary of activity and metrics' : 'Resumen mensual de actividad y mÃ©tricas' },
                         ].map(alert => (
                           <div key={alert.key} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
                             <div className="flex items-center gap-3">
@@ -9802,7 +9806,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* ════ META ADS ════ */}
+                {/* â•â•â•â• META ADS â•â•â•â• */}
                 {settingsSection === 'meta' && (() => {
                   const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
 
@@ -9823,7 +9827,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </div>
                             <div>
                               <p className="text-white font-bold text-sm">Meta Business Suite</p>
-                              <p className="text-blue-100 text-[10px]">Ads Manager · Pages · Insights — OAuth 2.0</p>
+                              <p className="text-blue-100 text-[10px]">Ads Manager Â· Pages Â· Insights â€” OAuth 2.0</p>
                             </div>
                           </div>
                           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase ${isMetaConnected ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30' : 'bg-white/10 text-white/60 border border-white/20'}`}>
@@ -9888,7 +9892,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </div>
                               {metaPages.length > 0 && (
                                 <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-[10px] text-blue-700">
-                                  <strong>Página detectada:</strong> {metaPages[0]?.name} (ID: {metaPages[0]?.id})
+                                  <strong>PÃ¡gina detectada:</strong> {metaPages[0]?.name} (ID: {metaPages[0]?.id})
                                 </div>
                               )}
                               <button onClick={() => setMetaShowPicker(false)} className="w-full text-[10px] text-slate-400 hover:text-slate-600 py-2 transition-colors">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
@@ -9907,7 +9911,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 {[
                                   { icon: 'login', label: '1. ' + (language === 'en' ? 'Login' : 'Ingresa'), desc: language === 'en' ? 'Facebook account' : 'Con tu cuenta' },
                                   { icon: 'business_center', label: '2. ' + (language === 'en' ? 'Select' : 'Elige'), desc: language === 'en' ? 'Your ad account' : 'Cuenta de Ads' },
-                                  { icon: 'check_circle', label: '3. ' + (language === 'en' ? 'Done!' : '¡Listo!'), desc: language === 'en' ? 'Campaigns ready' : 'Campañas listas' },
+                                  { icon: 'check_circle', label: '3. ' + (language === 'en' ? 'Done!' : 'Â¡Listo!'), desc: language === 'en' ? 'Campaigns ready' : 'CampaÃ±as listas' },
                                 ].map((step) => (
                                   <div key={step.icon} className="text-center p-3 bg-slate-50 rounded-xl">
                                     <span className="material-symbols-outlined text-[#1877F2] text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>{step.icon}</span>
@@ -9918,7 +9922,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </div>
                               <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-[10px] text-blue-700 flex items-start gap-2">
                                 <span className="material-symbols-outlined text-blue-500 text-sm mt-0.5">info</span>
-                                {language === 'en' ? 'Permissions requested: Ads Manager, Pages, Insights. Your data is safe and only used to publish campaigns.' : 'Permisos solicitados: Ads Manager, Páginas, Insights. Tus datos están seguros y solo se usan para publicar campañas.'}
+                                {language === 'en' ? 'Permissions requested: Ads Manager, Pages, Insights. Your data is safe and only used to publish campaigns.' : 'Permisos solicitados: Ads Manager, PÃ¡ginas, Insights. Tus datos estÃ¡n seguros y solo se usan para publicar campaÃ±as.'}
                               </div>
                             </>
                           )}
@@ -9930,7 +9934,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <summary className="flex items-center justify-between px-6 py-4 cursor-pointer select-none hover:bg-slate-50 transition-colors">
                           <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-slate-400 text-sm">settings</span>
-                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">{language === 'en' ? 'Advanced — Manual Config' : 'Avanzado — Config. Manual'}</span>
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">{language === 'en' ? 'Advanced â€” Manual Config' : 'Avanzado â€” Config. Manual'}</span>
                           </div>
                           <span className="material-symbols-outlined text-slate-300 text-sm group-open:rotate-180 transition-transform">expand_more</span>
                         </summary>
@@ -9956,12 +9960,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   );
                 })()}
 
-{/* ════ MEMORY ════ */}
+{/* â•â•â•â• MEMORY â•â•â•â• */}
                 {settingsSection === 'memory' && (
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Memory Management' : 'Gestión de Memoria'}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Control AI conversation memory retention and cleanup.' : 'Controla la retención de memoria de conversaciones IA y limpieza.'}</p>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Memory Management' : 'GestiÃ³n de Memoria'}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Control AI conversation memory retention and cleanup.' : 'Controla la retenciÃ³n de memoria de conversaciones IA y limpieza.'}</p>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
@@ -9990,13 +9994,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       {/* Retention */}
                       <div className="border-t border-slate-50 pt-5 space-y-3">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Auto-Delete After' : 'Eliminar Automáticamente Después De'}</label>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Auto-Delete After' : 'Eliminar AutomÃ¡ticamente DespuÃ©s De'}</label>
                         <div className="grid grid-cols-4 gap-2">
-                          {[{ value: 7, label: '7 días' }, { value: 15, label: '15 días' }, { value: 30, label: '30 días' }, { value: 90, label: '90 días' }].map(opt => (
+                          {[{ value: 7, label: '7 dÃ­as' }, { value: 15, label: '15 dÃ­as' }, { value: 30, label: '30 dÃ­as' }, { value: 90, label: '90 dÃ­as' }].map(opt => (
                             <button key={opt.value} onClick={() => { setMemoryRetentionDays(opt.value); setConfigData({...configData, media_retention_days: opt.value}); }} className={`py-3 rounded-xl text-xs font-bold transition-all ${(configData.media_retention_days || memoryRetentionDays) === opt.value ? 'bg-[#0058bc] text-white shadow-md shadow-[#0058bc]/20' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100'}`}>{opt.label}</button>
                           ))}
                         </div>
-                        <p className="text-[10px] text-slate-400">{language === 'en' ? `Conversations older than ${configData.media_retention_days || memoryRetentionDays} days will be purged.` : `Las conversaciones con más de ${configData.media_retention_days || memoryRetentionDays} días se purgarán.`}</p>
+                        <p className="text-[10px] text-slate-400">{language === 'en' ? `Conversations older than ${configData.media_retention_days || memoryRetentionDays} days will be purged.` : `Las conversaciones con mÃ¡s de ${configData.media_retention_days || memoryRetentionDays} dÃ­as se purgarÃ¡n.`}</p>
                       </div>
 
                       {/* Clear memory */}
@@ -10004,24 +10008,24 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Manual Reset' : 'Reinicio Manual'}</label>
                         <button onClick={handleClearMemory} disabled={memoryClearing} className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${memoryClearSuccess ? 'bg-emerald-500 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}>
                           {memoryClearing ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Clearing...' : 'Limpiando...'}</> :
-                           memoryClearSuccess ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Cleared!' : '¡Borrada!'}</> :
+                           memoryClearSuccess ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Cleared!' : 'Â¡Borrada!'}</> :
                            <><span className="material-symbols-outlined text-sm">delete_forever</span> {language === 'en' ? 'Clear All Memory' : 'Borrar Toda la Memoria'}</>}
                         </button>
                         <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[10px] text-amber-700 flex items-start gap-2">
                           <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">warning</span>
-                          {language === 'en' ? 'This permanently deletes all cached conversations and AI context. Cannot be undone.' : 'Esto elimina permanentemente todas las conversaciones en caché y el contexto de IA. No se puede deshacer.'}
+                          {language === 'en' ? 'This permanently deletes all cached conversations and AI context. Cannot be undone.' : 'Esto elimina permanentemente todas las conversaciones en cachÃ© y el contexto de IA. No se puede deshacer.'}
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* ════ SECURITY ════ */}
+                {/* â•â•â•â• SECURITY â•â•â•â• */}
                 {settingsSection === 'security' && (
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Security & Credentials' : 'Seguridad y Credenciales'}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Manage your password and access security.' : 'Administra tu contraseña y seguridad de acceso.'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Manage your password and access security.' : 'Administra tu contraseÃ±a y seguridad de acceso.'}</p>
                     </div>
 
                     <div id="password-section" className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5 scroll-mt-20">
@@ -10030,14 +10034,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <span className="material-symbols-outlined text-emerald-600">lock_reset</span>
                         </div>
                         <div>
-                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Change Password' : 'Cambiar Contraseña'}</h4>
+                          <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Change Password' : 'Cambiar ContraseÃ±a'}</h4>
                           <p className="text-[10px] text-slate-400">{language === 'en' ? 'Update your access credentials regularly.' : 'Actualiza tus credenciales de acceso regularmente.'}</p>
                         </div>
                       </div>
 
                         <div className="space-y-4">
                           <div className="space-y-1.5 relative">
-                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Current Password' : 'Contraseña Actual'}</label>
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Current Password' : 'ContraseÃ±a Actual'}</label>
                             <div className="relative">
                               <input type={showPassword ? "text" : "password"} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
                               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -10047,7 +10051,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5 relative">
-                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'New Password' : 'Nueva Contraseña'}</label>
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'New Password' : 'Nueva ContraseÃ±a'}</label>
                               <div className="relative">
                                 <input type={showPassword ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
                                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -10056,7 +10060,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </div>
                             </div>
                             <div className="space-y-1.5 relative">
-                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confirm Password' : 'Confirmar Contraseña'}</label>
+                              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confirm Password' : 'Confirmar ContraseÃ±a'}</label>
                               <div className="relative">
                                 <input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-all" />
                                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -10068,23 +10072,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
 
                       <div className="flex items-center justify-between pt-2">
-                        <p className="text-[10px] text-slate-400 max-w-xs">{language === 'en' ? 'Use a strong password with at least 8 characters.' : 'Usa una contraseña fuerte con al menos 8 caracteres.'}</p>
+                        <p className="text-[10px] text-slate-400 max-w-xs">{language === 'en' ? 'Use a strong password with at least 8 characters.' : 'Usa una contraseÃ±a fuerte con al menos 8 caracteres.'}</p>
                         <button onClick={handleChangePassword} disabled={changingPassword || !newPassword} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2">
                           {changingPassword ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">lock</span>}
-                          {language === 'en' ? 'Update Password' : 'Actualizar Contraseña'}
+                          {language === 'en' ? 'Update Password' : 'Actualizar ContraseÃ±a'}
                         </button>
                       </div>
                       {passwordError && <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">{passwordError}</p>}
-                      {passwordSuccess && <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{language === 'en' ? '✓ Password updated successfully!' : '✓ ¡Contraseña actualizada con éxito!'}</p>}
+                      {passwordSuccess && <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{language === 'en' ? 'âœ“ Password updated successfully!' : 'âœ“ Â¡ContraseÃ±a actualizada con Ã©xito!'}</p>}
                     </div>
                   </div>
                 )}
 
-                {/* ════ DROPI INTEGRATION ════ */}
+                {/* â•â•â•â• DROPI INTEGRATION â•â•â•â• */}
                 {settingsSection === 'dropi' && (
                   <div className="space-y-6">
                     <div>
-                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Dropi Dropshipping Integration' : 'Integración de Dropshipping con Dropi'}</h3>
+                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'Dropi Dropshipping Integration' : 'IntegraciÃ³n de Dropshipping con Dropi'}</h3>
                       <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your dropshipping credentials to automate orders from the chatbot.' : 'Configura tus credenciales de dropshipping para automatizar pedidos desde el chatbot.'}</p>
                     </div>
 
@@ -10096,7 +10100,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <div>
                             <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Enable Dropi Agent' : 'Habilitar Agente de Dropi'}</h4>
-                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Allow the chatbot to take orders and create shipments automatically.' : 'Permite al chatbot tomar pedidos y crear envíos automáticamente.'}</p>
+                            <p className="text-[10px] text-slate-400">{language === 'en' ? 'Allow the chatbot to take orders and create shipments automatically.' : 'Permite al chatbot tomar pedidos y crear envÃ­os automÃ¡ticamente.'}</p>
                           </div>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
@@ -10114,7 +10118,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="space-y-4 pt-2">
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de Integración de Dropi'}
+                              {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de IntegraciÃ³n de Dropi'}
                             </label>
                             <input
                               type="text"
@@ -10159,11 +10163,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-[10px] text-blue-700 flex items-start gap-2">
                             <span className="material-symbols-outlined text-blue-500 text-sm mt-0.5">info</span>
                             <div>
-                              <p className="font-bold">{language === 'en' ? 'How it works:' : 'Cómo funciona:'}</p>
+                              <p className="font-bold">{language === 'en' ? 'How it works:' : 'CÃ³mo funciona:'}</p>
                               <p className="mt-0.5">
                                 {language === 'en' 
                                   ? 'The bot will collect name, phone, address, and city from customers, then send them to Dropi. Orders will default to Cash on Delivery (Contra Entrega).' 
-                                  : 'El bot le pedirá al cliente su nombre, teléfono, dirección y ciudad, y luego creará la orden en Dropi. Las órdenes se configuran como Contra Entrega por defecto.'}
+                                  : 'El bot le pedirÃ¡ al cliente su nombre, telÃ©fono, direcciÃ³n y ciudad, y luego crearÃ¡ la orden en Dropi. Las Ã³rdenes se configuran como Contra Entrega por defecto.'}
                               </p>
                             </div>
                           </div>
@@ -10172,7 +10176,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {showSuccess && <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{language === 'en' ? 'Saved successfully!' : '¡Guardado con éxito!'}</span>}
+                          {showSuccess && <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{language === 'en' ? 'Saved successfully!' : 'Â¡Guardado con Ã©xito!'}</span>}
                           {saveError && <span className="text-[11px] text-red-500 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">error</span>{saveError}</span>}
                         </div>
                         <button
@@ -10193,7 +10197,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* ════ APPEARANCE / THEME ════ */}
+                {/* â•â•â•â• APPEARANCE / THEME â•â•â•â• */}
                 {settingsSection === 'appearance' && (
                     <ThemeSettings
                       language={language}
@@ -10260,23 +10264,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                       <div className="max-w-xl mb-6">
                         <h3 className="text-lg font-bold text-slate-800 mb-2">
-                          {language === 'en' ? 'Information Sources' : 'Fuentes de Información'}
+                          {language === 'en' ? 'Information Sources' : 'Fuentes de InformaciÃ³n'}
                         </h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
                           {language === 'en' 
                             ? 'Define the verified sources of information so your AI agent has complete clarity on your products, returns, terms, shipping, and contact info.' 
-                            : 'Defina las fuentes verificadas de información para que su agente de IA tenga total claridad sobre sus productos, devoluciones, términos, envíos y datos de contacto.'}
+                            : 'Defina las fuentes verificadas de informaciÃ³n para que su agente de IA tenga total claridad sobre sus productos, devoluciones, tÃ©rminos, envÃ­os y datos de contacto.'}
                         </p>
                       </div>
 
                       <div className="space-y-4">
                         {[
-                          { file_name: 'fuente_productos.txt', nameEs: 'Productos', descEs: 'Lista de catálogo de productos' },
-                          { file_name: 'fuente_devoluciones.txt', nameEs: 'Política de devoluciones y reembolsos', descEs: 'Políticas para reembolsos y devoluciones' },
-                          { file_name: 'fuente_privacidad.txt', nameEs: 'Política de privacidad', descEs: 'Normativas de protección de datos de clientes' },
-                          { file_name: 'fuente_terminos.txt', nameEs: 'Términos y condiciones de servicio', descEs: 'Contrato de términos y condiciones de la tienda' },
-                          { file_name: 'fuente_envio.txt', nameEs: 'Política de envío', descEs: 'Detalles de tiempos y coberturas de envío' },
-                          { file_name: 'fuente_contacto.txt', nameEs: 'Información de contacto', descEs: 'Medios de contacto para atención humana' },
+                          { file_name: 'fuente_productos.txt', nameEs: 'Productos', descEs: 'Lista de catÃ¡logo de productos' },
+                          { file_name: 'fuente_devoluciones.txt', nameEs: 'PolÃ­tica de devoluciones y reembolsos', descEs: 'PolÃ­ticas para reembolsos y devoluciones' },
+                          { file_name: 'fuente_privacidad.txt', nameEs: 'PolÃ­tica de privacidad', descEs: 'Normativas de protecciÃ³n de datos de clientes' },
+                          { file_name: 'fuente_terminos.txt', nameEs: 'TÃ©rminos y condiciones de servicio', descEs: 'Contrato de tÃ©rminos y condiciones de la tienda' },
+                          { file_name: 'fuente_envio.txt', nameEs: 'PolÃ­tica de envÃ­o', descEs: 'Detalles de tiempos y coberturas de envÃ­o' },
+                          { file_name: 'fuente_contacto.txt', nameEs: 'InformaciÃ³n de contacto', descEs: 'Medios de contacto para atenciÃ³n humana' },
                         ].map((policy) => {
                           const file = botKnowledgeFiles.find(f => f.name === policy.file_name);
                           const isActive = file ? file.active : false;
@@ -10328,7 +10332,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     {/* Bot Mode Grid */}
                     <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow space-y-6">
                       <div>
-                        <h3 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bot Operation Mode' : 'Modo de Operación del Bot'}</h3>
+                        <h3 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Bot Operation Mode' : 'Modo de OperaciÃ³n del Bot'}</h3>
                         <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Choose the main focus and flow of your AI agent.' : 'Elige el enfoque y flujo principal de tu agente de IA.'}</p>
                       </div>
 
@@ -10355,7 +10359,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
                             {language === 'en'
                               ? 'The bot behaves as a digital consultant. It interacts to sell services (development, marketing), answers inquiries, and qualifies/registers prospects.'
-                              : 'El bot se comporta como un asesor digital. Interactúa para vender servicios (desarrollo, marketing), responde dudas y califica/registra prospectos.'}
+                              : 'El bot se comporta como un asesor digital. InteractÃºa para vender servicios (desarrollo, marketing), responde dudas y califica/registra prospectos.'}
                           </p>
                           {!configData.dropi_enabled && (
                             <div className="absolute top-3 right-3 text-blue-600">
@@ -10386,7 +10390,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
                             {language === 'en'
                               ? 'The bot promotes e-commerce products. It captures shipping data (name, phone, address, city) and automatically generates orders in Dropi.'
-                              : 'El bot promociona productos de comercio electrónico. Captura datos de envío (nombre, teléfono, dirección, ciudad) y genera órdenes automáticas en Dropi.'}
+                              : 'El bot promociona productos de comercio electrÃ³nico. Captura datos de envÃ­o (nombre, telÃ©fono, direcciÃ³n, ciudad) y genera Ã³rdenes automÃ¡ticas en Dropi.'}
                           </p>
                           {configData.dropi_enabled && (
                             <div className="absolute top-3 right-3 text-blue-600">
@@ -10400,7 +10404,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="space-y-4 pt-4 border-t border-slate-100">
                           <div className="space-y-1.5">
                             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de Integración de Dropi'}
+                              {language === 'en' ? 'Dropi Integration Token (Key)' : 'Token (Key) de IntegraciÃ³n de Dropi'}
                             </label>
                             <input
                               type="text"
@@ -10443,7 +10447,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                       <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {showSuccess && <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{language === 'en' ? 'Saved successfully!' : '¡Guardado con éxito!'}</span>}
+                          {showSuccess && <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{language === 'en' ? 'Saved successfully!' : 'Â¡Guardado con Ã©xito!'}</span>}
                           {saveError && <span className="text-[11px] text-red-500 font-bold flex items-center gap-1"><span className="material-symbols-outlined text-sm">error</span>{saveError}</span>}
                         </div>
                         <button
@@ -10506,7 +10510,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </optgroup>
                           <optgroup label="Groq">
                             <option value="llama-3.3-70b">Llama 3.3 70B (Groq)</option>
-                            <option value="llama-3.1-8b-instant">Llama 3.1 8B · Rápido (Groq)</option>
+                            <option value="llama-3.1-8b-instant">Llama 3.1 8B Â· RÃ¡pido (Groq)</option>
                           </optgroup>
                           <optgroup label="Anthropic">
                             <option value="claude-sonnet-4">Claude Sonnet 4</option>
@@ -10551,7 +10555,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {!kbLoading && botKnowledgeFiles.length === 0 && (
                         <div className="text-center py-6">
                           <span className="material-symbols-outlined text-slate-300 text-3xl">folder_open</span>
-                          <p className="text-[10px] text-slate-400 mt-2">{language === 'en' ? 'No files uploaded yet' : 'Aún no hay archivos subidos'}</p>
+                          <p className="text-[10px] text-slate-400 mt-2">{language === 'en' ? 'No files uploaded yet' : 'AÃºn no hay archivos subidos'}</p>
                         </div>
                       )}
                       {botKnowledgeFiles.map((file, idx) => (
@@ -10607,8 +10611,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </h4>
                         <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
                           {configData.dropi_enabled
-                            ? (language === 'en' ? 'Describe your product to generate a high-converting system prompt.' : 'Ingresa los detalles del producto y la IA generará un prompt optimizado.')
-                            : (language === 'en' ? 'Describe your service or business to generate a high-converting system prompt.' : 'Ingresa los detalles de tus servicios o negocio y la IA generará un prompt optimizado.')
+                            ? (language === 'en' ? 'Describe your product to generate a high-converting system prompt.' : 'Ingresa los detalles del producto y la IA generarÃ¡ un prompt optimizado.')
+                            : (language === 'en' ? 'Describe your service or business to generate a high-converting system prompt.' : 'Ingresa los detalles de tus servicios o negocio y la IA generarÃ¡ un prompt optimizado.')
                           }
                         </p>
                       </div>
@@ -10619,7 +10623,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         value={botProductDetails}
                         onChange={e => setBotProductDetails(e.target.value)}
                         placeholder={configData.dropi_enabled
-                          ? (language === 'en' ? 'e.g. Smartwatch Ultra 9, waterproof, wireless charging, $49' : 'Ej: Smartwatch Ultra 9, resistente al agua, carga rápida, $49')
+                          ? (language === 'en' ? 'e.g. Smartwatch Ultra 9, waterproof, wireless charging, $49' : 'Ej: Smartwatch Ultra 9, resistente al agua, carga rÃ¡pida, $49')
                           : (language === 'en' ? 'e.g. Dental clinic, consultations, whitening, orthodontic services' : 'Ej: Consultorio dental, limpiezas, blanqueamientos, ortodoncia')
                         }
                         className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15 transition-all text-black"
@@ -10740,7 +10744,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <span className="material-symbols-outlined text-sm">smartphone</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="text-xs font-black text-primary block">{language === 'en' ? 'Notification Phone (WhatsApp)' : 'Teléfono de Notificación (WhatsApp)'}</span>
+                              <span className="text-xs font-black text-primary block">{language === 'en' ? 'Notification Phone (WhatsApp)' : 'TelÃ©fono de NotificaciÃ³n (WhatsApp)'}</span>
                               <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Receive an alert when a client requests a human agent' : 'Recibe una alerta cuando un cliente solicite un agente humano'}</span>
                             </div>
                           </div>
@@ -10757,7 +10761,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <input
                                 type="tel"
                                 className="w-full bg-slate-50 border border-slate-100 rounded-r-xl pl-4 pr-4 py-2.5 text-sm font-bold text-primary focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 outline-none transition-all"
-                                placeholder={language === 'en' ? '984123456 (number)' : '984123456 (número)'}
+                                placeholder={language === 'en' ? '984123456 (number)' : '984123456 (nÃºmero)'}
                                 value={currentNumber}
                                 onChange={e => setConfigData({ ...configData, admin_notification_phone: currentCode + e.target.value.replace(/[^0-9]/g, '') })}
                               />
@@ -10774,7 +10778,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {configData.admin_notification_phone && (
                             <div className="mt-2.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                              <span className="text-[9px] font-black text-emerald-600 uppercase">{language === 'en' ? 'Alerts active' : 'Alertas activas'} · +{configData.admin_notification_phone}</span>
+                              <span className="text-[9px] font-black text-emerald-600 uppercase">{language === 'en' ? 'Alerts active' : 'Alertas activas'} Â· +{configData.admin_notification_phone}</span>
                             </div>
                           )}
                         </div>
@@ -10858,7 +10862,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </button>
                       {/* Avatar morado con destellos */}
                       <div className="relative w-11 h-11 rounded-full flex-shrink-0 bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center shadow-lg">
-                        <span className="text-white text-base">✨</span>
+                        <span className="text-white text-base">âœ¨</span>
                         <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#075e54]"></span>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -10869,13 +10873,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
                         <div className="flex items-center gap-1.5">
                           <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
-                          <span className="text-white/70 text-[10px]">en línea</span>
+                          <span className="text-white/70 text-[10px]">en lÃ­nea</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => {
-                            setBotPreviewMessages([{ role: 'bot', content: language === 'en' ? `Hello! I'm ${botName}. How can I assist you?` : `¡Hola! Soy ${botName}. ¿En qué puedo ayudarte?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+                            setBotPreviewMessages([{ role: 'bot', content: language === 'en' ? `Hello! I'm ${botName}. How can I assist you?` : `Â¡Hola! Soy ${botName}. Â¿En quÃ© puedo ayudarte?`, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
                             setTestHistory([]);
                           }}
                           className="text-white/70 hover:text-white transition-colors"
@@ -10914,7 +10918,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {/* Bot avatar on left */}
                           {msg.role === 'bot' && (
                             <div className="w-8 h-8 rounded-full flex-shrink-0 mb-1 bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center shadow-md">
-                              <span className="text-xs">✨</span>
+                              <span className="text-xs">âœ¨</span>
                             </div>
                           )}
                           {/* Bubble */}
@@ -10927,7 +10931,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           >
                             {msg.isKb && (
                               <div className="flex items-center gap-1 mb-1">
-                                <span className="text-[8px] font-bold text-amber-600">📚 KB</span>
+                                <span className="text-[8px] font-bold text-amber-600">ðŸ“š KB</span>
                               </div>
                             )}
                             <p className="text-[13px] leading-[1.5] text-[#111b21]">{msg.content}</p>
@@ -10944,7 +10948,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {isTestingAi && (
                         <div className="flex justify-start items-end gap-1.5">
                           <div className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-[#7c3aed] to-[#4f46e5] flex items-center justify-center shadow-md">
-                            <span className="text-xs">✨</span>
+                            <span className="text-xs">âœ¨</span>
                           </div>
                           <div className="bg-white rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl px-4 py-3 shadow-sm">
                             <div className="flex items-center gap-1">
@@ -11003,7 +11007,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
                     <span className="material-symbols-outlined text-sm text-slate-400">bolt</span>
                     <span>{botModelSelected}</span>
-                    <span>•</span>
+                    <span>â€¢</span>
                     <span className="text-emerald-500 font-bold">{language === 'en' ? 'Connected' : 'Conectado'}</span>
                   </div>
                 </div>
@@ -11057,11 +11061,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <p className="text-sm text-[#414754]">
                 {language === 'en' 
                   ? 'Design expert high-conversion banners using manual templates or AI and recreate them easily.' 
-                  : 'Diseña pancartas publicitarias de alta conversión con plantillas inteligentes y recréalas paso a paso.'}
+                  : 'DiseÃ±a pancartas publicitarias de alta conversiÃ³n con plantillas inteligentes y recrÃ©alas paso a paso.'}
               </p>
             </header>
 
-            {/* ── STEPPER ── */}
+            {/* â”€â”€ STEPPER â”€â”€ */}
             <div className="bg-white rounded-xl border border-[#c1c6d6] p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 {([
@@ -11122,7 +11126,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="text-base font-bold text-[#0b1c30] flex items-center gap-2">
                             <span className="material-symbols-outlined text-[#0058bc]">palette</span>
-                            {language === 'en' ? 'Select Layout Preset' : 'Seleccionar Plantilla de Diseño'}
+                            {language === 'en' ? 'Select Layout Preset' : 'Seleccionar Plantilla de DiseÃ±o'}
                           </h3>
                         </div>
                         
@@ -11199,7 +11203,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     {/* Right Column: Mini Preview & Stepper navigation */}
                     <div className="xl:col-span-5">
                       <div className="bg-white rounded-2xl border border-[#c1c6d6] p-5 shadow-sm text-center">
-                        <span className="text-[9px] font-black uppercase text-[#0058bc] tracking-wider block mb-2">{language === 'en' ? 'Selected Style Preview' : 'Estilo de Composición'}</span>
+                        <span className="text-[9px] font-black uppercase text-[#0058bc] tracking-wider block mb-2">{language === 'en' ? 'Selected Style Preview' : 'Estilo de ComposiciÃ³n'}</span>
                         <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 flex items-center justify-center aspect-[4/5] max-w-[220px] mx-auto w-full mb-4">
                           {selectedTemplate ? (
                             selectedTemplate.preview_image_url ? (
@@ -11225,7 +11229,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             onClick={() => { setBannerFlowStep(2); setBannerPromptCopied(false); }}
                             className="w-full py-3 bg-[#0058bc] text-white font-bold text-xs rounded-xl hover:bg-[#054ADA] transition-all flex items-center justify-center gap-1.5 shadow"
                           >
-                            {language === 'en' ? 'Continue Setup' : 'Continuar con el Diseño'}
+                            {language === 'en' ? 'Continue Setup' : 'Continuar con el DiseÃ±o'}
                             <span className="material-symbols-outlined text-xs">arrow_forward</span>
                           </button>
                         )}
@@ -11250,12 +11254,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <span className="material-symbols-outlined text-2xl text-[#0058bc]">{bannerPromptCopied ? 'check_circle' : 'content_copy'}</span>
                     </div>
                     <h3 className="text-lg font-bold text-[#0b1c30] mb-1">
-                      {bannerPromptCopied ? '¡Instrucciones de Diseño Copiadas!' : 'Tus instrucciones creativas están listas'}
+                      {bannerPromptCopied ? 'Â¡Instrucciones de DiseÃ±o Copiadas!' : 'Tus instrucciones creativas estÃ¡n listas'}
                     </h3>
                     <p className="text-xs text-[#414754] max-w-md mx-auto leading-relaxed mb-5">
                       {bannerPromptCopied 
-                        ? 'Excelente. Presiona Continuar para ver la guía rápida de recreación.' 
-                        : 'Preparamos todas las directrices de empaquetado visual y copys inteligentes. Cópialas con un solo clic.'}
+                        ? 'Excelente. Presiona Continuar para ver la guÃ­a rÃ¡pida de recreaciÃ³n.' 
+                        : 'Preparamos todas las directrices de empaquetado visual y copys inteligentes. CÃ³pialas con un solo clic.'}
                     </p>
 
                     <button
@@ -11263,11 +11267,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       onClick={() => {
                         const baseConfig = (selectedTemplate as any)._rawConfigJson || selectedTemplate;
                         const promptToCopy = agentGeneratedPrompt 
-                          ? `${agentGeneratedPrompt}\n\n====================================\nINSTRUCCIONES CREATIVAS DE DISEÑO:\n====================================\n${JSON.stringify(baseConfig, null, 2)}`
+                          ? `${agentGeneratedPrompt}\n\n====================================\nINSTRUCCIONES CREATIVAS DE DISEÃ‘O:\n====================================\n${JSON.stringify(baseConfig, null, 2)}`
                           : JSON.stringify(baseConfig, null, 2);
                         navigator.clipboard.writeText(promptToCopy);
                         setBannerPromptCopied(true);
-                        setToast({ message: language === 'en' ? '✅ Copied instructions!' : '✅ ¡Instrucciones copiadas!', type: 'success' });
+                        setToast({ message: language === 'en' ? 'âœ… Copied instructions!' : 'âœ… Â¡Instrucciones copiadas!', type: 'success' });
                       }}
                       className="px-6 py-3 bg-[#0058bc] text-white font-bold text-xs rounded-xl hover:bg-[#054ADA] transition-all flex items-center gap-2 mx-auto shadow"
                     >
@@ -11277,7 +11281,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                     {agentGeneratedPrompt && (
                       <div className="mt-4 text-left p-3.5 bg-slate-50 border border-slate-200 rounded-xl max-h-32 overflow-y-auto scrollbar-thin">
-                        <span className="text-[9px] font-black text-[#0058bc] uppercase tracking-wider block mb-1">📝 Vista previa del Prompt:</span>
+                        <span className="text-[9px] font-black text-[#0058bc] uppercase tracking-wider block mb-1">ðŸ“ Vista previa del Prompt:</span>
                         <pre className="text-[10px] text-slate-600 whitespace-pre-wrap font-sans leading-normal">{agentGeneratedPrompt}</pre>
                       </div>
                     )}
@@ -11291,7 +11295,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
                     >
                       <span className="material-symbols-outlined text-xs">arrow_back</span>
-                      {language === 'en' ? 'Back' : 'Atrás'}
+                      {language === 'en' ? 'Back' : 'AtrÃ¡s'}
                     </button>
                     <button
                       type="button"
@@ -11322,9 +11326,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="space-y-3">
                       {[
                         { num: 1, icon: 'content_paste', title: 'Pega las instrucciones', desc: 'Abre ChatGPT y pega las instrucciones creativas y el prompt que copiaste.' },
-                        { num: 2, icon: 'image', title: 'Selecciona Generar Imagen', desc: 'Asegúrate de tener seleccionada la opción de generación de imágenes (DALL-E) en ChatGPT, de lo contrario no funcionará el prompt.' },
+                        { num: 2, icon: 'image', title: 'Selecciona Generar Imagen', desc: 'AsegÃºrate de tener seleccionada la opciÃ³n de generaciÃ³n de imÃ¡genes (DALL-E) en ChatGPT, de lo contrario no funcionarÃ¡ el prompt.' },
                         { num: 3, icon: 'add_photo_alternate', title: 'Sube la foto del producto', desc: 'Adjunta una foto limpia de tu producto en el mismo mensaje.' },
-                        { num: 4, icon: 'brush', title: 'Crea tu composición', desc: 'ChatGPT fusionará automáticamente los textos e integrará el producto en la plantilla.' },
+                        { num: 4, icon: 'brush', title: 'Crea tu composiciÃ³n', desc: 'ChatGPT fusionarÃ¡ automÃ¡ticamente los textos e integrarÃ¡ el producto en la plantilla.' },
                       ].map(step => (
                         <div key={step.num} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm">
@@ -11357,7 +11361,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           className="mt-0.5 rounded border-[#c1c6d6] text-[#0058bc] focus:ring-[#0058bc]"
                         />
                         <div>
-                          <p className="text-xs font-bold text-[#0b1c30]">Listo, ya generé mi publicidad</p>
+                          <p className="text-xs font-bold text-[#0b1c30]">Listo, ya generÃ© mi publicidad</p>
                           <p className="text-[10px] text-slate-500">Marca esta casilla una vez que tengas la imagen del anuncio lista para subir.</p>
                         </div>
                       </label>
@@ -11372,7 +11376,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
                     >
                       <span className="material-symbols-outlined text-xs">arrow_back</span>
-                      {language === 'en' ? 'Back' : 'Atrás'}
+                      {language === 'en' ? 'Back' : 'AtrÃ¡s'}
                     </button>
                     <button
                       type="button"
@@ -11434,15 +11438,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             
                             setToast({
                               message: language === 'en' 
-                                ? '🚀 Ad uploaded! Pre-filled in your Ad Campaigns configure & publish.' 
-                                : '🚀 ¡Anuncio cargado! Pre-configurado en la publicación de tus pautas.',
+                                ? 'ðŸš€ Ad uploaded! Pre-filled in your Ad Campaigns configure & publish.' 
+                                : 'ðŸš€ Â¡Anuncio cargado! Pre-configurado en la publicaciÃ³n de tus pautas.',
                               type: 'success'
                             });
                           }}
                           className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25 active:scale-98 hover:opacity-95 transition-opacity"
                         >
                           <span className="material-symbols-outlined text-sm">campaign</span>
-                          {language === 'en' ? 'Go to Ad Campaigns' : '¡Listo! Ir a Publicar Campaña'}
+                          {language === 'en' ? 'Go to Ad Campaigns' : 'Â¡Listo! Ir a Publicar CampaÃ±a'}
                         </button>
 
                         <button
@@ -11547,7 +11551,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         {/* Right Panel: Composition Preview & Action Redirect */}
                         <div className="xl:col-span-5 space-y-6">
                           <div className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
-                            <h3 className="text-base font-bold text-[#0b1c30] mb-4">Estudio de Composición</h3>
+                            <h3 className="text-base font-bold text-[#0b1c30] mb-4">Estudio de ComposiciÃ³n</h3>
 
                             <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 flex items-center justify-center aspect-[4/5] max-w-[240px] mx-auto w-full group mb-4">
                               <div className="text-center p-3 text-slate-300">
@@ -11567,7 +11571,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
                         >
                           <span className="material-symbols-outlined text-xs">arrow_back</span>
-                          {language === 'en' ? 'Back' : 'Atrás'}
+                          {language === 'en' ? 'Back' : 'AtrÃ¡s'}
                         </button>
                       </div>
                     </>
@@ -11592,28 +11596,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-3xl font-bold tracking-tight text-[#0b1c30] mb-1" style={{ fontFamily: 'Inter' }}>
-                    {campaignSubTab === 'campaigns' ? (language === 'en' ? 'Campaigns' : 'Campañas') : campaignSubTab === 'creative' ? 'Creative Lab' : (language === 'en' ? 'Analytics' : 'Analíticas')}
+                    {campaignSubTab === 'campaigns' ? (language === 'en' ? 'Campaigns' : 'CampaÃ±as') : campaignSubTab === 'creative' ? 'Creative Lab' : (language === 'en' ? 'Analytics' : 'AnalÃ­ticas')}
                   </h2>
                   <p className="text-sm text-[#414754]">
                     {campaignSubTab === 'campaigns' 
-                      ? (language === 'en' ? 'Manage and monitor your active ad campaigns.' : 'Gestiona y monitorea tus campañas publicitarias activas.')
+                      ? (language === 'en' ? 'Manage and monitor your active ad campaigns.' : 'Gestiona y monitorea tus campaÃ±as publicitarias activas.')
                       : campaignSubTab === 'creative'
                       ? (language === 'en' ? 'Create stunning ads using your favorite templates and ChatGPT.' : 'Crea anuncios impactantes usando tus plantillas favoritas y ChatGPT.')
-                      : (language === 'en' ? 'Track performance metrics across all your campaigns.' : 'Rastrea las metricas de rendimiento de todas tus campañas.')}
+                      : (language === 'en' ? 'Track performance metrics across all your campaigns.' : 'Rastrea las metricas de rendimiento de todas tus campaÃ±as.')}
                   </p>
                 </div>
                 {campaignSubTab === 'campaigns' && (
                   <button onClick={() => setCampaignSubTab('creative')} className="px-5 py-2.5 text-white font-semibold rounded-lg shadow-lg text-sm flex items-center gap-2 hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
                     <span className="material-symbols-outlined text-sm">add</span>
-                    {language === 'en' ? 'New Campaign' : 'Nueva Campaña'}
+                    {language === 'en' ? 'New Campaign' : 'Nueva CampaÃ±a'}
                   </button>
                 )}
               </div>
               <nav className="flex gap-1 bg-[#eff4ff] p-1 rounded-xl border border-[#c1c6d6]">
                 {([
                   { key: 'creative' as const, icon: 'brush', label: 'Creative Lab' },
-                  { key: 'campaigns' as const, icon: 'campaign', label: language === 'en' ? 'Campaigns' : 'Campañas' },
-                  { key: 'analytics' as const, icon: 'monitoring', label: language === 'en' ? 'Analytics' : 'Analíticas' },
+                  { key: 'campaigns' as const, icon: 'campaign', label: language === 'en' ? 'Campaigns' : 'CampaÃ±as' },
+                  { key: 'analytics' as const, icon: 'monitoring', label: language === 'en' ? 'Analytics' : 'AnalÃ­ticas' },
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -11630,7 +11634,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 ))}
               </nav>
 
-              {/* Meta Ads quick connect/disconnect - visible en las 3 sub-pestañas */}
+              {/* Meta Ads quick connect/disconnect - visible en las 3 sub-pestaÃ±as */}
               <div
                 className="mt-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-white border border-[#c1c6d6]"
                 style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}
@@ -11648,7 +11652,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </p>
                         <p className="text-[10px] text-[#414754] truncate">
                           {configData.meta_ad_account_name || configData.facebook_ad_account_id}
-                          {configData.meta_page_name || configData.facebook_page_id ? ` · ${configData.meta_page_name || configData.facebook_page_id}` : ''}
+                          {configData.meta_page_name || configData.facebook_page_id ? ` Â· ${configData.meta_page_name || configData.facebook_page_id}` : ''}
                         </p>
                       </>
                     ) : (
@@ -11657,7 +11661,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                           {language === 'en' ? 'Meta Ads not connected' : 'Meta Ads sin conectar'}
                         </p>
-                        <p className="text-[10px] text-[#414754]">{language === 'en' ? 'Connect to publish real campaigns' : 'Conectá para poder publicar campañas reales'}</p>
+                        <p className="text-[10px] text-[#414754]">{language === 'en' ? 'Connect to publish real campaigns' : 'ConectÃ¡ para poder publicar campaÃ±as reales'}</p>
                       </>
                     )}
                   </div>
@@ -11701,19 +11705,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <button
                         onClick={() => toggleMetaDropdown('page')}
                         className="flex items-center gap-1 text-[10px] font-bold text-[#0b1c30] bg-white border border-[#c1c6d6] px-2.5 py-1.5 rounded-lg hover:bg-[#eff4ff] transition-all max-w-[140px]"
-                        title={language === 'en' ? 'Choose page' : 'Elegir página'}
+                        title={language === 'en' ? 'Choose page' : 'Elegir pÃ¡gina'}
                       >
                         <span className="material-symbols-outlined text-sm">flag</span>
-                        <span className="truncate">{configData.meta_page_name || (language === 'en' ? 'Page' : 'Página')}</span>
+                        <span className="truncate">{configData.meta_page_name || (language === 'en' ? 'Page' : 'PÃ¡gina')}</span>
                         <span className="material-symbols-outlined text-sm">{metaListLoading && showPageDropdown ? 'sync' : 'expand_more'}</span>
                       </button>
                       {showPageDropdown && (
                         <div className="absolute z-30 top-full mt-1 right-0 w-64 bg-white border border-[#c1c6d6] rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
                           {metaListLoading && (
-                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'Loading pages...' : 'Cargando páginas...'}</div>
+                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'Loading pages...' : 'Cargando pÃ¡ginas...'}</div>
                           )}
                           {!metaListLoading && metaPages.length === 0 && (
-                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'No pages found' : 'No se encontraron páginas'}</div>
+                            <div className="px-3 py-3 text-xs text-gray-500">{language === 'en' ? 'No pages found' : 'No se encontraron pÃ¡ginas'}</div>
                           )}
                           {!metaListLoading && metaPages.map((pg: any) => (
                             <button
@@ -11730,13 +11734,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <p className="text-[10px] text-amber-800 leading-snug mb-1.5">
                                 {language === 'en'
                                   ? "Only seeing 1 page? Facebook only shares the pages you explicitly select during login."
-                                  : '¿Tenés más páginas y no aparecen? Facebook solo comparte las páginas que elegís explícitamente al conectar.'}
+                                  : 'Â¿TenÃ©s mÃ¡s pÃ¡ginas y no aparecen? Facebook solo comparte las pÃ¡ginas que elegÃ­s explÃ­citamente al conectar.'}
                               </p>
                               <button
                                 onClick={() => { setShowPageDropdown(false); handleMetaFacebookLogin(); }}
                                 className="text-[10px] font-black text-blue-700 hover:text-blue-900 uppercase tracking-wide"
                               >
-                                {language === 'en' ? 'Reconnect & select all pages' : 'Reconectar y elegir todas las páginas'}
+                                {language === 'en' ? 'Reconnect & select all pages' : 'Reconectar y elegir todas las pÃ¡ginas'}
                               </button>
                             </div>
                           )}
@@ -11765,7 +11769,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     {fbLoading ? (language === 'en' ? 'Loading...' : 'Cargando...') : (language === 'en' ? 'Load from Facebook' : 'Cargar de Facebook')}
                   </button>
                   {fbError && <span className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">{fbError}</span>}
-                  {fbCampaigns.length > 0 && <span className="text-sm text-[#006947] bg-[#006947]/10 px-3 py-1 rounded-lg font-semibold">{fbCampaigns.length} {language === 'en' ? 'campaigns loaded' : 'campañas cargadas'}</span>}
+                  {fbCampaigns.length > 0 && <span className="text-sm text-[#006947] bg-[#006947]/10 px-3 py-1 rounded-lg font-semibold">{fbCampaigns.length} {language === 'en' ? 'campaigns loaded' : 'campaÃ±as cargadas'}</span>}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -11787,8 +11791,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {/* Stats Row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[
-                    { label: language === 'en' ? 'Total Campaigns' : 'Total Campañas', value: String(fbCampaigns.length || 0), trend: 'Facebook Ads', trendIcon: 'campaign', trendColor: 'text-[#006947]' },
-                    { label: language === 'en' ? 'Total Spent' : 'Gasto Total', value: '$' + fbCampaigns.reduce((s:number,c:any) => s + parseFloat(c.insights?.spend||'0'), 0).toFixed(2), trend: fbCampaigns.length > 0 ? 'Datos reales' : 'Carga campañas', pacing: fbCampaigns.length > 0 ? 100 : 0 },
+                    { label: language === 'en' ? 'Total Campaigns' : 'Total CampaÃ±as', value: String(fbCampaigns.length || 0), trend: 'Facebook Ads', trendIcon: 'campaign', trendColor: 'text-[#006947]' },
+                    { label: language === 'en' ? 'Total Spent' : 'Gasto Total', value: '$' + fbCampaigns.reduce((s:number,c:any) => s + parseFloat(c.insights?.spend||'0'), 0).toFixed(2), trend: fbCampaigns.length > 0 ? 'Datos reales' : 'Carga campaÃ±as', pacing: fbCampaigns.length > 0 ? 100 : 0 },
                     { label: language === 'en' ? 'Average CPC' : 'CPC Promedio', value: '$' + (fbCampaigns.length > 0 ? (fbCampaigns.reduce((s:number,c:any) => s + parseFloat(c.insights?.cpc||'0'), 0) / fbCampaigns.length).toFixed(2) : '0.00'), trend: 'Facebook API', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
                     { label: language === 'en' ? 'Total Clicks' : 'Total Clicks', value: String(fbCampaigns.reduce((s:number,c:any) => s + parseInt(c.insights?.clicks||'0'), 0)), trend: 'Real-time', trendIcon: 'trending_up', trendColor: 'text-[#006947]' },
                   ].map((s, i) => (
@@ -11813,7 +11817,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-[#eff4ff] border-b border-[#c1c6d6]">
                       <tr>
-                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Campaign' : 'Campaña'}</th>
+                        <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Campaign' : 'CampaÃ±a'}</th>
                         <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Status' : 'Estado'}</th>
                         <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider">{language === 'en' ? 'Budget' : 'Presupuesto'}</th>
                         <th className="px-6 py-4 text-[12px] text-[#414754] font-bold uppercase tracking-wider text-right">{language === 'en' ? 'Results' : 'Resultados'}</th>
@@ -11826,7 +11830,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {(fbCampaigns.length > 0 ? fbCampaigns.map((c:any) => ({
   name: c.name || 'Sin nombre', platform: 'Facebook', category: c.objective || 'TRAFFIC', status: c.status === 'ACTIVE' ? 'active' : 'paused', budgetDay: '$' + (c.daily_budget || '0.00'), budgetTotal: '$' + (c.lifetime_budget || '--'), resultValue: c.insights?.impressions || '0', resultLabel: language === 'en' ? 'Impressions' : 'Impresiones', costValue: '$' + (c.insights?.cpc || '0.00'), costLabel: 'CPC', date: c.start_time ? new Date(c.start_time).toLocaleDateString() + (c.stop_time ? ' - ' + new Date(c.stop_time).toLocaleDateString() : '') : (c.created_time ? new Date(c.created_time).toLocaleDateString() : '--'), img: 'campaign', id: c.id, rawStatus: c.status,
 })) : [
-  { name: language === 'en' ? 'No campaigns loaded' : 'Sin campañas cargadas', platform: 'Facebook', category: '--', status: 'paused', budgetDay: '--', budgetTotal: '--', resultValue: '--', resultLabel: '--', costValue: '--', costLabel: '--', date: '--', img: 'info', id: '', rawStatus: '' },
+  { name: language === 'en' ? 'No campaigns loaded' : 'Sin campaÃ±as cargadas', platform: 'Facebook', category: '--', status: 'paused', budgetDay: '--', budgetTotal: '--', resultValue: '--', resultLabel: '--', costValue: '--', costLabel: '--', date: '--', img: 'info', id: '', rawStatus: '' },
 ]).map((row, i) => (
                         <tr key={i} className="hover:bg-[#f8f9ff] transition-colors">
                           <td className="px-6 py-4">
@@ -11836,7 +11840,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </div>
                               <div>
                                 <p className="text-sm font-bold text-[#0b1c30]">{row.name}</p>
-                                <p className="text-[11px] text-[#414754]">{row.platform} · {row.category}</p>
+                                <p className="text-[11px] text-[#414754]">{row.platform} Â· {row.category}</p>
                               </div>
                             </div>
                           </td>
@@ -11872,7 +11876,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </table>
                   {/* Pagination */}
                   <div className="bg-[#eff4ff] px-6 py-4 flex items-center justify-between border-t border-[#c1c6d6]">
-                    <p className="text-[12px] font-semibold text-[#414754]">{language === 'en' ? `Showing ${fbCampaigns.length} campaigns from Facebook` : `Mostrando ${fbCampaigns.length} campañas de Facebook`}</p>
+                    <p className="text-[12px] font-semibold text-[#414754]">{language === 'en' ? `Showing ${fbCampaigns.length} campaigns from Facebook` : `Mostrando ${fbCampaigns.length} campaÃ±as de Facebook`}</p>
                     <div className="flex items-center gap-2">
                       <button className="p-1 rounded hover:bg-[#dce9ff] transition-colors disabled:opacity-50" disabled><span className="material-symbols-outlined">chevron_left</span></button>
                       <div className="flex items-center gap-1">
@@ -11891,11 +11895,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             {campaignSubTab === 'creative' && (
               <div className="space-y-6">
 
-                {/* ── STEPPER ── */}
+                {/* â”€â”€ STEPPER â”€â”€ */}
                 <div className="bg-white rounded-xl border border-[#c1c6d6] p-5" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
                   <div className="flex items-center justify-between">
                     {([
-                      { step: 1 as const, icon: 'palette', label: language === 'en' ? 'Style & Diagnosis' : 'Estilo y Diagnóstico' },
+                      { step: 1 as const, icon: 'palette', label: language === 'en' ? 'Style & Diagnosis' : 'Estilo y DiagnÃ³stico' },
                       { step: 2 as const, icon: 'campaign', label: language === 'en' ? 'Configure & Publish' : 'Configurar y Publicar' },
                     ]).map((s, i, arr) => (
                       <React.Fragment key={s.step}>
@@ -11931,9 +11935,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                 <AnimatePresence mode="wait">
 
-                {/* ════════════════════════════════════════════════════ */}
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {/* PASO 1: ELEGIR PLANTILLA                            */}
-                {/* ════════════════════════════════════════════════════ */}
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {chatgptFlowStep === 1 && (
                   <motion.div
                     key="step1"
@@ -11957,7 +11961,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             </h4>
                             <p className="text-[9px] text-[#006947] font-bold flex items-center gap-1">
                               <span className="inline-block w-1.5 h-1.5 bg-[#006947] rounded-full animate-ping" />
-                              {language === 'en' ? 'Online · Strategy Optimizer' : 'En línea · Optimización Estratégica'}
+                              {language === 'en' ? 'Online Â· Strategy Optimizer' : 'En lÃ­nea Â· OptimizaciÃ³n EstratÃ©gica'}
                             </p>
                           </div>
                         </div>
@@ -11982,17 +11986,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 id: '1',
                                 sender: 'agent',
                                 text: language === 'en'
-                                  ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
-                                  : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+                                  ? "Hi! ðŸ¤– I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
+                                  : "Â¡Hola! ðŸ¤– Soy tu Agente Experto en Meta Ads. Estoy aquÃ­ para diseÃ±ar tu campaÃ±a de marketing perfecta de forma automÃ¡tica.\n\nPara empezar, dime: Â¿CuÃ¡l es el objetivo principal de tu campaÃ±a?",
                                 options: [
-                                  { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
-                                  { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
-                                  { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+                                  { label: language === 'en' ? "ðŸª Attract clients to my Local Store" : "ðŸª Atraer clientes a mi Local FÃ­sico", value: 'local' },
+                                  { label: language === 'en' ? "ðŸ’¬ Drive Sales via WhatsApp" : "ðŸ’¬ Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+                                  { label: language === 'en' ? "ðŸŒ Sell from my Website" : "ðŸŒ Vender desde mi PÃ¡gina Web o tienda online", value: 'web' },
                                 ]
                               }
                             ]);
                             setAgentInputText('');
-                            setToast({ message: language === 'en' ? 'Chat restarted!' : '¡Conversación reiniciada!', type: 'info' });
+                            setToast({ message: language === 'en' ? 'Chat restarted!' : 'Â¡ConversaciÃ³n reiniciada!', type: 'info' });
                           }}
                           className="flex items-center gap-1 px-3 py-1.5 bg-white border border-[#c1c6d6] hover:bg-[#eff4ff] rounded-lg text-[10px] font-bold text-[#0b1c30] transition-all uppercase tracking-wider active:scale-95"
                         >
@@ -12032,7 +12036,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                           radius: agentAnswers.radius || 25,
                                           name: name || 'Zona Seleccionada'
                                         });
-                                        handleAgentMessageSubmit(valueStr, `${language === 'en' ? 'Targeting:' : 'Segmentación:'} ${name || '📍'} (+${agentAnswers.radius || 25}km)`);
+                                        handleAgentMessageSubmit(valueStr, `${language === 'en' ? 'Targeting:' : 'SegmentaciÃ³n:'} ${name || 'ðŸ“'} (+${agentAnswers.radius || 25}km)`);
                                       }}
                                     />
                                   )}
@@ -12044,7 +12048,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         goal={agentGoal || 'local'}
                                         answers={agentAnswers}
                                         language={language}
-                                        onConfirm={() => handleAgentMessageSubmit('apply', language === 'en' ? '⚡ Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar')}
+                                        onConfirm={() => handleAgentMessageSubmit('apply', language === 'en' ? 'âš¡ Apply Campaign Setup' : 'âš¡ Aplicar ConfiguraciÃ³n y Continuar')}
                                       />
                                       
                                       {/* ADDITIONAL PREMIUM FEATURE: Inline Copys Selector */}
@@ -12054,7 +12058,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         onSelect={(selectedCopyText) => {
                                           setAdDescription(selectedCopyText);
                                           setCampaignDesc(selectedCopyText);
-                                          setToast({ message: language === 'en' ? '✍️ Copy applied to campaign!' : '✍️ ¡Texto persuasivo aplicado a tu campaña!', type: 'success' });
+                                          setToast({ message: language === 'en' ? 'âœï¸ Copy applied to campaign!' : 'âœï¸ Â¡Texto persuasivo aplicado a tu campaÃ±a!', type: 'success' });
                                         }}
                                       />
                                     </div>
@@ -12105,7 +12109,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-sm animate-spin">sync</span>
                             {language === 'en' 
                               ? 'Complete the action inside the chat bubble above...' 
-                              : 'Completa la acción interactiva en la burbuja del chat arriba...'}
+                              : 'Completa la acciÃ³n interactiva en la burbuja del chat arriba...'}
                           </div>
                         ) : (
                           <>
@@ -12121,19 +12125,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 }
                               }}
                               placeholder={
-                                agentGoal === 'local' && agentChatStep === 1 ? (language === 'en' ? "e.g., Don Giovanni Pizzeria..." : "Ej: Pizzería Don Giovanni...") :
+                                agentGoal === 'local' && agentChatStep === 1 ? (language === 'en' ? "e.g., Don Giovanni Pizzeria..." : "Ej: PizzerÃ­a Don Giovanni...") :
                                 agentGoal === 'local' && agentChatStep === 2 ? (language === 'en' ? "e.g., 123 Main St, Quito..." : "Ej: Av. Amazonas N32-15 y Orellana...") :
                                 agentGoal === 'local' && agentChatStep === 3 ? (language === 'en' ? "e.g., Pepperoni Pizza..." : "Ej: Pizza Familiar Pepperoni...") :
                                 agentGoal === 'local' && agentChatStep === 4 ? (language === 'en' ? "e.g., 2x1 for $12.99..." : "Ej: 2x1 por $14.99...") :
                                 agentGoal === 'whatsapp' && agentChatStep === 1 ? (language === 'en' ? "e.g., +593987654321..." : "Ej: +593987654321...") :
-                                agentGoal === 'whatsapp' && agentChatStep === 2 ? (language === 'en' ? "e.g., Whey Protein Supplement..." : "Ej: Proteína Whey Concentrada...") :
+                                agentGoal === 'whatsapp' && agentChatStep === 2 ? (language === 'en' ? "e.g., Whey Protein Supplement..." : "Ej: ProteÃ­na Whey Concentrada...") :
                                 agentGoal === 'whatsapp' && agentChatStep === 3 ? (language === 'en' ? "e.g., $29.99..." : "Ej: $35.00...") :
-                                agentGoal === 'whatsapp' && agentChatStep === 4 ? (language === 'en' ? "e.g., Muscle recovery, 100% pure..." : "Ej: Aumenta energía, 100% orgánico, sabor chocolate...") :
+                                agentGoal === 'whatsapp' && agentChatStep === 4 ? (language === 'en' ? "e.g., Muscle recovery, 100% pure..." : "Ej: Aumenta energÃ­a, 100% orgÃ¡nico, sabor chocolate...") :
                                 agentGoal === 'web' && agentChatStep === 1 ? (language === 'en' ? "e.g., https://mystore.com..." : "Ej: https://mitienda.com...") :
-                                agentGoal === 'web' && agentChatStep === 2 ? (language === 'en' ? "e.g., Wireless Headset..." : "Ej: Audífonos Inalámbricos Bluetooth...") :
+                                agentGoal === 'web' && agentChatStep === 2 ? (language === 'en' ? "e.g., Wireless Headset..." : "Ej: AudÃ­fonos InalÃ¡mbricos Bluetooth...") :
                                 agentGoal === 'web' && agentChatStep === 3 ? (language === 'en' ? "e.g., $89..." : "Ej: $89...") :
-                                agentGoal === 'web' && agentChatStep === 4 ? (language === 'en' ? "e.g., Free Shipping, 10% coupon..." : "Ej: Envío Gratis a todo el país + 3 meses sin intereses...") :
-                                (language === 'en' ? "Type your answer here..." : "Escribe tu respuesta aquí...")
+                                agentGoal === 'web' && agentChatStep === 4 ? (language === 'en' ? "e.g., Free Shipping, 10% coupon..." : "Ej: EnvÃ­o Gratis a todo el paÃ­s + 3 meses sin intereses...") :
+                                (language === 'en' ? "Type your answer here..." : "Escribe tu respuesta aquÃ­...")
                               }
                               className="flex-1 px-4 py-2.5 bg-[#f8fafc] border border-[#cbd5e1] rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#0058bc]/20 transition-all font-sans"
                             />
@@ -12154,9 +12158,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
 
 
-                {/* ════════════════════════════════════════════════════ */}
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {/* PASO 2: SUBIR IMAGEN Y PUBLICAR                     */}
-                {/* ════════════════════════════════════════════════════ */}
+                {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
                 {chatgptFlowStep === 2 && (
                   <motion.div
                     key="step2"
@@ -12215,13 +12219,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               {language === 'en' ? 'Ad creatives' : 'Creatividades del anuncio'}
                             </label>
                             <span className={`text-[10px] font-bold ${(1 * (finalUploadedImage ? 1 : 0) + extraCreativeAssets.length) === MAX_CREATIVE_ASSETS ? 'text-[#006947]' : 'text-red-500'}`}>
-                              {(finalUploadedImage ? 1 : 0) + extraCreativeAssets.length}/{MAX_CREATIVE_ASSETS} · {language === 'en' ? 'required' : 'obligatorio'}
+                              {(finalUploadedImage ? 1 : 0) + extraCreativeAssets.length}/{MAX_CREATIVE_ASSETS} Â· {language === 'en' ? 'required' : 'obligatorio'}
                             </span>
                           </div>
                           <p className="text-[11px] text-[#727785] mb-3">
                             {language === 'en'
-                              ? `Select exactly ${MAX_CREATIVE_ASSETS} images or videos — each ad set publishes ${MAX_CREATIVE_ASSETS} ads, one per creative, pairing them with the AI copy variants.`
-                              : `Seleccioná exactamente ${MAX_CREATIVE_ASSETS} imágenes o videos — cada conjunto publica ${MAX_CREATIVE_ASSETS} anuncios, uno por creatividad, combinados con las variantes de copy de la IA.`}
+                              ? `Select exactly ${MAX_CREATIVE_ASSETS} images or videos â€” each ad set publishes ${MAX_CREATIVE_ASSETS} ads, one per creative, pairing them with the AI copy variants.`
+                              : `SeleccionÃ¡ exactamente ${MAX_CREATIVE_ASSETS} imÃ¡genes o videos â€” cada conjunto publica ${MAX_CREATIVE_ASSETS} anuncios, uno por creatividad, combinados con las variantes de copy de la IA.`}
                           </p>
 
                           <div className="grid grid-cols-3 gap-3">
@@ -12301,18 +12305,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-violet-500">edit_note</span>
                             {language === 'en' ? 'Ad Details' : 'Detalles del Anuncio'}
                           </h3>
-                          <p className="text-[12px] text-[#414754] mb-4">{language === 'en' ? 'Add information about your ad for the post caption.' : 'Agrega información de tu anuncio para la publicación.'}</p>
+                          <p className="text-[12px] text-[#414754] mb-4">{language === 'en' ? 'Add information about your ad for the post caption.' : 'Agrega informaciÃ³n de tu anuncio para la publicaciÃ³n.'}</p>
 
                           <div className="space-y-4">
                             <div>
                               <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
                                 <span className="material-symbols-outlined text-sm text-violet-500">description</span>
-                                {language === 'en' ? 'Description' : 'Descripción'}
+                                {language === 'en' ? 'Description' : 'DescripciÃ³n'}
                               </label>
                               <textarea
                                 value={adDescription}
                                 onChange={e => setAdDescription(e.target.value.slice(0, 500))}
-                                placeholder={language === 'en' ? 'Describe what you are promoting...' : 'Describe lo que estás promocionando...'}
+                                placeholder={language === 'en' ? 'Describe what you are promoting...' : 'Describe lo que estÃ¡s promocionando...'}
                                 className="w-full h-20 p-3 bg-[#eff4ff] border border-[#c1c6d6] rounded-xl text-sm focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all resize-none placeholder:text-[#a5b4c8]"
                               />
                               <span className="text-[10px] text-[#727785]">{adDescription.length}/500</span>
@@ -12322,7 +12326,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <button
                               onClick={async () => {
                                 if (!adDescription || adDescription.trim().length < 5) {
-                                  setToast({ message: language === 'en' ? 'Write a brief description first' : 'Escribe una descripción breve primero', type: 'info' });
+                                  setToast({ message: language === 'en' ? 'Write a brief description first' : 'Escribe una descripciÃ³n breve primero', type: 'info' });
                                   return;
                                 }
                                 setIsGeneratingDescription(true);
@@ -12355,7 +12359,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     // Store full campaign result for publish
                                     setCampaignResult(generated);
                                     
-                                    setToast({ message: language === 'en' ? '✨ Ad fully generated! Description, budget & targeting ready.' : '✨ ¡Anuncio generado! Descripción, presupuesto y segmentación listos.', type: 'success' });
+                                    setToast({ message: language === 'en' ? 'âœ¨ Ad fully generated! Description, budget & targeting ready.' : 'âœ¨ Â¡Anuncio generado! DescripciÃ³n, presupuesto y segmentaciÃ³n listos.', type: 'success' });
                                   } else {
                                     setToast({ message: data.error || 'Error generating description', type: 'error' });
                                   }
@@ -12380,14 +12384,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 {isGeneratingDescription ? 'progress_activity' : 'auto_awesome'}
                               </span>
                               {isGeneratingDescription
-                                ? (language === 'en' ? 'AI is creating your description...' : 'La IA está creando tu descripción...')
-                                : (language === 'en' ? 'Generate Description with AI' : 'Generar Descripción con IA')}
+                                ? (language === 'en' ? 'AI is creating your description...' : 'La IA estÃ¡ creando tu descripciÃ³n...')
+                                : (language === 'en' ? 'Generate Description with AI' : 'Generar DescripciÃ³n con IA')}
                             </button>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
                                   <span className="material-symbols-outlined text-sm text-blue-500">call</span>
-                                  {language === 'en' ? 'Phone (optional)' : 'Teléfono (opcional)'}
+                                  {language === 'en' ? 'Phone (optional)' : 'TelÃ©fono (opcional)'}
                                 </label>
                                 <input
                                   type="tel"
@@ -12400,7 +12404,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <div>
                                 <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
                                   <span className="material-symbols-outlined text-sm text-emerald-500">location_on</span>
-                                  {language === 'en' ? 'Address (optional)' : 'Dirección (opcional)'}
+                                  {language === 'en' ? 'Address (optional)' : 'DirecciÃ³n (opcional)'}
                                 </label>
                                 <input
                                   type="text"
@@ -12429,16 +12433,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   onChange={e => setDailyBudget(Math.max(1, Math.min(1000, Number(e.target.value) || 1)))}
                                   className="w-full pl-8 pr-16 py-3 bg-white border border-[#c1c6d6] rounded-xl text-sm font-semibold focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all"
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">USD/día</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">USD/dÃ­a</span>
                               </div>
-                              <p className="text-[10px] text-[#727785] mt-1.5">{language === 'en' ? 'Minimum $1/day. Campaign starts paused, you can activate it from Facebook.' : 'Mínimo $1/día. La campaña inicia pausada, puedes activarla desde Facebook.'}</p>
+                              <p className="text-[10px] text-[#727785] mt-1.5">{language === 'en' ? 'Minimum $1/day. Campaign starts paused, you can activate it from Facebook.' : 'MÃ­nimo $1/dÃ­a. La campaÃ±a inicia pausada, puedes activarla desde Facebook.'}</p>
                             </div>
 
                             {/* Campaign Duration */}
                             <div className="mt-4 p-4 bg-gradient-to-r from-[#f0f7ff] to-[#eff4ff] rounded-xl border border-[#c1c6d6]">
                               <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] mb-2 uppercase tracking-widest">
                                 <span className="material-symbols-outlined text-sm text-indigo-500">event</span>
-                                {language === 'en' ? 'Campaign Duration' : 'Duración de la Campaña'}
+                                {language === 'en' ? 'Campaign Duration' : 'DuraciÃ³n de la CampaÃ±a'}
                               </label>
                               <div className="relative">
                                 <input
@@ -12450,28 +12454,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   onChange={e => setCampaignDurationDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
                                   className="w-full pl-4 pr-16 py-3 bg-white border border-[#c1c6d6] rounded-xl text-sm font-semibold focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all"
                                 />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">{language === 'en' ? 'days' : 'días'}</span>
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#727785] font-medium">{language === 'en' ? 'days' : 'dÃ­as'}</span>
                               </div>
                               <p className="text-[10px] text-[#727785] mt-1.5">
                                 {campaignDurationDays >= 14
                                   ? (language === 'en'
                                       ? `Split automatically: ~${Math.ceil(campaignDurationDays / 2)} days reach/learning + ~${campaignDurationDays - Math.ceil(campaignDurationDays / 2)} days remarketing to people reached in phase 1.`
-                                      : `Se divide automáticamente: ~${Math.ceil(campaignDurationDays / 2)} días de alcance/aprendizaje + ~${campaignDurationDays - Math.ceil(campaignDurationDays / 2)} días de remarketing a quienes fueron alcanzados en la fase 1.`)
+                                      : `Se divide automÃ¡ticamente: ~${Math.ceil(campaignDurationDays / 2)} dÃ­as de alcance/aprendizaje + ~${campaignDurationDays - Math.ceil(campaignDurationDays / 2)} dÃ­as de remarketing a quienes fueron alcanzados en la fase 1.`)
                                   : (language === 'en'
                                       ? 'Under 14 days: single continuous campaign (no remarketing split).'
-                                      : 'Menos de 14 días: campaña única continua (sin división de remarketing).')}
+                                      : 'Menos de 14 dÃ­as: campaÃ±a Ãºnica continua (sin divisiÃ³n de remarketing).')}
                               </p>
                             </div>
 
-                            {/* Location Targeting — Meta-style */}
+                            {/* Location Targeting â€” Meta-style */}
                             <div className="mt-4 rounded-xl border border-[#c1c6d6] overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                               {/* Header */}
                               <div className="px-4 py-3 bg-gradient-to-r from-[#f0f7ff] to-[#eff4ff] border-b border-[#c1c6d6]">
                                 <label className="flex items-center gap-2 text-[11px] font-semibold text-[#414754] uppercase tracking-widest">
                                   <span className="material-symbols-outlined text-sm text-[#0058bc]">my_location</span>
-                                  {language === 'en' ? 'Location Targeting' : 'Segmentación por Ubicación'}
+                                  {language === 'en' ? 'Location Targeting' : 'SegmentaciÃ³n por UbicaciÃ³n'}
                                 </label>
-                                <p className="text-[9px] text-[#727785] mt-0.5">{language === 'en' ? 'Search cities, drop pins on map, or select countries' : 'Busca ciudades, coloca pines en el mapa o selecciona países'}</p>
+                                <p className="text-[9px] text-[#727785] mt-0.5">{language === 'en' ? 'Search cities, drop pins on map, or select countries' : 'Busca ciudades, coloca pines en el mapa o selecciona paÃ­ses'}</p>
                               </div>
 
                               {/* Search Bar */}
@@ -12491,7 +12495,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         } catch { setLocationResults([]); }
                                       }
                                     }}
-                                    placeholder={language === 'en' ? 'Search city, province, or region... (Enter)' : 'Buscar ciudad, provincia o región... (Enter)'}
+                                    placeholder={language === 'en' ? 'Search city, province, or region... (Enter)' : 'Buscar ciudad, provincia o regiÃ³n... (Enter)'}
                                     className="w-full pl-9 pr-4 py-2.5 bg-[#f8faff] border border-[#c1c6d6] rounded-xl text-xs focus:ring-2 focus:ring-[#0058bc] focus:border-[#0058bc] outline-none transition-all placeholder:text-[#a5b4c8]"
                                   />
                                 </div>
@@ -12615,7 +12619,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                             weight: 2,
                                           }).addTo(map);
                                           const marker = L.marker([lat, lng]).addTo(map)
-                                            .bindPopup(`<b>📍</b><br>${radius}km`);
+                                            .bindPopup(`<b>ðŸ“</b><br>${radius}km`);
                                           mapMarkersRef.current.push({ circle, marker });
                                           
                                           fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
@@ -12650,7 +12654,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     <div className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-xl shadow-lg border border-[#c1c6d6]">
                                       <p className="text-[11px] text-[#414754] font-medium flex items-center gap-2">
                                         <span className="material-symbols-outlined text-sm text-[#0058bc]">ads_click</span>
-                                        {language === 'en' ? 'Click on map to add targeting area' : 'Clic en el mapa para agregar zona de segmentación'}
+                                        {language === 'en' ? 'Click on map to add targeting area' : 'Clic en el mapa para agregar zona de segmentaciÃ³n'}
                                       </p>
                                     </div>
                                   </div>
@@ -12720,13 +12724,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                               {/* Country Quick Select */}
                               <div className="px-4 py-3 bg-white border-t border-[#e5eeff]">
-                                <span className="text-[9px] font-bold text-[#727785] uppercase tracking-wider block mb-2">{language === 'en' ? 'Quick select by country' : 'Selección rápida por país'}</span>
+                                <span className="text-[9px] font-bold text-[#727785] uppercase tracking-wider block mb-2">{language === 'en' ? 'Quick select by country' : 'SelecciÃ³n rÃ¡pida por paÃ­s'}</span>
                                 <div className="flex flex-wrap gap-1">
                                   {[
-                                    { code: 'EC', flag: '🇪🇨', name: 'Ecuador' }, { code: 'MX', flag: '🇲🇽', name: 'México' }, { code: 'CO', flag: '🇨🇴', name: 'Colombia' },
-                                    { code: 'PE', flag: '🇵🇪', name: 'Perú' }, { code: 'AR', flag: '🇦🇷', name: 'Argentina' }, { code: 'CL', flag: '🇨🇱', name: 'Chile' },
-                                    { code: 'BR', flag: '🇧🇷', name: 'Brasil' }, { code: 'US', flag: '🇺🇸', name: 'EE.UU.' }, { code: 'ES', flag: '🇪🇸', name: 'España' },
-                                    { code: 'VE', flag: '🇻🇪', name: 'Venezuela' }, { code: 'BO', flag: '🇧🇴', name: 'Bolivia' }, { code: 'PA', flag: '🇵🇦', name: 'Panamá' },
+                                    { code: 'EC', flag: 'ðŸ‡ªðŸ‡¨', name: 'Ecuador' }, { code: 'MX', flag: 'ðŸ‡²ðŸ‡½', name: 'MÃ©xico' }, { code: 'CO', flag: 'ðŸ‡¨ðŸ‡´', name: 'Colombia' },
+                                    { code: 'PE', flag: 'ðŸ‡µðŸ‡ª', name: 'PerÃº' }, { code: 'AR', flag: 'ðŸ‡¦ðŸ‡·', name: 'Argentina' }, { code: 'CL', flag: 'ðŸ‡¨ðŸ‡±', name: 'Chile' },
+                                    { code: 'BR', flag: 'ðŸ‡§ðŸ‡·', name: 'Brasil' }, { code: 'US', flag: 'ðŸ‡ºðŸ‡¸', name: 'EE.UU.' }, { code: 'ES', flag: 'ðŸ‡ªðŸ‡¸', name: 'EspaÃ±a' },
+                                    { code: 'VE', flag: 'ðŸ‡»ðŸ‡ª', name: 'Venezuela' }, { code: 'BO', flag: 'ðŸ‡§ðŸ‡´', name: 'Bolivia' }, { code: 'PA', flag: 'ðŸ‡µðŸ‡¦', name: 'PanamÃ¡' },
                                   ].map(c => (
                                     <button
                                       key={c.code}
@@ -12774,8 +12778,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <span className="material-symbols-outlined text-sm text-[#0058bc]">check_circle</span>
                                 <span className="text-[10px] text-[#414754] font-medium">
                                   {adLocations.length > 0 
-                                    ? `${adLocations.length} ${language === 'en' ? 'locations' : 'ubicaciones'} + ${adCountries.length} ${language === 'en' ? 'countries' : 'países'}`
-                                    : `${adCountries.length} ${adCountries.length === 1 ? (language === 'en' ? 'country' : 'país') : (language === 'en' ? 'countries' : 'países')}`
+                                    ? `${adLocations.length} ${language === 'en' ? 'locations' : 'ubicaciones'} + ${adCountries.length} ${language === 'en' ? 'countries' : 'paÃ­ses'}`
+                                    : `${adCountries.length} ${adCountries.length === 1 ? (language === 'en' ? 'country' : 'paÃ­s') : (language === 'en' ? 'countries' : 'paÃ­ses')}`
                                   }
                                 </span>
                               </div>
@@ -12799,14 +12803,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                                       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                                     </svg>
-                                    {language === 'en' ? 'Publish Campaign to Facebook' : 'Publicar Campaña en Facebook'}
+                                    {language === 'en' ? 'Publish Campaign to Facebook' : 'Publicar CampaÃ±a en Facebook'}
                                   </>
                                 )}
                               </button>
                               <p className="text-[11px] text-[#727785] text-center mt-2.5">
                                 {language === 'en' 
                                   ? 'This will export your ad and targeting settings directly to Meta Ads Manager as a paused campaign.' 
-                                  : 'Esto exportará tu anuncio y segmentación directamente a Meta Ads Manager como una campaña pausada.'}
+                                  : 'Esto exportarÃ¡ tu anuncio y segmentaciÃ³n directamente a Meta Ads Manager como una campaÃ±a pausada.'}
                               </p>
                               
                               {showMetaPermissionsModal && (
@@ -12830,28 +12834,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <p className="text-xs">
                                         {language === 'en'
                                           ? 'It looks like the Facebook Page you selected has a connected Instagram profile, but your current Facebook User or Ad Account does not have permission to access that Instagram profile.'
-                                          : 'Parece que la página de Facebook que seleccionaste tiene un perfil de Instagram vinculado, pero tu cuenta de Facebook o tu cuenta publicitaria no tienen los permisos requeridos para acceder a dicho perfil.'}
+                                          : 'Parece que la pÃ¡gina de Facebook que seleccionaste tiene un perfil de Instagram vinculado, pero tu cuenta de Facebook o tu cuenta publicitaria no tienen los permisos requeridos para acceder a dicho perfil.'}
                                       </p>
 
                                       <div className="bg-[#f8fafc] border border-slate-100 rounded-2xl p-4 space-y-3">
                                         <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-500">
-                                          {language === 'en' ? 'How to resolve this:' : 'Cómo solucionarlo paso a paso:'}
+                                          {language === 'en' ? 'How to resolve this:' : 'CÃ³mo solucionarlo paso a paso:'}
                                         </h4>
                                         <ol className="list-decimal pl-4 space-y-2.5 text-[11px] text-[#414754]">
                                           <li>
-                                            <strong>{language === 'en' ? 'Assign assets in Meta Business Settings' : 'Asigna los activos en la configuración de Meta'}</strong>:
+                                            <strong>{language === 'en' ? 'Assign assets in Meta Business Settings' : 'Asigna los activos en la configuraciÃ³n de Meta'}</strong>:
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
                                                 ? 'Go to Meta Business Settings > Instagram Accounts. Select your Instagram profile, click "Add People" to assign yourself, then go to "Connected Assets" and add your Ad Account.'
-                                                : 'Ve a Configuración del negocio en Meta > Cuentas de Instagram. Selecciona tu perfil, haz clic en "Añadir personas" para asignarte a ti mismo, luego ve a "Activos conectados" y añade tu Cuenta Publicitaria.'}
+                                                : 'Ve a ConfiguraciÃ³n del negocio en Meta > Cuentas de Instagram. Selecciona tu perfil, haz clic en "AÃ±adir personas" para asignarte a ti mismo, luego ve a "Activos conectados" y aÃ±ade tu Cuenta Publicitaria.'}
                                             </span>
                                           </li>
                                           <li>
-                                            <strong>{language === 'en' ? 'Confirm Page Connection' : 'Confirma la conexión en tu página'}</strong>:
+                                            <strong>{language === 'en' ? 'Confirm Page Connection' : 'Confirma la conexiÃ³n en tu pÃ¡gina'}</strong>:
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
                                                 ? 'Open your Facebook Page settings > Linked Accounts > Instagram. If there is a warning or a "Review Connection" button, complete it to refresh the connection.'
-                                                : 'Entra a tu página de Facebook > Configuración > Cuentas vinculadas > Instagram. Si ves un botón de "Revisar conexión" o "Confirmar", complétalo.'}
+                                                : 'Entra a tu pÃ¡gina de Facebook > ConfiguraciÃ³n > Cuentas vinculadas > Instagram. Si ves un botÃ³n de "Revisar conexiÃ³n" o "Confirmar", complÃ©talo.'}
                                             </span>
                                           </li>
                                           <li>
@@ -12859,7 +12863,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
                                                 ? 'Once configured in Meta, return here and click "Publish Campaign" again.'
-                                                : 'Una vez hechos los cambios en Meta, regresa aquí y vuelve a hacer clic en "Publicar Campaña".'}
+                                                : 'Una vez hechos los cambios en Meta, regresa aquÃ­ y vuelve a hacer clic en "Publicar CampaÃ±a".'}
                                             </span>
                                           </li>
                                         </ol>
@@ -12873,7 +12877,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         rel="noopener noreferrer"
                                         className="flex-1 py-3 text-center text-white bg-[#1877F2] font-bold text-xs rounded-xl hover:bg-[#166fe5] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/10"
                                       >
-                                        {language === 'en' ? 'Open Meta Business Settings' : 'Ir a Configuración de Meta'}
+                                        {language === 'en' ? 'Open Meta Business Settings' : 'Ir a ConfiguraciÃ³n de Meta'}
                                         <span className="material-symbols-outlined text-xs">open_in_new</span>
                                       </a>
                                       <button
@@ -12887,7 +12891,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </div>
                               )}
 
-                              {/* Modal: Página de Facebook sin cuenta de WhatsApp vinculada */}
+                              {/* Modal: PÃ¡gina de Facebook sin cuenta de WhatsApp vinculada */}
                               {showWhatsAppNotLinkedModal && (
                                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in">
                                   <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-100 shadow-2xl relative overflow-hidden animate-scale-in text-left">
@@ -12899,7 +12903,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       </div>
                                       <div>
                                         <h3 className="text-xl font-bold text-[#0b1c30]">
-                                          {language === 'en' ? 'WhatsApp Not Linked to Your Page' : 'WhatsApp No Vinculado a tu Página'}
+                                          {language === 'en' ? 'WhatsApp Not Linked to Your Page' : 'WhatsApp No Vinculado a tu PÃ¡gina'}
                                         </h3>
                                         <p className="text-[10px] text-slate-400 mt-0.5">
                                           {language === 'en' ? 'Required to run Click-to-WhatsApp ads' : 'Necesario para anuncios que dirigen a WhatsApp'}
@@ -12911,36 +12915,36 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <p className="text-xs">
                                         {language === 'en'
                                           ? 'Meta requires your Facebook Page to have a linked WhatsApp Business Account before it can send ad traffic to WhatsApp. This connects your Page (used for ads) to a WhatsApp number, and is separate from your RIFX chatbot connection.'
-                                          : 'Meta exige que tu Página de Facebook tenga una cuenta de WhatsApp Business vinculada antes de poder dirigir tráfico de anuncios a WhatsApp. Esto conecta tu Página (la que se usa para los anuncios) con un número de WhatsApp, y es independiente de la conexión de tu chatbot en RIFX.'}
+                                          : 'Meta exige que tu PÃ¡gina de Facebook tenga una cuenta de WhatsApp Business vinculada antes de poder dirigir trÃ¡fico de anuncios a WhatsApp. Esto conecta tu PÃ¡gina (la que se usa para los anuncios) con un nÃºmero de WhatsApp, y es independiente de la conexiÃ³n de tu chatbot en RIFX.'}
                                       </p>
 
                                       <div className="bg-[#f8fafc] border border-slate-100 rounded-2xl p-4 space-y-3">
                                         <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-500">
-                                          {language === 'en' ? 'How to link it (on your Page settings):' : 'Cómo vincularlo (en la configuración de tu Página):'}
+                                          {language === 'en' ? 'How to link it (on your Page settings):' : 'CÃ³mo vincularlo (en la configuraciÃ³n de tu PÃ¡gina):'}
                                         </h4>
                                         <ol className="list-decimal pl-4 space-y-2.5 text-[11px] text-[#414754]">
                                           <li>
-                                            <strong>{language === 'en' ? 'Open your Page settings' : 'Abre la configuración de tu Página'}</strong>:
+                                            <strong>{language === 'en' ? 'Open your Page settings' : 'Abre la configuraciÃ³n de tu PÃ¡gina'}</strong>:
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
-                                                ? 'Click the button below — it opens your Page\'s own settings on Facebook.'
-                                                : 'Haz clic en el botón de abajo — abre la configuración de tu propia Página en Facebook.'}
+                                                ? 'Click the button below â€” it opens your Page\'s own settings on Facebook.'
+                                                : 'Haz clic en el botÃ³n de abajo â€” abre la configuraciÃ³n de tu propia PÃ¡gina en Facebook.'}
                                             </span>
                                           </li>
                                           <li>
                                             <strong>{language === 'en' ? 'Find "WhatsApp" or "Linked Accounts"' : 'Busca "WhatsApp" o "Cuentas vinculadas"'}</strong>:
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
-                                                ? 'In the left-side menu of Page settings, click "WhatsApp" (or "Linked Accounts" → "WhatsApp" if you don\'t see it directly).'
-                                                : 'En el menú de la izquierda de la configuración de la Página, busca "WhatsApp" (o "Cuentas vinculadas" → "WhatsApp" si no aparece directo).'}
+                                                ? 'In the left-side menu of Page settings, click "WhatsApp" (or "Linked Accounts" â†’ "WhatsApp" if you don\'t see it directly).'
+                                                : 'En el menÃº de la izquierda de la configuraciÃ³n de la PÃ¡gina, busca "WhatsApp" (o "Cuentas vinculadas" â†’ "WhatsApp" si no aparece directo).'}
                                             </span>
                                           </li>
                                           <li>
-                                            <strong>{language === 'en' ? 'Enter the number and verify it' : 'Ingresa el número y verifícalo'}</strong>:
+                                            <strong>{language === 'en' ? 'Enter the number and verify it' : 'Ingresa el nÃºmero y verifÃ­calo'}</strong>:
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
-                                                ? 'Select the country code, type in your chatbot\'s WhatsApp number, and click "Continue"/"Send code". Meta will send a confirmation code to that WhatsApp number — enter it and confirm.'
-                                                : 'Elige el código de país, escribe el número de WhatsApp de tu chatbot y haz clic en "Continuar"/"Enviar código". Meta manda un código de confirmación a ese WhatsApp — ingrésalo y confirma.'}
+                                                ? 'Select the country code, type in your chatbot\'s WhatsApp number, and click "Continue"/"Send code". Meta will send a confirmation code to that WhatsApp number â€” enter it and confirm.'
+                                                : 'Elige el cÃ³digo de paÃ­s, escribe el nÃºmero de WhatsApp de tu chatbot y haz clic en "Continuar"/"Enviar cÃ³digo". Meta manda un cÃ³digo de confirmaciÃ³n a ese WhatsApp â€” ingrÃ©salo y confirma.'}
                                             </span>
                                           </li>
                                           <li>
@@ -12948,7 +12952,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                             <span className="block text-slate-500 mt-0.5 font-normal normal-case">
                                               {language === 'en'
                                                 ? 'Once linked in Meta, return here and click "Publish Campaign" again.'
-                                                : 'Una vez vinculado en Meta, regresa aquí y vuelve a hacer clic en "Publicar Campaña".'}
+                                                : 'Una vez vinculado en Meta, regresa aquÃ­ y vuelve a hacer clic en "Publicar CampaÃ±a".'}
                                             </span>
                                           </li>
                                         </ol>
@@ -12962,7 +12966,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         rel="noopener noreferrer"
                                         className="flex-1 py-3 text-center text-white bg-[#25D366] font-bold text-xs rounded-xl hover:bg-[#20bd5a] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
                                       >
-                                        {language === 'en' ? 'Open Page Settings' : 'Abrir Configuración de la Página'}
+                                        {language === 'en' ? 'Open Page Settings' : 'Abrir ConfiguraciÃ³n de la PÃ¡gina'}
                                         <span className="material-symbols-outlined text-xs">open_in_new</span>
                                       </a>
                                       <button
@@ -12991,7 +12995,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                           {language === 'en' ? 'Meta API Not Configured' : 'API de Meta No Configurada'}
                                         </h3>
                                         <p className="text-[10px] text-slate-400 mt-0.5">
-                                          {language === 'en' ? 'Action required before publishing' : 'Acción requerida antes de publicar'}
+                                          {language === 'en' ? 'Action required before publishing' : 'AcciÃ³n requerida antes de publicar'}
                                         </p>
                                       </div>
                                     </div>
@@ -13000,7 +13004,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <p className="text-xs">
                                         {language === 'en'
                                           ? 'You don\'t have Meta Ads API credentials set up yet. To publish campaigns, you need to connect your own Meta Business account first.'
-                                          : 'Aún no tienes credenciales de la API de Meta Ads configuradas. Para publicar campañas, primero debes conectar tu propia cuenta de Meta Business.'}
+                                          : 'AÃºn no tienes credenciales de la API de Meta Ads configuradas. Para publicar campaÃ±as, primero debes conectar tu propia cuenta de Meta Business.'}
                                       </p>
 
                                       <div className="bg-gradient-to-br from-[#f8fafc] to-[#f0f4ff] border border-slate-100 rounded-2xl p-4 space-y-3">
@@ -13010,11 +13014,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         </h4>
                                         <ol className="list-decimal pl-4 space-y-2.5 text-[11px] text-[#414754]">
                                           <li>
-                                            <strong>{language === 'en' ? 'Go to Settings' : 'Ve a Configuración'}</strong>
+                                            <strong>{language === 'en' ? 'Go to Settings' : 'Ve a ConfiguraciÃ³n'}</strong>
                                             <span className="block text-slate-500 mt-0.5 font-normal">
                                               {language === 'en'
                                                 ? 'Click the button below to navigate to the Settings section of your panel.'
-                                                : 'Haz clic en el botón de abajo para ir a la sección de Configuración de tu panel.'}
+                                                : 'Haz clic en el botÃ³n de abajo para ir a la secciÃ³n de ConfiguraciÃ³n de tu panel.'}
                                             </span>
                                           </li>
                                           <li>
@@ -13022,15 +13026,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                             <span className="block text-slate-500 mt-0.5 font-normal">
                                               {language === 'en'
                                                 ? 'In the Meta Ads section, click "Connect with Facebook" to authorize your business account and select your Ad Account.'
-                                                : 'En la sección de Meta Ads, haz clic en "Conectar con Facebook" para autorizar tu cuenta de negocio y seleccionar tu Cuenta Publicitaria.'}
+                                                : 'En la secciÃ³n de Meta Ads, haz clic en "Conectar con Facebook" para autorizar tu cuenta de negocio y seleccionar tu Cuenta Publicitaria.'}
                                             </span>
                                           </li>
                                           <li>
                                             <strong>{language === 'en' ? 'Return and publish' : 'Regresa y publica'}</strong>
                                             <span className="block text-slate-500 mt-0.5 font-normal">
                                               {language === 'en'
-                                                ? 'Once connected, come back to Campaigns and publish your ad — it will use your own Meta account.'
-                                                : 'Una vez conectado, regresa a Campañas y publica tu anuncio — se usará tu propia cuenta de Meta.'}
+                                                ? 'Once connected, come back to Campaigns and publish your ad â€” it will use your own Meta account.'
+                                                : 'Una vez conectado, regresa a CampaÃ±as y publica tu anuncio â€” se usarÃ¡ tu propia cuenta de Meta.'}
                                             </span>
                                           </li>
                                         </ol>
@@ -13055,7 +13059,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         className="flex-1 py-3 text-center text-white bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-xs rounded-xl hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                                       >
                                         <span className="material-symbols-outlined text-sm">settings</span>
-                                        {language === 'en' ? 'Go to API Settings' : 'Ir a Configuración de API'}
+                                        {language === 'en' ? 'Go to API Settings' : 'Ir a ConfiguraciÃ³n de API'}
                                       </button>
                                       <button
                                         onClick={() => setShowMetaNoApiModal(false)}
@@ -13100,7 +13104,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <div className="w-8 h-8 bg-[#0070eb] rounded-full flex items-center justify-center text-white font-bold text-[10px]">R</div>
                                       <div>
                                         <p className="text-[11px] font-bold text-[#0b1c30] flex items-center gap-1">{tenantData?.company || 'RIFX'} <span className="material-symbols-outlined text-[10px] text-[#0058bc]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span></p>
-                                        <p className="text-[9px] text-[#414754]">{language === 'en' ? 'Sponsored' : 'Publicidad'} · 1h</p>
+                                        <p className="text-[9px] text-[#414754]">{language === 'en' ? 'Sponsored' : 'Publicidad'} Â· 1h</p>
                                       </div>
                                     </div>
                                   </div>
@@ -13116,7 +13120,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         {adDescription}
                                       </p>
                                       {adDescription.length > 120 && (
-                                        <span className="text-[9px] text-[#414754] font-medium cursor-pointer">...ver más</span>
+                                        <span className="text-[9px] text-[#414754] font-medium cursor-pointer">...ver mÃ¡s</span>
                                       )}
                                     </div>
                                   )}
@@ -13127,7 +13131,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     ) : (
                                       <div className="flex flex-col items-center justify-center py-10 text-center px-4">
                                         <span className="material-symbols-outlined text-[#c1c6d6] text-4xl mb-2">image</span>
-                                        <p className="text-[11px] text-[#727785] font-medium">{language === 'en' ? 'Your ad will appear here' : 'Tu anuncio aparecerá aquí'}</p>
+                                        <p className="text-[11px] text-[#727785] font-medium">{language === 'en' ? 'Your ad will appear here' : 'Tu anuncio aparecerÃ¡ aquÃ­'}</p>
                                       </div>
                                     )}
                                   </div>
@@ -13135,9 +13139,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-[#e5eeff]">
                                     <div>
                                       <p className="text-[9px] text-[#414754] uppercase">{tenantData?.company || 'RIFX'}</p>
-                                      <p className="text-[10px] font-bold">{selectedTemplate?.name || (language === 'en' ? 'Your ad title' : 'Título de tu anuncio')}</p>
+                                      <p className="text-[10px] font-bold">{selectedTemplate?.name || (language === 'en' ? 'Your ad title' : 'TÃ­tulo de tu anuncio')}</p>
                                     </div>
-                                    <button className="bg-[#dce9ff] text-[#0b1c30] font-bold py-1 px-2.5 rounded text-[10px]">{language === 'en' ? 'Learn more' : 'Más info'}</button>
+                                    <button className="bg-[#dce9ff] text-[#0b1c30] font-bold py-1 px-2.5 rounded text-[10px]">{language === 'en' ? 'Learn more' : 'MÃ¡s info'}</button>
                                   </div>
                                   {/* Engagement */}
                                   <div className="px-3 py-1.5 flex items-center justify-between border-t border-[#e5eeff]">
@@ -13160,7 +13164,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <div className="h-4 flex items-center justify-center shrink-0"><div className="w-24 h-1 bg-[#414754]/20 rounded-full"></div></div>
                             </div>
                           </div>
-                          <p className="text-[10px] text-[#414754] text-center mt-4">{language === 'en' ? 'Preview may vary on the final device.' : 'La visualización puede variar en el dispositivo final.'}</p>
+                          <p className="text-[10px] text-[#414754] text-center mt-4">{language === 'en' ? 'Preview may vary on the final device.' : 'La visualizaciÃ³n puede variar en el dispositivo final.'}</p>
                         </div>
                       </div>
                     </div>
@@ -13169,7 +13173,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="flex items-center justify-between">
                       <button onClick={() => setChatgptFlowStep(1)} className="px-5 py-2.5 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl hover:bg-[#eff4ff] transition-colors text-sm flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm">arrow_back</span>
-                        {language === 'en' ? 'Back' : 'Atrás'}
+                        {language === 'en' ? 'Back' : 'AtrÃ¡s'}
                       </button>
                       <button
                         onClick={() => {
@@ -13238,11 +13242,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 </div>
 
                 <div ref={analyticsExportRef} className="space-y-6 bg-[#f8f9ff] p-1">
-                {/* Encabezado del reporte — solo visible/relevante en la imagen exportada */}
+                {/* Encabezado del reporte â€” solo visible/relevante en la imagen exportada */}
                 {fbInsights && (
                   <div className="px-2">
                     <p className="text-[11px] font-bold text-[#0b1c30]">
-                      RIFX Marketing — {language === 'en' ? 'Performance Report' : 'Reporte de Rendimiento'} ({analyticsPeriod === 'week' ? (language === 'en' ? 'Weekly' : 'Semanal') : (language === 'en' ? 'Monthly' : 'Mensual')})
+                      RIFX Marketing â€” {language === 'en' ? 'Performance Report' : 'Reporte de Rendimiento'} ({analyticsPeriod === 'week' ? (language === 'en' ? 'Weekly' : 'Semanal') : (language === 'en' ? 'Monthly' : 'Mensual')})
                     </p>
                     <p className="text-[10px] text-[#727785]">{language === 'en' ? 'Generated on' : 'Generado el'} {new Date().toLocaleString()}</p>
                   </div>
@@ -13270,7 +13274,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* KPI Grid — 5 metricas clave, cada una con delta real vs periodo anterior */}
+                {/* KPI Grid â€” 5 metricas clave, cada una con delta real vs periodo anterior */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                   {[
                     {
@@ -13286,7 +13290,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       sparkline: buildSparkline('clicks'),
                     },
                     {
-                      label: language === 'en' ? 'Conversion Rate' : 'Tasa de Conversión',
+                      label: language === 'en' ? 'Conversion Rate' : 'Tasa de ConversiÃ³n',
                       value: (fbInsights?.current?.kpis?.conversionRate || '0.00') + '%',
                       delta: fbInsights?.deltas?.conversionRate ?? null,
                       sparkline: buildSparkline('conversionRate'),
@@ -13521,7 +13525,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       { label: language === 'en' ? 'Spend' : 'Gasto', value: '$' + selectedCreative.spend },
                       { label: language === 'en' ? 'Conversions' : 'Conversiones', value: selectedCreative.conversions || '0' },
                       {
-                        label: language === 'en' ? 'Cost per conversion' : 'Costo por conversión',
+                        label: language === 'en' ? 'Cost per conversion' : 'Costo por conversiÃ³n',
                         value: parseInt(selectedCreative.conversions || '0') > 0
                           ? '$' + (parseFloat(selectedCreative.spend || '0') / parseInt(selectedCreative.conversions)).toFixed(2)
                           : '--',
@@ -13556,7 +13560,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   {language === 'en' ? 'Audience Segments' : 'Segmentos de Audiencia'}
                 </h2>
                 <p className="text-slate-500 font-medium">
-                  {language === 'en' ? 'Orchestrate your audience and AI classification rules.' : 'Orquestación de audiencia y reglas de clasificación por IA.'}
+                  {language === 'en' ? 'Orchestrate your audience and AI classification rules.' : 'OrquestaciÃ³n de audiencia y reglas de clasificaciÃ³n por IA.'}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -13580,7 +13584,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
                   </div>
                   <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {language === 'en' ? 'High Intent' : 'Alto Interés'}
+                    {language === 'en' ? 'High Intent' : 'Alto InterÃ©s'}
                   </span>
                 </div>
                 <div>
@@ -13611,7 +13615,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
                   </div>
                   <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {language === 'en' ? 'Medium Intent' : 'Interés Medio'}
+                    {language === 'en' ? 'Medium Intent' : 'InterÃ©s Medio'}
                   </span>
                 </div>
                 <div>
@@ -13642,7 +13646,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>visibility</span>
                   </div>
                   <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {language === 'en' ? 'Low Intent' : 'Bajo Interés'}
+                    {language === 'en' ? 'Low Intent' : 'Bajo InterÃ©s'}
                   </span>
                 </div>
                 <div>
@@ -13675,7 +13679,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="relative z-10 h-full flex flex-col">
                   <div className="flex justify-between items-center mb-8">
                     <h3 className="text-xl font-bold font-headline text-primary">
-                      {language === 'en' ? 'Audience Distribution' : 'Distribución de Audiencia'}
+                      {language === 'en' ? 'Audience Distribution' : 'DistribuciÃ³n de Audiencia'}
                     </h3>
                     <button className="text-primary-container font-bold text-[10px] uppercase tracking-widest flex items-center gap-1 hover:gap-2 transition-all">
                       {language === 'en' ? 'FULL REPORT' : 'REPORTE COMPLETO'} 
@@ -13685,7 +13689,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="flex-1 flex flex-col justify-center space-y-8">
                     <div className="space-y-4">
                       <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400 tracking-widest">
-                        <span>{language === 'en' ? 'Classification Mix' : 'Mix de Clasificación'}</span>
+                        <span>{language === 'en' ? 'Classification Mix' : 'Mix de ClasificaciÃ³n'}</span>
                         <span>Total: {(allContacts.length / 1000).toFixed(1)}k</span>
                       </div>
                       <div className="h-16 w-full flex rounded-2xl overflow-hidden shadow-inner border border-slate-50">
@@ -13698,21 +13702,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <div className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
                         <div className="flex items-center gap-3">
                           <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'High Intent (Interested)' : 'Alto Interés (Interesados)'}</span>
+                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'High Intent (Interested)' : 'Alto InterÃ©s (Interesados)'}</span>
                         </div>
                         <span className="font-bold text-primary">{Math.round(((conversationsData?.interested?.length || 0) / (allContacts.length || 1)) * 100)}%</span>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
                         <div className="flex items-center gap-3">
                           <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'Medium Intent (Undecided)' : 'Interés Medio (Indecisos)'}</span>
+                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'Medium Intent (Undecided)' : 'InterÃ©s Medio (Indecisos)'}</span>
                         </div>
                         <span className="font-bold text-primary">{Math.round(((conversationsData?.chatting?.length || 0) / (allContacts.length || 1)) * 100)}%</span>
                       </div>
                       <div className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
                         <div className="flex items-center gap-3">
                           <div className="w-3 h-3 rounded-full bg-slate-300"></div>
-                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'Low Intent (Curious)' : 'Bajo Interés (Curiosos)'}</span>
+                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'Low Intent (Curious)' : 'Bajo InterÃ©s (Curiosos)'}</span>
                         </div>
                         <span className="font-bold text-primary">{Math.round(((conversationsData?.bought?.length || 0) / (allContacts.length || 1)) * 100)}%</span>
                       </div>
@@ -13729,7 +13733,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {language === 'en' ? 'AI Intelligence Rules' : 'Reglas de Inteligencia IA'}
                     </h3>
                     <p className="text-slate-500 text-sm font-medium">
-                      {language === 'en' ? 'Configure how Sovereign tags your audience' : 'Configura cómo Sovereign etiqueta a tu audiencia'}
+                      {language === 'en' ? 'Configure how Sovereign tags your audience' : 'Configura cÃ³mo Sovereign etiqueta a tu audiencia'}
                     </p>
                   </div>
                   <button className="bg-slate-100 p-2.5 rounded-xl text-primary hover:bg-primary hover:text-white transition-all shadow-sm">
@@ -13829,8 +13833,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <thead>
                       <tr className="bg-slate-50/50">
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Contact' : 'Contacto'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Phone Number' : 'Teléfono'}</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Last Activity' : 'Ãšltima Actividad'}</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Phone Number' : 'TelÃ©fono'}</th>
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'AI Confidence' : 'Confianza IA'}</th>
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
                       </tr>
@@ -14125,7 +14129,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <p className="text-xs text-slate-400 mt-2">
                   {language === 'en'
                     ? `You are about to switch to Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`
-                    : `Estás a punto de cambiar a Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`}
+                    : `EstÃ¡s a punto de cambiar a Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-xl p-4 mb-6">
@@ -14177,7 +14181,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   className="flex-1 w-full bg-slate-50 border border-slate-100 rounded-2xl p-5 text-slate-700 focus:ring-2 focus:ring-primary-container/20 focus:outline-none transition-all resize-none text-xs leading-relaxed"
                   value={editingPolicy.content}
                   onChange={e => setEditingPolicy({ ...editingPolicy, content: e.target.value })}
-                  placeholder={language === 'en' ? 'Write the document details here...' : 'Escriba los detalles del documento aquí...'}
+                  placeholder={language === 'en' ? 'Write the document details here...' : 'Escriba los detalles del documento aquÃ­...'}
                 />
               </div>
 
@@ -14204,7 +14208,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       const data = await res.json();
                       if (res.ok && data.success) {
                         setToast({
-                          message: language === 'en' ? '✅ Source updated successfully!' : '✅ ¡Fuente actualizada exitosamente!',
+                          message: language === 'en' ? 'âœ… Source updated successfully!' : 'âœ… Â¡Fuente actualizada exitosamente!',
                           type: 'success'
                         });
                         await fetchKBFiles();
@@ -14214,7 +14218,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       }
                     } catch (e) {
                       console.error('Error saving policy:', e);
-                      setToast({ message: language === 'en' ? 'Error saving policy' : 'Error al guardar la política', type: 'error' });
+                      setToast({ message: language === 'en' ? 'Error saving policy' : 'Error al guardar la polÃ­tica', type: 'error' });
                     } finally {
                       setIsSavingPolicy(false);
                     }
@@ -14248,11 +14252,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
                   <span className="material-symbols-outlined text-white text-2xl">cancel</span>
                 </div>
-                <h3 className="text-lg font-extrabold text-[#0b1c30]">{language === 'en' ? 'Cancel Subscription' : 'Cancelar Suscripción'}</h3>
+                <h3 className="text-lg font-extrabold text-[#0b1c30]">{language === 'en' ? 'Cancel Subscription' : 'Cancelar SuscripciÃ³n'}</h3>
                 <p className="text-xs text-slate-400 mt-2">
                   {language === 'en'
                     ? "Are you sure you want to cancel your plan's auto-renewal? You will keep full access to all premium features until your paid period ends."
-                    : '¿Estás seguro de cancelar la renovación automática de tu plan? Mantendrás el acceso a todas las características premium hasta que finalice tu periodo pagado.'}
+                    : 'Â¿EstÃ¡s seguro de cancelar la renovaciÃ³n automÃ¡tica de tu plan? MantendrÃ¡s el acceso a todas las caracterÃ­sticas premium hasta que finalice tu periodo pagado.'}
                 </p>
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
@@ -14261,7 +14265,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <p className="text-xs text-amber-800 leading-relaxed">
                     {language === 'en'
                       ? 'Your plan will not auto-renew. You will continue to have normal access to all RIFX tools until the end of your billing cycle.'
-                      : 'Tu plan no se renovará automáticamente al finalizar el periodo contratado. Podrás seguir usando todas las herramientas con normalidad hasta entonces, y reactivarlo en cualquier momento.'}
+                      : 'Tu plan no se renovarÃ¡ automÃ¡ticamente al finalizar el periodo contratado. PodrÃ¡s seguir usando todas las herramientas con normalidad hasta entonces, y reactivarlo en cualquier momento.'}
                   </p>
                 </div>
               </div>
@@ -14302,12 +14306,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <section className="flex flex-col md:flex-row md:items-end justify-between gap-6">
               <div>
                 <h2 className="text-5xl font-extrabold tracking-tight text-primary font-headline mb-2">
-                  {language === 'en' ? 'Performance Analytics' : 'Análisis de Rendimiento'}
+                  {language === 'en' ? 'Performance Analytics' : 'AnÃ¡lisis de Rendimiento'}
                 </h2>
                 <p className="text-lg text-slate-500 font-medium max-w-2xl">
                   {language === 'en' 
                     ? 'Real-time intelligence orchestration for your enterprise.' 
-                    : 'Orquestación de inteligencia en tiempo real para tu empresa.'}
+                    : 'OrquestaciÃ³n de inteligencia en tiempo real para tu empresa.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -14422,7 +14426,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </span>
                 </div>
                 <div className="mt-6">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{language === 'en' ? 'Conversion Rate' : 'Tasa de Conversión'}</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{language === 'en' ? 'Conversion Rate' : 'Tasa de ConversiÃ³n'}</p>
                   <div className="flex items-baseline gap-2">
                     <h3 className="text-3xl font-black text-primary tracking-tighter">{conversionRate}%</h3>
                     <span className="text-[10px] text-emerald-600 font-black">{conversionRate > 0 ? '+' : ''}{(conversionRate * 0.1).toFixed(1)}%</span>
@@ -14436,8 +14440,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               {/* Classification Distribution */}
               <div className="lg:col-span-4 bg-white p-10 rounded-3xl border border-slate-50 shadow-sm">
                 <div className="mb-10">
-                  <h4 className="text-xl font-black text-primary mb-2">{language === 'en' ? 'Classification Mix' : 'Mix de Clasificación'}</h4>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Psychographic segmentation' : 'Segmentación psicográfica'}</p>
+                  <h4 className="text-xl font-black text-primary mb-2">{language === 'en' ? 'Classification Mix' : 'Mix de ClasificaciÃ³n'}</h4>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Psychographic segmentation' : 'SegmentaciÃ³n psicogrÃ¡fica'}</p>
                 </div>
                 <div className="relative h-64 flex items-center justify-center">
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -14484,12 +14488,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h4 className="text-xl font-black text-primary mb-2">{language === 'en' ? 'Revenue' : 'Ingresos'}</h4>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Daily sales closed by AI' : 'Ventas cerradas por día'}</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Daily sales closed by AI' : 'Ventas cerradas por dÃ­a'}</p>
                     <p className="text-2xl font-black text-emerald-600 mt-2">${periodRevenue.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                   </div>
                   <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
-                    <button onClick={() => setAnalyticsRange('30d')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${analyticsRange === '30d' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>30 {language === 'en' ? 'Days' : 'Días'}</button>
-                    <button onClick={() => setAnalyticsRange('90d')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${analyticsRange === '90d' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>90 {language === 'en' ? 'Days' : 'Días'}</button>
+                    <button onClick={() => setAnalyticsRange('30d')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${analyticsRange === '30d' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>30 {language === 'en' ? 'Days' : 'DÃ­as'}</button>
+                    <button onClick={() => setAnalyticsRange('90d')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${analyticsRange === '90d' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>90 {language === 'en' ? 'Days' : 'DÃ­as'}</button>
                   </div>
                 </div>
                 <div className="relative h-[300px] w-full" onMouseLeave={() => setHoveredChartIdx(null)}>
@@ -14568,7 +14572,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <th className="px-10 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Segment Name' : 'Nombre del Segmento'}</th>
                       <th className="px-10 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{language === 'en' ? 'Active Members' : 'Miembros Activos'}</th>
                       <th className="px-10 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{language === 'en' ? 'Engagement' : 'Engagement'}</th>
-                      <th className="px-10 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{language === 'en' ? 'AI Precision' : 'Precisión IA'}</th>
+                      <th className="px-10 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{language === 'en' ? 'AI Precision' : 'PrecisiÃ³n IA'}</th>
                       <th className="px-10 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{language === 'en' ? 'Status' : 'Estado'}</th>
                     </tr>
                   </thead>
@@ -14580,7 +14584,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-lg">star</span>
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-primary">{language === 'en' ? 'High Intent Leads' : 'Leads de Alto Interés'}</p>
+                            <p className="text-sm font-bold text-primary">{language === 'en' ? 'High Intent Leads' : 'Leads de Alto InterÃ©s'}</p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">B2C Primary</p>
                           </div>
                         </div>
@@ -14610,7 +14614,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-lg">pending</span>
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-primary">{language === 'en' ? 'Undecided Nurturing' : 'Nutrición de Indecisos'}</p>
+                            <p className="text-sm font-bold text-primary">{language === 'en' ? 'Undecided Nurturing' : 'NutriciÃ³n de Indecisos'}</p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Retargeting</p>
                           </div>
                         </div>
@@ -14664,12 +14668,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <span>{language === 'en' ? 'Appointments & Schedulers' : 'Citas y Reservas'}</span>
                   </div>
                   <h1 className="text-3xl font-black text-white tracking-tight leading-none">
-                    {language === 'en' ? 'Manage Bookings & Flow' : 'Gestión de Citas y Reservas'}
+                    {language === 'en' ? 'Manage Bookings & Flow' : 'GestiÃ³n de Citas y Reservas'}
                   </h1>
                   <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
                     {language === 'en' 
                       ? 'Monitor your automated schedule, track attendance metrics, and take direct actions on customer appointments synced with Google Calendar.'
-                      : 'Monitorea tu agenda automatizada, realiza seguimiento de métricas de asistencia y toma acciones manuales sobre las citas vinculadas con Google Calendar.'}
+                      : 'Monitorea tu agenda automatizada, realiza seguimiento de mÃ©tricas de asistencia y toma acciones manuales sobre las citas vinculadas con Google Calendar.'}
                   </p>
                 </div>
               </div>
@@ -14721,7 +14725,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   bg: 'bg-emerald-500/10'
                 },
                 { 
-                  title: language === 'en' ? 'No Shows' : 'No Asistió',
+                  title: language === 'en' ? 'No Shows' : 'No AsistiÃ³',
                   value: statsData?.appointmentStats?.noShow || 0,
                   icon: 'person_off',
                   color: 'text-rose-500',
@@ -14751,7 +14755,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 {
-                  label: language === 'en' ? 'Confirmation Rate' : 'Tasa de Confirmación',
+                  label: language === 'en' ? 'Confirmation Rate' : 'Tasa de ConfirmaciÃ³n',
                   rate: statsData?.appointmentStats?.rates?.confirmationRate || 0,
                   color: 'from-indigo-500 to-blue-600',
                   shadow: 'shadow-indigo-500/20',
@@ -14765,7 +14769,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   desc: language === 'en' ? 'Completed vs no-show bookings' : 'Citas asistidas frente a no-asistidas'
                 },
                 {
-                  label: language === 'en' ? 'Cancellation Rate' : 'Tasa de Cancelación',
+                  label: language === 'en' ? 'Cancellation Rate' : 'Tasa de CancelaciÃ³n',
                   rate: statsData?.appointmentStats?.rates?.cancellationRate || 0,
                   color: 'from-red-500 to-rose-600',
                   shadow: 'shadow-red-500/20',
@@ -14801,23 +14805,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-slate-400">tune</span>
-                <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Business Hours & Days' : 'Días y Horarios de Atención'}</h2>
+                <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Business Hours & Days' : 'DÃ­as y Horarios de AtenciÃ³n'}</h2>
               </div>
               <p className="text-sm text-slate-500 mb-6">
-                {language === 'en' ? 'Configure the days and hours your business operates. The AI bot will use this to determine if an appointment slot is available.' : 'Configura los días y horas que opera tu negocio. El bot de IA usará esto para determinar si un horario está disponible para citas.'}
+                {language === 'en' ? 'Configure the days and hours your business operates. The AI bot will use this to determine if an appointment slot is available.' : 'Configura los dÃ­as y horas que opera tu negocio. El bot de IA usarÃ¡ esto para determinar si un horario estÃ¡ disponible para citas.'}
               </p>
               
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-3">{language === 'en' ? 'Working Days' : 'Días Laborables'}</label>
+                  <label className="block text-sm font-bold text-slate-700 mb-3">{language === 'en' ? 'Working Days' : 'DÃ­as Laborables'}</label>
                   <div className="flex flex-wrap gap-2">
                     {[
                       { id: 1, label: language === 'en' ? 'Mon' : 'Lun' },
                       { id: 2, label: language === 'en' ? 'Tue' : 'Mar' },
-                      { id: 3, label: language === 'en' ? 'Wed' : 'Mié' },
+                      { id: 3, label: language === 'en' ? 'Wed' : 'MiÃ©' },
                       { id: 4, label: language === 'en' ? 'Thu' : 'Jue' },
                       { id: 5, label: language === 'en' ? 'Fri' : 'Vie' },
-                      { id: 6, label: language === 'en' ? 'Sat' : 'Sáb' },
+                      { id: 6, label: language === 'en' ? 'Sat' : 'SÃ¡b' },
                       { id: 0, label: language === 'en' ? 'Sun' : 'Dom' }
                     ].map(day => (
                       <button
@@ -14902,7 +14906,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <option value="rescheduled">{language === 'en' ? 'Rescheduled' : 'Reagendadas'}</option>
                     <option value="cancelled">{language === 'en' ? 'Cancelled' : 'Canceladas'}</option>
                     <option value="completed">{language === 'en' ? 'Completed' : 'Completadas'}</option>
-                    <option value="no_show">{language === 'en' ? 'No Show' : 'No Asistió'}</option>
+                    <option value="no_show">{language === 'en' ? 'No Show' : 'No AsistiÃ³'}</option>
                     <option value="pending_completion">{language === 'en' ? 'Pending Completion' : 'Pendientes de Validar'}</option>
                   </select>
 
@@ -14930,7 +14934,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="py-20 text-center text-slate-400 space-y-2">
                   <span className="material-symbols-outlined text-4xl">event_busy</span>
                   <p className="text-xs font-bold uppercase tracking-wider">{language === 'en' ? 'No appointments found' : 'No se encontraron citas'}</p>
-                  <p className="text-[11px] text-slate-400">{language === 'en' ? 'Modify your filters or schedule new appointments via WhatsApp.' : 'Modifica tus filtros o agenda nuevas citas vía WhatsApp.'}</p>
+                  <p className="text-[11px] text-slate-400">{language === 'en' ? 'Modify your filters or schedule new appointments via WhatsApp.' : 'Modifica tus filtros o agenda nuevas citas vÃ­a WhatsApp.'}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -14938,7 +14942,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <thead>
                       <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50">
                         <th className="px-8 py-4">{language === 'en' ? 'Client' : 'Cliente'}</th>
-                        <th className="px-6 py-4">{language === 'en' ? 'Phone' : 'Teléfono'}</th>
+                        <th className="px-6 py-4">{language === 'en' ? 'Phone' : 'TelÃ©fono'}</th>
                         <th className="px-6 py-4">{language === 'en' ? 'Service' : 'Servicio / Motivo'}</th>
                         <th className="px-6 py-4">{language === 'en' ? 'Scheduled Time' : 'Fecha y Hora'}</th>
                         <th className="px-6 py-4 text-center">{language === 'en' ? 'Status' : 'Estado'}</th>
@@ -14974,7 +14978,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             class: 'bg-emerald-50 text-emerald-600 border-emerald-100' 
                           },
                           no_show: { 
-                            label: language === 'en' ? 'No Show' : 'No Asistió', 
+                            label: language === 'en' ? 'No Show' : 'No AsistiÃ³', 
                             class: 'bg-rose-50 text-rose-600 border-rose-100' 
                           },
                           pending_completion: { 
@@ -15011,7 +15015,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <span className="text-xs text-slate-500 font-mono">{appt.phone_number}</span>
                             </td>
                             <td className="px-6 py-5">
-                              <span className="text-xs text-slate-800 font-medium">{appt.service || 'Asesoría'}</span>
+                              <span className="text-xs text-slate-800 font-medium">{appt.service || 'AsesorÃ­a'}</span>
                             </td>
                             <td className="px-6 py-5">
                               <span className="text-xs text-slate-500">{formattedTime}</span>
@@ -15032,7 +15036,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-emerald-100 hover:border-emerald-200"
                                   >
                                     <span className="material-symbols-outlined text-sm font-bold">check</span>
-                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Attended' : 'Asistió'}</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Attended' : 'AsistiÃ³'}</span>
                                   </button>
                                 )}
 
@@ -15044,7 +15048,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-rose-100 hover:border-rose-200"
                                   >
                                     <span className="material-symbols-outlined text-sm font-bold">close</span>
-                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'No Show' : 'No Asistió'}</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'No Show' : 'No AsistiÃ³'}</span>
                                   </button>
                                 )}
 
@@ -15119,7 +15123,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <span className="text-[9px] bg-white/10 text-indigo-300 px-3 py-1 rounded-full uppercase tracking-[0.15em] font-extrabold border border-white/10 backdrop-blur-sm">Multi-Redes</span>
                       </h2>
                       <p className="text-[13px] text-indigo-200/60 font-medium mt-0.5">
-                        Publica y distribuye tus videos automáticamente en todas tus redes
+                        Publica y distribuye tus videos automÃ¡ticamente en todas tus redes
                       </p>
                     </div>
                   </div>
@@ -15186,7 +15190,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
                       <span className="material-symbols-outlined text-[16px] text-slate-600">cable</span>
                     </div>
-                    Conexión Manual de Cuenta
+                    ConexiÃ³n Manual de Cuenta
                   </h3>
                   <button onClick={() => setShowManualSocialLink(false)} className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors">
                     <span className="material-symbols-outlined text-[18px]">close</span>
@@ -15207,7 +15211,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] block">ID de Cuenta / Página</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] block">ID de Cuenta / PÃ¡gina</label>
                     <input
                       type="text"
                       placeholder="10293847..."
@@ -15249,7 +15253,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all duration-300 flex items-center gap-2"
                     >
                       <span className="material-symbols-outlined text-sm">save</span>
-                      Guardar Conexión
+                      Guardar ConexiÃ³n
                     </button>
                   </div>
                 </form>
@@ -15267,7 +15271,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <span className="text-[11px] font-black text-indigo-600">01</span>
                     </div>
                     <div>
-                      <h3 className="text-xs font-bold text-slate-800">Modo de Publicación</h3>
+                      <h3 className="text-xs font-bold text-slate-800">Modo de PublicaciÃ³n</h3>
                       <p className="text-[10px] text-slate-400 mt-0.5">Individual o lote</p>
                     </div>
                   </div>
@@ -15317,7 +15321,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </div>
                     <div>
                       <h3 className="text-xs font-bold text-slate-800">Formato del Video</h3>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Corto o larga duración</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Corto o larga duraciÃ³n</p>
                     </div>
                   </div>
                   <div className="flex gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
@@ -15373,7 +15377,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </h3>
                       <span className="text-[10px] bg-slate-50 text-slate-500 px-3 py-1 rounded-lg font-bold border border-slate-100 flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-[12px]">storage</span>
-                        Máx: {videoType === 'long' ? '500 MB' : '100 MB'}
+                        MÃ¡x: {videoType === 'long' ? '500 MB' : '100 MB'}
                       </span>
                     </div>
                     
@@ -15392,7 +15396,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-white text-2xl">check_circle</span>
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-slate-800">¡Video listo para publicar!</p>
+                            <p className="text-sm font-bold text-slate-800">Â¡Video listo para publicar!</p>
                             <p className="text-[10px] text-slate-400 font-mono mt-1.5 truncate max-w-md mx-auto bg-white/60 px-3 py-1 rounded-lg border border-slate-100">{uploadedVideoPath.split('/').pop()}</p>
                           </div>
                           <button
@@ -15469,7 +15473,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <div>
                                         <input
                                           type="text"
-                                          placeholder="Título del video (Opcional)"
+                                          placeholder="TÃ­tulo del video (Opcional)"
                                           value={video.title}
                                           onChange={(e) => {
                                             const val = e.target.value;
@@ -15520,7 +15524,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <div className="flex items-center justify-between">
                                         <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
                                           <span className="material-symbols-outlined text-[13px] text-slate-400">description</span>
-                                          Descripción / Caption
+                                          DescripciÃ³n / Caption
                                         </span>
                                         <button
                                           type="button"
@@ -15545,7 +15549,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         </button>
                                       </div>
                                       <textarea
-                                        placeholder="Escribe un borrador, ideas clave o palabras clave para tu descripción..."
+                                        placeholder="Escribe un borrador, ideas clave o palabras clave para tu descripciÃ³n..."
                                         value={video.caption}
                                         onChange={(e) => {
                                           const val = e.target.value;
@@ -15565,7 +15569,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     )}
                   </div>
 
-                  {/* 2. Formulario de Publicación */}
+                  {/* 2. Formulario de PublicaciÃ³n */}
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                     <PublishForm
                       accounts={socialAccounts}
@@ -15580,7 +15584,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {/* Columna Derecha: Canales y Realtime Monitor */}
                 <div className="space-y-5">
                   {trackingPostIds.length > 0 ? (
-                    /* Monitor de publicación en vivo */
+                    /* Monitor de publicaciÃ³n en vivo */
                     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
                       <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2.5">
@@ -15599,7 +15603,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1.5"
                         >
                           <span className="material-symbols-outlined text-[12px]">add</span>
-                          Nuevo Envío
+                          Nuevo EnvÃ­o
                         </button>
                       </div>
                       <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
@@ -15664,13 +15668,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="space-y-2.5">
                           {socialAccounts.map((acc) => {
                             const platformStyles: Record<string, { bg: string; text: string; icon: string }> = {
-                              facebook: { bg: 'bg-blue-50', text: 'text-[#1877F2]', icon: '🔵' },
-                              instagram: { bg: 'bg-gradient-to-r from-pink-50 to-purple-50', text: 'text-[#E4405F]', icon: '📸' },
-                              tiktok: { bg: 'bg-slate-50', text: 'text-slate-800', icon: '🎵' },
-                              youtube: { bg: 'bg-red-50', text: 'text-[#FF0000]', icon: '▶️' },
-                              google_calendar: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: '📅' }
+                              facebook: { bg: 'bg-blue-50', text: 'text-[#1877F2]', icon: 'ðŸ”µ' },
+                              instagram: { bg: 'bg-gradient-to-r from-pink-50 to-purple-50', text: 'text-[#E4405F]', icon: 'ðŸ“¸' },
+                              tiktok: { bg: 'bg-slate-50', text: 'text-slate-800', icon: 'ðŸŽµ' },
+                              youtube: { bg: 'bg-red-50', text: 'text-[#FF0000]', icon: 'â–¶ï¸' },
+                              google_calendar: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'ðŸ“…' }
                             };
-                            const style = platformStyles[acc.platform] || { bg: 'bg-slate-50', text: 'text-slate-500', icon: '🔗' };
+                            const style = platformStyles[acc.platform] || { bg: 'bg-slate-50', text: 'text-slate-500', icon: 'ðŸ”—' };
                             return (
                               <div key={acc.id} className={`flex items-center justify-between p-3.5 rounded-xl border border-slate-100 ${style.bg} font-sans group hover:shadow-sm transition-all`}>
                                 <div className="flex items-center space-x-3 overflow-hidden">
@@ -15737,6 +15741,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   { key: 'announcements', label: 'Anuncios', icon: 'campaign' },
                   { key: 'templates', label: 'Plantillas', icon: 'palette' },
                   { key: 'ai_engine', label: 'Motor Visual IA', icon: 'auto_awesome' },
+                    { key: 'tracking', label: 'Rastreo', icon: 'monitoring' },
                 ].map(t => (
                   <button key={t.key} onClick={() => setAdminTab(t.key as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${adminTab === t.key ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
@@ -15778,7 +15783,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                        <h3 className="text-lg font-extrabold text-primary mb-6">Distribución por Plan</h3>
+                        <h3 className="text-lg font-extrabold text-primary mb-6">DistribuciÃ³n por Plan</h3>
                         <div className="space-y-4">
                           {Object.entries(adminData.planCounts || {}).map(([plan, count]: [string, any]) => {
                             const total = adminData.totalTenants || 1;
@@ -15800,7 +15805,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
 
                       <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                        <h3 className="text-lg font-extrabold text-primary mb-6">Estadísticas Globales</h3>
+                        <h3 className="text-lg font-extrabold text-primary mb-6">EstadÃ­sticas Globales</h3>
                         <div className="space-y-5">
                           {[
                             { label: 'Total Conversaciones', value: adminData.totalConversations, icon: 'forum' },
@@ -15821,7 +15826,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </div>
 
                     <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                      <h3 className="text-lg font-extrabold text-primary mb-6">Últimos Registros</h3>
+                      <h3 className="text-lg font-extrabold text-primary mb-6">Ãšltimos Registros</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full text-left">
                           <thead>
@@ -15890,7 +15895,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {/* Recent Payments Table */}
                       {(adminData.recentPayments?.length > 0 || adminData.payments?.length > 0) && (
                         <div>
-                          <h4 className="text-sm font-extrabold text-primary mb-3">Últimos Pagos</h4>
+                          <h4 className="text-sm font-extrabold text-primary mb-3">Ãšltimos Pagos</h4>
                           <div className="overflow-x-auto rounded-xl border border-slate-100">
                             <table className="w-full text-left">
                               <thead>
@@ -15944,7 +15949,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <div>
                             <p className="text-sm font-extrabold text-red-700">No se pudieron cargar las conexiones de WhatsApp</p>
                             <p className="mt-1 text-xs font-medium text-red-600">
-                              Los estados se muestran como no disponibles para evitar indicar por error que un número está libre.
+                              Los estados se muestran como no disponibles para evitar indicar por error que un nÃºmero estÃ¡ libre.
                             </p>
                           </div>
                         </div>
@@ -15963,9 +15968,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="mb-4 flex items-start gap-3">
                           <span className="material-symbols-outlined mt-0.5 text-xl text-amber-600">warning</span>
                           <div>
-                            <p className="text-sm font-extrabold text-amber-800">Conexiones de WhatsApp huérfanas</p>
+                            <p className="text-sm font-extrabold text-amber-800">Conexiones de WhatsApp huÃ©rfanas</p>
                             <p className="mt-1 text-xs font-medium text-amber-700">
-                              Estas conexiones siguen reservando un Phone ID, pero ya no pertenecen a un usuario visible. Libera solo la conexión que reconozcas.
+                              Estas conexiones siguen reservando un Phone ID, pero ya no pertenecen a un usuario visible. Libera solo la conexiÃ³n que reconozcas.
                             </p>
                           </div>
                         </div>
@@ -15991,7 +15996,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-[10px] font-bold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   <span className="material-symbols-outlined text-sm">link_off</span>
-                                  {isDisconnecting ? 'Liberando...' : 'Liberar conexión'}
+                                  {isDisconnecting ? 'Liberando...' : 'Liberar conexiÃ³n'}
                                 </button>
                               </div>
                             );
@@ -16004,7 +16009,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                         <div>
                           <h3 className="text-lg font-extrabold text-primary">Usuarios Registrados</h3>
-                          <p className="text-xs text-slate-400 mt-1">{adminData.totalTenants} usuarios en la plataforma — click en un usuario para ver detalles</p>
+                          <p className="text-xs text-slate-400 mt-1">{adminData.totalTenants} usuarios en la plataforma â€” click en un usuario para ver detalles</p>
                         </div>
                         <button onClick={loadAdminData} className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-500 transition-colors">
                           <span className="material-symbols-outlined text-sm">refresh</span> Actualizar
@@ -16017,7 +16022,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Empresa</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Email</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Plan</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Días Rest.</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">DÃ­as Rest.</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
                               {canManageWhatsApp && (
                                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">WhatsApp</th>
@@ -16056,7 +16061,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                   <span className={`text-xs font-black ${(t.daysRemaining || 0) <= 3 ? 'text-red-500' : (t.daysRemaining || 0) <= 7 ? 'text-amber-500' : 'text-emerald-600'}`}>
-                                    {t.daysRemaining != null ? `${t.daysRemaining}d` : '—'}
+                                    {t.daysRemaining != null ? `${t.daysRemaining}d` : 'â€”'}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
@@ -16097,7 +16102,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         })}
                                       </div>
                                     ) : (
-                                      <span className="text-[10px] font-medium text-slate-400">Sin conexión registrada</span>
+                                      <span className="text-[10px] font-medium text-slate-400">Sin conexiÃ³n registrada</span>
                                     )}
                                   </td>
                                 )}
@@ -16147,11 +16152,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   {showAdminSectionsFor === t.id && (
                                     <div className="absolute right-4 mt-2 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 z-50 w-72" onClick={e => e.stopPropagation()}>
                                       <h4 className="text-xs font-extrabold text-primary mb-3">Seleccionar Secciones de Admin</h4>
-                                      <p className="text-[10px] text-slate-400 mb-3">Escoge a qué secciones tendrá acceso este administrador:</p>
+                                      <p className="text-[10px] text-slate-400 mb-3">Escoge a quÃ© secciones tendrÃ¡ acceso este administrador:</p>
                                       <div className="space-y-2 mb-4">
                                         {[
-                                          { key: 'overview', label: 'Resumen', icon: 'dashboard', desc: 'KPIs y estadísticas' },
-                                          { key: 'tenants', label: 'Usuarios', icon: 'group', desc: 'Gestión de usuarios y planes' },
+                                          { key: 'overview', label: 'Resumen', icon: 'dashboard', desc: 'KPIs y estadÃ­sticas' },
+                                          { key: 'tenants', label: 'Usuarios', icon: 'group', desc: 'GestiÃ³n de usuarios y planes' },
                                           { key: 'templates', label: 'Plantillas', icon: 'palette', desc: 'Crear y editar plantillas' },
                                           { key: 'announcements', label: 'Anuncios', icon: 'campaign', desc: 'Anuncios de la plataforma' },
                                         ].map(section => (
@@ -16228,7 +16233,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               {[
                                 { label: 'Plan Activo', value: selectedTenant.plan?.toUpperCase(), icon: 'workspace_premium', color: selectedTenant.plan === 'master' ? 'text-orange-600 bg-orange-50' : selectedTenant.plan === 'plus' ? 'text-emerald-600 bg-emerald-50' : selectedTenant.plan === 'advanced' ? 'text-violet-600 bg-violet-50' : 'text-blue-600 bg-blue-50' },
                                 { label: 'Estado', value: selectedTenant.planStatus === 'active' ? 'Activo' : 'Inactivo', icon: selectedTenant.planStatus === 'active' ? 'check_circle' : 'cancel', color: selectedTenant.planStatus === 'active' ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50' },
-                                { label: 'Días Restantes', value: selectedTenant.daysRemaining != null ? `${selectedTenant.daysRemaining} días` : 'N/A', icon: 'timer', color: (selectedTenant.daysRemaining || 0) <= 3 ? 'text-red-600 bg-red-50' : (selectedTenant.daysRemaining || 0) <= 7 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
+                                { label: 'DÃ­as Restantes', value: selectedTenant.daysRemaining != null ? `${selectedTenant.daysRemaining} dÃ­as` : 'N/A', icon: 'timer', color: (selectedTenant.daysRemaining || 0) <= 3 ? 'text-red-600 bg-red-50' : (selectedTenant.daysRemaining || 0) <= 7 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50' },
                                 { label: 'Total Gastado', value: `$${((selectedTenant.totalSpent || 0) / 100).toFixed(2)}`, icon: 'payments', color: 'text-blue-600 bg-blue-50' },
                               ].map((info, i) => (
                                 <div key={i} className={`rounded-xl p-4 ${info.color}`}>
@@ -16243,16 +16248,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <div className="grid md:grid-cols-2 gap-4">
                               <div className="bg-slate-50 rounded-xl p-5">
                                 <h4 className="text-xs font-extrabold text-primary mb-3 flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-sm">person</span> Información General
+                                  <span className="material-symbols-outlined text-sm">person</span> InformaciÃ³n General
                                 </h4>
                                 <div className="space-y-2.5">
                                   {[
-                                    { label: 'Empresa', value: selectedTenant.companyName || '—' },
-                                    { label: 'Propietario', value: selectedTenant.ownerName || '—' },
+                                    { label: 'Empresa', value: selectedTenant.companyName || 'â€”' },
+                                    { label: 'Propietario', value: selectedTenant.ownerName || 'â€”' },
                                     { label: 'Email', value: selectedTenant.email },
                                     { label: 'Registro', value: new Date(selectedTenant.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) },
-                                    { label: 'Inicio Plan', value: selectedTenant.planStartedAt ? new Date(selectedTenant.planStartedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
-                                    { label: 'Expira', value: selectedTenant.planExpiresAt ? new Date(selectedTenant.planExpiresAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                                    { label: 'Inicio Plan', value: selectedTenant.planStartedAt ? new Date(selectedTenant.planStartedAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€”' },
+                                    { label: 'Expira', value: selectedTenant.planExpiresAt ? new Date(selectedTenant.planExpiresAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€”' },
                                   ].map((item, i) => (
                                     <div key={i} className="flex justify-between items-center">
                                       <span className="text-[10px] font-bold text-slate-400">{item.label}</span>
@@ -16282,12 +16287,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     </div>
                                   </div>
                                   <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold text-slate-400">Límite Contactos</span>
-                                    <span className="text-xs font-bold text-primary">{selectedTenant.contactLimit?.toLocaleString() || '—'}</span>
+                                    <span className="text-[10px] font-bold text-slate-400">LÃ­mite Contactos</span>
+                                    <span className="text-xs font-bold text-primary">{selectedTenant.contactLimit?.toLocaleString() || 'â€”'}</span>
                                   </div>
                                   <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-bold text-slate-400">Es Admin</span>
-                                    <span className={`text-xs font-bold ${selectedTenant.isAdmin ? 'text-orange-600' : 'text-slate-400'}`}>{selectedTenant.isAdmin ? 'Sí' : 'No'}</span>
+                                    <span className={`text-xs font-bold ${selectedTenant.isAdmin ? 'text-orange-600' : 'text-slate-400'}`}>{selectedTenant.isAdmin ? 'SÃ­' : 'No'}</span>
                                   </div>
                                   {selectedTenant.isAdmin && selectedTenant.adminSections && (
                                     <div>
@@ -16308,7 +16313,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <h4 className="text-xs font-extrabold text-primary flex items-center gap-2">
                                 <span className="material-symbols-outlined text-sm">lock_open</span> Accesos Especiales (Overrides)
                               </h4>
-                              <p className="text-[10px] text-slate-400 font-medium">Permite habilitar temporalmente secciones que estén bloqueadas en el plan de este usuario.</p>
+                              <p className="text-[10px] text-slate-400 font-medium">Permite habilitar temporalmente secciones que estÃ©n bloqueadas en el plan de este usuario.</p>
                               
                               <div className="space-y-3">
                                 {TABS_TO_MANAGE.filter(t => t.key !== 'dashboard' && t.key !== 'billing').map(tab => {
@@ -16323,7 +16328,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         {hasOverride ? (
                                           <p className={`text-[9px] font-bold mt-0.5 ${isExpired ? 'text-red-500' : 'text-emerald-600'}`}>
                                             {isExpired 
-                                              ? `Expiró el ${new Date(currentExpiry).toLocaleString('es-ES')}` 
+                                              ? `ExpirÃ³ el ${new Date(currentExpiry).toLocaleString('es-ES')}` 
                                               : `Activo hasta el ${new Date(currentExpiry).toLocaleString('es-ES')}`}
                                           </p>
                                         ) : (
@@ -16353,10 +16358,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                               defaultValue="1"
                                               className="px-2 py-1 border border-slate-200 rounded-lg text-[10px] font-semibold bg-white"
                                             >
-                                              <option value="1">1 Día</option>
-                                              <option value="7">7 Días</option>
-                                              <option value="30">30 Días</option>
-                                              <option value="365">Indefinido (1 Año)</option>
+                                              <option value="1">1 DÃ­a</option>
+                                              <option value="7">7 DÃ­as</option>
+                                              <option value="30">30 DÃ­as</option>
+                                              <option value="365">Indefinido (1 AÃ±o)</option>
                                             </select>
                                             <button
                                               onClick={() => {
@@ -16408,10 +16413,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       {selectedTenant.payments.map((p: any, i: number) => (
                                         <tr key={i} className="hover:bg-slate-50/30 transition-colors">
                                           <td className="px-4 py-3">
-                                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-md uppercase ${p.plan === 'master' ? 'bg-orange-100 text-orange-700' : p.plan === 'plus' ? 'bg-emerald-100 text-emerald-700' : p.plan === 'advanced' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{p.plan || '—'}</span>
+                                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-md uppercase ${p.plan === 'master' ? 'bg-orange-100 text-orange-700' : p.plan === 'plus' ? 'bg-emerald-100 text-emerald-700' : p.plan === 'advanced' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'}`}>{p.plan || 'â€”'}</span>
                                           </td>
                                           <td className="px-4 py-3 text-right text-sm font-black text-primary">${((p.amount || 0) / 100).toFixed(2)} {p.currency || 'USD'}</td>
-                                          <td className="px-4 py-3 text-center text-[10px] text-slate-400 font-medium">{p.provider || '—'}</td>
+                                          <td className="px-4 py-3 text-center text-[10px] text-slate-400 font-medium">{p.provider || 'â€”'}</td>
                                           <td className="px-4 py-3 text-center">
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${p.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                               <span className={`w-1.5 h-1.5 rounded-full ${p.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
@@ -16439,7 +16444,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <span className="material-symbols-outlined text-sm">warning</span> Zona de Peligro
                                 </h4>
                                 <p className="text-[10px] text-slate-500 font-medium">
-                                  Al eliminar este usuario, se borrarán todos sus datos, reportes de ventas, configuraciones de WhatsApp/IA de forma permanente e irreversible.
+                                  Al eliminar este usuario, se borrarÃ¡n todos sus datos, reportes de ventas, configuraciones de WhatsApp/IA de forma permanente e irreversible.
                                 </p>
                                 <button
                                   onClick={() => {
@@ -16465,7 +16470,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 space-y-6">
                     <div>
                       <h3 className="text-xl font-black text-primary tracking-tight">Matriz de Permisos de Planes</h3>
-                      <p className="text-xs text-slate-400 font-medium mt-1">Configura a qué secciones tiene acceso cada plan de suscripción en la plataforma.</p>
+                      <p className="text-xs text-slate-400 font-medium mt-1">Configura a quÃ© secciones tiene acceso cada plan de suscripciÃ³n en la plataforma.</p>
                     </div>
 
                     <div className="overflow-x-auto border border-slate-100 rounded-xl">
@@ -16529,7 +16534,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         ) : (
                           <span className="material-symbols-outlined text-sm">save</span>
                         )}
-                        Guardar Configuración de Planes
+                        Guardar ConfiguraciÃ³n de Planes
                       </button>
                     </div>
                   </div>
@@ -16541,7 +16546,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
                       <div className="flex items-center justify-between mb-6">
                         <div>
-                          <h3 className="text-lg font-extrabold text-primary">Plantillas Publicitarias Dinámicas</h3>
+                          <h3 className="text-lg font-extrabold text-primary">Plantillas Publicitarias DinÃ¡micas</h3>
                           <p className="text-xs text-slate-400 mt-1">Crea y administra plantillas premium impulsadas por configuraciones JSON integradas</p>
                         </div>
                         <div className="flex gap-2">
@@ -16583,12 +16588,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <input 
                                 value={tplName} 
                                 onChange={e => setTplName(e.target.value)} 
-                                placeholder="Ej: Cosmético Lavanda Oasis Premium" 
+                                placeholder="Ej: CosmÃ©tico Lavanda Oasis Premium" 
                                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" 
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Categoría</label>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">CategorÃ­a</label>
                               <select 
                                 value={tplCategory} 
                                 onChange={e => setTplCategory(e.target.value)} 
@@ -16598,7 +16603,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <option value="belleza">Belleza</option>
                                 <option value="suplementos">Suplementos</option>
                                 <option value="moda">Moda</option>
-                                <option value="tech">Tecnología</option>
+                                <option value="tech">TecnologÃ­a</option>
                               </select>
                             </div>
                           </div>
@@ -16607,7 +16612,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             {/* JSON config */}
                             <div>
                               <div className="flex justify-between items-center mb-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Configuración JSON</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">ConfiguraciÃ³n JSON</label>
                                 <div className="flex items-center gap-3">
                                   <button 
                                     type="button" 
@@ -16620,7 +16625,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     ) : (
                                       <span className="material-symbols-outlined text-[12px]">search</span>
                                     )}
-                                    {detectingZones ? 'Detectando...' : '🔍 Auto-detectar zonas'}
+                                    {detectingZones ? 'Detectando...' : 'ðŸ” Auto-detectar zonas'}
                                   </button>
                                   <button 
                                     type="button" 
@@ -16647,13 +16652,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   const ts = Array.isArray(cfg.text_slots) && cfg.text_slots.length > 0;
                                   const si = cfg.template_semantic_isolation === true;
                                   const readiness = ps && ts && si ? 'ready' : ps ? 'draft' : 'legacy';
-                                  const label = readiness === 'ready' ? '🟢 Ready' : readiness === 'draft' ? '🟡 Draft' : '🔴 Legacy';
+                                  const label = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? 'ðŸŸ¡ Draft' : 'ðŸ”´ Legacy';
                                   const details = [
-                                    ps ? `✅ product_slot` : `❌ product_slot`,
-                                    ts ? `✅ ${cfg.text_slots.length} text_slots` : `❌ text_slots`,
-                                    si ? `✅ semantic_isolation` : `❌ semantic_isolation`,
-                                    cfg.template_visual_dna_lock ? `✅ dna_lock` : `❌ dna_lock`
-                                  ].join('  •  ');
+                                    ps ? `âœ… product_slot` : `âŒ product_slot`,
+                                    ts ? `âœ… ${cfg.text_slots.length} text_slots` : `âŒ text_slots`,
+                                    si ? `âœ… semantic_isolation` : `âŒ semantic_isolation`,
+                                    cfg.template_visual_dna_lock ? `âœ… dna_lock` : `âŒ dna_lock`
+                                  ].join('  â€¢  ');
                                   return (
                                     <div className={`mt-2 px-3 py-2 rounded-lg text-[10px] font-bold border ${
                                       readiness === 'ready' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
@@ -16705,7 +16710,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500 transition-colors">add_photo_alternate</span>
                                   </div>
                                   <p className="text-xs font-bold text-slate-400 group-hover:text-orange-500 transition-colors">Haz clic para subir imagen de preview</p>
-                                  <p className="text-[10px] text-slate-300">Formato horizontal recomendado -- Máx. 5MB</p>
+                                  <p className="text-[10px] text-slate-300">Formato horizontal recomendado -- MÃ¡x. 5MB</p>
                                 </button>
                               )}
                             </div>
@@ -16751,8 +16756,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         {adminTemplates?.length === 0 ? (
                           <div className="col-span-full text-center py-12 text-slate-300">
                             <span className="material-symbols-outlined text-5xl mb-3 block">palette</span>
-                            <p className="text-sm font-bold">No hay plantillas dinámicas creadas</p>
-                            <p className="text-xs mt-1">Crea tu primera plantilla publicitaria dinámica para que los usuarios puedan generar creativos premium</p>
+                            <p className="text-sm font-bold">No hay plantillas dinÃ¡micas creadas</p>
+                            <p className="text-xs mt-1">Crea tu primera plantilla publicitaria dinÃ¡mica para que los usuarios puedan generar creativos premium</p>
                           </div>
                         ) : (
                           adminTemplates?.map((tpl: any) => (
@@ -16786,11 +16791,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       const cfg = tpl.config_json || {};
                                       const r = cfg.template_readiness || (cfg.product_slot ? (Array.isArray(cfg.text_slots) && cfg.text_slots.length > 0 && cfg.template_semantic_isolation ? 'ready' : 'draft') : 'legacy');
                                       return r === 'ready' ? (
-                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-emerald-100 text-emerald-700 uppercase">🟢 Ready</span>
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-emerald-100 text-emerald-700 uppercase">ðŸŸ¢ Ready</span>
                                       ) : r === 'draft' ? (
-                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-amber-100 text-amber-700 uppercase">🟡 Draft</span>
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-amber-100 text-amber-700 uppercase">ðŸŸ¡ Draft</span>
                                       ) : (
-                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-red-100 text-red-600 uppercase">🔴 Legacy</span>
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-red-100 text-red-600 uppercase">ðŸ”´ Legacy</span>
                                       );
                                     })()}
                                     {!tpl.is_active && (
@@ -16805,7 +16810,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <button 
                                   onClick={() => {
                                     navigator.clipboard.writeText(JSON.stringify(tpl.config_json, null, 2));
-                                    setToast({ message: language === 'en' ? 'JSON copied to clipboard!' : '¡JSON copiado al portapapeles!', type: 'success' });
+                                    setToast({ message: language === 'en' ? 'JSON copied to clipboard!' : 'Â¡JSON copiado al portapapeles!', type: 'success' });
                                   }} 
                                   className="px-2.5 py-1.5 bg-slate-50 text-slate-600 text-[10px] font-bold rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1"
                                 >
@@ -16894,24 +16899,24 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <h4 className="text-sm font-extrabold text-primary mb-4">{editingAnnId ? 'Editar Anuncio' : 'Nuevo Anuncio'}</h4>
                           <div className="grid md:grid-cols-2 gap-4 mb-4">
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Título</label>
-                              <input value={newAnnTitle} onChange={e => setNewAnnTitle(e.target.value)} placeholder="Ej: Nueva función disponible" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">TÃ­tulo</label>
+                              <input value={newAnnTitle} onChange={e => setNewAnnTitle(e.target.value)} placeholder="Ej: Nueva funciÃ³n disponible" className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Tipo</label>
                               <select value={newAnnType} onChange={e => setNewAnnType(e.target.value as any)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500">
-                                <option value="info">i Información</option>
-                                <option value="update"> Actualización</option>
+                                <option value="info">i InformaciÃ³n</option>
+                                <option value="update"> ActualizaciÃ³n</option>
                                 <option value="warning">! Aviso Importante</option>
-                                <option value="promo"> Promoción</option>
-                                <option value="training"> Capacitación</option>
+                                <option value="promo"> PromociÃ³n</option>
+                                <option value="training"> CapacitaciÃ³n</option>
                               </select>
                             </div>
                           </div>
                           <div className="mb-4">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Horario de la sesión' : 'Mensaje'}</label>
-                            <textarea value={newAnnMessage} onChange={e => setNewAnnMessage(e.target.value)} placeholder={newAnnType === 'training' ? 'Ej: Todos los días de lunes a viernes · 03:00 p.m. · Dura: 60 min' : 'Escribe el contenido del anuncio...'} rows={3} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" />
-                            {newAnnType === 'training' && <p className="text-[10px] text-slate-400 mt-1">Este texto se muestra como el horario de la sesión en la tarjeta de Capacitaciones.</p>}
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Horario de la sesiÃ³n' : 'Mensaje'}</label>
+                            <textarea value={newAnnMessage} onChange={e => setNewAnnMessage(e.target.value)} placeholder={newAnnType === 'training' ? 'Ej: Todos los dÃ­as de lunes a viernes Â· 03:00 p.m. Â· Dura: 60 min' : 'Escribe el contenido del anuncio...'} rows={3} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" />
+                            {newAnnType === 'training' && <p className="text-[10px] text-slate-400 mt-1">Este texto se muestra como el horario de la sesiÃ³n en la tarjeta de Capacitaciones.</p>}
                           </div>
                           
                           {/* Image Upload */}
@@ -16931,33 +16936,33 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500 transition-colors">add_photo_alternate</span>
                                 </div>
                                 <p className="text-xs font-bold text-slate-400 group-hover:text-orange-500 transition-colors">Haz clic para subir una imagen</p>
-                                <p className="text-[10px] text-slate-300">JPG, PNG, WebP o GIF -- Máx. 5MB</p>
+                                <p className="text-[10px] text-slate-300">JPG, PNG, WebP o GIF -- MÃ¡x. 5MB</p>
                               </button>
                             )}
                           </div>
 
-                          {/* Programación y caducidad */}
+                          {/* ProgramaciÃ³n y caducidad */}
                           <div className="grid md:grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Programar para (opcional)</label>
                               <input type="datetime-local" value={newAnnStartsAt} onChange={e => setNewAnnStartsAt(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
-                              <p className="text-[9px] text-slate-300 mt-1">Si lo dejas vacío, se muestra de inmediato al publicarlo.</p>
+                              <p className="text-[9px] text-slate-300 mt-1">Si lo dejas vacÃ­o, se muestra de inmediato al publicarlo.</p>
                             </div>
                             <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Caduca el (opcional)</label>
                               <input type="datetime-local" value={newAnnExpiresAt} onChange={e => setNewAnnExpiresAt(e.target.value)} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
-                              <p className="text-[9px] text-slate-300 mt-1">Si lo dejas vacío, se muestra indefinidamente hasta que lo desactives.</p>
+                              <p className="text-[9px] text-slate-300 mt-1">Si lo dejas vacÃ­o, se muestra indefinidamente hasta que lo desactives.</p>
                             </div>
                           </div>
 
                           {/* Button CTA */}
                           <div className="grid md:grid-cols-2 gap-4 mb-4">
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Texto del Botón' : 'Texto del Botón (opcional)'}</label>
-                              <input value={newAnnBtnText} onChange={e => setNewAnnBtnText(e.target.value)} placeholder={newAnnType === 'training' ? 'Ej: Ingresar' : 'Ej: Ver más, Ir a la academia'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Texto del BotÃ³n' : 'Texto del BotÃ³n (opcional)'}</label>
+                              <input value={newAnnBtnText} onChange={e => setNewAnnBtnText(e.target.value)} placeholder={newAnnType === 'training' ? 'Ej: Ingresar' : 'Ej: Ver mÃ¡s, Ir a la academia'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
                             </div>
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Link de Zoom / Meet' : 'URL del Botón (opcional)'}</label>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{newAnnType === 'training' ? 'Link de Zoom / Meet' : 'URL del BotÃ³n (opcional)'}</label>
                               <input value={newAnnBtnUrl} onChange={e => setNewAnnBtnUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" />
                             </div>
                           </div>
@@ -17087,7 +17092,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                       <div>
                         <h3 className="text-xl font-black text-primary">Proveedor de Render Visual</h3>
-                        <p className="text-sm text-slate-400 font-medium">Selecciona el motor de IA que se usará para generar todas las imágenes de campaña</p>
+                        <p className="text-sm text-slate-400 font-medium">Selecciona el motor de IA que se usarÃ¡ para generar todas las imÃ¡genes de campaÃ±a</p>
                       </div>
                     </div>
 
@@ -17122,12 +17127,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                         <h4 className={`text-lg font-black mb-1 ${ configData.visual_render_provider !== 'flux' ? 'text-emerald-800' : 'text-slate-700' }`}>OpenAI Images</h4>
                         <p className="text-slate-500 text-xs leading-relaxed mb-5">
-                          GPT-Image-1 con compositing de máscara. Máxima fidelidad estructural al layout de la plantilla.
+                          GPT-Image-1 con compositing de mÃ¡scara. MÃ¡xima fidelidad estructural al layout de la plantilla.
                         </p>
 
                         <div className="flex flex-wrap gap-2">
                           <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            ✦ Mayor fidelidad estructural
+                            âœ¦ Mayor fidelidad estructural
                           </span>
                           <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500">
                             Costo: $$$
@@ -17165,12 +17170,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           FLUX <span className="font-medium text-slate-400 text-sm">(fal.ai)</span>
                         </h4>
                         <p className="text-slate-500 text-xs leading-relaxed mb-5">
-                          FLUX Inpainting via fal.ai. Rápido y económico para pruebas rápidas e iteración de campañas.
+                          FLUX Inpainting via fal.ai. RÃ¡pido y econÃ³mico para pruebas rÃ¡pidas e iteraciÃ³n de campaÃ±as.
                         </p>
 
                         <div className="flex flex-wrap gap-2">
                           <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-violet-100 text-violet-700 border border-violet-200">
-                            ⚡ Más económico
+                            âš¡ MÃ¡s econÃ³mico
                           </span>
                           <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500">
                             Costo: $
@@ -17263,7 +17268,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <span className="material-symbols-outlined text-2xl">admin_panel_settings</span>
                           </div>
                           <div>
-                            <h4 className="text-white font-bold text-lg">Configuración Global de IA (Chatbot)</h4>
+                            <h4 className="text-white font-bold text-lg">ConfiguraciÃ³n Global de IA (Chatbot)</h4>
                             <p className="text-slate-400 text-xs mt-0.5">Fuerza a todos los usuarios a usar esta API para el chatbot de WhatsApp.</p>
                           </div>
                         </div>
@@ -17271,7 +17276,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="flex items-center justify-between py-4 border-y border-slate-700/50">
                           <div>
                             <span className="text-white font-bold text-sm">Forzar API Global</span>
-                            <p className="text-slate-400 text-[10px] mt-0.5">Al activarlo, los usuarios no podrán usar sus propias llaves en la pestaña de configuración.</p>
+                            <p className="text-slate-400 text-[10px] mt-0.5">Al activarlo, los usuarios no podrÃ¡n usar sus propias llaves en la pestaÃ±a de configuraciÃ³n.</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" className="sr-only peer" checked={adminGlobalAi?.enabled || false} onChange={e => setAdminGlobalAi({ ...(adminGlobalAi || { provider: 'openai', model: 'gpt-4o', apiKey: '' }), enabled: e.target.checked } as any)} />
@@ -17318,12 +17323,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   body: JSON.stringify({
                                     platform_name: curr.platform_name || 'Sovereign',
                                     sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
-                                    global_ai_config: adminGlobalAi
+                                    global_ai_config: adminGlobalAi,
+                                    tracking_pixels: adminTrackingPixels
                                   })
                                 });
-                                setToast({ type: 'success', message: 'Configuración global guardada exitosamente' });
+                                setToast({ type: 'success', message: 'ConfiguraciÃ³n global guardada exitosamente' });
                               } catch (err) {
-                                setToast({ type: 'error', message: 'Error al guardar la configuración global' });
+                                setToast({ type: 'error', message: 'Error al guardar la configuraciÃ³n global' });
                               }
                             }} className="w-full py-3 mt-4 bg-[#00c6ff] hover:bg-[#0099cc] text-slate-900 font-bold text-sm rounded-xl transition-all shadow-lg shadow-[#00c6ff]/20">Guardar Global API (Chatbot)</button>
                           </div>
@@ -17350,9 +17356,81 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       >
                         {isSaving
                           ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
-                          : <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>save</span> Guardar Configuración</>
+                          : <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>save</span> Guardar ConfiguraciÃ³n</>
                         }
                       </button>
+                    </div>
+                  </div>
+                )}
+
+
+                {/* ===== TRACKING PIXELS SUB-TAB ===== */}
+                {adminTab === 'tracking' && (
+                  <div className="space-y-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>monitoring</span>
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-primary">Integraciones de Rastreo</h3>
+                        <p className="text-sm text-slate-400 font-medium">Configura los píxeles de Analytics y Ads para el sitio web principal.</p>
+                      </div>
+                    </div>
+
+                    <div className="relative group p-8 rounded-2xl bg-white border border-slate-200 hover:border-blue-400/50 transition-all shadow-sm overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      <div className="relative z-10 space-y-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Google Analytics ID</label>
+                          <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                            value={adminTrackingPixels?.google_analytics || ''} placeholder="Ej. G-XXXXXXXXXX"
+                            onChange={e => setAdminTrackingPixels({ ...(adminTrackingPixels || { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' }), google_analytics: e.target.value.trim() } as any)}
+                          />
+                          <p className="text-[10px] text-slate-400">El tag de Google (gtag.js) se inyectará dinámicamente.</p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Facebook Pixel ID</label>
+                          <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                            value={adminTrackingPixels?.facebook_pixel || ''} placeholder="Ej. 123456789012345"
+                            onChange={e => setAdminTrackingPixels({ ...(adminTrackingPixels || { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' }), facebook_pixel: e.target.value.replace(/[^0-9]/g, '') } as any)}
+                          />
+                          <p className="text-[10px] text-slate-400">Meta Pixel Code. Inyecta el script y registra el evento PageView.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">TikTok Pixel ID</label>
+                          <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono text-slate-700 outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                            value={adminTrackingPixels?.tiktok_pixel || ''} placeholder="Ej. CXXXXXXXXXXXXXXXXX"
+                            onChange={e => setAdminTrackingPixels({ ...(adminTrackingPixels || { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' }), tiktok_pixel: e.target.value.trim() } as any)}
+                          />
+                          <p className="text-[10px] text-slate-400">TikTok Pixel Code. Inyecta el script oficial de ttq.</p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 flex justify-end">
+                          <button onClick={async () => {
+                            try {
+                              const getRes = await authFetch('/api/admin/platform-settings');
+                              const curr = await getRes.json();
+                              await authFetch('/api/admin/platform-settings', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  platform_name: curr.platform_name || 'Sovereign',
+                                  sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+                                  tracking_pixels: adminTrackingPixels
+                                })
+                              });
+                              setToast({ type: 'success', message: 'Píxeles de rastreo guardados exitosamente' });
+                            } catch (err) {
+                              setToast({ type: 'error', message: 'Error al guardar los píxeles' });
+                            }
+                          }} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[18px]">save</span>
+                            Guardar Cambios
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -17370,7 +17448,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-violet-600 rounded-2xl mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined text-white text-2xl">add_circle</span></div>
               <h3 className="text-lg font-extrabold text-primary">{language === 'en' ? 'Create New Segment' : 'Crear Nuevo Segmento'}</h3>
-              <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Define custom classification rules for your audience' : 'Define reglas de clasificación personalizadas para tu audiencia'}</p>
+              <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Define custom classification rules for your audience' : 'Define reglas de clasificaciÃ³n personalizadas para tu audiencia'}</p>
             </div>
             <div className="space-y-4 mb-6">
               <div>
@@ -17378,8 +17456,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <input value={newSegName} onChange={e => setNewSegName(e.target.value)} placeholder={language === 'en' ? 'e.g. VIP Customers' : 'ej. Clientes VIP'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Description' : 'Descripción'}</label>
-                <input value={newSegDescription} onChange={e => setNewSegDescription(e.target.value)} placeholder={language === 'en' ? 'Brief description...' : 'Breve descripción...'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Description' : 'DescripciÃ³n'}</label>
+                <input value={newSegDescription} onChange={e => setNewSegDescription(e.target.value)} placeholder={language === 'en' ? 'Brief description...' : 'Breve descripciÃ³n...'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Keywords (comma separated)' : 'Palabras Clave (separadas por coma)'}</label>
@@ -17423,7 +17501,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             </div>
             <div className="bg-slate-50 rounded-xl p-4 mb-6">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-slate-500">{language === 'en' ? 'Days in range' : 'Días en el rango'}</span>
+                <span className="text-xs text-slate-500">{language === 'en' ? 'Days in range' : 'DÃ­as en el rango'}</span>
                 <span className="text-sm font-black text-primary">{Math.max(0, Math.ceil((new Date(exportEndDate).getTime() - new Date(exportStartDate).getTime()) / 86400000) + 1)}</span>
               </div>
               <div className="flex justify-between items-center">
@@ -17603,7 +17681,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         </div>
       )}
 
-        {/* ═══════════════════ CONVERSATIONS TAB ═══════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• CONVERSATIONS TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === 'conversations' && (
           <>
             <section className="mb-8 flex justify-between items-end flex-wrap gap-4">
@@ -17669,7 +17747,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <div className="flex items-center justify-between">
                         <p className="font-bold text-sm text-slate-800 truncate">{conv.customer_name || 'Usuario'}</p>
                         <span className="text-[10px] text-slate-400 shrink-0 ml-2">
-                          {conv.updated_at ? new Date(conv.updated_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : '—'}
+                          {conv.updated_at ? new Date(conv.updated_at).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short' }) : 'â€”'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
@@ -17681,7 +17759,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         }`}>
                           {conv.status === 'chatting' ? (language === 'en' ? 'Active' : 'Activo') :
                            conv.status === 'interested' ? (language === 'en' ? 'Interested' : 'Interesado') :
-                           (language === 'en' ? 'Bought' : 'Compró')}
+                           (language === 'en' ? 'Bought' : 'ComprÃ³')}
                         </span>
                       </div>
                     </div>
@@ -17691,8 +17769,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {allContacts.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-16 text-slate-400">
                     <span className="material-symbols-outlined text-5xl mb-3">forum</span>
-                    <p className="font-semibold text-sm">{language === 'en' ? 'No conversations yet' : 'Sin conversaciones aún'}</p>
-                    <p className="text-xs mt-1">{language === 'en' ? 'Conversations will appear here when your contacts start chatting.' : 'Las conversaciones aparecerán aquí cuando tus contactos comiencen a chatear.'}</p>
+                    <p className="font-semibold text-sm">{language === 'en' ? 'No conversations yet' : 'Sin conversaciones aÃºn'}</p>
+                    <p className="text-xs mt-1">{language === 'en' ? 'Conversations will appear here when your contacts start chatting.' : 'Las conversaciones aparecerÃ¡n aquÃ­ cuando tus contactos comiencen a chatear.'}</p>
                   </div>
                 )}
               </div>
@@ -17701,8 +17779,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               const pipelineColumns = [
                 { id: 'leads_entrantes', label: 'LEADS ENTRANTES', color: 'amber', defaultStage: 'new_lead', stages: ['new_lead', 'discovery'], includeNull: true },
                 { id: 'toma_decisiones', label: 'TOMA DE DECISIONES', color: 'violet', defaultStage: 'qualified', stages: ['qualified', 'proposal'], includeNull: false },
-                { id: 'negociacion', label: 'NEGOCIACIÓN CONTRATO', color: 'emerald', defaultStage: 'objection', stages: ['objection', 'closing'], includeNull: false },
-                { id: 'decision_final', label: 'DECISIÓN FINAL', color: 'blue', defaultStage: 'appointment_booked', stages: ['appointment_booked', 'won', 'lost'], includeNull: false },
+                { id: 'negociacion', label: 'NEGOCIACIÃ“N CONTRATO', color: 'emerald', defaultStage: 'objection', stages: ['objection', 'closing'], includeNull: false },
+                { id: 'decision_final', label: 'DECISIÃ“N FINAL', color: 'blue', defaultStage: 'appointment_booked', stages: ['appointment_booked', 'won', 'lost'], includeNull: false },
               ];
 
               const colorMap: Record<string, { border: string; bg: string; dot: string; shadow: string }> = {
@@ -17731,9 +17809,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: droppedId, sales_stage: targetStage }),
                   });
-                  setToast({ message: language === 'es' ? '✅ Etapa actualizada' : '✅ Stage updated', type: 'success' });
+                  setToast({ message: language === 'es' ? 'âœ… Etapa actualizada' : 'âœ… Stage updated', type: 'success' });
                 } catch (err) {
-                  setToast({ message: language === 'es' ? '❌ Error al mover' : '❌ Error moving card', type: 'error' });
+                  setToast({ message: language === 'es' ? 'âŒ Error al mover' : 'âŒ Error moving card', type: 'error' });
                 }
               };
 
@@ -17781,7 +17859,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             {contacts.length === 0 && (
                               <div className="flex flex-col items-center justify-center py-8 text-slate-300">
                                 <span className="material-symbols-outlined text-3xl mb-2">drag_indicator</span>
-                                <p className="text-[10px] font-bold uppercase tracking-wider">{language === 'es' ? 'Arrastra aquí' : 'Drop here'}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-wider">{language === 'es' ? 'Arrastra aquÃ­' : 'Drop here'}</p>
                               </div>
                             )}
                           </div>
@@ -17795,7 +17873,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </>
         )}
 
-        {/* ═══════════════════ ORDERS TAB ═══════════════════ */}
+        {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• ORDERS TAB â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
         {activeTab === 'orders' && (
           <>
             <section className="mb-8 flex justify-between items-end flex-wrap gap-4">
@@ -17812,7 +17890,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     const res = await authFetch('/api/panel/orders/export');
                     if (!res.ok) {
                       const err = await res.json().catch(() => ({}));
-                      setToast({ message: err.error || 'Error al exportar órdenes', type: 'error' });
+                      setToast({ message: err.error || 'Error al exportar Ã³rdenes', type: 'error' });
                       return;
                     }
                     const blob = await res.blob();
@@ -17845,8 +17923,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               {!configData.dropi_enabled ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                   <span className="material-symbols-outlined text-5xl mb-3">shopping_cart</span>
-                  <p className="font-semibold text-sm mb-2">{language === 'en' ? 'Dropi is not enabled' : 'Dropi no está habilitado'}</p>
-                  <p className="text-xs text-center max-w-sm">{language === 'en' ? 'Enable Dropi integration in Settings → AI Bot → Dropi to start receiving orders.' : 'Habilita la integración con Dropi en Configuraciones → Bot IA → Dropi para comenzar a recibir pedidos.'}</p>
+                  <p className="font-semibold text-sm mb-2">{language === 'en' ? 'Dropi is not enabled' : 'Dropi no estÃ¡ habilitado'}</p>
+                  <p className="text-xs text-center max-w-sm">{language === 'en' ? 'Enable Dropi integration in Settings â†’ AI Bot â†’ Dropi to start receiving orders.' : 'Habilita la integraciÃ³n con Dropi en Configuraciones â†’ Bot IA â†’ Dropi para comenzar a recibir pedidos.'}</p>
                   <button
                     onClick={() => setActiveTab('settings')}
                     className="mt-4 px-5 py-2.5 rounded-xl bg-primary-container text-white font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2"
@@ -17858,15 +17936,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                   <span className="material-symbols-outlined text-5xl mb-3 text-emerald-400">check_circle</span>
-                  <p className="font-semibold text-sm text-emerald-600 mb-2">{language === 'en' ? 'Dropi is enabled' : 'Dropi está habilitado'}</p>
-                  <p className="text-xs text-center max-w-sm text-slate-500">{language === 'en' ? 'Orders generated by the AI chatbot through Dropi will be automatically processed. Use the Export button above to download your orders as CSV.' : 'Los pedidos generados por el chatbot IA a través de Dropi se procesan automáticamente. Usa el botón Exportar arriba para descargar tus pedidos en CSV.'}</p>
+                  <p className="font-semibold text-sm text-emerald-600 mb-2">{language === 'en' ? 'Dropi is enabled' : 'Dropi estÃ¡ habilitado'}</p>
+                  <p className="text-xs text-center max-w-sm text-slate-500">{language === 'en' ? 'Orders generated by the AI chatbot through Dropi will be automatically processed. Use the Export button above to download your orders as CSV.' : 'Los pedidos generados por el chatbot IA a travÃ©s de Dropi se procesan automÃ¡ticamente. Usa el botÃ³n Exportar arriba para descargar tus pedidos en CSV.'}</p>
                   <div className="mt-6 grid grid-cols-2 gap-4 w-full max-w-sm">
                     <div className="bg-slate-50 rounded-xl p-4 text-center">
                       <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_price || 0}</p>
                       <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{language === 'en' ? 'Default Price' : 'Precio Base'}</p>
                     </div>
                     <div className="bg-slate-50 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_product_id ? '✓' : '—'}</p>
+                      <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_product_id ? 'âœ“' : 'â€”'}</p>
                       <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{language === 'en' ? 'Product ID' : 'ID Producto'}</p>
                     </div>
                   </div>
@@ -17903,12 +17981,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <h2 className="font-['Manrope'] font-bold tracking-tight text-xl text-[#000080] dark:text-white">RIFX Sovereign</h2>
               </div>
               <div className="flex items-center gap-6">
-                {/* Búsqueda funcional en mensajes */}
+                {/* BÃºsqueda funcional en mensajes */}
                 <div className="relative hidden sm:block">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
                   <input 
                     className="bg-crm-surface-container-low border-none rounded-full pl-10 pr-4 py-1.5 text-sm focus:ring-2 focus:ring-primary-container/20 w-64 text-black" 
-                    placeholder={language === 'en' ? 'Search in conversation...' : 'Buscar en conversación...'} 
+                    placeholder={language === 'en' ? 'Search in conversation...' : 'Buscar en conversaciÃ³n...'} 
                     type="text"
                     value={chatSearch}
                     onChange={(e) => {
@@ -18021,7 +18099,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                       <p className="text-[11px] text-slate-500 leading-relaxed">
                         {language === 'es' 
-                          ? 'Este panel te permite chatear directamente con el contacto en tiempo real, ver su historial completo de conversación, enviar notas rápidas, gestionar etiquetas, ver métricas de IA y analizar el comportamiento del contacto. Puedes tomar control manual del chat o dejar que la IA responda automáticamente.'
+                          ? 'Este panel te permite chatear directamente con el contacto en tiempo real, ver su historial completo de conversaciÃ³n, enviar notas rÃ¡pidas, gestionar etiquetas, ver mÃ©tricas de IA y analizar el comportamiento del contacto. Puedes tomar control manual del chat o dejar que la IA responda automÃ¡ticamente.'
                           : 'This panel allows you to chat directly with the contact in real-time, view their complete conversation history, send quick notes, manage tags, view AI metrics, and analyze contact behavior. You can take manual control of the chat or let the AI respond automatically.'}
                       </p>
                     </div>
@@ -18059,7 +18137,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           value={editPhone} 
                           onChange={(e) => setEditPhone(e.target.value)}
                           className="bg-crm-surface-container-low border-none rounded-lg px-3 py-1.5 text-center text-secondary font-medium focus:ring-2 focus:ring-primary-container"
-                          placeholder="Teléfono"
+                          placeholder="TelÃ©fono"
                         />
                       </div>
                     ) : (
@@ -18105,7 +18183,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             : (language === 'en' ? 'Control' : 'Control')}
                         </span>
                       </button>
-                      <button onClick={() => { const phone = (selectedChat.phone_number || '').replace(/[^0-9]/g, ''); if (phone) window.open(`https://wa.me/${phone}`, '_blank'); else setToast({ message: language === 'es' ? 'No hay número de teléfono registrado' : 'No phone number registered', type: 'info' }); }} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
+                      <button onClick={() => { const phone = (selectedChat.phone_number || '').replace(/[^0-9]/g, ''); if (phone) window.open(`https://wa.me/${phone}`, '_blank'); else setToast({ message: language === 'es' ? 'No hay nÃºmero de telÃ©fono registrado' : 'No phone number registered', type: 'info' }); }} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
                         <span className="material-symbols-outlined text-primary-container group-hover:text-white">call</span>
                         <span className="text-[10px] mt-1 font-bold uppercase">{language === 'en' ? 'Call' : 'Llamar'}</span>
                       </button>
@@ -18143,9 +18221,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {isEditingContact ? (language === 'en' ? 'Save' : 'Guardar') : (language === 'en' ? 'Edit' : 'Editar')}
                         </span>
                       </button>
-                      <button onClick={() => setToast({ message: language === 'en' ? 'Feature coming soon' : 'Función próximamente', type: 'info' })} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
+                      <button onClick={() => setToast({ message: language === 'en' ? 'Feature coming soon' : 'FunciÃ³n prÃ³ximamente', type: 'info' })} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
                         <span className="material-symbols-outlined text-primary-container group-hover:text-white">more_horiz</span>
-                        <span className="text-[10px] mt-1 font-bold uppercase">{language === 'en' ? 'More' : 'Más'}</span>
+                        <span className="text-[10px] mt-1 font-bold uppercase">{language === 'en' ? 'More' : 'MÃ¡s'}</span>
                       </button>
                     </div>
                   </div>
@@ -18162,8 +18240,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     {(() => {
                       const userMsgs = chatMessages.filter((m: any) => m.role === 'user');
                       const allText = userMsgs.map((m: any) => (m.content || '').toLowerCase()).join(' ');
-                      const positiveWords = ['sí', 'si', 'interesa', 'quiero', 'necesito', 'perfecto', 'genial', 'excelente', 'precio', 'costo', 'comprar', 'adquirir', 'contratar', 'plan', 'demo', 'probar', 'información', 'info', 'gracias', 'bueno', 'ok', 'vale', 'claro', 'por supuesto', 'envíame', 'me gustaría', 'cotización', 'presupuesto', 'disponible'];
-                      const negativeWords = ['no', 'nunca', 'cancelar', 'eliminar', 'problema', 'mal', 'error', 'queja', 'reclamo', 'molesta', 'spam', 'no me interesa', 'adiós', 'basta', 'deja'];
+                      const positiveWords = ['sÃ­', 'si', 'interesa', 'quiero', 'necesito', 'perfecto', 'genial', 'excelente', 'precio', 'costo', 'comprar', 'adquirir', 'contratar', 'plan', 'demo', 'probar', 'informaciÃ³n', 'info', 'gracias', 'bueno', 'ok', 'vale', 'claro', 'por supuesto', 'envÃ­ame', 'me gustarÃ­a', 'cotizaciÃ³n', 'presupuesto', 'disponible'];
+                      const negativeWords = ['no', 'nunca', 'cancelar', 'eliminar', 'problema', 'mal', 'error', 'queja', 'reclamo', 'molesta', 'spam', 'no me interesa', 'adiÃ³s', 'basta', 'deja'];
                       let positiveCount = 0, negativeCount = 0;
                       positiveWords.forEach(w => { if (allText.includes(w)) positiveCount++; });
                       negativeWords.forEach(w => { if (allText.includes(w)) negativeCount++; });
@@ -18178,7 +18256,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       const sentimentColor = propensity >= 70 ? 'text-emerald-600' : propensity >= 40 ? 'text-amber-500' : 'text-red-500';
                       
                       // Keywords extraction from user messages
-                      const stopWords = new Set(['de', 'la', 'el', 'en', 'un', 'una', 'que', 'es', 'y', 'los', 'las', 'por', 'con', 'para', 'del', 'al', 'se', 'lo', 'a', 'no', 'me', 'mi', 'su', 'te', 'le', 'como', 'más', 'ya', 'o', 'pero', 'si', 'hola', 'buenas', 'buenos', 'días', 'tardes', 'noches', 'the', 'is', 'a', 'to', 'and', 'i', 'you', 'it', 'of', 'in', 'this', 'that', 'for', 'on', 'are', 'at', 'be', 'was']);
+                      const stopWords = new Set(['de', 'la', 'el', 'en', 'un', 'una', 'que', 'es', 'y', 'los', 'las', 'por', 'con', 'para', 'del', 'al', 'se', 'lo', 'a', 'no', 'me', 'mi', 'su', 'te', 'le', 'como', 'mÃ¡s', 'ya', 'o', 'pero', 'si', 'hola', 'buenas', 'buenos', 'dÃ­as', 'tardes', 'noches', 'the', 'is', 'a', 'to', 'and', 'i', 'you', 'it', 'of', 'in', 'this', 'that', 'for', 'on', 'are', 'at', 'be', 'was']);
                       const words = allText.split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
                       const freq: Record<string, number> = {};
                       words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
@@ -18188,7 +18266,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <>
                           <div>
                             <div className="flex justify-between items-end mb-2">
-                              <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">{language === 'en' ? 'Propensity to Convert' : 'Propensión de Compra'}</span>
+                              <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">{language === 'en' ? 'Propensity to Convert' : 'PropensiÃ³n de Compra'}</span>
                               <span className="text-xl font-extrabold text-primary-container">{propensity}%</span>
                             </div>
                             <div className="h-2 w-full bg-crm-surface-container-highest rounded-full overflow-hidden">
@@ -18197,18 +18275,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <div className="flex items-center justify-between p-4 bg-white/50 rounded-lg">
                             <div>
-                              <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{language === 'en' ? 'Sentiment Analysis' : 'Análisis de Sentimiento'}</p>
+                              <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">{language === 'en' ? 'Sentiment Analysis' : 'AnÃ¡lisis de Sentimiento'}</p>
                               <p className="text-sm font-semibold text-on-surface">{sentiment}</p>
                             </div>
                             <span className={`material-symbols-outlined ${sentimentColor} scale-125`} style={{fontVariationSettings: "'FILL' 1"}}>{sentimentIcon}</span>
                           </div>
                           <div>
-                            <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-3">{language === 'en' ? 'Key Intent Keywords' : 'Palabras Clave de Intención'}</p>
+                            <p className="text-[10px] font-bold uppercase text-slate-500 tracking-wider mb-3">{language === 'en' ? 'Key Intent Keywords' : 'Palabras Clave de IntenciÃ³n'}</p>
                             <div className="flex flex-wrap gap-2">
                               {topKeywords.length > 0 ? topKeywords.map((kw, i) => (
                                 <span key={i} className="px-3 py-1 bg-primary-container/10 text-primary-container text-xs font-semibold rounded-md">{kw}</span>
                               )) : (
-                                <span className="text-xs text-slate-400">{language === 'es' ? 'Sin suficientes datos aún' : 'Not enough data yet'}</span>
+                                <span className="text-xs text-slate-400">{language === 'es' ? 'Sin suficientes datos aÃºn' : 'Not enough data yet'}</span>
                               )}
                             </div>
                           </div>
@@ -18239,7 +18317,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                 {/* 4. Behavioral Data - REAL */}
                 <section className="bg-crm-surface-container-low rounded-xl p-6">
-                  <h4 className="text-xs font-bold uppercase text-slate-500 tracking-widest mb-4">{language === 'en' ? 'Behavioral Telemetry' : 'Telemetría de Comportamiento'}</h4>
+                  <h4 className="text-xs font-bold uppercase text-slate-500 tracking-widest mb-4">{language === 'en' ? 'Behavioral Telemetry' : 'TelemetrÃ­a de Comportamiento'}</h4>
                   {(() => {
                     const totalMsgs = chatMessages.length;
                     const userMsgs = chatMessages.filter((m: any) => m.role === 'user').length;
@@ -18255,7 +18333,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     return (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white p-3 rounded-lg">
-                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Classification' : 'Clasificación'}</p>
+                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Classification' : 'ClasificaciÃ³n'}</p>
                           <p className="text-sm font-bold text-primary-container">{statusLabel}</p>
                         </div>
                         <div className="bg-white p-3 rounded-lg">
@@ -18271,7 +18349,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <p className="text-sm font-bold text-primary-container">{totalMsgs > 0 ? Math.round((userMsgs / totalMsgs) * 100) : 0}%</p>
                         </div>
                         <div className="bg-white p-3 rounded-lg col-span-2">
-                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</p>
+                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Last Activity' : 'Ãšltima Actividad'}</p>
                           <p className="text-sm font-bold text-primary-container">{lastTime} <span className="text-slate-400 font-normal text-[10px]">({lastActivity})</span></p>
                         </div>
                       </div>
@@ -18282,10 +18360,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
               {/* Column 2: Timeline & Notes */}
               <div className="col-span-12 lg:col-span-8 space-y-8">
-                {/* 3. {language === 'en' ? 'Communication Timeline' : 'Línea de Tiempo de Comunicación'} */}
+                {/* 3. {language === 'en' ? 'Communication Timeline' : 'LÃ­nea de Tiempo de ComunicaciÃ³n'} */}
                 <section className="bg-crm-surface-container-lowest rounded-xl shadow-[0_24px_24px_rgba(25,28,29,0.02)] flex flex-col h-[600px]">
                   <div className="p-6 border-b border-surface-container-low flex justify-between items-center">
-                    <h4 className="font-display font-bold text-lg">{language === 'es' ? 'Línea de Tiempo' : 'Communication Timeline'}</h4>
+                    <h4 className="font-display font-bold text-lg">{language === 'es' ? 'LÃ­nea de Tiempo' : 'Communication Timeline'}</h4>
                     <div className="flex gap-2">
                       <span className="px-3 py-1 bg-crm-surface-container text-[10px] font-bold rounded cursor-pointer">WhatsApp</span>
                       <span className="px-3 py-1 bg-crm-surface-container-low text-[10px] font-bold rounded cursor-pointer opacity-50">Email</span>
@@ -18298,7 +18376,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="w-8 h-8 border-2 border-primary-container border-t-transparent rounded-full animate-spin" />
                       </div>
                     ) : chatMessages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full text-slate-500 text-sm">{language === 'en' ? 'No messages yet' : 'No hay mensajes aún'}</div>
+                      <div className="flex items-center justify-center h-full text-slate-500 text-sm">{language === 'en' ? 'No messages yet' : 'No hay mensajes aÃºn'}</div>
                     ) : (
                       chatMessages.map((msg: any, idx: number) => {
                         const time = new Date(msg.created_at).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
@@ -18418,7 +18496,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </>
                       ) : (
                         <div className="w-full bg-white/50 border border-outline-variant/20 rounded-xl p-4 text-sm text-slate-400 min-h-[100px] flex items-center justify-center">
-                          {language === 'es' ? "La IA está respondiendo de forma autónoma. Haz clic en 'Control' para enviar un mensaje manualmente." : "AI is responding autonomously. Click 'Control' to send a message manually."}
+                          {language === 'es' ? "La IA estÃ¡ respondiendo de forma autÃ³noma. Haz clic en 'Control' para enviar un mensaje manualmente." : "AI is responding autonomously. Click 'Control' to send a message manually."}
                         </div>
                       )}
                     </div>
@@ -18445,7 +18523,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <textarea
                           value={newNoteText}
                           onChange={(e) => setNewNoteText(e.target.value)}
-                          placeholder={language === 'es' ? 'Escribe una nota o plantilla de mensaje rápido...' : 'Write a note or quick message template...'}
+                          placeholder={language === 'es' ? 'Escribe una nota o plantilla de mensaje rÃ¡pido...' : 'Write a note or quick message template...'}
                           className="w-full text-xs bg-white border border-slate-200 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary-container/30 text-black"
                           rows={2}
                         />
@@ -18468,7 +18546,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     {/* Notes list */}
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {operatorNotes.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic text-center py-4">{language === 'es' ? 'Sin notas. Agrega plantillas de mensajes rápidos.' : 'No notes. Add quick message templates.'}</p>
+                        <p className="text-xs text-slate-400 italic text-center py-4">{language === 'es' ? 'Sin notas. Agrega plantillas de mensajes rÃ¡pidos.' : 'No notes. Add quick message templates.'}</p>
                       ) : operatorNotes.map(note => (
                         <div key={note.id} className="group/note flex items-start gap-2 p-2.5 bg-slate-50/50 hover:bg-primary-container/5 rounded-lg border border-transparent hover:border-primary-container/10 transition-all cursor-pointer"
                           onClick={async () => {
@@ -18625,7 +18703,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         type="text"
                         value={emailSubject}
                         onChange={(e) => setEmailSubject(e.target.value)}
-                        placeholder={language === 'es' ? 'Ej: Seguimiento de nuestra conversación' : 'E.g.: Follow-up on our conversation'}
+                        placeholder={language === 'es' ? 'Ej: Seguimiento de nuestra conversaciÃ³n' : 'E.g.: Follow-up on our conversation'}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 text-black"
                       />
                     </div>
@@ -18646,14 +18724,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               });
                               const data = await res.json();
                               if (data.body) {
-                                setEmailSubject(data.subject || (language === 'es' ? 'Seguimiento de nuestra conversación' : 'Follow-up on our conversation'));
+                                setEmailSubject(data.subject || (language === 'es' ? 'Seguimiento de nuestra conversaciÃ³n' : 'Follow-up on our conversation'));
                                 setEmailBody(data.body);
                               } else {
                                 throw new Error('No body');
                               }
                             } catch { 
                               const contactName = selectedChat.customer_name || selectedChat.name || '';
-                              setEmailBody(language === 'es' ? `Hola ${contactName.split(' ')[0] || ''},\n\nGracias por tu interés en nuestros servicios. Quería dar seguimiento a nuestra conversación reciente.\n\nQuedo atento a tus comentarios.\n\nSaludos cordiales,\nEquipo RIFX` : `Hi ${contactName.split(' ')[0] || ''},\n\nThank you for your interest in our services. I wanted to follow up on our recent conversation.\n\nI look forward to hearing from you.\n\nBest regards,\nRIFX Team`);
+                              setEmailBody(language === 'es' ? `Hola ${contactName.split(' ')[0] || ''},\n\nGracias por tu interÃ©s en nuestros servicios. QuerÃ­a dar seguimiento a nuestra conversaciÃ³n reciente.\n\nQuedo atento a tus comentarios.\n\nSaludos cordiales,\nEquipo RIFX` : `Hi ${contactName.split(' ')[0] || ''},\n\nThank you for your interest in our services. I wanted to follow up on our recent conversation.\n\nI look forward to hearing from you.\n\nBest regards,\nRIFX Team`);
                             }
                             setIsGeneratingEmail(false);
                           }}
@@ -18755,10 +18833,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <div className="flex items-center justify-between gap-2 mb-3">
               {(() => {
                 const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
-                  info: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Información' },
-                  update: { bg: 'bg-violet-100', text: 'text-violet-700', label: 'Actualización' },
+                  info: { bg: 'bg-blue-100', text: 'text-blue-700', label: 'InformaciÃ³n' },
+                  update: { bg: 'bg-violet-100', text: 'text-violet-700', label: 'ActualizaciÃ³n' },
                   warning: { bg: 'bg-red-100', text: 'text-red-700', label: 'Aviso Importante' },
-                  promo: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Promoción' },
+                  promo: { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'PromociÃ³n' },
                 };
                 const ts = typeStyles[ann.type] || typeStyles.info;
                 return <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-wider ${ts.bg} ${ts.text}`}>{ts.label}</span>;
@@ -18847,7 +18925,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </span>
           <div className="flex-1">
             <h5 className="text-[9px] font-extrabold uppercase tracking-widest text-slate-300">
-              {toast.type === 'success' ? (language === 'en' ? 'Success' : 'Éxito') : toast.type === 'error' ? (language === 'en' ? 'Error' : 'Error') : (language === 'en' ? 'Information' : 'Información')}
+              {toast.type === 'success' ? (language === 'en' ? 'Success' : 'Ã‰xito') : toast.type === 'error' ? (language === 'en' ? 'Error' : 'Error') : (language === 'en' ? 'Information' : 'InformaciÃ³n')}
             </h5>
             <p className="text-xs font-semibold text-white mt-0.5 leading-relaxed">{toast.message}</p>
           </div>
@@ -18861,7 +18939,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       </div>
     )}
 
-    {/* MODAL DE AUTO-ELIMINACIÓN DE CUENTA (USER SELF-DELETE) */}
+    {/* MODAL DE AUTO-ELIMINACIÃ“N DE CUENTA (USER SELF-DELETE) */}
     {showSelfDeleteModal && (
       <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowSelfDeleteModal(false)}>
         <motion.div
@@ -18883,7 +18961,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           <p className="text-xs text-slate-500 leading-relaxed mb-4">
             {language === 'en'
               ? 'Your access and sessions will be disabled immediately. Business records enter the controlled retention process; an active paid subscription must be cancelled first. Sign in again if your session is older than 10 minutes.'
-              : 'Tu acceso y sesiones se desactivarán de inmediato. Los registros entrarán al proceso controlado de retención; primero debes cancelar una suscripción pagada activa. Vuelve a iniciar sesión si tu sesión tiene más de 10 minutos.'}
+              : 'Tu acceso y sesiones se desactivarÃ¡n de inmediato. Los registros entrarÃ¡n al proceso controlado de retenciÃ³n; primero debes cancelar una suscripciÃ³n pagada activa. Vuelve a iniciar sesiÃ³n si tu sesiÃ³n tiene mÃ¡s de 10 minutos.'}
           </p>
 
           <div className="space-y-3 mb-6">
@@ -18925,7 +19003,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       </div>
     )}
 
-    {/* MODAL DE ELIMINACIÓN DE USUARIOS POR ADMINISTRADOR (ADMIN DELETE USER) */}
+    {/* MODAL DE ELIMINACIÃ“N DE USUARIOS POR ADMINISTRADOR (ADMIN DELETE USER) */}
     {tenantToDelete && (
       <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setTenantToDelete(null)}>
         <motion.div
@@ -18945,14 +19023,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed mb-4">
-            Estás a punto de eliminar la cuenta de la empresa <strong>{tenantToDelete.companyName || 'Sin nombre'}</strong> ({tenantToDelete.email}).
+            EstÃ¡s a punto de eliminar la cuenta de la empresa <strong>{tenantToDelete.companyName || 'Sin nombre'}</strong> ({tenantToDelete.email}).
             <br />
-            Esta acción borrará de manera inmediata e irreversible todos sus datos en el sistema (chats, configuraciones, pagos, etc.).
+            Esta acciÃ³n borrarÃ¡ de manera inmediata e irreversible todos sus datos en el sistema (chats, configuraciones, pagos, etc.).
           </p>
 
           <div className="space-y-3 mb-6">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Escribe "ELIMINAR" para confirmar la acción
+              Escribe "ELIMINAR" para confirmar la acciÃ³n
             </label>
             <input
               type="text"
@@ -18995,3 +19073,5 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
 
 
+
+// Trigger HMR

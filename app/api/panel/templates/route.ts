@@ -5,6 +5,7 @@ import { denyUnlessFeature } from '@/lib/feature-access';
 import { enforceTenantRateLimit, internalApiError } from '@/lib/request-guards';
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
 
 // GET /api/panel/templates - Obtener plantillas activas para el tenant (globales + específicas)
 export async function GET(req: NextRequest) {

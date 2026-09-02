@@ -4,6 +4,7 @@ import { attachSessionCookie, signToken, PLAN_LIMITS } from '@/lib/auth';
 import { checkRateLimit, AUTH_RATE_LIMITS } from '@/lib/rate-limit';
 import { getClientIp, normalizeEmail, rateLimitKey } from '@/lib/security';
 import { readLimitedJsonObject } from '@/lib/request-guards';
+import { checkMemoryStore } from '@/lib/memory-store';
 
 /**
  * Verify email OTP code and create the tenant account.
@@ -215,40 +216,5 @@ async function createAccountAndRespond(
   return attachSessionCookie(response, token);
 }
 
-// ─── In-memory fallback for development ───
-const memoryStore = new Map<string, { data: string; expiresAt: number }>();
-
-export function setMemoryVerification(email: string, data: string, ttlMs: number, prefix: string = 'email-verify:') {
-  memoryStore.set(`${prefix}${email}`, {
-    data,
-    expiresAt: Date.now() + ttlMs,
-  });
 }
 
-export function checkMemoryStore(email: string, code: string, prefix: string = 'email-verify:'): {
-  error?: string;
-  status: number;
-  data?: any;
-} {
-  const key = `${prefix}${email}`;
-  const record = memoryStore.get(key);
-
-  if (!record || Date.now() > record.expiresAt) {
-    memoryStore.delete(key);
-    return { error: 'Código expirado o no encontrado. Solicita uno nuevo.', status: 410 };
-  }
-
-  let pendingData: any;
-  try {
-    pendingData = JSON.parse(record.data);
-  } catch {
-    return { error: 'Error interno de verificación', status: 500 };
-  }
-
-  if (pendingData.code !== code) {
-    return { error: 'Código incorrecto', status: 401 };
-  }
-
-  memoryStore.delete(key);
-  return { status: 200, data: pendingData };
-}
