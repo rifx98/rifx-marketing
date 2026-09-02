@@ -27,8 +27,6 @@ export default function FlowZapInbox() {
       unread: 0,
       botPaused: false
     }
-  ];
-
   ]);
 
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({
