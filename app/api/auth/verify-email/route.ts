@@ -216,5 +216,3 @@ async function createAccountAndRespond(
   return attachSessionCookie(response, token);
 }
 
-}
-

@@ -5,7 +5,7 @@ if (!globalMemoryStore.__emailVerificationStore) {
 const memoryStore = globalMemoryStore.__emailVerificationStore as Map<string, { data: string; expiresAt: number }>;
 
 export function setMemoryVerification(email: string, data: string, ttlMs: number, prefix: string = 'email-verify:') {
-  memoryStore.set(\\\\, {
+  memoryStore.set(`${prefix}${email}`, {
     data,
     expiresAt: Date.now() + ttlMs,
   });
@@ -16,7 +16,7 @@ export function checkMemoryStore(email: string, code: string, prefix: string = '
   status: number;
   data?: any;
 } {
-  const key = \\\\;
+  const key = `${prefix}${email}`;
   const record = memoryStore.get(key);
 
   if (!record || Date.now() > record.expiresAt) {
