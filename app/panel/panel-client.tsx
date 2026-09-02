@@ -782,20 +782,25 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
   );
 }
 
-const TABS_TO_MANAGE = [
-  { key: 'dashboard', label: 'Panel Principal' },
-  { key: 'crm', label: 'Usuarios / CRM' },
-  { key: 'settings', label: 'Configuraciones' },
-  { key: 'playground', label: 'Playground IA' },
-  { key: 'basic_bot', label: 'Bot Básico (Sin IA)' },
-  { key: 'campaigns', label: 'Pautas Publicitarias' },
-  { key: 'banners', label: 'Crear Pancartas' },
-  { key: 'segments', label: 'Segmentos' },
-  { key: 'analytics', label: 'AnÃ¡lisis' },
-  { key: 'social', label: 'OmniPublish' },
-  { key: 'appointments', label: 'Citas y Reservas' },
-  { key: 'pricing', label: 'CatÃ¡logo de Precios' }
+
+export const SIDEBAR_ITEMS = [
+  { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
+  { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
+  { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
+  { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
+  { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+  { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
+  { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
+  { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+  { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
+  { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
+  { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
+  { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
+  { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
+  { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' }
 ];
+
+const TABS_TO_MANAGE = SIDEBAR_ITEMS.map(item => ({ key: item.key, label: item.labelEs }));
 
 const PLANS = ['trial', 'basic', 'start', 'plus', 'master'];
 
