@@ -719,12 +719,12 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
       : `ðŸš¨ ¡ATENCIÃ“N! ¿Buscando el mejor ${prod}? ðŸš¨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\nâœ¨ ¿Por qué elegirnos?\nâœ… Calidad Premium 100% Garantizada\nâœ… Atención de primera\nâœ… Oferta exclusiva por tiempo limitado\n\nðŸ’° PROMOCIÃ“N ESPECIAL: ¡${price}!\n\nðŸ‘‰ ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
       
     storytelling: language === 'en'
-      ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... ðŸ˜”\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! ðŸŒŸ\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\nðŸ”¥ Limited Offer: ${price}!\n\nðŸ“² Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
-      : `Había intentado de todo para encontrar un ${prod} que realmente cumpliera con su promesa, pero siempre terminaba decepcionado... ðŸ˜”\n\nHasta que descubrí a los expertos de ${name}. Desde el primer día, la diferencia fue como el día y la noche. ¡La calidad, el trato y los resultados superaron mis expectativas! ðŸŒŸ\n\nSi tú también estás cansado de lo mismo de siempre, tienes que probar esto. Y lo mejor de todo es que tienen una súper promoción:\n\nðŸ”¥ Oferta por tiempo limitado: ¡${price}!\n\nðŸ“² Haz clic abajo y compruébalo tú mismo. ${ctaText}\n\n#CasoDeExito #CalidadReal #PremiumExperience #MetaAds`,
+      ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... ðŸ˜”\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! ðŸŒŸ\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\n🔥 Limited Offer: ${price}!\n\nðŸ“² Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
+      : `Había intentado de todo para encontrar un ${prod} que realmente cumpliera con su promesa, pero siempre terminaba decepcionado... ðŸ˜”\n\nHasta que descubrí a los expertos de ${name}. Desde el primer día, la diferencia fue como el día y la noche. ¡La calidad, el trato y los resultados superaron mis expectativas! ðŸŒŸ\n\nSi tú también estás cansado de lo mismo de siempre, tienes que probar esto. Y lo mejor de todo es que tienen una súper promoción:\n\n🔥 Oferta por tiempo limitado: ¡${price}!\n\nðŸ“² Haz clic abajo y compruébalo tú mismo. ${ctaText}\n\n#CasoDeExito #CalidadReal #PremiumExperience #MetaAds`,
       
     direct: language === 'en'
       ? `âš¡ SUPER OFFER! Get your ${prod} at ${name} for the best price. âš¡\n\nNo hassle, straightforward quality, and 100% satisfaction guarantee.\n\nðŸ’µ Promo Price: ${price}!\n\nðŸš€ Extremely limited stock! Click and order yours now:\nðŸ‘‰ ${ctaText}\n\n#DirectResponse #ExpressShipping #LimitedStock #MetaAds`
-      : `âš¡ ¡SÃšPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. âš¡\n\nSin rodeos, directo a lo que necesitas y con garantía de satisfacción total.\n\nðŸ’µ Precio Especial: ¡${price}!\n\nðŸš€ ¡Stock limitado! Haz clic y ordena el tuyo ahora mismo:\nðŸ‘‰ ${ctaText}\n\n#CompraDirecta #EnvioExpress #DescuentoEspecial #MetaAds`
+      : `âš¡ ¡SÚPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. âš¡\n\nSin rodeos, directo a lo que necesitas y con garantía de satisfacción total.\n\nðŸ’µ Precio Especial: ¡${price}!\n\nðŸš€ ¡Stock limitado! Haz clic y ordena el tuyo ahora mismo:\nðŸ‘‰ ${ctaText}\n\n#CompraDirecta #EnvioExpress #DescuentoEspecial #MetaAds`
   };
 
   const activeCopy = copies[activeTab];
@@ -2285,7 +2285,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } else if (agentGoal === 'whatsapp') {
       setAdPhone(finalAnswers.phone || '');
       setAdAddress('');
-      setAdDescription(`ðŸ”¥ ¡Consigue tu ${finalAnswers.productName} hoy mismo!\n\nðŸ’° Precio especial: ¡Solo ${finalAnswers.price}!\n\nðŸ“² Escríbenos directamente por WhatsApp haciendo clic en el anuncio o al ${finalAnswers.phone} para hacer tu pedido ahora.`);
+      setAdDescription(`🔥 ¡Consigue tu ${finalAnswers.productName} hoy mismo!\n\nðŸ’° Precio especial: ¡Solo ${finalAnswers.price}!\n\nðŸ“² Escríbenos directamente por WhatsApp haciendo clic en el anuncio o al ${finalAnswers.phone} para hacer tu pedido ahora.`);
     } else if (agentGoal === 'web') {
       setAdAddress('');
       setAdPhone('');
@@ -2483,8 +2483,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       } else if (currentStep === 5) {
         newAnswers.budget = Number(value) || 5;
         nextMsgText = language === 'en'
-          ? "Great! Last thing: how many days do you want this campaign to run? ðŸ“…\n\nIf you pick 14 days or more, I'll automatically split it into two phases for you: the first half to reach and learn from new people, and the second half as a dedicated remarketing campaign targeting the people who engaged during the first phase."
-          : "¡Perfecto! Ãšltima pregunta: ¿por cuántos días querés que corra esta campaña? ðŸ“…\n\nSi elegís 14 días o más, la voy a dividir automáticamente en dos fases: la primera mitad para llegar a gente nueva y aprender, y la segunda mitad como campaña de remarketing dedicada a las personas que interactuaron durante la primera fase.";
+          ? "Great! Last thing: how many days do you want this campaign to run? 📅\n\nIf you pick 14 days or more, I'll automatically split it into two phases for you: the first half to reach and learn from new people, and the second half as a dedicated remarketing campaign targeting the people who engaged during the first phase."
+          : "¡Perfecto! Última pregunta: ¿por cuántos días querés que corra esta campaña? 📅\n\nSi elegís 14 días o más, la voy a dividir automáticamente en dos fases: la primera mitad para llegar a gente nueva y aprender, y la segunda mitad como campaña de remarketing dedicada a las personas que interactuaron durante la primera fase.";
         options = [
           { label: "7 días", value: "7" },
           { label: "14 días", value: "14" },
@@ -3211,7 +3211,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           console.log(`  Product Scale: ${aiData.qa_results.product_scale_similarity_score}/100`);
           console.log(`  Visual Weight: ${aiData.qa_results.visual_weight_similarity_score}/100`);
           console.log(`  Typography Structure: ${aiData.qa_results.typography_structure_preservation_score}/100`);
-          console.log(`  --- FIDELIDAD QUIRÃšRGICA ---`);
+          console.log(`  --- FIDELIDAD QUIRÚRGICA ---`);
           console.log(`  Reinterpretation: ${aiData.qa_results.template_reinterpretation_score}/100 ${aiData.qa_results.template_reinterpretation_score > 15 ? 'âŒ FAIL (>15)' : 'âœ… OK (â‰¤15)'}`);
           console.log(`  Text Leakage: ${aiData.qa_results.template_text_leakage_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
           console.log(`  --- ðŸ”’ REGION FREEZE ---`);
@@ -3964,9 +3964,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [viewMode, setViewMode] = useState<'table' | 'pipeline'>('table');
 
   const getLeadClassification = (score: number) => {
-    if (score >= 70) return { emoji: 'ðŸ”¥', text: language === 'es' ? 'Caliente' : 'Hot', color: 'text-red-700 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/30' };
-    if (score >= 40) return { emoji: 'ðŸŸ¡', text: language === 'es' ? 'Tibio' : 'Warm', color: 'text-amber-700 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30' };
-    return { emoji: 'âšª', text: language === 'es' ? 'Frío' : 'Cold', color: 'text-slate-600 bg-slate-50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/30' };
+    if (score >= 70) return { emoji: '🔥', text: language === 'es' ? 'Caliente' : 'Hot', color: 'text-red-700 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/30' };
+    if (score >= 40) return { emoji: '🟡', text: language === 'es' ? 'Tibio' : 'Warm', color: 'text-amber-700 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30' };
+    return { emoji: '⚪', text: language === 'es' ? 'Frío' : 'Cold', color: 'text-slate-600 bg-slate-50 dark:bg-slate-900/20 border border-slate-200/50 dark:border-slate-800/30' };
   };
 
   const formatSalesStage = (stage: string) => {
@@ -5580,7 +5580,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     // Collect warning info but DON'T show toast here â€” show it after save succeeds
     let warningInfo = '';
     if (warnings.length > 0) {
-      const readinessLabel = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? 'ðŸŸ¡ Draft' : 'ðŸ”´ Legacy';
+      const readinessLabel = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? '🟡 Draft' : 'ðŸ”´ Legacy';
       const warningText = `[${readinessLabel}] ${warnings.join(' | ')}`;
       console.warn('[TEMPLATE VALIDATION]', warningText);
       warningInfo = ` (${readinessLabel})`;
@@ -6432,7 +6432,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     csv += `RIFX CRM - Segmento: ${segDetailLabel}\n`;
     csv += `Generado: ${new Date().toLocaleString('es')}\n`;
     csv += `Total contactos: ${contacts.length}\n\n`;
-    csv += 'Nombre,Teléfono,Estado,Ãšltima Actividad\n';
+    csv += 'Nombre,Teléfono,Estado,Última Actividad\n';
     contacts.forEach((c: any) => {
       csv += `${c.customer_name || 'Sin nombre'},${c.phone_number || ''},${c.status || ''},${c.updated_at || c.created_at || ''}\n`;
     });
@@ -8375,7 +8375,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-red-500/5 rounded-full blur-xl group-hover:bg-red-500/10 transition-colors"></div>
                 <div>
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
-                    <span>ðŸ”¥</span>
+                    <span>🔥</span>
                     {language === 'es' ? 'Leads Calientes' : 'Hot Leads'}
                   </p>
                   <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
@@ -8400,7 +8400,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-amber-500/5 rounded-full blur-xl group-hover:bg-amber-500/10 transition-colors"></div>
                 <div>
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
-                    <span>ðŸŸ¡</span>
+                    <span>🟡</span>
                     {language === 'es' ? 'Leads Tibios' : 'Warm Leads'}
                   </p>
                   <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
@@ -8425,7 +8425,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -right-4 -top-4 w-16 h-16 bg-slate-500/5 rounded-full blur-xl group-hover:bg-slate-500/10 transition-colors"></div>
                 <div>
                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
-                    <span>âšª</span>
+                    <span>⚪</span>
                     {language === 'es' ? 'Leads Fríos' : 'Cold Leads'}
                   </p>
                   <p className="text-2xl font-black text-slate-700 dark:text-slate-200">
@@ -8544,7 +8544,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                             }`}
                           >
-                            {temp === 'all' ? (language === 'es' ? 'Todos Temp' : 'All Temp') : temp === 'hot' ? (language === 'es' ? 'ðŸ”¥ Calientes' : 'ðŸ”¥ Hot') : temp === 'warm' ? (language === 'es' ? 'ðŸŸ¡ Tibios' : 'ðŸŸ¡ Warm') : (language === 'es' ? 'âšª Fríos' : 'âšª Cold')}
+                            {temp === 'all' ? (language === 'es' ? 'Todos Temp' : 'All Temp') : temp === 'hot' ? (language === 'es' ? '🔥 Calientes' : '🔥 Hot') : temp === 'warm' ? (language === 'es' ? '🟡 Tibios' : '🟡 Warm') : (language === 'es' ? '⚪ Fríos' : '⚪ Cold')}
                           </span>
                         ))}
                       </div>
@@ -8577,7 +8577,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Classification' : 'Clasificación'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Sales Stage' : 'Etapa de Venta'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Next Action' : 'Próxima Acción'}</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Ãšltima Interacción'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Engagement' : 'Última Interacción'}</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
                       </tr>
                     </thead>
@@ -8639,11 +8639,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 {conv.next_action || (language === 'es' ? 'Continuar conversación' : 'Continue conversation')}
                               </p>
                             </td>
-                            <td className="px-6 py-5" data-label={language === 'en' ? 'Last Engagement' : 'Ãšltima Interacción'}>
+                            <td className="px-6 py-5" data-label={language === 'en' ? 'Last Engagement' : 'Última Interacción'}>
                               <p className="text-xs text-on-surface font-medium mb-1 truncate max-w-[180px]">
                                 {isActive 
                                   ? (language === 'es' ? ' Conversando ahora' : ' Chatting now')
-                                  : (language === 'es' ? 'Ãšltima actividad' : 'Last activity')}
+                                  : (language === 'es' ? 'Última actividad' : 'Last activity')}
                               </p>
                               <p className="text-[10px] text-slate-400">
                                 {lastDate ? new Date(lastDate).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '\u2014'}
@@ -8852,9 +8852,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 <p className="font-semibold text-slate-700 mt-0.5">{selectedConv.service_interest || (language === 'es' ? 'Ninguno' : 'None')}</p>
                               </div>
 
-                              {/* Ãšltima Objeción */}
+                              {/* Última Objeción */}
                               <div>
-                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Objection' : 'Ãšltima Objeción'}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">{language === 'en' ? 'Last Objection' : 'Última Objeción'}</p>
                                 <p className="font-semibold text-red-650 mt-0.5 bg-red-50/50 px-2 py-1 rounded border border-red-100/30 italic">
                                   {selectedConv.last_objection ? `"${selectedConv.last_objection}"` : (language === 'es' ? 'Ninguna objeción' : 'No objection')}
                                 </p>
@@ -9729,7 +9729,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-xl border border-emerald-100 font-sans">
                               <div className="flex items-center space-x-3 overflow-hidden">
                                 <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-emerald-200 shadow-sm">
-                                  <span className="text-sm">ðŸ“…</span>
+                                  <span className="text-sm">📅</span>
                                 </div>
                                 <div className="overflow-hidden">
                                   <span className="text-xs font-bold text-slate-800 block truncate leading-tight">
@@ -13890,7 +13890,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <thead>
                       <tr className="bg-slate-50/50">
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Contact' : 'Contacto'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Last Activity' : 'Ãšltima Actividad'}</th>
+                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</th>
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Phone Number' : 'Teléfono'}</th>
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'AI Confidence' : 'Confianza IA'}</th>
                         <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
@@ -15729,7 +15729,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               instagram: { bg: 'bg-gradient-to-r from-pink-50 to-purple-50', text: 'text-[#E4405F]', icon: 'ðŸ“¸' },
                               tiktok: { bg: 'bg-slate-50', text: 'text-slate-800', icon: 'ðŸŽµ' },
                               youtube: { bg: 'bg-red-50', text: 'text-[#FF0000]', icon: 'â–¶ï¸' },
-                              google_calendar: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'ðŸ“…' }
+                              google_calendar: { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: '📅' }
                             };
                             const style = platformStyles[acc.platform] || { bg: 'bg-slate-50', text: 'text-slate-500', icon: 'ðŸ”—' };
                             return (
@@ -15883,7 +15883,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </div>
 
                     <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100">
-                      <h3 className="text-lg font-extrabold text-primary mb-6">Ãšltimos Registros</h3>
+                      <h3 className="text-lg font-extrabold text-primary mb-6">Últimos Registros</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full text-left">
                           <thead>
@@ -15952,7 +15952,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       {/* Recent Payments Table */}
                       {(adminData.recentPayments?.length > 0 || adminData.payments?.length > 0) && (
                         <div>
-                          <h4 className="text-sm font-extrabold text-primary mb-3">Ãšltimos Pagos</h4>
+                          <h4 className="text-sm font-extrabold text-primary mb-3">Últimos Pagos</h4>
                           <div className="overflow-x-auto rounded-xl border border-slate-100">
                             <table className="w-full text-left">
                               <thead>
@@ -16709,7 +16709,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   const ts = Array.isArray(cfg.text_slots) && cfg.text_slots.length > 0;
                                   const si = cfg.template_semantic_isolation === true;
                                   const readiness = ps && ts && si ? 'ready' : ps ? 'draft' : 'legacy';
-                                  const label = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? 'ðŸŸ¡ Draft' : 'ðŸ”´ Legacy';
+                                  const label = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? '🟡 Draft' : 'ðŸ”´ Legacy';
                                   const details = [
                                     ps ? `âœ… product_slot` : `âŒ product_slot`,
                                     ts ? `âœ… ${cfg.text_slots.length} text_slots` : `âŒ text_slots`,
@@ -16850,7 +16850,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       return r === 'ready' ? (
                                         <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-emerald-100 text-emerald-700 uppercase">ðŸŸ¢ Ready</span>
                                       ) : r === 'draft' ? (
-                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-amber-100 text-amber-700 uppercase">ðŸŸ¡ Draft</span>
+                                        <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-amber-100 text-amber-700 uppercase">🟡 Draft</span>
                                       ) : (
                                         <span className="px-2 py-0.5 text-[8px] font-extrabold rounded bg-red-100 text-red-600 uppercase">ðŸ”´ Legacy</span>
                                       );
@@ -18406,7 +18406,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <p className="text-sm font-bold text-primary-container">{totalMsgs > 0 ? Math.round((userMsgs / totalMsgs) * 100) : 0}%</p>
                         </div>
                         <div className="bg-white p-3 rounded-lg col-span-2">
-                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Last Activity' : 'Ãšltima Actividad'}</p>
+                          <p className="text-[10px] font-medium text-slate-400">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</p>
                           <p className="text-sm font-bold text-primary-container">{lastTime} <span className="text-slate-400 font-normal text-[10px]">({lastActivity})</span></p>
                         </div>
                       </div>
