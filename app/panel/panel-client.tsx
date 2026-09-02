@@ -796,7 +796,7 @@ const TABS_TO_MANAGE = [
   { key: 'pricing', label: 'CatÃ¡logo de Precios' }
 ];
 
-const PLANS = ['trial', 'start', 'plus', 'master'];
+const PLANS = ['trial', 'basic', 'start', 'plus', 'master'];
 
 export default function PanelClient() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -7078,7 +7078,7 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
             { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
             { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
             { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+            { key: 'playground', icon: tenantData?.plan === 'basic' ? 'account_tree' : 'smart_toy', labelEs: tenantData?.plan === 'basic' ? 'Bot de Menú' : 'Playground IA', labelEn: tenantData?.plan === 'basic' ? 'Menu Bot' : 'AI Playground' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
@@ -7188,7 +7188,7 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
                 { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
                 { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
                 { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-                { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                { key: 'playground', icon: tenantData?.plan === 'basic' ? 'account_tree' : 'smart_toy', labelEs: tenantData?.plan === 'basic' ? 'Bot de Menú' : 'Playground IA', labelEn: tenantData?.plan === 'basic' ? 'Menu Bot' : 'AI Playground' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                 { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
                 { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
@@ -7272,7 +7272,7 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
                       { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
                       { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
                       { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-                      { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                      { key: 'playground', icon: tenantData?.plan === 'basic' ? 'account_tree' : 'smart_toy', labelEs: tenantData?.plan === 'basic' ? 'Bot de Menú' : 'Playground IA', labelEn: tenantData?.plan === 'basic' ? 'Menu Bot' : 'AI Playground' },
                       { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                       { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
                       { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },

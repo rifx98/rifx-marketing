@@ -15,6 +15,7 @@ import {
   sha256Hex,
   type WebhookClaim,
 } from '@/lib/webhook-events';
+import { processStaticBotMessage } from '@/lib/interactive-bot';
 import { tenantCanUseFeature } from '@/lib/feature-access';
 import { sendAdminEscalationEmail } from '@/lib/email';
 
@@ -383,7 +384,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       return NextResponse.json({ error: 'Worker claim does not match payload' }, { status: 409 });
     }
     const messageCandidates = queuedMessages.filter(
-      (message: any) => message.type === 'text' || message.type === 'audio',
+      (message: any) => message.type === 'text' || message.type === 'audio' || message.type === 'interactive',
     );
 
     // Ignorar si no es texto ni audio
@@ -556,6 +557,8 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
     if (messageData.type === 'text') {
       customerMessage = String(messageData.text?.body ?? '');
+    } else if (messageData.type === 'interactive' && messageData.interactive?.type === 'button_reply') {
+      customerMessage = String(messageData.interactive.button_reply.title || messageData.interactive.button_reply.id);
     } else if (isAudio) {
       console.log(`[WhatsApp ${providerMessageId}] Audio recibido; iniciando transcripción`);
       let extConfig = { openai_key: '', gemini_key: '', groq_key: '' };
@@ -845,6 +848,15 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         await finalizeWebhookEvent('processed');
         return NextResponse.json({ status: 'escalated_to_human' });
       }
+    }
+
+        // 2.7b Intercepción para plan Básico (Bot sin IA)
+    if (planOwner.plan === 'basic') {
+      console.log(`[WhatsApp ${providerMessageId}] Bot básico (Sin IA)`);
+      const responseJson = processStaticBotMessage(messageData, matchedConfig.bot_menu_config || {}, customerPhone);
+      await sendWhatsAppPayload(customerPhone, responseJson, config, 'static_bot_response');
+      await finalizeWebhookEvent('processed');
+      return NextResponse.json({ status: 'static_reply' });
     }
 
     // 2.8 🆕 Intent Router — Clasificar intención del mensaje
@@ -2419,6 +2431,121 @@ async function sendWhatsAppMessage(
   }
 }
 
+
+async function sendWhatsAppPayload(
+  to: string,
+  payload: Record<string, any>,
+  config: Record<string, any> | null,
+  deliveryPurpose: string,
+) {
+  const token = config?.whatsapp_token;
+  const phoneId = config?.whatsapp_phone_id;
+  const tenantId = config?.tenant_id;
+  const sourceMessageId = config?.__source_message_id;
+
+  if (!token || !phoneId || !tenantId || !sourceMessageId || !/^[a-z0-9_]{3,80}$/.test(deliveryPurpose)) {
+    console.error('❌ Faltan credenciales o identidad durable de WhatsApp');
+    throw new Error('whatsapp_delivery_configuration_unavailable');
+  }
+
+  const supabase = createSupabaseAdmin();
+  const ownerToken = randomUUID();
+  const contentSha256 = sha256Hex(JSON.stringify(payload));
+
+  const deliveryKey = sha256Hex(JSON.stringify([sourceMessageId, deliveryPurpose]));
+  const { data: claimData, error: claimError } = await supabase.rpc('claim_whatsapp_delivery', {
+    p_delivery_key: deliveryKey,
+    p_tenant_id: tenantId,
+    p_source_message_id: sourceMessageId,
+    p_delivery_purpose: deliveryPurpose,
+    p_recipient_phone: to,
+    p_content_sha256: contentSha256,
+    p_processing_token: ownerToken,
+    p_lease_seconds: 120,
+  });
+  if (claimError) {
+    console.error('[WhatsApp] Outbound delivery claim failed:', claimError.code || 'database_error');
+    throw new Error('whatsapp_delivery_claim_unavailable');
+  }
+
+  const claim = Array.isArray(claimData) ? claimData[0] : claimData;
+  if (claim?.claim_status === 'duplicate') return;
+  if (claim?.claim_status !== 'claimed' || typeof claim?.claimed_delivery_id !== 'string') {
+    throw new Error(`whatsapp_delivery_${claim?.claim_status || 'claim_invalid'}`);
+  }
+
+  const deliveryId = claim.claimed_delivery_id;
+  try {
+    const response = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(phoneId)}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    const rawResult = await readProviderResponse(response);
+    let result: Record<string, any> = {};
+    try {
+      result = rawResult ? JSON.parse(rawResult) : {};
+    } catch {
+      result = {};
+    }
+    if (!response.ok) {
+      if (is24hWindowError(result)) {
+        console.log('[WhatsApp] Template fallback would go here for payload');
+        return; 
+      }
+
+      const errStr = `Meta API status ${response.status}: ${JSON.stringify(result).substring(0, 200)}`;
+      console.error('❌ Error de Meta API:', response.status);
+      try {
+        const { data: conv } = await supabase.from('conversations').select('id')
+          .eq('tenant_id', tenantId).eq('phone_number', to).limit(1).maybeSingle();
+        if (conv) {
+          await supabase.from('messages').insert({
+            conversation_id: conv.id,
+            role: 'assistant',
+            content: `__SYSTEM_ERROR__ WhatsApp API Falló al enviar: ${errStr.substring(0, 500)}`
+          });
+        }
+      } catch {
+        console.error('[WhatsApp] Unable to persist provider failure diagnostic');
+      }
+
+      const { data: failed, error: completionError } = await supabase.rpc('complete_whatsapp_delivery', {
+        p_delivery_id: deliveryId,
+        p_processing_token: ownerToken,
+        p_succeeded: false,
+        p_provider_message_id: null,
+        p_error_code: `meta_http_${response.status}`,
+      });
+      if (completionError || failed !== true) {
+        console.error('[WhatsApp] Outbound failure persistence failed');
+      }
+      throw new Error(`whatsapp_provider_http_${response.status}`);
+    }
+
+    const providerOutboundId = String(result?.messages?.[0]?.id || '').slice(0, 200) || null;
+    const { data: completed, error: completionError } = await supabase.rpc('complete_whatsapp_delivery', {
+      p_delivery_id: deliveryId,
+      p_processing_token: ownerToken,
+      p_succeeded: true,
+      p_provider_message_id: providerOutboundId,
+      p_error_code: null,
+    });
+    if (completionError || completed !== true) {
+      console.error('[WhatsApp] Accepted outbound delivery could not be finalized');
+      throw new Error('whatsapp_delivery_completion_unavailable');
+    }
+    console.log('✅ Mensaje de WhatsApp (Payload) aceptado por Meta');
+  } catch (error) {
+    console.error('❌ Error en envio WhatsApp Payload');
+    throw error;
+  }
+}
 async function generatePayPhonePayment(
   phone: string,
   amountDollars: number,
