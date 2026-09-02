@@ -2,6 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import FlowEditor from './FlowEditor';
+import FlowZapBuilder from './components/FlowZapBuilder';
+import FlowZapAI from './components/FlowZapAI';
+import FlowZapVersions from './components/FlowZapVersions';
+import FlowZapSettings from './components/FlowZapSettings';
+import FlowZapInbox from './components/FlowZapInbox';
 import CampaignsTab from './CampaignsTab';
 import AILedger from './AILedger';
 import TeamTab from './TeamTab';
@@ -1174,7 +1179,7 @@ export default function PanelClient() {
 
   const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
-  const [botSection, setBotSection] = useState<'constructor' | 'flowzap' | 'versions' | 'config'>('constructor');
+  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions' | 'config'>('constructor');
 
   // Appointments states
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
@@ -10310,6 +10315,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               {/* ─── LEFT NAV SIDEBAR ─── */}
               <aside className="w-56 shrink-0 sticky top-8 space-y-1">
                 {[
+                  { key: 'inbox',       icon: 'inbox',        label: language === 'en' ? 'Inbox' : 'Conversaciones' },
                   { key: 'constructor', icon: 'account_tree', label: language === 'en' ? 'Builder' : 'Constructor' },
                   { key: 'flowzap',     icon: 'psychology',   label: 'FlowZap AI' },
                   { key: 'versions',    icon: 'history',      label: language === 'en' ? 'Versions' : 'Versiones' },
@@ -10337,36 +10343,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
               {/* ─── MAIN CONTENT ─── */}
               <main className="flex-1 min-w-0 flex flex-col gap-8">
+                {botSection === 'inbox' && (
+                  <FlowZapInbox />
+                )}
                 {botSection === 'constructor' && (
-                  <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-6 shadow-sm w-full flex flex-col h-[calc(100vh-140px)]">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-6">
-                       <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner">
-                            <span className="material-symbols-outlined text-2xl">account_tree</span>
-                         </div>
-                         <div>
-                            <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'Visual Flow Builder' : 'Creador Visual de Flujos'}</h3>
-                            <p className="text-sm text-slate-500">{language === 'en' ? 'Design your WhatsApp conversational flows visually.' : 'Diseña tus flujos conversacionales de WhatsApp visualmente.'}</p>
-                         </div>
-                       </div>
-                    </div>
-                    
-                    <div className="w-full flex-1 overflow-hidden relative">
-                      <FlowEditor 
-                        initialData={configData.bot_menu_config} 
-                        onSave={(data) => setConfigData((prev: any) => ({ ...prev, bot_menu_config: data }))} 
-                      />
-                    </div>
-                  </div>
+                  <FlowZapBuilder />
                 )}
                 {botSection === 'flowzap' && (
-                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Configuración de FlowZap AI próximamente.</p></div>
+                  <FlowZapAI />
                 )}
                 {botSection === 'versions' && (
-                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Control de versiones próximamente.</p></div>
+                  <FlowZapVersions />
                 )}
                 {botSection === 'config' && (
-                  <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm w-full"><p className="text-slate-500">Opciones de configuración del bot próximamente.</p></div>
+                  <FlowZapSettings />
                 )}
               </main>
             </div>
