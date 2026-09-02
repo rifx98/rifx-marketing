@@ -850,37 +850,17 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       }
     }
 
-        // 2.7b Intercepción para plan Básico (Bot sin IA) - Native n8n Engine
+        // 2.7b Intercepción para plan Básico (Bot sin IA) - Custom Flow Engine
     if (planOwner.plan === 'basic') {
-      console.log(`[WhatsApp ${providerMessageId}] Bot básico (Sin IA) - Motor Nativo n8n`);
+      console.log(`[WhatsApp ${providerMessageId}] Bot básico (Sin IA) - Motor de Flujos`);
+      const responseJson = await processFlowEngineMessage(messageData, matchedConfig.bot_menu_config || {}, customerPhone, tenantId);
       
-      const n8nUrl = extConfig.n8n_public_url ? (extConfig.n8n_public_url.replace(/\/$/, '') + '/webhook/rifx-bot') : null;
-      if (n8nUrl) {
-        console.log(`[WhatsApp ${providerMessageId}] Forwarding to native n8n webhook: ${n8nUrl}`);
-        try {
-          // Fire and forget, no await to block Meta response
-          fetch(n8nUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messageData,
-              customerPhone,
-              providerMessageId,
-              tenantId
-            }),
-            signal: AbortSignal.timeout(5000)
-          }).catch(err => {
-            console.error(`[WhatsApp ${providerMessageId}] Failed to deliver to n8n:`, err.message);
-          });
-        } catch (e: any) {
-          console.error(`[WhatsApp ${providerMessageId}] Failed to dispatch n8n fetch:`, e.message);
-        }
-      } else {
-        console.log(`[WhatsApp ${providerMessageId}] No n8n_public_url configured for basic plan.`);
+      if (responseJson && responseJson.content !== '__SYSTEM_PAUSE__') {
+          await sendWhatsAppPayload(customerPhone, responseJson, config, 'flow_bot_response');
       }
-
+      
       await finalizeWebhookEvent('processed');
-      return NextResponse.json({ status: 'forwarded_to_n8n' });
+      return NextResponse.json({ status: 'flow_reply' });
     }
 
     // 2.8 🆕 Intent Router — Clasificar intención del mensaje
