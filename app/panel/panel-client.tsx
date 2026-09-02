@@ -7078,7 +7078,8 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
             { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
             { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
             { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-            { key: 'playground', icon: tenantData?.plan === 'basic' ? 'account_tree' : 'smart_toy', labelEs: tenantData?.plan === 'basic' ? 'Bot de Menú' : 'Playground IA', labelEn: tenantData?.plan === 'basic' ? 'Menu Bot' : 'AI Playground' },
+            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+            { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
@@ -7188,7 +7189,8 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
                 { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
                 { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
                 { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-                { key: 'playground', icon: tenantData?.plan === 'basic' ? 'account_tree' : 'smart_toy', labelEs: tenantData?.plan === 'basic' ? 'Bot de Menú' : 'Playground IA', labelEn: tenantData?.plan === 'basic' ? 'Menu Bot' : 'AI Playground' },
+                { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                 { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
                 { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
@@ -7272,7 +7274,8 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
                       { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
                       { key: 'conversations', icon: 'sms', labelEs: 'Conversaciones', labelEn: 'Conversations' },
                       { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
-                      { key: 'playground', icon: tenantData?.plan === 'basic' ? 'account_tree' : 'smart_toy', labelEs: tenantData?.plan === 'basic' ? 'Bot de Menú' : 'Playground IA', labelEn: tenantData?.plan === 'basic' ? 'Menu Bot' : 'AI Playground' },
+                      { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                      { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                       { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                       { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
                       { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
@@ -10217,6 +10220,54 @@ Por favor, mantÃ©n un tono profesional pero sumamente persuasivo, enÃ©rgico 
 
         {/* Other tabs Coming Soon placeholders can be moved here if needed, 
             but the redundant dashboard block must be removed. */}
+
+        {activeTab === 'basic_bot' && (
+          <motion.div key="basic_bot" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
+            <header className="max-w-4xl">
+              <div className="flex items-center space-x-4 mb-4">
+                <span className="px-3 py-1 bg-secondary-container text-primary text-[10px] font-black tracking-widest uppercase rounded-full">System v2.4</span>
+              </div>
+              <h2 className="text-5xl font-extrabold text-primary mb-6 tracking-tight leading-tight font-headline">{language === 'en' ? 'Interactive Menu Bot' : 'Bot Interactivo (Sin IA)'}</h2>
+              <p className="text-xl text-slate-500 max-w-2xl font-normal leading-relaxed">{language === 'en' ? 'Edit the structured flow and menu options for your basic bot. This bot does not use AI, ensuring maximum economy and control.' : 'Edita el flujo estructurado y las opciones de menú de tu bot básico. Este bot no utiliza IA, asegurando máxima economía y control total.'}</p>
+            </header>
+            
+            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm max-w-4xl">
+              <div className="flex items-center gap-4 mb-6">
+                 <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
+                    <span className="material-symbols-outlined text-2xl">forum</span>
+                 </div>
+                 <div>
+                    <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'Bot JSON Configuration' : 'Configuración JSON del Bot'}</h3>
+                    <p className="text-sm text-slate-500">{language === 'en' ? 'Define the welcome message and the buttons for your WhatsApp bot.' : 'Define el mensaje de bienvenida y los botones para tu bot de WhatsApp.'}</p>
+                 </div>
+              </div>
+              
+              <div className="bg-slate-900 rounded-xl p-5 overflow-x-auto">
+                <pre className="text-emerald-400 font-mono text-sm leading-relaxed">
+{`{
+  "welcome_message": "¡Hola! Gracias por contactarnos. ¿En qué podemos ayudarte hoy?",
+  "buttons": [
+    { "id": "btn_services", "title": "Servicios" },
+    { "id": "btn_contact", "title": "Hablar con Asesor" }
+  ],
+  "responses": {
+    "btn_services": "Nuestros servicios incluyen soluciones personalizadas para tu empresa.",
+    "btn_contact": "En un momento un asesor humano se conectará contigo. Por favor, espera."
+  }
+}`}
+                </pre>
+              </div>
+              
+              <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
+                <span className="material-symbols-outlined text-amber-500">info</span>
+                <p className="text-sm text-amber-800">
+                  {language === 'en' ? 'To edit this configuration, you currently need to update the `bot_menu_config` JSON field directly in the Supabase `config` table.' : 'Para editar esta configuración, actualmente necesitas actualizar el campo JSON `bot_menu_config` directamente en la tabla `config` desde Supabase.'}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'playground' && (
           <motion.div key="playground" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
             {/* Header */}
