@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authFetch } from '@/lib/authFetch';
+
 
 export default function TeamTab({ language }: { language: string }) {
   const [agents, setAgents] = useState<any[]>([]);
@@ -15,7 +15,7 @@ export default function TeamTab({ language }: { language: string }) {
   const fetchAgents = async () => {
     try {
       setLoading(true);
-      const res = await authFetch('/api/panel/team');
+      const res = await fetch('/api/panel/team');
       const data = await res.json();
       if (data.agents) setAgents(data.agents);
     } catch (e) {
@@ -32,7 +32,7 @@ export default function TeamTab({ language }: { language: string }) {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await authFetch('/api/panel/team', {
+      const res = await fetch('/api/panel/team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

@@ -1,4 +1,5 @@
 import { after, NextRequest, NextResponse } from 'next/server';
+import { processFlowEngineMessage } from '@/lib/flow-engine';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
 import { checkAvailability, createCalendarEvent, getCalendarCredentials, deleteCalendarEvent } from '@/lib/google-calendar';

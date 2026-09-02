@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authFetch } from '@/lib/authFetch';
+
 
 export default function CampaignsTab({ language, isTest }: { language: string, isTest: boolean }) {
   const [campaigns, setCampaigns] = useState<any[]>([]);
@@ -19,8 +19,8 @@ export default function CampaignsTab({ language, isTest }: { language: string, i
     try {
       setLoading(true);
       const [campRes, accRes] = await Promise.all([
-        authFetch('/api/panel/wa-campaigns').then(r => r.json()),
-        authFetch('/api/panel/whatsapp-accounts').then(r => r.json())
+        fetch('/api/panel/wa-campaigns').then((r: any) => r.json()),
+        fetch('/api/panel/whatsapp-accounts').then((r: any) => r.json())
       ]);
       if (campRes.campaigns) setCampaigns(campRes.campaigns);
       if (accRes.accounts) {
@@ -43,7 +43,7 @@ export default function CampaignsTab({ language, isTest }: { language: string, i
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await authFetch('/api/panel/wa-campaigns', {
+      const res = await fetch('/api/panel/wa-campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)

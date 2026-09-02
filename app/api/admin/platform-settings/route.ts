@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure tracking_pixels is valid json
-    const finalTrackingPixels = tracking_pixels || existing?.tracking_pixels || { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' };
+    const finalTrackingPixels = tracking_pixels || (existing as any)?.tracking_pixels || { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' };
 
     let result;
     if (existing) {

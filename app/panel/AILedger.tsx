@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authFetch } from '@/lib/authFetch';
+
 
 export default function AILedger({ language }: { language: string }) {
   const [ledgers, setLedgers] = useState<any[]>([]);
@@ -7,14 +7,14 @@ export default function AILedger({ language }: { language: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authFetch('/api/panel/ai-ledger')
-      .then(res => res.json())
-      .then(data => {
+    fetch('/api/panel/ai-ledger')
+      .then((res: any) => res.json())
+      .then((data: any) => {
         if (data.ledgers) setLedgers(data.ledgers);
         if (data.balance !== undefined) setBalance(data.balance);
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err: any) => {
         console.error(err);
         setLoading(false);
       });

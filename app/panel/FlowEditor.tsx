@@ -270,7 +270,7 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
         else if (outEdges.length > 0) nextNodeId = outEdges[0].target;
         handledUserInput = true;
       } else if (node.type === 'question') {
-        if (node.data?.variable) vars[node.data.variable] = userMessage;
+        if ((node.data as any)?.variable) vars[(node.data as any).variable] = userMessage;
         if (outEdges.length > 0) nextNodeId = outEdges[0].target;
         handledUserInput = true;
       } else {
@@ -292,9 +292,9 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
       } 
       else if (node.type === 'condition') {
         // Evaluate
-        const varValue = vars[node.data?.variable || ''];
-        const op = node.data?.operator || '==';
-        const expected = node.data?.value || '';
+        const varValue = vars[(node.data as any)?.variable || ''];
+        const op = (node.data as any)?.operator || '==';
+        const expected = (node.data as any)?.value || '';
         let result = false;
         try {
           const a = String(varValue||'').toLowerCase();
@@ -312,13 +312,13 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
         } else break;
       }
       else if (node.type === 'message') {
-        let text = node.data?.text || '';
+        let text = (node.data as any)?.text || '';
         text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
         botReplies.push(text);
         autoAdvance = true;
       }
       else if (node.type === 'media') {
-        botReplies.push(`[${node.data?.mediaType || 'media'}: ${node.data?.url || ''}]`);
+        botReplies.push(`[${(node.data as any)?.mediaType || 'media'}: ${(node.data as any)?.url || ''}]`);
         autoAdvance = true;
       }
       else if (node.type === 'human') {
@@ -326,19 +326,19 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
         break; // Stop
       }
       else if (node.type === 'webhook') {
-        botReplies.push(`[Ejecutando Webhook ${node.data?.method || 'GET'}...]`);
-        if (node.data?.variable) vars[node.data.variable] = '{"simulated": true}';
+        botReplies.push(`[Ejecutando Webhook ${(node.data as any)?.method || 'GET'}...]`);
+        if ((node.data as any)?.variable) vars[(node.data as any).variable] = '{"simulated": true}';
         autoAdvance = true;
       }
       else if (node.type === 'buttons') {
-        let text = node.data?.text || 'Opciones:';
+        let text = (node.data as any)?.text || 'Opciones:';
         text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
-        const btns = (node.data?.buttons || []).map((b:any)=>`[${b.label}]`).join(' ');
+        const btns = ((node.data as any)?.buttons || []).map((b:any)=>`[${b.label}]`).join(' ');
         botReplies.push(`${text} ${btns}`);
         break; // Stop and wait for user
       }
       else if (node.type === 'question') {
-        let text = node.data?.text || 'Pregunta:';
+        let text = (node.data as any)?.text || 'Pregunta:';
         text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
         botReplies.push(text);
         break; // Stop and wait for user

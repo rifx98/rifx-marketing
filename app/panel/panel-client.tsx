@@ -1172,7 +1172,7 @@ export default function PanelClient() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'crm' | 'settings' | 'playground' | 'segments' | 'analytics' | 'billing' | 'admin' | 'campaigns' | 'banners' | 'social' | 'appointments' | 'conversations' | 'orders' | 'pricing'>('dashboard');
+  const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
 
   // Appointments states
@@ -3696,7 +3696,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [adminData, setAdminData] = useState<any>(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [disconnectingWhatsappConnectionId, setDisconnectingWhatsappConnectionId] = useState<string | null>(null);
-  const [adminTab, setAdminTab] = useState<'overview' | 'tenants' | 'announcements' | 'templates' | 'ai_engine' | 'permissions'>('overview');
+  const [adminTab, setAdminTab] = useState<any>('overview');
   const [localPlanPermissions, setLocalPlanPermissions] = useState<any>(null);
   const [savingPermissions, setSavingPermissions] = useState(false);
   const canManageWhatsApp = adminData?.canManageWhatsApp === true;
@@ -10303,7 +10303,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="w-full flex-1 overflow-hidden relative">
                   <FlowEditor 
                     initialData={configData.bot_menu_config} 
-                    onSave={(data) => handleConfigUpdate({ bot_menu_config: data })} 
+                    onSave={(data) => setConfigData((prev: any) => ({ ...prev, bot_menu_config: data }))} 
                   />
                 </div>
               </div>
@@ -17812,6 +17812,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <span className="material-symbols-outlined text-xs">view_kanban</span>
                   Pipeline
                 </button>
+              </div>
               </div>
             </section>
 
