@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: rifx_n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=America/Guayaquil
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-n8n}
+      - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST:-n8n_postgres}
+      - DB_POSTGRESDB_PORT=${DB_POSTGRESDB_PORT:-5432}
+      - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-n8n_user}
+      - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-super_secure_n8n_pass}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      n8n_postgres:
+        condition: service_healthy
+    networks:
+      - rifx_network
+
+  n8n_postgres:
+    image: postgres:16-alpine
+    container_name: rifx_n8n_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_POSTGRESDB_USER:-n8n_user}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD:-super_secure_n8n_pass}
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE:-n8n}
+    volumes:
+      - n8n_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost -U ${DB_POSTGRESDB_USER:-n8n_user} -d ${DB_POSTGRESDB_DATABASE:-n8n}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rifx_network
+
+volumes:
+  n8n_data:
+  n8n_pg_data:
+
+networks:
+  rifx_network:
+    name: rifx_internal_network
+    driver: bridge

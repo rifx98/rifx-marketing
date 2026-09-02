@@ -850,15 +850,16 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       }
     }
 
-        // 2.7b Intercepción para plan Básico (Bot sin IA) - n8n Webhook
+        // 2.7b Intercepción para plan Básico (Bot sin IA) - Native n8n Engine
     if (planOwner.plan === 'basic') {
-      console.log(`[WhatsApp ${providerMessageId}] Bot básico (Sin IA)`);
+      console.log(`[WhatsApp ${providerMessageId}] Bot básico (Sin IA) - Motor Nativo n8n`);
       
-      if (extConfig.n8n_webhook_url) {
-        console.log(`[WhatsApp ${providerMessageId}] Forwarding to n8n webhook: ${extConfig.n8n_webhook_url}`);
+      const n8nUrl = extConfig.n8n_public_url ? (extConfig.n8n_public_url.replace(/\/$/, '') + '/webhook/rifx-bot') : null;
+      if (n8nUrl) {
+        console.log(`[WhatsApp ${providerMessageId}] Forwarding to native n8n webhook: ${n8nUrl}`);
         try {
           // Fire and forget, no await to block Meta response
-          fetch(extConfig.n8n_webhook_url, {
+          fetch(n8nUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -875,7 +876,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
           console.error(`[WhatsApp ${providerMessageId}] Failed to dispatch n8n fetch:`, e.message);
         }
       } else {
-        console.log(`[WhatsApp ${providerMessageId}] No n8n_webhook_url configured for basic plan.`);
+        console.log(`[WhatsApp ${providerMessageId}] No n8n_public_url configured for basic plan.`);
       }
 
       await finalizeWebhookEvent('processed');

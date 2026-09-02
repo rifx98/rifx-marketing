@@ -10239,47 +10239,63 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <p className="text-xl text-slate-500 max-w-2xl font-normal leading-relaxed">{language === 'en' ? 'Edit the structured flow and menu options for your basic bot. This bot does not use AI, ensuring maximum economy and control.' : 'Edita el flujo estructurado y las opciones de menú de tu bot básico. Este bot no utiliza IA, asegurando máxima economía y control total.'}</p>
             </header>
             
-                          <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm max-w-4xl">
-                <div className="flex items-center gap-4 mb-6">
-                   <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-                      <span className="material-symbols-outlined text-2xl">webhook</span>
+                          <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm max-w-[1200px] w-full">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-6">
+                   <div className="flex items-center gap-4">
+                     <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-inner">
+                        <span className="material-symbols-outlined text-2xl">account_tree</span>
+                     </div>
+                     <div>
+                        <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'Native n8n Engine' : 'Motor n8n Nativo (Workspace)'}</h3>
+                        <p className="text-sm text-slate-500">{language === 'en' ? 'Design and manage your WhatsApp workflows natively.' : 'Diseña y administra tus flujos de WhatsApp directamente desde aquí.'}</p>
+                     </div>
                    </div>
-                   <div>
-                      <h3 className="text-xl font-bold text-slate-800">{language === 'en' ? 'n8n Webhook Integration' : 'Integración con n8n (Webhook)'}</h3>
-                      <p className="text-sm text-slate-500">{language === 'en' ? 'Forward incoming WhatsApp messages directly to your n8n workflows for custom logic.' : 'Redirecciona los mensajes entrantes de WhatsApp directamente a tus flujos de n8n.'}</p>
+                   <div className="flex flex-col sm:flex-row gap-3">
+                     <div className="relative min-w-[300px]">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <span className="material-symbols-outlined text-slate-400 text-sm">public</span>
+                        </div>
+                        <input 
+                          type="url" 
+                          value={configData.n8n_public_url || ''}
+                          onChange={(e) => setConfigData({...configData, n8n_public_url: e.target.value})}
+                          className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono"
+                          placeholder="http://localhost:5678"
+                        />
+                     </div>
+                     <button 
+                        onClick={() => handleConfigUpdate({ n8n_public_url: configData.n8n_public_url })}
+                        disabled={isSaving}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                      >
+                        <span className="material-symbols-outlined text-sm">{isSaving ? 'sync' : 'save'}</span>
+                        <span>{language === 'en' ? 'Save URL' : 'Guardar URL'}</span>
+                     </button>
                    </div>
                 </div>
                 
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'n8n Webhook URL (Production)' : 'URL del Webhook de n8n (Producción)'}</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <span className="material-symbols-outlined text-slate-400">link</span>
-                      </div>
-                      <input 
-                        type="url" 
-                        value={configData.n8n_webhook_url || ''}
-                        onChange={(e) => setConfigData({...configData, n8n_webhook_url: e.target.value})}
-                        className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono"
-                        placeholder="https://tu-instancia.n8n.cloud/webhook/..."
-                      />
+                <div className="w-full h-[600px] bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 relative shadow-inner">
+                  {configData.n8n_public_url ? (
+                    <iframe 
+                      src={configData.n8n_public_url} 
+                      className="w-full h-full border-0"
+                      title="n8n Native Workspace"
+                      sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                      <span className="material-symbols-outlined text-6xl mb-4 opacity-50">account_tree</span>
+                      <h4 className="text-lg font-bold text-slate-500 mb-2">{language === 'en' ? 'n8n Workspace Not Configured' : 'Espacio de Trabajo n8n no Configurado'}</h4>
+                      <p className="text-sm max-w-md">{language === 'en' ? 'Enter the public URL of your self-hosted n8n instance above to load the visual editor.' : 'Ingresa la URL de tu instancia privada de n8n en la parte superior para cargar el editor visual y empezar a construir flujos.'}</p>
                     </div>
-                    <p className="mt-2 text-xs text-slate-500">{language === 'en' ? 'When enabled, all messages will be POSTed to this URL. The n8n workflow must handle the WhatsApp Cloud API responses.' : 'Al configurarse, todos los mensajes se enviarán por POST a esta URL. El flujo de n8n debe encargarse de enviar las respuestas mediante la API de Meta.'}</p>
-                  </div>
-
-                  <div className="flex justify-end pt-4 border-t border-slate-100">
-                    <button 
-                      onClick={() => handleConfigUpdate({ n8n_webhook_url: configData.n8n_webhook_url })}
-                      disabled={isSaving}
-                      className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl font-bold shadow-sm shadow-primary/20 transition-all flex items-center space-x-2 disabled:opacity-50"
-                    >
-                      <span className="material-symbols-outlined text-xl">
-                        {isSaving ? 'sync' : 'save'}
-                      </span>
-                      <span>{language === 'en' ? (isSaving ? 'Saving...' : 'Save Webhook') : (isSaving ? 'Guardando...' : 'Guardar Webhook')}</span>
-                    </button>
-                  </div>
+                  )}
+                </div>
+                
+                <div className="mt-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-indigo-500">security</span>
+                  <p className="text-sm text-indigo-800 leading-relaxed">
+                    {language === 'en' ? 'Your WhatsApp webhook is automatically routed internally to your n8n Docker network instance for zero-latency execution.' : 'Los webhooks entrantes de WhatsApp son redirigidos de forma automática y segura a través de la red interna de Docker hacia tu instancia privada de n8n, garantizando latencia cero y máxima seguridad.'}
+                  </p>
                 </div>
               </div>
           </motion.div>
