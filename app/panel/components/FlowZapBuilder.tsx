@@ -115,6 +115,14 @@ export default function FlowZapBuilder() {
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [flowName, setFlowName] = useState('Mi chatbot');
 
+  // Simulator states
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [simulatorMessages, setSimulatorMessages] = useState<{role: string, content: string}[]>([]);
+  const [simulatorInput, setSimulatorInput] = useState('');
+  const [simulatorVars, setSimulatorVars] = useState<Record<string, any>>({});
+  const [simulatorCurrentNode, setSimulatorCurrentNode] = useState<string>('');
+  const [simulatorBreadcrumbs, setSimulatorBreadcrumbs] = useState<string[]>([]);
+
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge({ 
       ...params, 
@@ -153,6 +161,133 @@ export default function FlowZapBuilder() {
     if(!selectedNode) return;
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
     setSelectedNode(null);
+  };
+
+  const processSimulatorTurn = (currentNodeId: string, currentVars: any, userMessage: string, currentBreadcrumbs: string[]) => {
+    let vars = { ...currentVars };
+    let nextNodeId = currentNodeId;
+    let node = nodes.find((n: any) => n.id === nextNodeId);
+    let breadcrumbs = [...currentBreadcrumbs];
+
+    if (userMessage && node) {
+      const outEdges = edges.filter(e => e.source === node!.id);
+      if (node.type === 'menu' || node.type === 'buttons') {
+        const edge = outEdges.find(e => e.sourceHandle?.toLowerCase() === userMessage.toLowerCase());
+        if (edge) nextNodeId = edge.target;
+        else if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+      } else if (node.type === 'question') {
+        if ((node.data as any)?.variable) vars[(node.data as any).variable] = userMessage;
+        if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+      } else {
+        if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+      }
+      node = nodes.find((n: any) => n.id === nextNodeId);
+    }
+
+    let iterations = 0;
+    const botReplies: string[] = [];
+
+    while (node && iterations < 20) {
+      iterations++;
+      let autoAdvance = false;
+      const nodeName = (node.data as any)?.name || node.type;
+      if (!breadcrumbs.includes(nodeName)) {
+        breadcrumbs.push(nodeName);
+      }
+
+      if (node.type === 'start') {
+        autoAdvance = true;
+      } 
+      else if (node.type === 'condition') {
+        const varValue = vars[(node.data as any)?.variable || ''];
+        const op = (node.data as any)?.operator || '==';
+        const expected = (node.data as any)?.value || '';
+        let result = false;
+        try {
+          const a = String(varValue||'').toLowerCase();
+          const e = String(expected).toLowerCase();
+          if (op==='==') result = (a===e);
+          else if(op==='!=') result = (a!==e);
+          else if(op==='contains') result = a.includes(e);
+        } catch {}
+
+        const edge = edges.find(e => e.source === node!.id && e.sourceHandle === (result ? 'true' : 'false'));
+        if (edge) {
+          nextNodeId = edge.target;
+          node = nodes.find((n: any) => n.id === nextNodeId);
+          continue;
+        } else break;
+      }
+      else if (node.type === 'message') {
+        let text = (node.data as any)?.text || '';
+        text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
+        botReplies.push(text);
+        autoAdvance = true;
+      }
+      else if (node.type === 'media') {
+        botReplies.push(`[Archivo adjunto: ${(node.data as any)?.url || 'media'}]`);
+        autoAdvance = true;
+      }
+      else if (node.type === 'human') {
+        botReplies.push('Perfecto 👩‍💼 Pasaré el bot para que un asesor continúe la conversación.');
+        break; 
+      }
+      else if (node.type === 'ai') {
+        botReplies.push(`[Simulando IA Premium: procesando consulta...]`);
+        autoAdvance = true;
+      }
+      else if (node.type === 'menu' || node.type === 'buttons') {
+        let text = (node.data as any)?.text || 'Opciones:';
+        text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
+        const btns = ((node.data as any)?.buttons || []).map((b:any, i:number)=>`${i+1}. ${b.label}`).join('\n');
+        botReplies.push(`${text}\n${btns}`);
+        break; 
+      }
+      else if (node.type === 'question') {
+        let text = (node.data as any)?.text || 'Pregunta:';
+        text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
+        botReplies.push(text);
+        break; 
+      }
+
+      if (autoAdvance) {
+        const outEdges = edges.filter(e => e.source === node!.id);
+        if (outEdges.length > 0) {
+          nextNodeId = outEdges[0].target;
+          node = nodes.find((n: any) => n.id === nextNodeId);
+        } else break;
+      } else break;
+    }
+
+    if (botReplies.length > 0) {
+      setTimeout(() => {
+        setSimulatorMessages(prev => [
+          ...prev, 
+          ...botReplies.map(r => ({role: 'bot', content: r}))
+        ]);
+        setSimulatorVars(vars);
+        setSimulatorCurrentNode(nextNodeId);
+        setSimulatorBreadcrumbs(breadcrumbs);
+      }, 300);
+    } else {
+      setSimulatorVars(vars);
+      setSimulatorCurrentNode(nextNodeId);
+      setSimulatorBreadcrumbs(breadcrumbs);
+    }
+  };
+
+  const startSimulator = () => {
+    setSimulatorOpen(true);
+    setSimulatorMessages([]);
+    setSimulatorVars({});
+    setSimulatorBreadcrumbs([]);
+    const startNode = nodes.find((n: any) => n.type === 'start');
+    if(startNode) {
+      setSimulatorCurrentNode(startNode.id);
+      processSimulatorTurn(startNode.id, {}, '', []);
+    } else {
+      setSimulatorMessages([{role: 'bot', content: '⚠️ Error: No hay nodo de Inicio en el flujo.'}]);
+    }
   };
 
   // --- RENDERING EL CANVAS ---
@@ -248,16 +383,111 @@ export default function FlowZapBuilder() {
   );
 
   return (
-    <FlowBuilderChrome
-      flowName={flowName}
-      onFlowNameChange={setFlowName}
-      dirty={false}
-      canvas={canvas}
-      inspector={inspector}
-      onAddNode={addNode}
-      onSave={() => alert('Guardando flujo...')}
-      onPublish={() => alert('Publicando...')}
-      onValidate={() => alert('Flujo validado correctamente.')}
-    />
+    <>
+      <FlowBuilderChrome
+        flowName={flowName}
+        onFlowNameChange={setFlowName}
+        dirty={false}
+        canvas={canvas}
+        inspector={inspector}
+        onAddNode={addNode}
+        onSimulate={startSimulator}
+        onSave={() => alert('Guardando flujo...')}
+        onPublish={() => alert('Publicando...')}
+        onValidate={() => alert('Flujo validado correctamente.')}
+      />
+
+      {/* MODAL DEL SIMULADOR */}
+      {simulatorOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#f8fafc] w-full max-w-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200" style={{ height: '80vh' }}>
+            {/* Header */}
+            <div className="bg-[#0f766e] text-white px-6 py-4 flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-[15px] m-0">Simulador de conversación</h3>
+                <p className="text-teal-100 text-[11px] m-0 mt-0.5">Prueba el flujo antes de publicarlo</p>
+              </div>
+              <button onClick={() => setSimulatorOpen(false)} className="text-white/80 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Breadcrumbs */}
+            {simulatorBreadcrumbs.length > 0 && (
+              <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap">
+                {simulatorBreadcrumbs.map((crumb, i) => (
+                  <React.Fragment key={i}>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-200 text-emerald-700 bg-emerald-50">
+                      {crumb}
+                    </span>
+                    {i < simulatorBreadcrumbs.length - 1 && <span className="text-slate-300 text-[10px] material-symbols-outlined">chevron_right</span>}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            {/* Chat Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {simulatorMessages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'bot' ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`p-3 rounded-2xl max-w-[85%] text-[13px] leading-relaxed whitespace-pre-wrap ${
+                    msg.role === 'bot' 
+                      ? 'bg-white border border-slate-200 text-slate-700 shadow-sm rounded-tl-none' 
+                      : 'bg-emerald-600 text-white rounded-tr-none shadow-sm'
+                  }`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {simulatorMessages.length === 0 && (
+                <div className="text-center text-slate-400 text-xs mt-10">Cargando simulador...</div>
+              )}
+            </div>
+
+            {/* Footer Input */}
+            <div className="bg-white border-t border-slate-200 p-4">
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={simulatorInput}
+                  onChange={(e) => setSimulatorInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && simulatorInput.trim()) {
+                      const input = simulatorInput.trim();
+                      setSimulatorMessages(prev => [...prev, {role: 'user', content: input}]);
+                      setSimulatorInput('');
+                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input, simulatorBreadcrumbs);
+                    }
+                  }}
+                  placeholder="Escribe una respuesta..."
+                  className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                />
+                <button 
+                  onClick={() => {
+                    if (simulatorInput.trim()) {
+                      const input = simulatorInput.trim();
+                      setSimulatorMessages(prev => [...prev, {role: 'user', content: input}]);
+                      setSimulatorInput('');
+                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input, simulatorBreadcrumbs);
+                    }
+                  }}
+                  className="bg-[#10b981] hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-xl text-[13px] transition-colors shadow-sm"
+                >
+                  Enviar
+                </button>
+              </div>
+              <div className="mt-3">
+                <button 
+                  onClick={startSimulator}
+                  className="text-[11px] font-bold text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                >
+                  Reiniciar simulación
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
