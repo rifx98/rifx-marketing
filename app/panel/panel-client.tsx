@@ -10348,7 +10348,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {botSection === 'constructor' && (
                   <FlowZapBuilder 
                     key={activeTemplateId || 'default'} 
-                    initialFlowName={activeTemplateId === 'captacion_vip' ? 'Bot Captación VIP' : activeTemplateId === 'soporte_tecnico' ? 'Soporte Técnico' : activeTemplateId === 'bienvenida_inicial' ? 'Bienvenida Inicial' : undefined} 
+                    initialFlowName={activeTemplateId ? templates[activeTemplateId]?.name : undefined}
+                    initialNodes={activeTemplateId ? templates[activeTemplateId]?.nodes : undefined}
+                    initialEdges={activeTemplateId ? templates[activeTemplateId]?.edges : undefined}
                   />
                 )}
                 {botSection === 'flowzap' && (
