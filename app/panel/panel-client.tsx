@@ -9063,8 +9063,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {[
                   { key: 'profile',       icon: 'manage_accounts', label: language === 'en' ? 'Profile' : 'Perfil' },
                   { key: 'api_helper',    icon: 'support_agent',    label: language === 'en' ? 'API Assistant' : 'Asistente de APIs' },
-                  { key: 'ai',            icon: 'smart_toy',        label: language === 'en' ? 'AI Provider' : 'Proveedor IA' },
-                  { key: 'whatsapp',      icon: 'chat',             label: 'WhatsApp API' },
+                                    { key: 'whatsapp',      icon: 'chat',             label: 'WhatsApp API' },
                   { key: 'notifications', icon: 'notifications',    label: language === 'en' ? 'Notifications' : 'Notificaciones' },
                   { key: 'meta',          icon: 'campaign',         label: 'Meta Ads' },
                   { key: 'memory',        icon: 'psychology',       label: language === 'en' ? 'Memory' : 'Memoria' },
@@ -9331,56 +9330,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* ‾‾‾‾ AI PROVIDER ‾‾‾‾  */}
-                {settingsSection === 'ai' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-base font-extrabold text-[#0b1c30]">{language === 'en' ? 'AI Provider & Engine' : 'Proveedor de IA y Motor'}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Configure your AI provider and connection credentials.' : 'Configura tu proveedor de IA y credenciales de conexión.'}</p>
-                    </div>
-
-
-
-                    {configData.global_ai_enabled ? (
-                      <div className="bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center flex flex-col items-center justify-center space-y-4 shadow-inner">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-100">
-                          <span className="material-symbols-outlined text-4xl text-[#0058bc]">admin_panel_settings</span>
-                        </div>
-                        <div>
-                          <h4 className="text-[#0b1c30] font-black text-sm">Administrado Globalmente</h4>
-                          <p className="text-slate-500 text-[11px] mt-1 max-w-[280px]">El administrador de la plataforma ha configurado la Inteligencia Artificial de forma global. No necesitas ingresar tu propia llave.</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                    {/* AI Settings */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                      <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Engine Parameters' : 'Parámetros del Motor'}</h4>
-                      
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}</label>
-                          <span className="text-sm font-black text-[#0058bc]">{(configData.confidence_threshold * 100).toFixed(0)}%</span>
-                        </div>
-                        <input className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#0058bc]" type="range" min="0.5" max="0.99" step="0.01" value={configData.confidence_threshold} onChange={e => setConfigData({...configData, confidence_threshold: parseFloat(e.target.value)})} />
-                      </div>
-                      <div className="flex items-center justify-between py-3 border-t border-slate-50">
-                        <div>
-                          <span className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Auto-Classification' : 'Auto-Clasificación'}</span>
-                          <p className="text-[10px] text-slate-400 mt-0.5">{language === 'en' ? 'Real-time intent labeling' : 'Etiquetado de intención en tiempo real'}</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" checked={configData.auto_classification} onChange={e => setConfigData({...configData, auto_classification: e.target.checked})} />
-                          <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0058bc]"></div>
-                        </label>
-                      </div>
-                    </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* â•â•â•â• WHATSAPP â•â•â•â• */}
                 {settingsSection === 'whatsapp' && (() => {
                   const isWaConnected = !!(
                     (configData.whatsapp_token_configured || configData.whatsapp_token)
