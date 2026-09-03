@@ -22,7 +22,7 @@ export const templates: Record<string, { nodes: any[], edges: any[], name: strin
     nodes: [
       { id: 'start_1', type: 'start', position: { x: 250, y: 150 }, data: {} },
       { id: 'menu_1', type: 'menu', position: { x: 500, y: 150 }, data: { name: 'Opciones de Soporte', text: '¿En qué te podemos ayudar hoy?', buttons: [{ label: 'Problema con mi cuenta' }, { label: 'Facturación' }, { label: 'Hablar con humano' }] } },
-      { id: 'msg_cuenta', type: 'message', position: { x: 900, y: 50 }, data: { name: 'Cuenta', text: 'Para problemas con tu cuenta, por favor envíanos tu correo electrónico.' } },
+      { id: 'msg_cuenta', type: 'question', position: { x: 900, y: 50 }, data: { name: 'Cuenta', text: 'Para problemas con tu cuenta, por favor envíanos tu correo electrónico.', variable: 'correo_electronico' } },
       { id: 'msg_factura', type: 'message', position: { x: 900, y: 250 }, data: { name: 'Facturación', text: 'Puedes revisar tus facturas desde el panel de control. ¿Necesitas algo más?' } },
       { id: 'human_1', type: 'human', position: { x: 900, y: 450 }, data: { name: 'Asesor' } }
     ],
@@ -30,7 +30,8 @@ export const templates: Record<string, { nodes: any[], edges: any[], name: strin
       { id: 'e_s_1', source: 'start_1', target: 'menu_1', type: 'smoothstep' },
       { id: 'e_m_1', source: 'menu_1', sourceHandle: 'Problema con mi cuenta', target: 'msg_cuenta', type: 'smoothstep' },
       { id: 'e_m_2', source: 'menu_1', sourceHandle: 'Facturación', target: 'msg_factura', type: 'smoothstep' },
-      { id: 'e_m_3', source: 'menu_1', sourceHandle: 'Hablar con humano', target: 'human_1', type: 'smoothstep' }
+      { id: 'e_m_3', source: 'menu_1', sourceHandle: 'Hablar con humano', target: 'human_1', type: 'smoothstep' },
+      { id: 'e_cuenta_h', source: 'msg_cuenta', target: 'human_1', type: 'smoothstep' }
     ]
   },
   bienvenida_inicial: {

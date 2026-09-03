@@ -247,7 +247,15 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
     if (userMessage && node) {
       const outEdges = edges.filter(e => e.source === node!.id);
       if (node.type === 'menu' || node.type === 'buttons') {
-        const edge = outEdges.find(e => e.sourceHandle?.toLowerCase() === userMessage.toLowerCase());
+        const buttons = (node.data as any)?.buttons || [];
+        const num = parseInt(userMessage, 10);
+        let matchLabel = userMessage;
+        if (!isNaN(num) && num > 0 && num <= buttons.length) {
+          matchLabel = buttons[num - 1].label;
+        }
+        
+        const edge = outEdges.find(e => e.sourceHandle?.toLowerCase() === matchLabel.toLowerCase());
+        
         if (edge) nextNodeId = edge.target;
         else if (outEdges.length > 0) nextNodeId = outEdges[0].target;
       } else if (node.type === 'question') {
