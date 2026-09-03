@@ -40,26 +40,33 @@ export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, ca
           <button 
             key={p.type} 
             onClick={() => onAddNode?.(p.type)} 
-            className="relative group"
-            onMouseEnter={() => setHoveredTooltip(p.tooltip)}
-            onMouseLeave={() => setHoveredTooltip(null)}
+            className="relative flex items-center gap-2"
           >
             <span>{p.icon}</span>
-            <div style={{flex:1}}>
+            <div style={{flex:1, textAlign:'left'}}>
               <strong>{p.name}</strong>
               <small>{p.description}</small>
             </div>
-            <span title={p.tooltip} className="material-symbols-outlined text-[14px] text-slate-300 group-hover:text-blue-500 absolute right-2 top-1/2 -translate-y-1/2" style={{cursor: 'help'}}>help</span>
+            
+            {/* Elegant Popover Tooltip Model */}
+            <div className="relative group/help ml-auto">
+              <span className="material-symbols-outlined text-[14px] text-slate-300 hover:text-blue-500 cursor-help p-1 transition-colors">help</span>
+              
+              <div className="absolute top-1/2 -translate-y-1/2 left-full ml-3 w-64 bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] rounded-2xl border border-slate-100 p-4 opacity-0 group-hover/help:opacity-100 transition-all pointer-events-none z-[100] scale-95 group-hover/help:scale-100 origin-left text-left">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 rounded-full border-2 border-[#1e1b4b] flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[#1e1b4b] text-[12px] font-bold">info</span>
+                  </div>
+                  <p className="text-xs font-bold text-[#1e1b4b] m-0 leading-none">{p.name}</p>
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed m-0 normal-case font-normal">
+                  {p.tooltip}
+                </p>
+              </div>
+            </div>
           </button>
         ))}
       </div>
-      
-      {hoveredTooltip && (
-        <div className="mt-3 p-3 bg-blue-50 text-blue-700 text-[11px] rounded-lg border border-blue-100 leading-snug">
-          <span className="font-bold block mb-1">💡 ¿Para qué sirve?</span>
-          {hoveredTooltip}
-        </div>
-      )}
 
       <div className={styles.bottom}>
         <button onClick={onVersions}>🗂️ Plantillas</button>
