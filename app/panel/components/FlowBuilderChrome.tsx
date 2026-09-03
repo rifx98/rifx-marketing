@@ -49,7 +49,7 @@ export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, ca
               <strong>{p.name}</strong>
               <small>{p.description}</small>
             </div>
-            <span className="material-symbols-outlined text-[14px] text-slate-300 group-hover:text-blue-500 absolute right-2 top-1/2 -translate-y-1/2" style={{cursor: 'help'}}>help</span>
+            <span title={p.tooltip} className="material-symbols-outlined text-[14px] text-slate-300 group-hover:text-blue-500 absolute right-2 top-1/2 -translate-y-1/2" style={{cursor: 'help'}}>help</span>
           </button>
         ))}
       </div>
