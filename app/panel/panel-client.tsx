@@ -10368,7 +10368,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               {/* ─── MAIN CONTENT ─── */}
               <main className="flex-1 min-w-0 flex flex-col gap-8">
                 {botSection === 'inbox' && (
-                  <FlowZapInbox />
+                  <FlowZapInbox 
+                    conversationsData={conversationsData}
+                    activeAccountId={activeAccountId}
+                    onRefresh={() => fetchConversations(activeAccountId)}
+                  />
                 )}
                 {botSection === 'constructor' && (() => {
                   if (isLoadingFlows) {
