@@ -6574,6 +6574,46 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setSavedTemplates(prev => prev.filter(t => t.id !== id));
   };
 
+  
+  const handleSaveFlow = async (name: string, nodes: any[], edges: any[]) => {
+    if (!activeTemplateId) {
+      setToast({ type: 'error', message: 'No hay plantilla activa seleccionada.' });
+      return;
+    }
+    
+    setToast({ type: 'info', message: language === 'en' ? 'Saving flow...' : 'Guardando flujo...' });
+    
+    try {
+      const res = await authFetch(`/api/panel/templates/${activeTemplateId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, nodes, edges })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error saving template');
+      }
+      
+      // Update local state
+      setTemplates(prev => ({
+        ...prev,
+        [activeTemplateId]: {
+          ...prev[activeTemplateId],
+          name: name,
+          nodes: nodes,
+          edges: edges
+        }
+      }));
+      
+      setToast({ type: 'success', message: language === 'en' ? 'Flow saved successfully!' : '¡Flujo guardado con éxito!' });
+    } catch (err: any) {
+      console.error(err);
+      setToast({ type: 'error', message: err.message || 'Error guardando flujo' });
+    }
+  };
+
   const handleStartBulkSend = async () => {
     if (selectedContacts.size === 0 || !bulkMessage.trim()) return;
     const contacts = allContacts.filter((c: any) => selectedContacts.has(c.id));

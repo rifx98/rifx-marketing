@@ -177,7 +177,7 @@ const nodeTypes: NodeTypes = {
 };
 
 // --- MAIN COMPONENT ---
-export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlowName }: { initialNodes?: any[], initialEdges?: any[], initialFlowName?: string }) {
+export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlowName, onSave }: { initialNodes?: any[], initialEdges?: any[], initialFlowName?: string, onSave?: (name: string, nodes: any[], edges: any[]) => void }) {
   const defaultStartNode = { id: 'start_1', type: 'start', position: { x: 250, y: 150 }, data: {} };
   
   const [nodes, setNodes, onNodesChange] = useNodesState<any>(initialNodes || [defaultStartNode]);
@@ -581,7 +581,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         inspector={inspector}
         onAddNode={addNode}
         onSimulate={startSimulator}
-        onSave={() => alert('Guardando flujo...')}
+        onSave={() => onSave ? onSave(flowName, nodes, edges) : alert('Guardando flujo...')}
         onPublish={() => alert('Publicando...')}
         onValidate={() => alert('Flujo validado correctamente.')}
       />
