@@ -10292,13 +10292,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <FlowZapInbox />
                 )}
                 {botSection === 'constructor' && (() => {
-                  const dbFlow = activeTemplateId ? dbFlows.find((f: any) => f.id === activeTemplateId || f.flow_name === activeTemplateId) : null;
+                  const expectedName = activeTemplateId && templates[activeTemplateId] ? templates[activeTemplateId].name : activeTemplateId;
+                  const dbFlow = activeTemplateId ? dbFlows.find((f: any) => f.id === activeTemplateId || f.flow_name === expectedName || f.flow_name === activeTemplateId) : null;
                   const defaultFlow = dbFlows.find((f: any) => f.flow_name === 'Mi Bot' || f.flow_name === 'default');
                   const targetFlow = dbFlow || defaultFlow;
                   
                   return (
                     <FlowZapBuilder 
-                      key={activeTemplateId || targetFlow?.id || 'default'} 
+                      key={`${activeTemplateId || 'default'}-${targetFlow ? targetFlow.id : 'loading'}`} 
                       initialFlowName={targetFlow ? targetFlow.flow_name : (activeTemplateId ? templates[activeTemplateId]?.name : undefined)}
                       initialNodes={targetFlow ? targetFlow.flow_data?.nodes : (activeTemplateId ? templates[activeTemplateId]?.nodes : undefined)}
                       initialEdges={targetFlow ? targetFlow.flow_data?.edges : (activeTemplateId ? templates[activeTemplateId]?.edges : undefined)}
