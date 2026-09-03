@@ -4,7 +4,7 @@ import { getTenantFromRequest } from '@/lib/auth';
 import { denyUnlessFeature } from '@/lib/feature-access';
 import { internalApiError } from '@/lib/request-guards';
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const tenant = await getTenantFromRequest(req);
     if (!tenant?.tenantId) {
@@ -13,7 +13,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const featureDenied = denyUnlessFeature(tenant, 'banners');
     if (featureDenied) return featureDenied;
 
-    const templateId = params.id;
+    const resolvedParams = await params;
+    const templateId = resolvedParams.id;
     if (!templateId) {
       return NextResponse.json({ error: 'ID de plantilla requerido' }, { status: 400 });
     }

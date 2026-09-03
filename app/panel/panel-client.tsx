@@ -5291,9 +5291,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         const data = await res.json();
         if (data.success && data.flows) {
           setDbFlows(data.flows);
-          // Auto-select the first flow if nothing is selected yet
+          // Auto-select: prefer published flow, then fallback to latest
           if (autoSelect && !activeTemplateId && data.flows.length > 0) {
-            setActiveTemplateId(data.flows[0].id);
+            const published = data.flows.find((f: any) => f.kind === 'published');
+            setActiveTemplateId(published ? published.id : data.flows[0].id);
           }
         }
       }
@@ -6598,6 +6599,32 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setSavedTemplates(prev => prev.filter(t => t.id !== id));
   };
 
+  const handleDeleteDbFlow = async (id: string) => {
+    if (!confirm(language === 'en' ? 'Are you sure you want to delete this flow?' : '¿Estás seguro de que deseas eliminar este flujo?')) return;
+    
+    setToast({ type: 'info', message: language === 'en' ? 'Deleting flow...' : 'Eliminando flujo...' });
+    try {
+      const res = await authFetch(`/api/panel/flow-versions?id=${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error deleting flow');
+      }
+      
+      await loadDbFlows();
+      if (activeTemplateId === id) {
+        setActiveTemplateId(null);
+      }
+      
+      setToast({ type: 'success', message: language === 'en' ? 'Flow deleted' : 'Flujo eliminado' });
+    } catch (err: any) {
+      console.error('handleDeleteDbFlow error:', err);
+      setToast({ type: 'error', message: err.message || 'Error eliminando flujo' });
+    }
+  };
+
   const handleSaveFlow = async (name: string, nodes: any[], edges: any[]) => {
     setToast({ type: 'info', message: language === 'en' ? 'Saving flow...' : 'Guardando flujo...' });
     
@@ -6619,12 +6646,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         throw new Error(data.error || 'Error saving flow');
       }
       
+      // IMPORTANT: Refresh dbFlows BEFORE updating activeTemplateId.
+      // If activeTemplateId changes (null -> UUID), React will re-mount
+      // FlowZapBuilder with a new key. dbFlows must already contain
+      // the saved flow so the re-mounted component receives fresh data.
+      await loadDbFlows();
+      
       // Lock onto the DB id so subsequent saves update the same row
       if (data.flow?.id) {
         setActiveTemplateId(data.flow.id);
       }
-      
-      await loadDbFlows(); // Refresh the list
       
       setToast({ type: 'success', message: language === 'en' ? 'Flow saved successfully!' : '¡Flujo guardado con éxito!' });
     } catch (err: any) {
@@ -6655,11 +6686,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         throw new Error(data.error || 'Error publishing flow');
       }
       
+      // IMPORTANT: Refresh dbFlows BEFORE updating activeTemplateId.
+      // Same race-condition fix as handleSaveFlow — the re-mounted
+      // FlowZapBuilder must find fresh data in dbFlows.
+      await loadDbFlows();
+      
       if (data.flow?.id) {
         setActiveTemplateId(data.flow.id);
       }
-      
-      await loadDbFlows();
       
       setToast({ type: 'success', message: language === 'en' ? '🚀 Flow published! Your WhatsApp bot is now live.' : '🚀 ¡Flujo publicado! Tu bot de WhatsApp ya está activo.' });
     } catch (err: any) {
@@ -11101,6 +11135,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       setActiveTemplateId(id);
                       setBotSection('constructor');
                     }} 
+                    onDeleteTemplate={handleDeleteDbFlow}
                   />
                 )}
               </main>

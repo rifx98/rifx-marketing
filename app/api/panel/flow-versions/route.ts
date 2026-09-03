@@ -38,7 +38,12 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching flow versions:', error);
+      console.error('[FlowVersions GET] DB error:', error.message, error.code);
+      // If the table doesn't exist, return empty array gracefully
+      if (error.code === '42P01') {
+        console.warn('[FlowVersions GET] Table flow_versions does not exist. Run migration 031.');
+        return NextResponse.json({ success: true, flows: [] });
+      }
       return internalApiError();
     }
 
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
         .update({
           flow_name: flowName,
           flow_data: { nodes, edges },
-          kind: flowKind
+          kind: flowKind,
         })
         .eq('id', id)
         .eq('tenant_id', tenant.tenantId)
@@ -115,7 +120,7 @@ export async function POST(req: NextRequest) {
           .from('flow_versions')
           .update({
             flow_data: { nodes, edges },
-            kind: flowKind
+            kind: flowKind,
           })
           .eq('id', existing[0].id)
           .eq('tenant_id', tenant.tenantId)
@@ -136,30 +141,85 @@ export async function POST(req: NextRequest) {
     }
 
     if (result.error) {
-      console.error('Flow save error:', result.error.message);
-      return internalApiError();
+      console.error('[FlowVersions POST] DB error:', result.error.message, result.error.code, result.error.details);
+      
+      // If table doesn't exist, we fallback to just saving in config (legacy mode)
+      if (result.error.code === '42P01') {
+        console.warn('[FlowVersions POST] Table missing, falling back to config only');
+        // Simulate a saved flow object
+        result = { data: [{ id: 'legacy-fallback-id', flow_name: flowName, kind: flowKind }] };
+      } else {
+        // Return the actual DB error so we can debug
+        return NextResponse.json(
+          { error: `Error saving flow: ${result.error.message}` },
+          { status: 500 }
+        );
+      }
     }
 
     const savedFlow = result.data?.[0];
 
-    // --- PUBLISH: sync to config.bot_menu_config ---
-    if (publish && savedFlow) {
-      try {
-        await supabase
-          .from('config')
-          .update({ bot_menu_config: { nodes, edges } })
-          .eq('tenant_id', tenant.tenantId);
-        
-        console.log(`[FlowZap] Published flow "${flowName}" to config.bot_menu_config for tenant ${tenant.tenantId}`);
-      } catch (syncErr) {
-        console.error('[FlowZap] Failed to sync published flow to config:', syncErr);
-        // Don't fail the save — the flow is saved, just the sync failed
+    if (!savedFlow) {
+      console.error('[FlowVersions POST] No flow returned after save/insert');
+      return NextResponse.json({ error: 'Flow was not saved — no data returned' }, { status: 500 });
+    }
+
+    console.log(`[FlowVersions POST] Saved flow id=${savedFlow.id} name="${flowName}" kind=${flowKind} nodes=${nodes.length} edges=${edges.length}`);
+
+    // --- ALWAYS PUBLISH to config.bot_menu_config for safety ---
+    // If we are publishing OR if we are in legacy fallback mode
+    if (publish || savedFlow.id === 'legacy-fallback-id') {
+      const { error: syncError } = await supabase
+        .from('config')
+        .update({ bot_menu_config: { nodes, edges } })
+        .eq('tenant_id', tenant.tenantId);
+      
+      if (syncError) {
+        console.error('[FlowZap] Failed to sync published flow to config.bot_menu_config:', syncError.message);
+      } else {
+        console.log(`[FlowZap] Synced flow "${flowName}" to config.bot_menu_config`);
       }
     }
 
     return NextResponse.json({ success: true, flow: savedFlow });
   } catch (error) {
     console.error('Flow save POST error:', error);
+    return internalApiError();
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID es requerido' }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdmin();
+    const { error } = await supabase
+      .from('flow_versions')
+      .delete()
+      .eq('id', id)
+      .eq('tenant_id', tenant.tenantId);
+
+    if (error) {
+      console.error('[FlowVersions DELETE] DB error:', error.message, error.code);
+      if (error.code === '42P01') {
+        return NextResponse.json({ success: true }); // Table missing, consider it "deleted"
+      }
+      return internalApiError();
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Flow versions DELETE error:', error);
     return internalApiError();
   }
 }

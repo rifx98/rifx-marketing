@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function FlowZapVersions({ dbFlows = [], onApplyTemplate }: { dbFlows?: any[], onApplyTemplate?: (id: string) => void }) {
+export default function FlowZapVersions({ dbFlows = [], onApplyTemplate, onDeleteTemplate }: { dbFlows?: any[], onApplyTemplate?: (id: string) => void, onDeleteTemplate?: (id: string) => void }) {
   return (
     <div className="h-full overflow-auto p-4 font-inter">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] overflow-hidden">
@@ -33,11 +33,19 @@ export default function FlowZapVersions({ dbFlows = [], onApplyTemplate }: { dbF
                   v{flow.flow_version}
                 </td>
                 <td className="p-3 border-b border-slate-100 text-right">
-                  <button 
-                    onClick={() => onApplyTemplate?.(flow.id)}
-                    className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
-                    Editar
-                  </button>
+                  <div className="flex justify-end gap-2">
+                    <button 
+                      onClick={() => onApplyTemplate?.(flow.id)}
+                      className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                      Editar
+                    </button>
+                    <button 
+                      onClick={() => onDeleteTemplate?.(flow.id)}
+                      title="Eliminar flujo"
+                      className="bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 text-[10px] py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[14px]">delete</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
