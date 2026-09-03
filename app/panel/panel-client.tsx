@@ -824,6 +824,7 @@ export default function PanelClient() {
   const [loginUser, setLoginUser] = useState(''); // now used as email
   const [loginPass, setLoginPass] = useState('');
   const [flowToDelete, setFlowToDelete] = useState<string | null>(null);
+  const [isLoadingFlows, setIsLoadingFlows] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -5301,6 +5302,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }
     } catch (err) {
       console.error('loadDbFlows error:', err);
+    } finally {
+      setIsLoadingFlows(false);
     }
   };
 
@@ -10368,6 +10371,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <FlowZapInbox />
                 )}
                 {botSection === 'constructor' && (() => {
+                  if (isLoadingFlows) {
+                    return (
+                      <div className="flex items-center justify-center h-full w-full">
+                        <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
+                          <span className="material-symbols-outlined animate-spin text-4xl text-primary">sync</span>
+                          <p className="text-sm font-medium animate-pulse">{language === 'en' ? 'Loading flow...' : 'Cargando flujo...'}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
                   // Find the saved flow by UUID (activeTemplateId is always a UUID after first save)
                   const dbFlow = activeTemplateId 
                     ? dbFlows.find((f: any) => f.id === activeTemplateId) 
