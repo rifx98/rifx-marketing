@@ -823,6 +823,7 @@ export default function PanelClient() {
   const [isExportingDropi, setIsExportingDropi] = useState(false);
   const [loginUser, setLoginUser] = useState(''); // now used as email
   const [loginPass, setLoginPass] = useState('');
+  const [flowToDelete, setFlowToDelete] = useState<string | null>(null);
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -6599,10 +6600,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setSavedTemplates(prev => prev.filter(t => t.id !== id));
   };
 
-  const handleDeleteDbFlow = async (id: string) => {
-    if (!confirm(language === 'en' ? 'Are you sure you want to delete this flow?' : '¿Estás seguro de que deseas eliminar este flujo?')) return;
+  const confirmDeleteDbFlow = async () => {
+    if (!flowToDelete) return;
+    const id = flowToDelete;
     
     setToast({ type: 'info', message: language === 'en' ? 'Deleting flow...' : 'Eliminando flujo...' });
+    setFlowToDelete(null); // Close modal immediately
+
     try {
       const res = await authFetch(`/api/panel/flow-versions?id=${id}`, {
         method: 'DELETE'
@@ -6620,7 +6624,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       
       setToast({ type: 'success', message: language === 'en' ? 'Flow deleted' : 'Flujo eliminado' });
     } catch (err: any) {
-      console.error('handleDeleteDbFlow error:', err);
+      console.error('confirmDeleteDbFlow error:', err);
       setToast({ type: 'error', message: err.message || 'Error eliminando flujo' });
     }
   };
@@ -11135,7 +11139,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       setActiveTemplateId(id);
                       setBotSection('constructor');
                     }} 
-                    onDeleteTemplate={handleDeleteDbFlow}
+                    onDeleteTemplate={(id) => setFlowToDelete(id)}
                   />
                 )}
               </main>
@@ -19177,6 +19181,45 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         </motion.div>
       </div>
     )}
+
+      {flowToDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in" onClick={() => setFlowToDelete(null)}>
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] relative overflow-hidden transform transition-all" onClick={e => e.stopPropagation()}>
+            
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+                <span className="material-symbols-outlined text-4xl text-red-500">delete_forever</span>
+              </div>
+            </div>
+            
+            <h3 className="text-xl font-black text-slate-800 mb-2 text-center">
+              {language === 'en' ? 'Delete Flow' : 'Eliminar Flujo'}
+            </h3>
+            
+            <p className="text-slate-500 text-sm mb-8 text-center leading-relaxed font-medium">
+              {language === 'en' 
+                ? 'Are you sure you want to delete this flow permanently? This action cannot be undone.' 
+                : '¿Estás seguro de que deseas eliminar este flujo permanentemente? Esta acción no se puede deshacer.'}
+            </p>
+            
+            <div className="flex flex-col gap-3 mt-2">
+              <button 
+                onClick={() => confirmDeleteDbFlow()}
+                className="w-full py-3.5 px-4 rounded-2xl bg-red-500 text-white hover:bg-red-600 active:scale-[0.98] transition-all font-black text-sm tracking-wide shadow-md shadow-red-500/20 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">delete</span>
+                {language === 'en' ? 'Yes, delete it' : 'Sí, eliminarlo'}
+              </button>
+              <button 
+                onClick={() => setFlowToDelete(null)}
+                className="w-full py-3.5 px-4 rounded-2xl border-2 border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 active:scale-[0.98] transition-all font-bold text-sm tracking-wide"
+              >
+                {language === 'en' ? 'Cancel' : 'Cancelar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
     </ThemeProvider>
