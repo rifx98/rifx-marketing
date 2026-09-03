@@ -29,13 +29,13 @@ export async function GET(req: NextRequest) {
     // Get current balance
     const { data: tenantData } = await supabase
       .from('tenants')
-      .select('ai_credits')
+      .select('ai_credits_balance')
       .eq('id', tenant.tenantId)
       .single();
 
     return NextResponse.json({ 
       ledgers: ledgers || [],
-      balance: tenantData?.ai_credits || 0
+      balance: tenantData?.ai_credits_balance || 0
     });
   } catch (error) {
     console.error('Error in ai-ledger route:', error);
