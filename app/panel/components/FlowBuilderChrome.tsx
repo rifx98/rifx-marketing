@@ -23,7 +23,7 @@ export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, ca
   flowName:string; dirty?:boolean; palette?:PaletteItem[]; canvas:React.ReactNode; inspector:React.ReactNode;
   onFlowNameChange?:(v:string)=>void; onAddNode?:(type:string)=>void; onUndo?:()=>void; onRedo?:()=>void; onSearch?:(q:string)=>void; onValidate?:()=>void; onSimulate?:()=>void; onSave?:()=>void; onPublish?:()=>void; onVersions?:()=>void;
 }) {
-  const [hoveredTooltip, setHoveredTooltip] = React.useState<string | null>(null);
+  const [activeTooltip, setActiveTooltip] = React.useState<{item: PaletteItem, rect: DOMRect} | null>(null);
 
   return <div className={styles.shell}>
     <aside className={styles.left}>
@@ -47,22 +47,13 @@ export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, ca
               <strong>{p.name}</strong>
               <small>{p.description}</small>
             </div>
-            
-            {/* Elegant Popover Tooltip Model */}
-            <div className="relative group/help ml-auto">
-              <span className="material-symbols-outlined text-[14px] text-slate-300 hover:text-blue-500 cursor-help p-1 transition-colors">help</span>
-              
-              <div className="absolute top-1/2 -translate-y-1/2 left-full ml-3 w-64 bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] rounded-2xl border border-slate-100 p-4 opacity-0 group-hover/help:opacity-100 transition-all pointer-events-none z-[100] scale-95 group-hover/help:scale-100 origin-left text-left">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-5 h-5 rounded-full border-2 border-[#1e1b4b] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[#1e1b4b] text-[12px] font-bold">info</span>
-                  </div>
-                  <p className="text-xs font-bold text-[#1e1b4b] m-0 leading-none">{p.name}</p>
-                </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed m-0 normal-case font-normal">
-                  {p.tooltip}
-                </p>
-              </div>
+            {/* Elegant Popover Trigger */}
+            <div 
+              className="ml-auto flex items-center justify-center p-1"
+              onMouseEnter={(e) => setActiveTooltip({ item: p, rect: e.currentTarget.getBoundingClientRect() })}
+              onMouseLeave={() => setActiveTooltip(null)}
+            >
+              <span className="material-symbols-outlined text-[14px] text-slate-300 hover:text-blue-500 cursor-help transition-colors">help</span>
             </div>
           </button>
         ))}
@@ -75,5 +66,26 @@ export function FlowBuilderChrome({ flowName, dirty, palette=DEFAULT_PALETTE, ca
     </aside>
     <section className={styles.center}><div className={styles.toolbar}><div><button onClick={onUndo}>↶</button><button onClick={onRedo}>↷</button></div><input placeholder="Buscar bloque..." onKeyDown={(e)=>{if(e.key==='Enter')onSearch?.((e.target as HTMLInputElement).value)}}/><div><button onClick={onSimulate}>🧪 Probar</button><button onClick={onSave}>Guardar</button><button className={styles.publish} onClick={onPublish}>🚀 Publicar</button></div></div><div className={styles.canvasSlot}>{canvas}</div></section>
     <aside className={styles.right}><div className={styles.panelTitle}>Propiedades</div><p className={styles.hint}>Configura aquí el nodo seleccionado.</p>{inspector}</aside>
+
+    {/* Fixed Elegant Tooltip rendered outside overflow containers */}
+    {activeTooltip && (
+      <div 
+        className="fixed z-[9999] w-64 bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] rounded-2xl border border-slate-100 p-4 text-left pointer-events-none animate-in fade-in zoom-in-95 duration-200"
+        style={{
+          top: activeTooltip.rect.top + (activeTooltip.rect.height / 2) - 50, // Center vertically relative to icon (approx)
+          left: activeTooltip.rect.right + 12 // Position slightly to the right of the icon
+        }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-5 h-5 rounded-full border-2 border-[#1e1b4b] flex items-center justify-center">
+            <span className="material-symbols-outlined text-[#1e1b4b] text-[12px] font-bold">info</span>
+          </div>
+          <p className="text-xs font-bold text-[#1e1b4b] m-0 leading-none">{activeTooltip.item.name}</p>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-relaxed m-0 normal-case font-normal">
+          {activeTooltip.item.tooltip}
+        </p>
+      </div>
+    )}
   </div>;
 }
