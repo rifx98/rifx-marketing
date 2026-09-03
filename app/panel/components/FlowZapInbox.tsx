@@ -15,44 +15,18 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
 
   const conversations: ConversationSummary[] = useMemo(() => {
     return allConvs.map((c: any) => ({
-      phone: c.phone || c.id,
-      name: c.name || c.phone || 'Desconocido',
-      lastMessage: c.messages && c.messages.length > 0 ? c.messages[c.messages.length - 1].text : 'Sin mensajes',
-      lastMessageAt: c.messages && c.messages.length > 0 ? new Date(c.messages[c.messages.length - 1].created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+      phone: c.id, // Using id as the unique key to match with selectedPhone
+      name: c.customer_name || c.phone_number || 'Desconocido',
+      lastMessage: '',
+      lastMessageAt: c.updated_at ? new Date(c.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
       unread: 0,
-      botPaused: c.bot_paused
+      botPaused: c.is_paused || c.bot_paused
     }));
-  }, [allConvs]);
-
-  const details: Record<string, ConversationDetail> = useMemo(() => {
-    const map: Record<string, ConversationDetail> = {};
-    allConvs.forEach((c: any) => {
-      const p = c.phone || c.id;
-      map[p] = {
-        phone: p,
-        name: c.name || p,
-        status: 'open',
-        botPaused: c.bot_paused,
-        assignedTo: 'bot',
-        messages: (c.messages || []).map((m: any) => ({
-          id: m.id || m.message_id || Date.now().toString(),
-          direction: m.direction === 'inbound' ? 'in' : 'out',
-          text: m.text || m.body || '',
-          createdAt: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        })),
-        contact: {
-          phone: p,
-          name: c.name,
-          tags: [],
-          fields: {}
-        }
-      };
-    });
-    return map;
   }, [allConvs]);
 
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
 
   // Default to first conversation if none selected
   React.useEffect(() => {
@@ -61,8 +35,57 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
     }
   }, [conversations, selectedPhone]);
 
+  // Fetch messages for selected conversation
+  React.useEffect(() => {
+    if (!selectedPhone) return;
+    let isMounted = true;
+    const token = localStorage.getItem('token');
+    
+    fetch(`/api/panel/conversations?id=${selectedPhone}`, {
+      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.messages) {
+          setMessages(data.messages);
+        }
+      })
+      .catch(console.error);
+
+    return () => { isMounted = false; };
+  }, [selectedPhone]);
+
+  const selectedConv = useMemo(() => {
+    return allConvs.find((c: any) => c.id === selectedPhone) || null;
+  }, [allConvs, selectedPhone]);
+
+  const selectedDetail: ConversationDetail | null = useMemo(() => {
+    if (!selectedConv) return null;
+    return {
+      phone: selectedConv.phone_number || selectedConv.id,
+      name: selectedConv.customer_name || selectedConv.phone_number || 'Desconocido',
+      status: 'open',
+      botPaused: selectedConv.is_paused || selectedConv.bot_paused,
+      assignedTo: 'bot',
+      messages: messages.slice().reverse().map((m: any) => ({
+        id: m.id || m.message_id || Date.now().toString(),
+        direction: m.direction === 'inbound' ? 'in' : 'out',
+        text: m.content || m.text || m.body || '',
+        createdAt: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      })),
+      contact: {
+        phone: selectedConv.phone_number || selectedConv.id,
+        name: selectedConv.customer_name,
+        tags: [],
+        fields: {}
+      }
+    };
+  }, [selectedConv, messages]);
+
+
+
   const handleSend = async (text: string) => {
-    if (!selectedPhone || !details[selectedPhone] || sendingMsg) return;
+    if (!selectedPhone || !selectedDetail || sendingMsg) return;
     
     // Find internal ID for the selected conversation
     const conv = allConvs.find((c: any) => c.phone === selectedPhone || c.id === selectedPhone);
@@ -89,7 +112,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
   };
 
   const toggleBot = async () => {
-    if (!selectedPhone || !details[selectedPhone]) return;
+    if (!selectedPhone || !selectedDetail) return;
     
     const conv = allConvs.find((c: any) => c.phone === selectedPhone || c.id === selectedPhone);
     if (!conv) return;
@@ -117,7 +140,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
     <div style={{ height: 'calc(100vh - 140px)' }}>
       <ConversationsModule 
         conversations={conversations}
-        selected={selectedPhone ? (details[selectedPhone] || null) : null}
+        selected={selectedDetail}
         advisors={advisors}
         onSelect={(phone) => setSelectedPhone(phone)}
         onSend={handleSend}
