@@ -318,6 +318,17 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         botReplies.push(`${text}\n${btns}`);
         break; 
       }
+      else if (node.type === 'tag') {
+        autoAdvance = true;
+      }
+      else if (node.type === 'wait') {
+        botReplies.push(`[⏳ Pausa programada: ${(node.data as any)?.time || '1'} ${(node.data as any)?.unit || 'minutos'}]`);
+        autoAdvance = true;
+      }
+      else if (node.type === 'end') {
+        botReplies.push(`[⛔ Fin de la conversación]`);
+        break;
+      }
       else if (node.type === 'question') {
         let text = (node.data as any)?.text || 'Pregunta:';
         text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
