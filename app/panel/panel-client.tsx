@@ -726,8 +726,8 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
 
   const copies = {
     aida: language === 'en' 
-      ? `ðŸš¨ ATTENTION! Looking for the best ${prod}? ðŸš¨\n\nIf you want top-tier quality and premium customer service, this is for you! At ${name}, we have exactly what you need.\n\nâœ¨ Why choose us?\nâœ… Guaranteed Premium Quality\nâœ… Elite Support & Service\nâœ… Exclusive limited-time promotion\n\nðŸ’° SPECIAL PRICE: ${price}!\n\nðŸ‘‰ Do not miss this opportunity! ${ctaText}\n\n#${prod.replace(/\s+/g, '')} #BestOffer #PremiumService #MetaAds`
-      : `ðŸš¨ ¡ATENCIÃ“N! ¿Buscando el mejor ${prod}? ðŸš¨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\nâœ¨ ¿Por qué elegirnos?\nâœ… Calidad Premium 100% Garantizada\nâœ… Atención de primera\nâœ… Oferta exclusiva por tiempo limitado\n\nðŸ’° PROMOCIÃ“N ESPECIAL: ¡${price}!\n\nðŸ‘‰ ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
+      ? `ðŸš¨ ATTENTION! Looking for the best ${prod}? ðŸš¨\n\nIf you want top-tier quality and premium customer service, this is for you! At ${name}, we have exactly what you need.\n\nâœ¨ Why choose us?\n✅ Guaranteed Premium Quality\n✅ Elite Support & Service\n✅ Exclusive limited-time promotion\n\nðŸ’° SPECIAL PRICE: ${price}!\n\nðŸ‘‰ Do not miss this opportunity! ${ctaText}\n\n#${prod.replace(/\s+/g, '')} #BestOffer #PremiumService #MetaAds`
+      : `ðŸš¨ ¡ATENCIÃ“N! ¿Buscando el mejor ${prod}? ðŸš¨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\nâœ¨ ¿Por qué elegirnos?\n✅ Calidad Premium 100% Garantizada\n✅ Atención de primera\n✅ Oferta exclusiva por tiempo limitado\n\nðŸ’° PROMOCIÃ“N ESPECIAL: ¡${price}!\n\nðŸ‘‰ ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
       
     storytelling: language === 'en'
       ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... ðŸ˜”\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! ðŸŒŸ\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\n🔥 Limited Offer: ${price}!\n\nðŸ“² Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
@@ -935,7 +935,7 @@ export default function PanelClient() {
         setTenantData(data.tenant);
         setCurrentPlan(data.tenant.plan || 'trial');
         setIsLoggedIn(true);
-        setToast({ message: language === 'en' ? 'âœ… Signed in with Google!' : 'âœ… ¡Sesión iniciada con Google!', type: 'success' });
+        setToast({ message: language === 'en' ? '✅ Signed in with Google!' : '✅ ¡Sesión iniciada con Google!', type: 'success' });
       } catch (err) {
         setLoginError('Error de conexión con Google. Intenta de nuevo.');
       } finally {
@@ -976,7 +976,7 @@ export default function PanelClient() {
     if (oauthSuccess === 'true') {
       setToast({
         type: 'success',
-        message: language === 'en' ? 'âœ… Meta account connected successfully!' : 'âœ… ¡Cuenta de Meta vinculada exitosamente!'
+        message: language === 'en' ? '✅ Meta account connected successfully!' : '✅ ¡Cuenta de Meta vinculada exitosamente!'
       });
       // Clean query parameters from URL without reloading
       const newUrl = window.location.pathname;
@@ -984,7 +984,7 @@ export default function PanelClient() {
     } else if (calendarSuccess === 'true') {
       setToast({
         type: 'success',
-        message: language === 'en' ? 'âœ… Google Calendar connected successfully!' : 'âœ… ¡Google Calendar vinculado exitosamente!'
+        message: language === 'en' ? '✅ Google Calendar connected successfully!' : '✅ ¡Google Calendar vinculado exitosamente!'
       });
       setSettingsSection('whatsapp');
       const newUrl = window.location.pathname;
@@ -1984,7 +1984,7 @@ export default function PanelClient() {
           const cleanId = text.replace(/[^0-9]/g, '');
           if (cleanId.length >= 12 && cleanId.length <= 18) {
             setConfigData((prev: any) => ({ ...prev, whatsapp_phone_id: cleanId }));
-            replyText = 'âœ… ¡ID de Teléfono configurado con éxito: `' + cleanId + '`!\n\n';
+            replyText = '✅ ¡ID de Teléfono configurado con éxito: `' + cleanId + '`!\n\n';
             newStep = 4;
           } else {
             replyText = 'âš ï¸ El ID de teléfono ingresado no parece válido (debe tener entre 12 y 18 números enteros). Por favor, revisa y vuelve a ingresarlo:';
@@ -1997,7 +1997,7 @@ export default function PanelClient() {
         } else if (newStep === 4) {
           if (text.length > 50 && text.startsWith('EAAS')) {
             setConfigData((prev: any) => ({ ...prev, whatsapp_token: text }));
-            replyText = 'âœ… ¡Token de Acceso guardado correctamente!\n\n';
+            replyText = '✅ ¡Token de Acceso guardado correctamente!\n\n';
             newStep = 5;
           } else {
             replyText = 'âš ï¸ El Token ingresado no parece válido. Debe ser un código largo y usualmente empieza por "EAAS...". Por favor, revísalo y vuelve a pegarlo:';
@@ -2035,7 +2035,7 @@ export default function PanelClient() {
                 setApiHelperStep(0);
                 setApiHelperMessages(prev => [...prev, {
                   sender: 'agent',
-                  text: 'âœ… ¡Conexión con Meta exitosa! El ID de teléfono y el Token son válidos. Toda la configuración ha sido guardada en la base de datos de forma segura.\n\n¿Deseas configurar otra API?',
+                  text: '✅ ¡Conexión con Meta exitosa! El ID de teléfono y el Token son válidos. Toda la configuración ha sido guardada en la base de datos de forma segura.\n\n¿Deseas configurar otra API?',
                   timestamp: new Date(),
                   chips: ['Configurar WhatsApp Business', 'Configurar Meta Ads']
                 }]);
@@ -2083,7 +2083,7 @@ export default function PanelClient() {
         } else if (newStep === 1) {
           if (text.length > 50 && text.startsWith('EAAS')) {
             setConfigData((prev: any) => ({ ...prev, facebook_access_token: text }));
-            replyText = 'âœ… ¡Token de Meta Ads guardado correctamente!\n\n';
+            replyText = '✅ ¡Token de Meta Ads guardado correctamente!\n\n';
             newStep = 2;
           } else {
             replyText = 'âš ï¸ El Token de Meta Ads no parece válido. Asegúrate de copiar el token completo generado en la pantalla de Business Manager (usualmente empieza por "EAAS..."):';
@@ -2110,7 +2110,7 @@ export default function PanelClient() {
           if (numId.length >= 8 && numId.length <= 18) {
             const formatted = 'act_' + numId;
             setConfigData((prev: any) => ({ ...prev, facebook_ad_account_id: formatted }));
-            replyText = 'âœ… ¡ID de Cuenta Publicitaria configurado como `' + formatted + '`!\n\n';
+            replyText = '✅ ¡ID de Cuenta Publicitaria configurado como `' + formatted + '`!\n\n';
             newStep = 3;
           } else {
             replyText = 'âš ï¸ El ID de cuenta publicitaria ingresado no parece válido. Debe tener entre 8 y 18 dígitos. Por favor ingresa el ID correcto:';
@@ -2135,7 +2135,7 @@ export default function PanelClient() {
           const cleanPageId = text.replace(/[^0-9]/g, '');
           if (cleanPageId.length >= 8 && cleanPageId.length <= 18) {
             setConfigData((prev: any) => ({ ...prev, facebook_page_id: cleanPageId }));
-            replyText = 'âœ… ¡ID de Página guardado con éxito: `' + cleanPageId + '`!\n\n';
+            replyText = '✅ ¡ID de Página guardado con éxito: `' + cleanPageId + '`!\n\n';
             newStep = 4;
           } else {
             replyText = 'âš ï¸ El ID de página ingresado no parece válido. Debe tener entre 8 y 18 dígitos. Por favor ingresa el ID correcto:';
@@ -2273,7 +2273,7 @@ export default function PanelClient() {
           text: language === 'en'
             ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) â€” want to use it for this ad, or a different number?`
             : `¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. Veo que ya tenés WhatsApp conectado (${connectedWaPhone}) â€” ¿querés usar ese número para este anuncio, o preferís escribir otro?`,
-          options: [{ label: `âœ… ${connectedWaPhone}`, value: connectedWaPhone }],
+          options: [{ label: `✅ ${connectedWaPhone}`, value: connectedWaPhone }],
         };
       }
       return {
@@ -2336,7 +2336,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     if (agentGoal === 'local') {
       setAdAddress(finalAnswers.address || '');
       setAdPhone('');
-      setAdDescription(`¡Visítanos en ${finalAnswers.businessName}! ðŸ“ ${finalAnswers.address}\n\nTenemos el mejor ${finalAnswers.productName} con una promoción especial: ¡${finalAnswers.price}! ðŸ•ðŸŽ‰\n\nNo te lo pierdas, ¡esperamos verte pronto!`);
+      setAdDescription(`¡Visítanos en ${finalAnswers.businessName}! ðŸ“ ${finalAnswers.address}\n\nTenemos el mejor ${finalAnswers.productName} con una promoción especial: ¡${finalAnswers.price}! ðŸ•🎉\n\nNo te lo pierdas, ¡esperamos verte pronto!`);
     } else if (agentGoal === 'whatsapp') {
       setAdPhone(finalAnswers.phone || '');
       setAdAddress('');
@@ -2566,7 +2566,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           completeAgentSetup(newAnswers);
           setChatgptFlowStep(2);
           setPromptCopied(false);
-          setToast({ message: language === 'en' ? 'ðŸŽ‰ Campaign setup successfully pre-filled!' : 'ðŸŽ‰ ¡Campaña configurada y lista con éxito!', type: 'success' });
+          setToast({ message: language === 'en' ? '🎉 Campaign setup successfully pre-filled!' : '🎉 ¡Campaña configurada y lista con éxito!', type: 'success' });
           setAgentIsTyping(false);
           return;
         }
@@ -3206,7 +3206,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (productImage) {
         try {
           finalProductImageToSend = await getProductImageBase64(productImage);
-          console.log(`  âœ… Usando productImage convertido a base64 (${finalProductImageToSend.length} chars)`);
+          console.log(`  ✅ Usando productImage convertido a base64 (${finalProductImageToSend.length} chars)`);
         } catch (e) {
           console.error('Error reading product image as base64:', e);
         }
@@ -3240,16 +3240,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setGeneratedBanner(aiData.image);
         setDebugTimestamp(Date.now());
         setShowDebugPanel(true);
-        console.log('âœ… [Ecom Magic] Imagen del banner generada exitosamente por la IA');
+        console.log('✅ [Ecom Magic] Imagen del banner generada exitosamente por la IA');
         
         if (aiData.qa_results) {
           console.log('%cðŸ“Š [QA Engine] INFORME DE CALIDAD FINAL (27 métricas):', 'color: #3b82f6; font-weight: bold;');
-          console.log(`  Passed: ${aiData.qa_results.passed ? 'âœ… SÃ' : 'âŒ NO'}`);
+          console.log(`  Passed: ${aiData.qa_results.passed ? '✅ SÃ' : 'âŒ NO'}`);
           console.log(`  --- ESTRUCTURA (â‰¥85) ---`);
           console.log(`  Template Similarity: ${aiData.qa_results.template_similarity_score}/100`);
           console.log(`  Layout Preservation: ${aiData.qa_results.layout_preservation_score}/100`);
           console.log(`  Product Identity: ${aiData.qa_results.product_identity_score}/100`);
-          console.log(`  Icon Count: ${aiData.qa_results.icon_count_preservation ? 'âœ…' : 'âŒ'} | Icon Column: ${aiData.qa_results.icon_column_position_preserved ? 'âœ…' : 'âŒ'} | Text Zones: ${aiData.qa_results.text_zone_preservation ? 'âœ…' : 'âŒ'}`);
+          console.log(`  Icon Count: ${aiData.qa_results.icon_count_preservation ? '✅' : 'âŒ'} | Icon Column: ${aiData.qa_results.icon_column_position_preserved ? '✅' : 'âŒ'} | Text Zones: ${aiData.qa_results.text_zone_preservation ? '✅' : 'âŒ'}`);
           console.log(`  --- GEOMETRÃA & ESPACIADO (â‰¥85) ---`);
           console.log(`  Background Geometry: ${aiData.qa_results.background_geometry_score}/100`);
           console.log(`  Pedestal Similarity: ${aiData.qa_results.pedestal_similarity_score}/100`);
@@ -3268,14 +3268,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           console.log(`  Visual Weight: ${aiData.qa_results.visual_weight_similarity_score}/100`);
           console.log(`  Typography Structure: ${aiData.qa_results.typography_structure_preservation_score}/100`);
           console.log(`  --- FIDELIDAD QUIRÚRGICA ---`);
-          console.log(`  Reinterpretation: ${aiData.qa_results.template_reinterpretation_score}/100 ${aiData.qa_results.template_reinterpretation_score > 15 ? 'âŒ FAIL (>15)' : 'âœ… OK (â‰¤15)'}`);
-          console.log(`  Text Leakage: ${aiData.qa_results.template_text_leakage_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  Reinterpretation: ${aiData.qa_results.template_reinterpretation_score}/100 ${aiData.qa_results.template_reinterpretation_score > 15 ? 'âŒ FAIL (>15)' : '✅ OK (â‰¤15)'}`);
+          console.log(`  Text Leakage: ${aiData.qa_results.template_text_leakage_detected ? 'âŒ DETECTED (FAIL)' : '✅ NONE'}`);
           console.log(`  --- ðŸ”’ REGION FREEZE ---`);
           console.log(`  Frozen Region Integrity: ${aiData.qa_results.frozen_region_integrity_score}/100`);
-          console.log(`  BG Reconstruction: ${aiData.qa_results.background_reconstruction_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
-          console.log(`  Geometry Shift: ${aiData.qa_results.geometry_shift_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
-          console.log(`  Spacing Shift: ${aiData.qa_results.spacing_shift_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
-          console.log(`  Typography Reflow: ${aiData.qa_results.typography_reflow_detected ? 'âŒ DETECTED (FAIL)' : 'âœ… NONE'}`);
+          console.log(`  BG Reconstruction: ${aiData.qa_results.background_reconstruction_detected ? 'âŒ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Geometry Shift: ${aiData.qa_results.geometry_shift_detected ? 'âŒ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Spacing Shift: ${aiData.qa_results.spacing_shift_detected ? 'âŒ DETECTED (FAIL)' : '✅ NONE'}`);
+          console.log(`  Typography Reflow: ${aiData.qa_results.typography_reflow_detected ? 'âŒ DETECTED (FAIL)' : '✅ NONE'}`);
           console.log(`  Retry: ${aiData.qa_results.retry_triggered ? 'ðŸ”„ SÃ' : 'ðŸ›‘ NO'}`);
           console.log(`  Reason: ${aiData.qa_results.reason}`);
         }
@@ -3346,11 +3346,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         }
         if (aiData.adapted_text) {
           setAdTexts(aiData.adapted_text);
-          console.log('âœ… [Ecom Magic] Copys inteligentes adaptados al producto:', aiData.adapted_text);
+          console.log('✅ [Ecom Magic] Copys inteligentes adaptados al producto:', aiData.adapted_text);
         }
         if (aiData.adapted_colors) {
           setCompositorColors(aiData.adapted_colors);
-          console.log('âœ… [Ecom Magic] Colores adaptados al producto:', aiData.adapted_colors);
+          console.log('✅ [Ecom Magic] Colores adaptados al producto:', aiData.adapted_colors);
         }
       } else {
         throw new Error(aiData.error || 'Error en la generación de IA');
@@ -3544,7 +3544,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         localStorage.removeItem('rifx_pending_plan');
         setToast({
           message: confirmed
-            ? (language === 'en' ? 'âœ… Plan updated successfully.' : 'âœ… Plan actualizado correctamente.')
+            ? (language === 'en' ? '✅ Plan updated successfully.' : '✅ Plan actualizado correctamente.')
             : (language === 'en' ? 'The change is still being confirmed. Refresh shortly.' : 'El cambio aún se está confirmando. Actualiza en unos instantes.'),
           type: confirmed ? 'success' : 'info',
         });
@@ -3603,8 +3603,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (refreshedTenant.planStatus === 'cancelled') {
             setToast({
               message: language === 'en'
-                ? 'âœ… Auto-renewal cancelled. Access remains available through the paid period.'
-                : 'âœ… Renovación cancelada. El acceso continúa durante el periodo ya pagado.',
+                ? '✅ Auto-renewal cancelled. Access remains available through the paid period.'
+                : '✅ Renovación cancelada. El acceso continúa durante el periodo ya pagado.',
               type: 'success',
             });
             break;
@@ -3648,8 +3648,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           if (refreshedTenant.planStatus === 'active') {
             setToast({
               message: language === 'en'
-                ? 'âœ… Auto-renewal reactivated successfully!'
-                : 'âœ… ¡Renovación automática reactivada con éxito!',
+                ? '✅ Auto-renewal reactivated successfully!'
+                : '✅ ¡Renovación automática reactivada con éxito!',
               type: 'success',
             });
             break;
@@ -3695,7 +3695,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           setActiveTab('dashboard');
           const confirmed = !pendingPlan || (refreshed.plan === pendingPlan && refreshed.planStatus === 'active');
           setToast({ message: confirmed
-            ? (language === 'en' ? 'âœ… Payment confirmed. Your plan is active.' : 'âœ… Pago confirmado. Tu plan está activo.')
+            ? (language === 'en' ? '✅ Payment confirmed. Your plan is active.' : '✅ Pago confirmado. Tu plan está activo.')
             : (language === 'en' ? 'Payment is still being confirmed. Refresh shortly.' : 'El pago aún se está confirmando. Actualiza en unos instantes.'), type: confirmed ? 'success' : 'info' });
         }
       } catch (e) {
@@ -3770,7 +3770,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? 'âœ… Plan permissions updated successfully!' : 'âœ… ¡Permisos de planes actualizados exitosamente!',
+          message: language === 'en' ? '✅ Plan permissions updated successfully!' : '✅ ¡Permisos de planes actualizados exitosamente!',
           type: 'success'
         });
         await loadAdminData();
@@ -3843,7 +3843,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? 'âœ… Custom overrides updated!' : 'âœ… ¡Accesos especiales actualizados!',
+          message: language === 'en' ? '✅ Custom overrides updated!' : '✅ ¡Accesos especiales actualizados!',
           type: 'success'
         });
         
@@ -4306,7 +4306,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         meta_page_name: page?.name || prev.meta_page_name,
       }));
       setMetaShowPicker(false);
-      setToast({ message: language === 'en' ? 'âœ“ Meta Ads connected!' : 'âœ“ Meta Ads conectado!', type: 'success' });
+      setToast({ message: language === 'en' ? '✓ Meta Ads connected!' : '✓ Meta Ads conectado!', type: 'success' });
     } else {
       setToast({ message: data.error || 'Error saving', type: 'error' });
     }
@@ -4629,7 +4629,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           ...prev, 
           [configData.dropi_enabled ? 'dropi_prompt' : 'ai_prompt']: data.prompt 
         }));
-        setToast({ type: 'success', message: language === 'en' ? 'âœ“ Prompt generated successfully!' : 'âœ“ ¡Prompt generado con éxito!' });
+        setToast({ type: 'success', message: language === 'en' ? '✓ Prompt generated successfully!' : '✓ ¡Prompt generado con éxito!' });
       } else {
         setToast({ type: 'error', message: data.error || 'Error' });
       }
@@ -4761,7 +4761,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.ok && data.success) {
         setToast({
           type: 'success',
-          message: language === 'en' ? `âœ“ Action completed: ${action}` : `âœ“ Acción completada: ${action === 'complete' ? 'asistió' : action === 'no_show' ? 'no asistió' : action === 'cancel' ? 'cancelada' : 'reagendada'}`
+          message: language === 'en' ? `✓ Action completed: ${action}` : `✓ Acción completada: ${action === 'complete' ? 'asistió' : action === 'no_show' ? 'no asistió' : action === 'cancel' ? 'cancelada' : 'reagendada'}`
         });
         fetchAppointments();
         authFetch('/api/panel/stats')
@@ -5610,7 +5610,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const zoneCount = (detected.text_slots?.length || 0) + (detected.product_slot ? 1 : 0);
       const confidence = detected.confidence || 'medium';
       setToast({ 
-        message: `âœ… ${zoneCount} zonas detectadas (confianza: ${confidence}). Revisa y ajusta las coordenadas antes de guardar.`, 
+        message: `✅ ${zoneCount} zonas detectadas (confianza: ${confidence}). Revisa y ajusta las coordenadas antes de guardar.`, 
         type: 'success' 
       });
     } catch (e: any) {
@@ -5980,7 +5980,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (res.ok) {
         resetAnnForm();
         loadAdminData();
-        setToast({ message: editingAnnId ? 'âœ… Anuncio actualizado' : 'âœ… Anuncio publicado', type: 'success' });
+        setToast({ message: editingAnnId ? '✅ Anuncio actualizado' : '✅ Anuncio publicado', type: 'success' });
       } else {
         const data = await res.json().catch(() => ({}));
         setToast({ message: `Error: ${data.error || 'No se pudo guardar el anuncio'}`, type: 'error' });
@@ -6118,7 +6118,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         return;
       }
       setShowAdminSectionsFor(null);
-      setToast({ message: language === 'en' ? 'âœ… Admin role updated!' : 'âœ… ¡Rol de administrador actualizado!', type: 'success' });
+      setToast({ message: language === 'en' ? '✅ Admin role updated!' : '✅ ¡Rol de administrador actualizado!', type: 'success' });
       loadAdminData();
     } catch (e: any) {
       console.error(e);
@@ -6158,7 +6158,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setToast({ message: `Error: ${data.error || 'No se pudo desconectar WhatsApp'}`, type: 'error' });
         return;
       }
-      setToast({ message: `âœ… WhatsApp ${expectedPhoneNumberId} desconectado de "${companyName}"`, type: 'success' });
+      setToast({ message: `✅ WhatsApp ${expectedPhoneNumberId} desconectado de "${companyName}"`, type: 'success' });
       await loadAdminData();
     } catch (e: any) {
       setToast({ message: 'Error de conexi\u00f3n: ' + e.message, type: 'error' });
@@ -6179,7 +6179,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       if (res.ok) {
         setToast({
-          message: language === 'en' ? 'âœ… User deactivated successfully!' : 'âœ… ¡Usuario desactivado correctamente!',
+          message: language === 'en' ? '✅ User deactivated successfully!' : '✅ ¡Usuario desactivado correctamente!',
           type: 'success'
         });
         setTenantToDelete(null);
@@ -6209,7 +6209,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setShowSelfDeleteModal(false);
         setSelfDeleteConfirmEmail('');
         setToast({
-          message: language === 'en' ? 'âœ… Account deactivated successfully.' : 'âœ… Tu cuenta ha sido desactivada.',
+          message: language === 'en' ? '✅ Account deactivated successfully.' : '✅ Tu cuenta ha sido desactivada.',
           type: 'success'
         });
         handleLogout();
@@ -6778,7 +6778,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setShowSuccess(true);
         // Recargar config
         fetchConfig();
-        setToast({ message: language === 'en' ? 'âœ“ Configuration saved successfully!' : 'âœ“ ¡Configuración guardada con éxito!', type: 'success' });
+        setToast({ message: language === 'en' ? '✓ Configuration saved successfully!' : '✓ ¡Configuración guardada con éxito!', type: 'success' });
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
         const errMsg = result.error || 'Error desconocido al guardar';
@@ -8065,7 +8065,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       a.download = `dropi_ecuador_orders_${new Date().toISOString().slice(0,10)}.csv`;
                       a.click();
                       URL.revokeObjectURL(url);
-                      setToast({ message: language === 'en' ? 'âœ… Orders exported successfully!' : 'âœ… ¡Pedidos exportados exitosamente!', type: 'success' });
+                      setToast({ message: language === 'en' ? '✅ Orders exported successfully!' : '✅ ¡Pedidos exportados exitosamente!', type: 'success' });
                     } catch (err: any) {
                       setToast({ message: err.message || 'Error de conexión', type: 'error' });
                     } finally {
@@ -9168,7 +9168,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </button>
                     ) : null;
                   })()}
-                  {showSuccess && <p className="text-[10px] text-emerald-600 font-bold text-center mt-2">âœ“ {language === 'en' ? 'Saved!' : '¡Guardado!'}</p>}
+                  {showSuccess && <p className="text-[10px] text-emerald-600 font-bold text-center mt-2">✓ {language === 'en' ? 'Saved!' : '¡Guardado!'}</p>}
                   {saveError && <p className="text-[10px] text-red-500 font-bold text-center mt-2">{saveError}</p>}
                 </div>
               </aside>
@@ -9515,9 +9515,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       }));
                       setWaShowPhonePicker(false);
                       setWaStatus('success');
-                      setWaStatusMsg(data.phoneNumber ? `âœ“ ${data.phoneNumber}` : 'âœ“ Conectado');
+                      setWaStatusMsg(data.phoneNumber ? `✓ ${data.phoneNumber}` : '✓ Conectado');
                       if (data.webhookSubscribed) {
-                        setToast({ type: 'success', message: language === 'en' ? 'âœ“ WhatsApp connected! Incoming messages are active.' : 'âœ“ WhatsApp conectado! Los mensajes entrantes están activos.' });
+                        setToast({ type: 'success', message: language === 'en' ? '✓ WhatsApp connected! Incoming messages are active.' : '✓ WhatsApp conectado! Los mensajes entrantes están activos.' });
                       } else {
                         setToast({ type: 'error', message: (language === 'en' ? 'Connected, but incoming messages may not arrive: ' : 'Conectado, pero los mensajes entrantes podrían no llegar: ') + (data.webhookSubscribeError || '') });
                       }
@@ -10085,7 +10085,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </button>
                       </div>
                       {passwordError && <p className="text-[10px] font-black text-red-500 uppercase tracking-widest">{passwordError}</p>}
-                      {passwordSuccess && <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{language === 'en' ? 'âœ“ Password updated successfully!' : 'âœ“ ¡Contraseña actualizada con éxito!'}</p>}
+                      {passwordSuccess && <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">{language === 'en' ? '✓ Password updated successfully!' : '✓ ¡Contraseña actualizada con éxito!'}</p>}
                     </div>
                   </div>
                 )}
@@ -11287,7 +11287,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           : JSON.stringify(baseConfig, null, 2);
                         navigator.clipboard.writeText(promptToCopy);
                         setBannerPromptCopied(true);
-                        setToast({ message: language === 'en' ? 'âœ… Copied instructions!' : 'âœ… ¡Instrucciones copiadas!', type: 'success' });
+                        setToast({ message: language === 'en' ? '✅ Copied instructions!' : '✅ ¡Instrucciones copiadas!', type: 'success' });
                       }}
                       className="px-6 py-3 bg-[#0058bc] text-white font-bold text-xs rounded-xl hover:bg-[#054ADA] transition-all flex items-center gap-2 mx-auto shadow"
                     >
@@ -14224,7 +14224,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       const data = await res.json();
                       if (res.ok && data.success) {
                         setToast({
-                          message: language === 'en' ? 'âœ… Source updated successfully!' : 'âœ… ¡Fuente actualizada exitosamente!',
+                          message: language === 'en' ? '✅ Source updated successfully!' : '✅ ¡Fuente actualizada exitosamente!',
                           type: 'success'
                         });
                         await fetchKBFiles();
@@ -16670,10 +16670,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   const readiness = ps && ts && si ? 'ready' : ps ? 'draft' : 'legacy';
                                   const label = readiness === 'ready' ? 'ðŸŸ¢ Ready' : readiness === 'draft' ? '🟡 Draft' : 'ðŸ”´ Legacy';
                                   const details = [
-                                    ps ? `âœ… product_slot` : `âŒ product_slot`,
-                                    ts ? `âœ… ${cfg.text_slots.length} text_slots` : `âŒ text_slots`,
-                                    si ? `âœ… semantic_isolation` : `âŒ semantic_isolation`,
-                                    cfg.template_visual_dna_lock ? `âœ… dna_lock` : `âŒ dna_lock`
+                                    ps ? `✅ product_slot` : `âŒ product_slot`,
+                                    ts ? `✅ ${cfg.text_slots.length} text_slots` : `âŒ text_slots`,
+                                    si ? `✅ semantic_isolation` : `âŒ semantic_isolation`,
+                                    cfg.template_visual_dna_lock ? `✅ dna_lock` : `âŒ dna_lock`
                                   ].join('  â€¢  ');
                                   return (
                                     <div className={`mt-2 px-3 py-2 rounded-lg text-[10px] font-bold border ${
@@ -17840,7 +17840,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: droppedId, sales_stage: targetStage }),
                   });
-                  setToast({ message: language === 'es' ? 'âœ… Etapa actualizada' : 'âœ… Stage updated', type: 'success' });
+                  setToast({ message: language === 'es' ? '✅ Etapa actualizada' : '✅ Stage updated', type: 'success' });
                 } catch (err) {
                   setToast({ message: language === 'es' ? 'âŒ Error al mover' : 'âŒ Error moving card', type: 'error' });
                 }
@@ -17975,7 +17975,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{language === 'en' ? 'Default Price' : 'Precio Base'}</p>
                     </div>
                     <div className="bg-slate-50 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_product_id ? 'âœ“' : 'â€”'}</p>
+                      <p className="text-2xl font-extrabold text-primary">{configData.dropi_default_product_id ? '✓' : 'â€”'}</p>
                       <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{language === 'en' ? 'Product ID' : 'ID Producto'}</p>
                     </div>
                   </div>
@@ -18956,7 +18956,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </span>
           <div className="flex-1">
             <h5 className="text-[9px] font-extrabold uppercase tracking-widest text-slate-300">
-              {toast.type === 'success' ? (language === 'en' ? 'Success' : 'Ã‰xito') : toast.type === 'error' ? (language === 'en' ? 'Error' : 'Error') : (language === 'en' ? 'Information' : 'Información')}
+              {toast.type === 'success' ? (language === 'en' ? 'Success' : 'Éxito') : toast.type === 'error' ? (language === 'en' ? 'Error' : 'Error') : (language === 'en' ? 'Information' : 'Información')}
             </h5>
             <p className="text-xs font-semibold text-white mt-0.5 leading-relaxed">{toast.message}</p>
           </div>
