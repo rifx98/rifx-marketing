@@ -2603,6 +2603,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // Dynamic templates states
   const [dbTemplates, setDbTemplates] = useState<CreativeTemplate[]>([]);
+  const [dbFlows, setDbFlows] = useState<any[]>([]);
   const [adminTemplates, setAdminTemplates] = useState<any[]>([]);
   const [showTplForm, setShowTplForm] = useState(false);
   const [editingTpl, setEditingTpl] = useState<any | null>(null);
@@ -4801,6 +4802,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
       // Cargar Plantillas de Base de Datos
       loadDbTemplates();
+        loadDbFlows();
     }
   }, [isLoggedIn]);
 
@@ -5282,6 +5284,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   // Load templates from DB (Client view)
+  
+  const loadDbFlows = async () => {
+    try {
+      const res = await authFetch('/api/panel/flow-versions');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.flows) {
+          setDbFlows(data.flows);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const loadDbTemplates = async () => {
     try {
       const res = await authFetch('/api/panel/templates');
@@ -5760,6 +5777,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         // Recargar datos
         loadAdminTemplates();
         loadDbTemplates();
+        loadDbFlows();
       } else {
         setToast({ 
           message: (language === 'en' ? 'Failed to save template: ' : 'Error al guardar la plantilla: ') + (saveData.error || ''), 
@@ -5791,6 +5809,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           });
           loadAdminTemplates();
           loadDbTemplates();
+        loadDbFlows();
         } else {
           setToast({ 
             message: (language === 'en' ? 'Sync failed: ' : 'Fallo de sincronización: ') + (data.error || ''), 
@@ -5836,6 +5855,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         });
         loadAdminTemplates();
         loadDbTemplates();
+        loadDbFlows();
       } else {
         setToast({ message: saveData.error, type: 'error' });
       }
@@ -5861,6 +5881,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         });
         loadAdminTemplates();
         loadDbTemplates();
+        loadDbFlows();
       } else {
         setToast({ message: deleteData.error, type: 'error' });
       }
@@ -6584,10 +6605,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setToast({ type: 'info', message: language === 'en' ? 'Saving flow...' : 'Guardando flujo...' });
     
     try {
-      const res = await authFetch(`/api/panel/templates/${activeTemplateId}`, {
-        method: 'PUT',
+      const res = await authFetch(`/api/panel/flow-versions`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, nodes, edges })
+        body: JSON.stringify({ id: activeTemplateId, name, nodes, edges })
       });
       
       const data = await res.json();
@@ -6596,9 +6617,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         throw new Error(data.error || 'Error saving template');
       }
       
+      templates[activeTemplateId] = templates[activeTemplateId] || {};
       templates[activeTemplateId].name = name;
       templates[activeTemplateId].nodes = nodes;
       templates[activeTemplateId].edges = edges;
+      loadDbFlows(); // Reload flows from DB after save
       
       setToast({ type: 'success', message: language === 'en' ? 'Flow saved successfully!' : '¡Flujo guardado con éxito!' });
     } catch (err: any) {
@@ -10268,14 +10291,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {botSection === 'inbox' && (
                   <FlowZapInbox />
                 )}
-                {botSection === 'constructor' && (
-                  <FlowZapBuilder 
-                    key={activeTemplateId || 'default'} 
-                    initialFlowName={activeTemplateId ? templates[activeTemplateId]?.name : undefined}
-                    initialNodes={activeTemplateId ? templates[activeTemplateId]?.nodes : undefined}
-                    initialEdges={activeTemplateId ? templates[activeTemplateId]?.edges : undefined}
-                  />
-                )}
+                {botSection === 'constructor' && (() => {
+                  const dbFlow = activeTemplateId ? dbFlows.find((f: any) => f.id === activeTemplateId || f.flow_name === activeTemplateId) : null;
+                  const defaultFlow = dbFlows.find((f: any) => f.flow_name === 'Mi Bot' || f.flow_name === 'default');
+                  const targetFlow = dbFlow || defaultFlow;
+                  
+                  return (
+                    <FlowZapBuilder 
+                      key={activeTemplateId || targetFlow?.id || 'default'} 
+                      initialFlowName={targetFlow ? targetFlow.flow_name : (activeTemplateId ? templates[activeTemplateId]?.name : undefined)}
+                      initialNodes={targetFlow ? targetFlow.flow_data?.nodes : (activeTemplateId ? templates[activeTemplateId]?.nodes : undefined)}
+                      initialEdges={targetFlow ? targetFlow.flow_data?.edges : (activeTemplateId ? templates[activeTemplateId]?.edges : undefined)}
+                      onSave={handleSaveFlow}
+                    />
+                  );
+                })()}
                 {botSection === 'flowzap' && (
   <div className="w-full text-left font-inter text-slate-800 flex flex-col gap-4">
 
