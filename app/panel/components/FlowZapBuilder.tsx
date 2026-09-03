@@ -94,7 +94,7 @@ const HumanNode = ({ data }: any) => (
   <div className={`${premiumNodeStyle} border-l-4 border-l-red-500`}>
     <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
     <NodeHeader icon="👤" title={data.name || "Pasar a asesor"} typeLabel="ASESOR" color="#ef4444" />
-    <p className="text-slate-500 text-[11px]">Perfecto 👩‍💼 Pasaré el bot para que un asesor continúe la conversación.</p>
+    <p className="text-slate-500 text-[11px]">{data.text || "Perfecto 👩‍💼 Pasaré el bot para que un asesor continúe la conversación."}</p>
   </div>
 );
 
@@ -312,7 +312,8 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         autoAdvance = true;
       }
       else if (node.type === 'human') {
-        botReplies.push('Perfecto 👩‍💼 Pasaré el bot para que un asesor continúe la conversación.');
+        let text = (node.data as any)?.text || 'Perfecto 👩‍💼 Pasaré el bot para que un asesor continúe la conversación.';
+        botReplies.push(text);
         break; 
       }
       else if (node.type === 'ai') {
@@ -419,7 +420,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         <input type="text" value={selectedNode.data.name || ''} onChange={(e) => updateSelectedNodeData('name', e.target.value)} />
       </InspectorField>
 
-      {['message', 'menu', 'buttons', 'question'].includes(selectedNode.type) && (
+      {['message', 'menu', 'buttons', 'question', 'human'].includes(selectedNode.type) && (
         <InspectorField label="Contenido del mensaje" help="Texto que enviará el bot">
           <textarea 
             value={selectedNode.data.text || ''} 
