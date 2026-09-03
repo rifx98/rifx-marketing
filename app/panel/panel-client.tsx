@@ -801,7 +801,7 @@ export const SIDEBAR_ITEMS = [
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
   { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-  { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+  
   { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
   { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
   { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -7129,7 +7129,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
             { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-            { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+            
             { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -7242,7 +7242,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
                 { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-                { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                
                 { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                 { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -7329,7 +7329,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
                       { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-                      { key: 'playground', icon: 'smart_toy', labelEs: 'Playground IA', labelEn: 'AI Playground' },
+                      
                       { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                       { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                       { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -10352,21 +10352,50 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   />
                 )}
                 {botSection === 'flowzap' && (
-                  <FlowZapAI />
-                )}
-                {botSection === 'versions' && (
-                  <FlowZapVersions onApplyTemplate={(id) => {
-                    setActiveTemplateId(id);
-                    setBotSection('constructor');
-                  }} />
-                )}
-              </main>
-            </div>
-          </motion.div>
-        )}
+  <div className="w-full text-left font-inter text-slate-800 flex flex-col gap-4">
 
-        {activeTab === 'playground' && (
-          <motion.div key="playground" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
+      <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-2xl border border-purple-200 mb-6 flex justify-between items-start">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-2xl font-bold text-slate-800">FlowZap AI</h2>
+            <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2 py-1 rounded-full tracking-wider">Premium</span>
+          </div>
+          <p className="text-sm text-slate-500 max-w-xl leading-relaxed">
+            IA generativa de alto rendimiento integrada en tu flujo. Puedes usar un bloque de Inteligencia Artificial para responder consultas complejas sin crear menús rígidos.
+          </p>
+        </div>
+        <div className="text-right">
+          <strong className="text-4xl font-bold text-purple-700 block">0</strong>
+          <span className="text-xs text-slate-500">Créditos disponibles</span>
+          <div className="mt-2 inline-block bg-amber-100 text-amber-800 text-[10px] px-2 py-1 rounded-full font-bold">Sin IA configurada</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] flex items-center gap-4">
+          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl">💸</div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wide">Utilizados este mes</span>
+            <strong className="text-xl font-bold text-slate-800 block">0</strong>
+          </div>
+        </div>
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] flex items-center gap-4">
+          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl">🧠</div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wide">Consultas IA</span>
+            <strong className="text-xl font-bold text-slate-800 block">0</strong>
+          </div>
+        </div>
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] flex items-center gap-4">
+          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl">📉</div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wide">Costo proveedor</span>
+            <strong className="text-xl font-bold text-slate-800 block">$0.0000</strong>
+          </div>
+        </div>
+      </div>
+
+<motion.div key="playground" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-10">
             {/* Header */}
             <header className="max-w-4xl">
               <div className="flex items-center space-x-4 mb-4">
@@ -11191,9 +11220,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               </button>
             </div>
           </motion.div>
+  </div>
+)}
+                {botSection === 'versions' && (
+                  <FlowZapVersions onApplyTemplate={(id) => {
+                    setActiveTemplateId(id);
+                    setBotSection('constructor');
+                  }} />
+                )}
+              </main>
+            </div>
+          </motion.div>
         )}
 
-        {activeTab === 'banners' && (
+         {activeTab === 'banners' && (
           <motion.div
             key="banners"
             initial={{ opacity: 0, y: 20 }}
