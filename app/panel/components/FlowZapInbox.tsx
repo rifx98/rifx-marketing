@@ -67,9 +67,13 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
       status: 'open',
       botPaused: selectedConv.is_paused || selectedConv.bot_paused,
       assignedTo: 'bot',
-      messages: messages.slice().reverse().map((m: any) => ({
+      messages: messages
+        .filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__' && !(m.content && m.content.startsWith('__ORDER_DATA__:')))
+        .slice()
+        .reverse()
+        .map((m: any) => ({
         id: m.id || m.message_id || Date.now().toString(),
-        direction: m.direction === 'inbound' ? 'in' : 'out',
+        direction: m.role === 'user' ? 'in' : 'out',
         text: m.content || m.text || m.body || '',
         createdAt: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       })),
@@ -119,15 +123,15 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
 
     try {
       const token = localStorage.getItem('token');
-      await fetch('/api/panel/contacts', {
-        method: 'PUT',
+      await fetch('/api/panel/pause', {
+        method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          id: conv.id,
-          bot_paused: !conv.bot_paused
+          conversationId: conv.id,
+          paused: !selectedDetail.botPaused
         })
       });
       onRefresh();
