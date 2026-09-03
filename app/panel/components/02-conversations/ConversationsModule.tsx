@@ -32,7 +32,7 @@ export function ConversationsModule({ conversations, selected, advisors, onSelec
       {!selected ? <EmptyState icon="💬" title="Selecciona una conversación" text="Desde aquí puedes responder manualmente y pausar o reactivar el bot." /> : <>
         <header className={styles.chatHeader}><div className={styles.person}><Avatar name={name}/><div><strong>{name}</strong><small>{selected.phone} · {selected.botPaused?'👤 Atención humana':'🤖 Bot activo'}</small></div></div><div className={styles.headerActions}><button onClick={onToggleBot}>{selected.botPaused?'▶ Reactivar bot':'⏸ Pausar bot'}</button><button className={styles.ghost} onClick={onToggleClosed}>{selected.status==='closed'?'Reabrir':'Cerrar'}</button></div></header>
         <div className={styles.messages}>{selected.messages.length ? selected.messages.map((m,i)=><div key={m.id || i} className={`${styles.bubble} ${m.direction==='in'?styles.in:m.direction==='out'?styles.out:styles.system}`}>{m.media?.url && <div className={styles.media}>📎 {m.media.filename || m.media.type || 'archivo'}</div>}{m.text && <div>{m.text}</div>}<small>{m.createdAt || ''}{m.status?` · ${m.status}`:''}</small></div>) : <EmptyState title="Sin mensajes todavía"/>}</div>
-        <div className={styles.compose}><input value={draft} onChange={(e)=>setDraft(e.target.value)} onKeyDown={(e)=>{if(e.key==='Enter')send();}} placeholder="Escribe como asesor..."/><button onClick={send}>Enviar</button></div>
+        <div className={styles.compose}><input value={draft} onChange={(e)=>setDraft(e.target.value)} onKeyDown={(e)=>{if(e.key==='Enter')send();}} placeholder="Escribe un mensaje..."/><button onClick={send}>Enviar</button></div>
       </>}
     </section>
 
