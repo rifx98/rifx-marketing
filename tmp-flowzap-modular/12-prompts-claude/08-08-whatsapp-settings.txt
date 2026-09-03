@@ -1,0 +1,25 @@
+IMPORTANTE: La carpeta que te entrego contiene SOLO una interfaz modular de referencia para integrar dentro del CRM existente.
+
+NO la conviertas en otra aplicación.
+NO crees otro sidebar.
+NO crees otro dashboard general.
+NO crees otra autenticación.
+NO crees un server.js.
+NO dupliques APIs ni configuraciones.
+
+Antes de tocar código:
+1. identifica el tab/componente equivalente existente en el CRM;
+2. dime qué archivo existente modificarás;
+3. reutiliza sus datos/actions actuales;
+4. adapta visualmente el componente al design system real del CRM;
+5. integra únicamente el módulo que te indiqué;
+6. ejecuta build/tests;
+7. DETENTE.
+
+
+MÓDULO DE ESTA FASE:
+WhatsApp Settings: integra la UI en Configuración existente y usa whatsapp_accounts/config real. No crees credenciales duplicadas.
+
+Código visual de referencia: carpeta `08-whatsapp-settings`.
+
+Cuando termine este módulo, DETENTE y espera mi aprobación.

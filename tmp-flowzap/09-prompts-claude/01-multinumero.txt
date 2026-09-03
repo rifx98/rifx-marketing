@@ -1,0 +1,25 @@
+INTEGRA SOLAMENTE LA PARTE 1: MULTINÚMERO DE WHATSAPP.
+
+No integres todavía conversaciones, campañas, IA ni constructor.
+
+Usa como referencia los archivos:
+- 01-whatsapp-multinumero/031_whatsapp_accounts.sql
+- 01-whatsapp-multinumero/secret-crypto.ts
+- 01-whatsapp-multinumero/whatsapp-account-service.ts
+
+Antes de modificar:
+1. Localiza el cliente Supabase server-side real del CRM.
+2. Localiza getTenantFromRequest() y los guards existentes.
+3. Localiza todos los usos actuales de config.whatsapp_token y config.whatsapp_phone_id.
+
+Objetivo:
+- crear whatsapp_accounts;
+- migrar el número actual como predeterminado sin perder datos;
+- conservar compatibilidad con config durante transición;
+- permitir múltiples números por tenant;
+- no cambiar el diseño del CRM;
+- no crear sidebar/layout nuevo;
+- tenant_id siempre sale de sesión;
+- prueba build y el WhatsApp actual.
+
+Cuando esta parte funcione, DETENTE. No continúes con otros módulos.

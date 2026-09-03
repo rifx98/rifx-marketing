@@ -1,0 +1,31 @@
+INTEGRA SOLAMENTE LA PARTE 6: FLOWZAP AI PREMIUM.
+
+Usa:
+- 06-ai-premium/035_ai_premium.sql
+- ai-types.ts
+- ai-billing.ts
+- ai-provider-client.ts
+- ai-service.ts
+- ai-summary-service.ts
+
+La IA es OPCIONAL. Ningún bot normal puede depender de tener IA activada.
+
+Objetivo:
+- proveedor/modelo elegibles por tenant;
+- API key cifrada y server-only;
+- créditos;
+- ledger transaccional;
+- consumo por llamada;
+- tokens entrada/salida;
+- costo proveedor;
+- precio de venta;
+- margen;
+- recargas;
+- low balance/hard stop;
+- bloque IA del FlowEditor;
+- error/fallback a humano;
+- métricas cliente vs métricas admin.
+
+No expongas api_key_encrypted ni costo interno a usuarios sin permiso administrativo.
+Integra con el motor por el hook executeAI; no crees un segundo motor.
+Build + pruebas y DETENTE.

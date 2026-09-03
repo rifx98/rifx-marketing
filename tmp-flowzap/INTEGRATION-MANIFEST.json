@@ -1,0 +1,20 @@
+{
+  "name": "FlowZap CRM Integration Kit",
+  "source": "FlowZap V3 AI Premium",
+  "strategy": "incremental-crm-native",
+  "standalone_app_files_included": false,
+  "modules": [
+    {"order": 1, "name": "WhatsApp multinúmero", "folder": "01-whatsapp-multinumero"},
+    {"order": 2, "name": "Equipo y conversaciones", "folder": "02-equipo-conversaciones"},
+    {"order": 3, "name": "Motor de flujos", "folder": "03-motor-flujos"},
+    {"order": 4, "name": "Versiones", "folder": "04-versiones"},
+    {"order": 5, "name": "Campañas WhatsApp", "folder": "05-campanas"},
+    {"order": 6, "name": "AI Premium y créditos", "folder": "06-ai-premium"},
+    {"order": 7, "name": "Auditoría", "folder": "07-auditoria"},
+    {"order": 8, "name": "Modelos UI headless", "folder": "08-ui-headless"}
+  ],
+  "verification": {
+    "typescript_syntax_check": "passed",
+    "flow_engine_smoke_test": "passed"
+  }
+}

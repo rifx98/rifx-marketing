@@ -1,0 +1,9 @@
+'use client';
+import React from 'react';
+import type { WhatsAppAccountOption } from '../00-shared/types';
+import { StatusPill } from '../00-shared/ui';
+import styles from './whatsapp.module.css';
+
+export function WhatsAppSettingsModule({ accounts, selectedId, onSelect, onAdd, onEdit, onTest, webhookUrl }: {accounts:WhatsAppAccountOption[];selectedId?:string;onSelect?:(id:string)=>void;onAdd?:()=>void;onEdit?:(id:string)=>void;onTest?:(id:string)=>void;webhookUrl?:string}) {
+ return <div className={styles.page}><section className={styles.card}><header><div><h3>Números de WhatsApp</h3><p>Usa las cuentas configuradas por el CRM. No dupliques credenciales.</p></div><button onClick={onAdd}>+ Agregar número</button></header><div className={styles.accounts}>{accounts.map((a)=><button key={a.id} className={`${styles.account} ${selectedId===a.id?styles.selected:''}`} onClick={()=>onSelect?.(a.id)}><div><strong>{a.name}</strong><small>{a.displayPhone || 'Sin teléfono visible'}</small></div><StatusPill tone={a.status==='connected'?'success':a.status==='error'?'danger':'warning'}>{a.status==='connected'?'● Conectado':a.status==='error'?'● Error':'● Demo/Pendiente'}</StatusPill></button>)}</div>{selectedId&&<div className={styles.actions}><button onClick={()=>onEdit?.(selectedId)}>Editar configuración</button><button onClick={()=>onTest?.(selectedId)}>🧪 Probar conexión</button></div>}</section><section className={styles.card}><header><div><h3>Webhook de Meta</h3><p>La URL se administra desde el backend actual.</p></div></header><div className={styles.code}>{webhookUrl || '/api/whatsapp/webhook'}</div><p className={styles.note}>Los tokens y secretos nunca deben mostrarse de vuelta en el frontend. Presenta solo estado, nombre del número e identificadores no sensibles cuando sea necesario.</p></section></div>
+}

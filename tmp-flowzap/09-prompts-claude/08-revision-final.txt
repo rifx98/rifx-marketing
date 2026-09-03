@@ -1,0 +1,21 @@
+NO AGREGUES FUNCIONES NUEVAS EN ESTA FASE.
+
+Haz una auditoría final de todas las partes ya integradas:
+
+1. npm run build.
+2. imports y rutas rotas.
+3. tenant isolation.
+4. acceso a whatsapp_account_id.
+5. secretos server-only.
+6. compatibilidad del WhatsApp anterior.
+7. bots antiguos.
+8. bots schemaVersion 2.
+9. conversaciones y modo humano.
+10. campañas y reintentos.
+11. IA sin créditos y con IA desactivada.
+12. ledger IA.
+13. auditoría.
+14. UI consistente con el CRM, sin segundo sidebar/layout/sistema.
+15. busca código legado FlowZap copiado por error: server.js, public/app.js, index.html, estilos externos o almacenamiento JSON local. Si existen como parte de la integración, elimínalos SOLO después de verificar que no sean archivos originales legítimos del CRM.
+
+Corrige los problemas encontrados y entrega un resumen de archivos modificados y pruebas ejecutadas.

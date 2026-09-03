@@ -1,0 +1,26 @@
+INTEGRA SOLAMENTE LA PARTE 5: CAMPAÑAS DE WHATSAPP.
+
+Estas NO son Meta Ads.
+
+Usa:
+- 05-campanas/034_wa_campaigns.sql
+- campaign-service.ts
+- consent-filter.ts
+
+Objetivo:
+- campañas por whatsapp_account_id;
+- tabla individual de destinatarios;
+- idempotencia;
+- segmentación usando CRM existente;
+- lista NO_CONTACTAR/opt-out/bloqueados;
+- programación;
+- pausa/cancelación;
+- worker por lotes;
+- reintentos;
+- provider_message_id;
+- sent/delivered/read/replied/failed por destinatario;
+- estadísticas agregadas.
+
+Reutiliza la cola/worker durable existente; no envíes una campaña completa dentro de una request HTTP.
+Adapta la UI al tab campaigns existente si es posible, separando claramente WhatsApp de Meta Ads.
+Build + pruebas y DETENTE.

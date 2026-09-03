@@ -1,0 +1,12 @@
+INTEGRA SOLAMENTE LA PARTE 7: AUDITORÍA.
+
+Usa:
+- 07-auditoria/036_audit_log.sql
+- audit-service.ts
+- ACCIONES-RECOMENDADAS.md
+
+Registra acciones administrativas importantes sin guardar secretos.
+El tenant y actor salen de la sesión del backend.
+No registres access tokens, API keys, payloads sensibles ni contenido completo innecesario.
+Integra una vista administrativa usando el diseño actual del CRM si ya existe una sección Admin.
+Build + pruebas y DETENTE.

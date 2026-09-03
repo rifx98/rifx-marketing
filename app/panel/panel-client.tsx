@@ -4802,7 +4802,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
       // Cargar Plantillas de Base de Datos
       loadDbTemplates();
-        loadDbFlows();
+        loadDbFlows(true); // autoSelect=true on initial load
     }
   }, [isLoggedIn]);
 
@@ -5283,19 +5283,22 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
   };
 
-  // Load templates from DB (Client view)
-  
-  const loadDbFlows = async () => {
+  // Load flow versions from DB
+  const loadDbFlows = async (autoSelect = false) => {
     try {
       const res = await authFetch('/api/panel/flow-versions');
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.flows) {
           setDbFlows(data.flows);
+          // Auto-select the first flow if nothing is selected yet
+          if (autoSelect && !activeTemplateId && data.flows.length > 0) {
+            setActiveTemplateId(data.flows[0].id);
+          }
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error('loadDbFlows error:', err);
     }
   };
 
@@ -6595,45 +6598,73 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setSavedTemplates(prev => prev.filter(t => t.id !== id));
   };
 
-  
   const handleSaveFlow = async (name: string, nodes: any[], edges: any[]) => {
     setToast({ type: 'info', message: language === 'en' ? 'Saving flow...' : 'Guardando flujo...' });
     
     try {
-      const payload = {
-        id: activeTemplateId || null,
-        name: name || 'Mi Bot',
-        nodes,
-        edges
-      };
-      
-      const res = await authFetch(`/api/panel/flow-versions`, {
+      const res = await authFetch('/api/panel/flow-versions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          id: activeTemplateId || null,
+          name: name || 'Mi Bot',
+          nodes,
+          edges
+        })
       });
       
       const data = await res.json();
       
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Error saving template');
+        throw new Error(data.error || 'Error saving flow');
       }
       
-      if (data.flow && data.flow.id) {
+      // Lock onto the DB id so subsequent saves update the same row
+      if (data.flow?.id) {
         setActiveTemplateId(data.flow.id);
-      } else if (activeTemplateId && activeTemplateId.length < 30) {
-        templates[activeTemplateId] = templates[activeTemplateId] || {};
-        templates[activeTemplateId].name = name;
-        templates[activeTemplateId].nodes = nodes;
-        templates[activeTemplateId].edges = edges;
       }
       
-      loadDbFlows(); // Reload flows from DB after save
+      await loadDbFlows(); // Refresh the list
       
       setToast({ type: 'success', message: language === 'en' ? 'Flow saved successfully!' : '¡Flujo guardado con éxito!' });
     } catch (err: any) {
-      console.error(err);
+      console.error('handleSaveFlow error:', err);
       setToast({ type: 'error', message: err.message || 'Error guardando flujo' });
+    }
+  };
+
+  const handlePublishFlow = async (name: string, nodes: any[], edges: any[]) => {
+    setToast({ type: 'info', message: language === 'en' ? 'Publishing flow...' : 'Publicando flujo...' });
+    
+    try {
+      const res = await authFetch('/api/panel/flow-versions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeTemplateId || null,
+          name: name || 'Mi Bot',
+          nodes,
+          edges,
+          publish: true
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error publishing flow');
+      }
+      
+      if (data.flow?.id) {
+        setActiveTemplateId(data.flow.id);
+      }
+      
+      await loadDbFlows();
+      
+      setToast({ type: 'success', message: language === 'en' ? '🚀 Flow published! Your WhatsApp bot is now live.' : '🚀 ¡Flujo publicado! Tu bot de WhatsApp ya está activo.' });
+    } catch (err: any) {
+      console.error('handlePublishFlow error:', err);
+      setToast({ type: 'error', message: err.message || 'Error publicando flujo' });
     }
   };
 
@@ -10299,18 +10330,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <FlowZapInbox />
                 )}
                 {botSection === 'constructor' && (() => {
-                  const expectedName = activeTemplateId && templates[activeTemplateId] ? templates[activeTemplateId].name : activeTemplateId;
-                  const dbFlow = activeTemplateId ? dbFlows.find((f: any) => f.id === activeTemplateId || f.flow_name === expectedName || f.flow_name === activeTemplateId) : null;
-                  const defaultFlow = dbFlows.find((f: any) => f.flow_name === 'Mi Bot' || f.flow_name === 'default');
-                  const targetFlow = dbFlow || defaultFlow;
+                  // Find the saved flow by UUID (activeTemplateId is always a UUID after first save)
+                  const dbFlow = activeTemplateId 
+                    ? dbFlows.find((f: any) => f.id === activeTemplateId) 
+                    : null;
+                  // Fallback: if activeTemplateId is a template key like 'captacion_vip', look up by name
+                  const templateData = !dbFlow && activeTemplateId && templates[activeTemplateId] 
+                    ? templates[activeTemplateId] 
+                    : null;
                   
                   return (
                     <FlowZapBuilder 
-                      key={`${activeTemplateId || 'default'}-${targetFlow ? targetFlow.id : 'loading'}`} 
-                      initialFlowName={targetFlow ? targetFlow.flow_name : (activeTemplateId ? templates[activeTemplateId]?.name : undefined)}
-                      initialNodes={targetFlow ? targetFlow.flow_data?.nodes : (activeTemplateId ? templates[activeTemplateId]?.nodes : undefined)}
-                      initialEdges={targetFlow ? targetFlow.flow_data?.edges : (activeTemplateId ? templates[activeTemplateId]?.edges : undefined)}
+                      key={activeTemplateId || 'new-flow'} 
+                      initialFlowName={dbFlow ? dbFlow.flow_name : (templateData ? templateData.name : undefined)}
+                      initialNodes={dbFlow ? dbFlow.flow_data?.nodes : (templateData ? templateData.nodes : undefined)}
+                      initialEdges={dbFlow ? dbFlow.flow_data?.edges : (templateData ? templateData.edges : undefined)}
                       onSave={handleSaveFlow}
+                      onPublish={handlePublishFlow}
                     />
                   );
                 })()}
@@ -11059,10 +11095,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   </div>
 )}
                 {botSection === 'versions' && (
-                  <FlowZapVersions onApplyTemplate={(id) => {
-                    setActiveTemplateId(id);
-                    setBotSection('constructor');
-                  }} />
+                  <FlowZapVersions 
+                    dbFlows={dbFlows}
+                    onApplyTemplate={(id) => {
+                      setActiveTemplateId(id);
+                      setBotSection('constructor');
+                    }} 
+                  />
                 )}
               </main>
             </div>

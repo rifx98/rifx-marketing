@@ -1,0 +1,28 @@
+INTEGRA SOLAMENTE LA PARTE 3: MOTOR DE FLUJOS.
+
+Usa:
+- flow-types.ts
+- legacy-flow-adapter.ts
+- flow-validation.ts
+- flow-engine.ts
+- 08-ui-headless/flow-node-catalog.ts
+
+NO reemplaces @xyflow/react.
+NO portes el HTML/canvas del FlowZap independiente.
+NO reemplaces FlowEditor.tsx completo si puede extenderse.
+
+Objetivo:
+- nodes + edges como formato nativo;
+- schemaVersion=2;
+- compatibilidad con flujos antiguos;
+- start/message/menu/buttons/question/condition/media/tag/wait/human/end/ai;
+- hooks para api/webhook/subflow/template;
+- 15 operadores de condición;
+- simulación;
+- detección de referencias rotas y nodos inalcanzables;
+- límite contra ciclos infinitos;
+- wait durable, no setTimeout largo.
+
+Conecta el motor al processFlowEngineMessage existente en vez de crear otro servidor.
+Prueba bots antiguos y nuevos.
+Luego DETENTE.

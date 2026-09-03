@@ -1,0 +1,22 @@
+# Acciones que deben auditarse
+
+- `flow.saved`
+- `flow.published`
+- `flow.restored`
+- `campaign.created`
+- `campaign.started`
+- `campaign.paused`
+- `campaign.cancelled`
+- `conversation.assigned`
+- `conversation.bot_paused`
+- `conversation.bot_resumed`
+- `whatsapp_account.created`
+- `whatsapp_account.updated`
+- `whatsapp_account.disabled`
+- `ai.config_updated`
+- `ai.credits_purchase`
+- `ai.credits_bonus`
+- `ai.credits_adjustment`
+- `team.agent_created`
+- `team.agent_updated`
+- `team.agent_deleted`

@@ -1,0 +1,17 @@
+INTEGRA SOLAMENTE LA PARTE 4: VERSIONADO DE FLUJOS.
+
+Usa:
+- 04-versiones/033_flow_versions.sql
+- flow-version-service.ts
+
+Objetivo:
+- guardar snapshot al guardar/publicar;
+- listar historial;
+- restaurar creando una NUEVA versión restored;
+- no eliminar historial;
+- conservar schema_version;
+- respetar tenant y whatsapp_account_id.
+
+Integra la UI dentro del constructor/configuración existente usando los componentes visuales del CRM.
+No agregues un layout nuevo.
+Build + pruebas y DETENTE.

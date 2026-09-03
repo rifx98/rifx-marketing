@@ -1,0 +1,24 @@
+INTEGRA SOLAMENTE LA PARTE 2: EQUIPO + MEJORA DE CONVERSATIONS.
+
+Requisito previo: la Parte 1 multinúmero debe estar funcionando.
+
+Usa:
+- 02-equipo-conversaciones/032_team_and_conversations.sql
+- conversation-service.ts
+- team-service.ts
+
+No crees un tab Inbox adicional. Mejora el tab Conversations existente.
+
+Integra dentro del diseño actual:
+- filtros Todos/No leídos/Pendientes/Bot/Humano/Sin asignar/Cerrados;
+- cuenta WhatsApp usada;
+- asignar asesor;
+- pausar/reactivar bot;
+- tags/notas/custom fields;
+- chat existente.
+
+Vincula team_agents.user_id con el sistema REAL de usuarios si existe. No inventes otra autenticación.
+
+Mantén todos los endpoints actuales compatibles.
+Ejecuta build y prueba conversaciones del número actual.
+Luego DETENTE.

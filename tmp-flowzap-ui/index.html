@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlowZap V3 — WhatsApp Automation + AI</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="app-nav">
+      <div class="brand-block">
+        <div class="brand-mark">FZ</div>
+        <div><strong>FlowZap</strong><span>WhatsApp Automation</span></div>
+      </div>
+      <nav id="mainNav" class="nav-list">
+        <button data-view="dashboard" class="nav-item active"><span>🏠</span><span>Dashboard</span></button>
+        <button data-view="inbox" class="nav-item"><span>💬</span><span>Conversaciones</span><b id="navUnread" class="nav-badge hidden">0</b></button>
+        <button data-view="contacts" class="nav-item"><span>👥</span><span>Contactos</span></button>
+        <button data-view="team" class="nav-item"><span>👨‍💼</span><span>Equipo</span></button>
+        <button data-view="builder" class="nav-item"><span>🤖</span><span>Constructor</span></button>
+        <button data-view="ai" class="nav-item ai-nav"><span>🧠</span><span>FlowZap AI</span><em class="premium-mini">Premium</em></button>
+        <button data-view="versions" class="nav-item"><span>🗂️</span><span>Versiones</span></button>
+        <button data-view="settings" class="nav-item"><span>⚙️</span><span>Configuración</span></button>
+      </nav>
+      <div class="nav-footer">
+        <div id="sideStatus" class="mini-status">● Modo demo</div>
+        <small>V3 · IA opcional · Sin n8n</small>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="main-header">
+        <div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <p id="pageSubtitle">Resumen general de FlowZap</p>
+        </div>
+        <div id="headerActions" class="header-actions"></div>
+      </header>
+      <section id="viewRoot" class="view-root"></section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <div id="simModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close="sim"></div>
+    <div class="modal-card chat-modal-card">
+      <div class="modal-header whatsapp-head">
+        <div><strong>Simulador de conversación</strong><span>Prueba el flujo antes de publicarlo</span></div>
+        <button class="icon-btn light" data-close="sim">✕</button>
+      </div>
+      <div id="simTrace" class="sim-trace"></div>
+      <div id="simChat" class="chat-area"></div>
+      <div class="chat-compose">
+        <input id="simInput" placeholder="Escribe una respuesta..." autocomplete="off" />
+        <button id="simSend" class="btn primary">Enviar</button>
+      </div>
+      <div class="modal-footer"><button id="simRestart" class="btn ghost">Reiniciar simulación</button></div>
+    </div>
+  </div>
+
+  <div id="genericModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close="generic"></div>
+    <div class="modal-card generic-card">
+      <div class="modal-header">
+        <div><strong id="genericTitle">Detalles</strong><span id="genericSubtitle"></span></div>
+        <button class="icon-btn" data-close="generic">✕</button>
+      </div>
+      <div id="genericBody" class="generic-body"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
