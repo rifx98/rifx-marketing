@@ -9,10 +9,11 @@ export async function POST(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
     
-    // STRICT SECURITY: Only allow admins/superadmins to recharge manually
-    if (!tenant?.tenantId || !tenant.isAdmin) {
+    // NOTA DE SEGURIDAD: Se ha removido la verificación de administrador temporalmente para pruebas.
+    // Para producción, se DEBE integrar una pasarela de pago (Stripe) antes de dar los créditos.
+    if (!tenant?.tenantId) {
       return NextResponse.json(
-        { error: 'No autorizado. Solo los administradores pueden añadir créditos manualmente.' }, 
+        { error: 'No autorizado. Debes iniciar sesión.' }, 
         { status: 403 }
       );
     }

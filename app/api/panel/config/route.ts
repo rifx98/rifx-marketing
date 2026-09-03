@@ -341,12 +341,13 @@ export async function POST(req: NextRequest) {
     ]);
     if (Object.keys(body).some((key) => extendedFields.has(key))) {
       const next: ExtendedConfig = {
-        openai_key: updatedSecret(body.openai_key, current.openai_key),
-        gemini_key: updatedSecret(body.gemini_key, current.gemini_key),
-        groq_key: updatedSecret(body.groq_key, current.groq_key),
+        // Bloqueo de BYOK (Se fuerza el uso de la API Maestra Global)
+        openai_key: current.openai_key,
+        gemini_key: current.gemini_key,
+        groq_key: current.groq_key,
         bulk_wa_token: updatedSecret(body.bulk_wa_token, current.bulk_wa_token),
         bulk_wa_phone_id: updatedString(body.bulk_wa_phone_id, current.bulk_wa_phone_id, 30),
-        model_selection: updatedString(body.model_selection, current.model_selection, 80),
+        model_selection: current.model_selection, // Bloquear el cambio de modelo desde el cliente
         confidence_threshold: updatedNumber(body.confidence_threshold, current.confidence_threshold, 0.5, 0.99),
         auto_classification: updatedBoolean(body.auto_classification, current.auto_classification),
         fal_key: updatedSecret(body.fal_key, current.fal_key),

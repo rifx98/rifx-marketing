@@ -873,18 +873,25 @@ export default function PanelClient() {
     if (!rechargeAmount || rechargeAmount <= 0) return;
     setIsRecharging(true);
     try {
-      const res = await fetch('/api/panel/ai-ledger/recharge', {
+      const res = await fetch('/api/panel/checkout-ai', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...(localStorage.getItem('rifx_session_token') ? { 'Authorization': `Bearer ${localStorage.getItem('rifx_session_token')}` } : {})
         },
-        body: JSON.stringify({ amount: rechargeAmount, note: rechargeNote })
+        body: JSON.stringify({ amount: rechargeAmount })
       });
       if (res.ok) {
-        alert('Créditos agregados con éxito');
-        setRechargeAmount(1000);
-        setRechargeNote('Recarga manual');
+        const data = await res.json();
+        // Si hay una URL de checkout, abrimos la pasarela de Lemon Squeezy
+        if (data.url && typeof window !== 'undefined' && (window as any).LemonSqueezy) {
+           (window as any).LemonSqueezy.Url.Open(data.url);
+        } else if (data.url) {
+           window.open(data.url, '_blank');
+        } else {
+           alert('Créditos agregados con éxito');
+           setRechargeAmount(1000);
+        }
       } else {
         const data = await res.json();
         alert('Error: ' + (data.error || 'No autorizado'));
@@ -9324,7 +9331,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
-                {/* â•â•â•â• AI PROVIDER â•â•â•â• */}
+                {/* ‾‾‾‾ AI PROVIDER ‾‾‾‾  */}
                 {settingsSection === 'ai' && (
                   <div className="space-y-6">
                     <div>
@@ -9346,92 +9353,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                     ) : (
                       <>
-                    {/* Provider selector */}
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Active Provider' : 'Proveedor Activo'}</h4>
-                        {(() => {
-                          const isOk = aiKeyStatus === 'success';
-                          const isErr = aiKeyStatus === 'error';
-                          return (
-                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${isOk ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : isErr ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${isOk ? 'bg-emerald-500 animate-pulse' : isErr ? 'bg-red-500' : 'bg-slate-300'}`} />
-                              {isOk ? (language === 'en' ? 'Connected' : 'Conectado') : isErr ? 'Error' : 'Offline'}
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      {/* Provider cards */}
-                      <div className="grid grid-cols-3 gap-3">
-                        {[
-                          { id: 'openai', color: '#10a37f', icon: 'psychology', name: 'OpenAI' },
-                          { id: 'gemini', color: '#1a73e8', icon: 'auto_awesome', name: 'Gemini' },
-                          { id: 'groq',   color: '#f55036', icon: 'bolt',        name: 'Groq' },
-                        ].map(p => (
-                          <button
-                            key={p.id}
-                            onClick={() => { handleSelectAiProvider(p.id as any); setTimeout(() => handleVerifyAiKey(true), 300); }}
-                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                              selectedAiProvider === p.id
-                                ? 'border-[#0058bc] bg-[#0058bc]/5 shadow-md'
-                                : 'border-slate-100 hover:border-slate-300 bg-white'
-                            }`}
-                          >
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${p.color}15` }}>
-                              <span className="material-symbols-outlined text-lg" style={{ color: p.color, fontVariationSettings: "'FILL' 1" }}>{p.icon}</span>
-                            </div>
-                            <span className="text-xs font-bold text-[#0b1c30]">{p.name}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* API Key */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">API Key â€” {selectedAiProvider.charAt(0).toUpperCase() + selectedAiProvider.slice(1)}</label>
-                        <div className="relative">
-                          <input
-                            className={`w-full bg-slate-50 border-2 rounded-xl px-4 py-3 pr-20 text-xs font-mono text-slate-600 outline-none transition-all ${
-                              aiKeyStatus === 'success' ? 'border-emerald-300 focus:border-emerald-400' :
-                              aiKeyStatus === 'error' ? 'border-red-300 focus:border-red-400' :
-                              'border-slate-200 focus:border-[#0058bc]'
-                            }`}
-                            autoComplete="new-password" data-lpignore="true" type={showAiApiKey ? 'text' : 'password'}
-                            placeholder={selectedAiProvider === 'openai' ? 'sk-proj-...' : selectedAiProvider === 'gemini' ? 'AIzaSy...' : 'gsk_...'}
-                            value={selectedAiProvider === 'openai' ? (configData.openai_key || '') : selectedAiProvider === 'gemini' ? (configData.gemini_key || '') : (configData.groq_key || '')}
-                            onChange={e => {
-                              const key = selectedAiProvider === 'openai' ? 'openai_key' : selectedAiProvider === 'gemini' ? 'gemini_key' : 'groq_key';
-                              setConfigData({...configData, [key]: e.target.value});
-                              setAiKeyStatus('idle');
-                            }}
-                          />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                            {aiKeyStatus === 'success' && <span className="material-symbols-outlined text-emerald-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>}
-                            {aiKeyStatus === 'error' && <span className="material-symbols-outlined text-red-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>cancel</span>}
-                            <button type="button" onClick={() => setShowAiApiKey(!showAiApiKey)} className="text-slate-400 hover:text-slate-600">
-                              <span className="material-symbols-outlined text-base">{showAiApiKey ? 'visibility_off' : 'visibility'}</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleVerifyAiKey}
-                        disabled={aiKeyVerifying}
-                        className={`w-full py-3 rounded-xl font-bold text-xs tracking-wider transition-all flex items-center justify-center gap-2 ${
-                          aiKeyStatus === 'success' ? 'bg-emerald-500 text-white' :
-                          aiKeyStatus === 'error' ? 'bg-red-500 text-white' :
-                          'bg-[#0058bc] hover:bg-[#054ADA] text-white'
-                        }`}
-                      >
-                        {aiKeyVerifying ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Verifying...' : 'Verificando...'}</> :
-                         aiKeyStatus === 'success' ? <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span> {language === 'en' ? 'Verified' : 'Verificado'}</> :
-                         aiKeyStatus === 'error' ? <><span className="material-symbols-outlined text-sm">refresh</span> {language === 'en' ? 'Retry' : 'Reintentar'}</> :
-                         <><span className="material-symbols-outlined text-sm">shield</span> {language === 'en' ? 'Verify Connection' : 'Verificar Conexión'}</>}
-                      </button>
-                      {aiKeyStatusMsg && aiKeyStatus !== 'idle' && <p className={`text-[10px] font-bold text-center ${aiKeyStatus === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{aiKeyStatusMsg}</p>}
-                    </div>
-
                     {/* AI Settings */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                       <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Engine Parameters' : 'Parámetros del Motor'}</h4>

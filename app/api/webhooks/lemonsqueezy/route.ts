@@ -357,6 +357,47 @@ export async function POST(req: NextRequest) {
         currency,
         PAYMENT_STATUSES[eventName],
       );
+    } else if (eventName === 'order_created') {
+      const orderType = asString(customData.type, 50);
+      const creditsAmount = Number(customData.credits);
+      const status = asString(attributes.status, 30).toLowerCase();
+
+      if (asString(data.type, 50) !== 'orders' || status !== 'paid') {
+        throw new WebhookProcessingError('invalid_order_payload');
+      }
+
+      if (orderType === 'ai_credits' && Number.isSafeInteger(creditsAmount) && creditsAmount > 0) {
+        const { error: creditError } = await supabase.rpc('increment_ai_credits', {
+          p_tenant_id: tenantId,
+          p_amount: creditsAmount,
+          p_note: `Compra de paquete de ${creditsAmount} créditos (Orden: ${data.id})`
+        });
+
+        if (creditError) {
+          throw new WebhookProcessingError('credit_allocation_failed');
+        }
+
+        // Registrar el pago en la tabla payments también
+        const providerPaymentId = asProviderId(data.id);
+        const amountStr = String(attributes.total);
+        const amountCents = amountStr ? Math.round(parseFloat(amountStr) * 100) : 0;
+        const currency = asString(attributes.currency, 3).toUpperCase();
+        
+        if (providerPaymentId) {
+           await persistPaymentEvent(
+             supabase,
+             tenantId,
+             providerPaymentId,
+             'ai_credits',
+             amountCents,
+             currency || 'USD',
+             'completed'
+           );
+        }
+      } else {
+         await finishOrThrow(supabase, claim, 'ignored', 'unsupported_order_type');
+         return json({ status: 'ignored' });
+      }
     } else {
       await finishOrThrow(supabase, claim, 'ignored', 'unsupported_event');
       return json({ status: 'ignored' });
