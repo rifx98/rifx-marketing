@@ -1179,6 +1179,7 @@ export default function PanelClient() {
   const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
   const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions'>('constructor');
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
 
   // Appointments states
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
@@ -10317,7 +10318,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   { key: 'inbox',       icon: 'inbox',        label: language === 'en' ? 'Inbox' : 'Conversaciones' },
                   { key: 'constructor', icon: 'account_tree', label: language === 'en' ? 'Builder' : 'Constructor' },
                   { key: 'flowzap',     icon: 'psychology',   label: 'FlowZap AI' },
-                  { key: 'versions',    icon: 'history',      label: language === 'en' ? 'Versions' : 'Versiones' },
+                  { key: 'versions',    icon: 'history',      label: language === 'en' ? 'Templates' : 'Plantillas' },
                 ].map(item => (
                   <button
                     key={item.key}
@@ -10345,13 +10346,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <FlowZapInbox />
                 )}
                 {botSection === 'constructor' && (
-                  <FlowZapBuilder />
+                  <FlowZapBuilder 
+                    key={activeTemplateId || 'default'} 
+                    initialFlowName={activeTemplateId === 'captacion_vip' ? 'Bot Captación VIP' : activeTemplateId === 'soporte_tecnico' ? 'Soporte Técnico' : activeTemplateId === 'bienvenida_inicial' ? 'Bienvenida Inicial' : undefined} 
+                  />
                 )}
                 {botSection === 'flowzap' && (
                   <FlowZapAI />
                 )}
                 {botSection === 'versions' && (
-                  <FlowZapVersions />
+                  <FlowZapVersions onApplyTemplate={(id) => {
+                    setActiveTemplateId(id);
+                    setBotSection('constructor');
+                  }} />
                 )}
               </main>
             </div>

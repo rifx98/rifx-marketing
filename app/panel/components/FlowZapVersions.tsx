@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function FlowZapVersions() {
+export default function FlowZapVersions({ onApplyTemplate }: { onApplyTemplate?: (id: string) => void }) {
   return (
     <div className="h-full overflow-auto p-4 font-inter">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] overflow-hidden">
@@ -15,7 +15,6 @@ export default function FlowZapVersions() {
             </tr>
           </thead>
           <tbody>
-
             <tr className="hover:bg-slate-50 transition-colors">
               <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">01/09/2026, 14:00</td>
               <td className="p-3 border-b border-slate-100">
@@ -27,8 +26,10 @@ export default function FlowZapVersions() {
               </td>
               <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v3</td>
               <td className="p-3 border-b border-slate-100 text-right">
-                <button className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
-                  Restaurar
+                <button 
+                  onClick={() => onApplyTemplate?.('captacion_vip')}
+                  className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
                 </button>
               </td>
             </tr>
@@ -43,8 +44,10 @@ export default function FlowZapVersions() {
               </td>
               <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v2</td>
               <td className="p-3 border-b border-slate-100 text-right">
-                <button className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
-                  Restaurar
+                <button 
+                  onClick={() => onApplyTemplate?.('soporte_tecnico')}
+                  className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
                 </button>
               </td>
             </tr>
@@ -59,8 +62,10 @@ export default function FlowZapVersions() {
               </td>
               <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v1</td>
               <td className="p-3 border-b border-slate-100 text-right">
-                <button className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
-                  Restaurar
+                <button 
+                  onClick={() => onApplyTemplate?.('bienvenida_inicial')}
+                  className="bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
                 </button>
               </td>
             </tr>

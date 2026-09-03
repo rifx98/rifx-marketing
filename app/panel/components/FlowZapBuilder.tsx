@@ -176,13 +176,13 @@ const nodeTypes: NodeTypes = {
 };
 
 // --- MAIN COMPONENT ---
-export default function FlowZapBuilder() {
+export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlowName }: { initialNodes?: any[], initialEdges?: any[], initialFlowName?: string }) {
   const defaultStartNode = { id: 'start_1', type: 'start', position: { x: 250, y: 150 }, data: {} };
   
-  const [nodes, setNodes, onNodesChange] = useNodesState<any>([defaultStartNode]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<any>(initialNodes || [defaultStartNode]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges || []);
   const [selectedNode, setSelectedNode] = useState<any>(null);
-  const [flowName, setFlowName] = useState('Mi chatbot');
+  const [flowName, setFlowName] = useState(initialFlowName || 'Mi chatbot');
 
   // Simulator states
   const [simulatorOpen, setSimulatorOpen] = useState(false);
