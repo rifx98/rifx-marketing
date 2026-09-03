@@ -9,9 +9,7 @@ import FlowZapInbox from './components/FlowZapInbox';
 import CampaignsTab from './CampaignsTab';
 import AILedger from './AILedger';
 import TeamTab from './TeamTab';
-
-
-
+import { templates } from './components/templates';
 import InboxClient from './inbox/inbox-client';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
