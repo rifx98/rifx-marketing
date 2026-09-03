@@ -9356,18 +9356,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     {/* AI Settings */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-5">
                       <h4 className="text-sm font-bold text-[#0b1c30]">{language === 'en' ? 'Engine Parameters' : 'Parámetros del Motor'}</h4>
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'AI Model' : 'Modelo IA'}</label>
-                        <select
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#0058bc]/20 focus:border-[#0058bc] outline-none"
-                          value={configData.model_selection}
-                          onChange={e => setConfigData({...configData, model_selection: e.target.value})}
-                        >
-                          <optgroup label="OpenAI"><option value="gpt-4o">GPT-4o (Recomendado)</option><option value="gpt-4o-mini">GPT-4o Mini</option><option value="gpt-4-turbo">GPT-4 Turbo</option><option value="gpt-3.5-turbo">GPT-3.5 Turbo</option></optgroup>
-                          <optgroup label="Google Gemini"><option value="gemini-2.0-flash">Gemini 2.0 Flash</option><option value="gemini-1.5-pro">Gemini 1.5 Pro</option><option value="gemini-1.5-flash">Gemini 1.5 Flash</option></optgroup>
-                          <optgroup label="Groq"><option value="llama-3.3-70b-versatile">Llama 3.3 70B</option><option value="llama3-8b-8192">Llama 3 8B</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option></optgroup>
-                        </select>
-                      </div>
+                      
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
                           <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}</label>
