@@ -6597,18 +6597,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   
   const handleSaveFlow = async (name: string, nodes: any[], edges: any[]) => {
-    if (!activeTemplateId) {
-      setToast({ type: 'error', message: 'No hay plantilla activa seleccionada.' });
-      return;
-    }
-    
     setToast({ type: 'info', message: language === 'en' ? 'Saving flow...' : 'Guardando flujo...' });
     
     try {
+      const payload = {
+        id: activeTemplateId || null,
+        name: name || 'Mi Bot',
+        nodes,
+        edges
+      };
+      
       const res = await authFetch(`/api/panel/flow-versions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: activeTemplateId, name, nodes, edges })
+        body: JSON.stringify(payload)
       });
       
       const data = await res.json();
@@ -6617,10 +6619,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         throw new Error(data.error || 'Error saving template');
       }
       
-      templates[activeTemplateId] = templates[activeTemplateId] || {};
-      templates[activeTemplateId].name = name;
-      templates[activeTemplateId].nodes = nodes;
-      templates[activeTemplateId].edges = edges;
+      if (data.flow && data.flow.id) {
+        setActiveTemplateId(data.flow.id);
+      } else if (activeTemplateId && activeTemplateId.length < 30) {
+        templates[activeTemplateId] = templates[activeTemplateId] || {};
+        templates[activeTemplateId].name = name;
+        templates[activeTemplateId].nodes = nodes;
+        templates[activeTemplateId].edges = edges;
+      }
+      
       loadDbFlows(); // Reload flows from DB after save
       
       setToast({ type: 'success', message: language === 'en' ? 'Flow saved successfully!' : '¡Flujo guardado con éxito!' });
