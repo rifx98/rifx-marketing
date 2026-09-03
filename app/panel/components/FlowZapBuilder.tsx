@@ -156,7 +156,8 @@ const EndNode = ({ data }: any) => (
   <div className={`${premiumNodeStyle} border-l-4 border-l-slate-700`}>
     <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
     <NodeHeader icon="⛔" title={data.name || "Final"} typeLabel="FINAL" color="#334155" />
-    <p className="text-[10px] text-slate-500 mt-1">Finalizar conversación</p>
+    <p className="text-[10px] text-slate-500 mt-1">{data.text || "Conversación finalizada."}</p>
+    {data.endAction && <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">[{data.endAction}]</p>}
   </div>
 );
 
@@ -335,7 +336,9 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         autoAdvance = true;
       }
       else if (node.type === 'end') {
-        botReplies.push(`[⛔ Fin de la conversación]`);
+        let text = (node.data as any)?.text || '⛔ Fin de la conversación.';
+        let action = (node.data as any)?.endAction || 'Cerrar chat';
+        botReplies.push(`[${text}] -> Acción: ${action}`);
         break;
       }
       else if (node.type === 'question') {
@@ -420,12 +423,25 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         <input type="text" value={selectedNode.data.name || ''} onChange={(e) => updateSelectedNodeData('name', e.target.value)} />
       </InspectorField>
 
-      {['message', 'menu', 'buttons', 'question', 'human'].includes(selectedNode.type) && (
+      {['message', 'menu', 'buttons', 'question', 'human', 'end'].includes(selectedNode.type) && (
         <InspectorField label="Contenido del mensaje" help="Texto que enviará el bot">
           <textarea 
             value={selectedNode.data.text || ''} 
             onChange={(e) => updateSelectedNodeData('text', e.target.value)}
           />
+        </InspectorField>
+      )}
+
+      {selectedNode.type === 'end' && (
+        <InspectorField label="Acción al finalizar" help="¿Qué debe pasar con el chat?">
+          <select 
+            value={selectedNode.data.endAction || 'Cerrar chat'} 
+            onChange={(e) => updateSelectedNodeData('endAction', e.target.value)}
+          >
+            <option value="Cerrar chat">Cerrar chat / Resolver</option>
+            <option value="Reiniciar bot">Reiniciar bot desde el Inicio</option>
+            <option value="Mantener abierto">Mantener abierto (esperando al usuario)</option>
+          </select>
         </InspectorField>
       )}
 
