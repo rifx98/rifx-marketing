@@ -6596,16 +6596,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         throw new Error(data.error || 'Error saving template');
       }
       
-      // Update local state
-      setTemplates(prev => ({
-        ...prev,
-        [activeTemplateId]: {
-          ...prev[activeTemplateId],
-          name: name,
-          nodes: nodes,
-          edges: edges
-        }
-      }));
+      templates[activeTemplateId].name = name;
+      templates[activeTemplateId].nodes = nodes;
+      templates[activeTemplateId].edges = edges;
       
       setToast({ type: 'success', message: language === 'en' ? 'Flow saved successfully!' : '¡Flujo guardado con éxito!' });
     } catch (err: any) {
