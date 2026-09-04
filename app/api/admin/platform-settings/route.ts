@@ -16,13 +16,13 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from('platform_settings')
-      .select('id,platform_name,platform_logo,sidebar_order,plan_permissions,global_ai_config,tracking_pixels,updated_at')
+      .select('*')
       .limit(1)
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      console.error('Platform settings lookup failed:', error.code || 'database_error');
-      return NextResponse.json({ error: 'No se pudo cargar la configuracion' }, { status: 500 });
+      console.error('Platform settings lookup failed:', error);
+      return NextResponse.json({ error: 'No se pudo cargar la configuracion: ' + (error.message || error.code) }, { status: 500 });
     }
 
     if (!data) {
@@ -79,11 +79,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if a row exists
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('platform_settings')
-      .select('id,global_ai_config')
+      .select('*')
       .limit(1)
       .single();
+    
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error('Platform settings lookup failed during POST:', existingError);
+      return NextResponse.json({ error: 'Error verificando la BD: ' + (existingError.message || existingError.code) }, { status: 500 });
+    }
 
     const finalAiConfig = global_ai_config || existing?.global_ai_config || { enabled: false, provider: '', model: '', apiKey: '' };
     
