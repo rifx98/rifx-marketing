@@ -15,9 +15,66 @@ import {
   Handle,
   Position,
   Panel,
-  MarkerType
+  MarkerType,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  useReactFlow
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+
+// --- CUSTOM EDGES ---
+const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }: any) => {
+  const { setEdges } = useReactFlow();
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <path
+        d={edgePath}
+        fill="none"
+        strokeOpacity={0}
+        strokeWidth={20}
+        className="react-flow__edge-interaction group"
+      />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="nodrag nopan"
+        >
+          <button
+            title="Eliminar conexión"
+            className="w-6 h-6 bg-white text-rose-500 rounded-full flex items-center justify-center shadow-md border border-slate-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer opacity-70 hover:opacity-100 z-50 text-[12px]"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {
+                setEdges((eds) => eds.filter((e) => e.id !== id));
+              }
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+};
+
+const edgeTypes = {
+  removable: RemovableEdge,
+};
 
 // --- CUSTOM NODES ---
 
@@ -209,13 +266,18 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
   }
 
   const [nodes, setNodes, onNodesChange] = useNodesState(loadedNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(loadedEdges);
+  const parsedLoadedEdges = loadedEdges.map((e: any) => ({
+    ...e,
+    type: 'removable',
+    markerEnd: { type: MarkerType.ArrowClosed }
+  }));
+  const [edges, setEdges, onEdgesChange] = useEdgesState(parsedLoadedEdges);
   const [selectedNode, setSelectedNode] = useState<any>(null);
 
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge({ 
       ...params, 
-      type: 'smoothstep', 
+      type: 'removable', 
       markerEnd: { type: MarkerType.ArrowClosed } 
     }, eds)),
     [setEdges]
@@ -393,6 +455,7 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodeClick={onNodeClick}
           onEdgeClick={(e, edge) => {
             if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {

@@ -14,12 +14,70 @@ import {
   NodeTypes,
   Handle,
   Position,
-  MarkerType
+  MarkerType,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  useReactFlow
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { FlowBuilderChrome } from './FlowBuilderChrome';
 import { InspectorField, InspectorDivider, InspectorToggle } from './BuilderInspectorPrimitives';
+
+// --- CUSTOM EDGES ---
+const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }: any) => {
+  const { setEdges } = useReactFlow();
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      {/* Invisible wider path for better hover detection if needed */}
+      <path
+        d={edgePath}
+        fill="none"
+        strokeOpacity={0}
+        strokeWidth={20}
+        className="react-flow__edge-interaction group"
+      />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="nodrag nopan"
+        >
+          <button
+            title="Eliminar conexión"
+            className="w-6 h-6 bg-white text-rose-500 rounded-full flex items-center justify-center shadow-md border border-slate-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer opacity-70 hover:opacity-100 z-50 text-[12px]"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {
+                setEdges((eds) => eds.filter((e) => e.id !== id));
+              }
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
+          </button>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+};
+
+const edgeTypes = {
+  removable: RemovableEdge,
+};
 
 // --- CUSTOM NODES (PREMIUM DESIGN) ---
 
@@ -152,6 +210,15 @@ const AiNode = ({ data }: any) => (
   </div>
 );
 
+const WebhookNode = ({ data }: any) => (
+  <div className={`${premiumNodeStyle} border-l-4 border-l-rose-500`}>
+    <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
+    <NodeHeader icon="🌐" title={data.name || "Llamada API"} typeLabel="WEBHOOK" color="#f43f5e" />
+    <p className="text-[10px] text-slate-500 mt-1">{data.method || 'POST'} {data.url ? `${data.url.substring(0,25)}...` : 'URL sin definir'}</p>
+    <Handle type="source" position={Position.Right} style={{ ...handleStyle, right: -6 }} />
+  </div>
+);
+
 const EndNode = ({ data }: any) => (
   <div className={`${premiumNodeStyle} border-l-4 border-l-slate-700`}>
     <Handle type="target" position={Position.Left} style={{ ...handleStyle, left: -6 }} />
@@ -173,6 +240,7 @@ const nodeTypes: NodeTypes = {
   tag: TagNode,
   wait: WaitNode,
   ai: AiNode,
+  webhook: WebhookNode,
   end: EndNode,
 };
 
@@ -181,7 +249,12 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
   const defaultStartNode = { id: 'start_1', type: 'start', position: { x: 250, y: 150 }, data: {} };
   
   const [nodes, setNodes, onNodesChange] = useNodesState<any>(initialNodes || [defaultStartNode]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialEdges || []);
+  const parsedInitialEdges = (initialEdges || []).map((e: any) => ({
+    ...e,
+    type: 'removable',
+    markerEnd: { type: MarkerType.ArrowClosed }
+  }));
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(parsedInitialEdges);
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [flowName, setFlowName] = useState(initialFlowName || 'Mi chatbot');
 
@@ -196,7 +269,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge({ 
       ...params, 
-      type: 'smoothstep', 
+      type: 'removable', 
       markerEnd: { type: MarkerType.ArrowClosed } 
     }, eds)),
     [setEdges]
@@ -404,6 +477,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
       }}
       onPaneClick={() => setSelectedNode(null)}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       fitView
       fitViewOptions={{ padding: 0.2 }}
     >
