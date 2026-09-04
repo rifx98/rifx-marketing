@@ -19463,32 +19463,33 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   Checkout
                 </a>
                 
-                <div className="relative w-full h-14 bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-200 group">
-                  <span className="text-sm font-black text-slate-400 z-0 select-none group-hover:text-slate-500 transition-colors">
+                <div className="relative w-full h-16 bg-gradient-to-r from-slate-100 to-slate-50 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-slate-200 group shadow-inner">
+                  {/* Glowing background effect that follows the slider could be added, but a pulsing text is great */}
+                  <span className="text-sm font-black text-slate-400 z-0 select-none group-hover:text-slate-500 transition-colors animate-pulse tracking-widest">
                     DESLIZA PARA PAGAR
                   </span>
                   
                   <motion.div
                     drag="x"
-                    dragConstraints={{ left: 0, right: 210 }}
+                    dragConstraints={{ left: 0, right: 230 }}
                     dragSnapToOrigin={true}
                     dragElastic={0.05}
                     onDragEnd={(e, info) => {
-                      if (info.offset.x > 180) {
+                      if (info.offset.x > 200) {
                         document.getElementById('ls-hidden-checkout')?.click();
                         setTimeout(() => setShowConfirmModal(false), 500);
                       }
                     }}
-                    whileTap={{ scale: 0.95 }}
-                    className="absolute left-1.5 w-11 h-11 bg-blue-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/30 z-10 cursor-grab active:cursor-grabbing"
+                    whileTap={{ scale: 0.95, cursor: "grabbing" }}
+                    className="absolute left-1.5 w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.5)] z-10 cursor-grab border border-blue-400"
                   >
-                    <span className="material-symbols-outlined text-white text-xl">double_arrow</span>
+                    <span className="material-symbols-outlined text-white text-xl animate-bounce-x">double_arrow</span>
                   </motion.div>
                 </div>
                 
                 <button
                   onClick={() => setShowConfirmModal(false)}
-                  className="w-full mt-4 py-3 text-slate-500 font-bold hover:text-slate-700 transition-colors text-xs uppercase tracking-widest"
+                  className="w-full mt-5 py-3 text-slate-400 font-black hover:text-slate-600 transition-colors text-xs uppercase tracking-widest"
                 >
                   Cancelar
                 </button>
