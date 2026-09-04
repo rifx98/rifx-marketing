@@ -39,20 +39,32 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
   React.useEffect(() => {
     if (!selectedPhone) return;
     let isMounted = true;
-    const token = localStorage.getItem('token');
     
-    fetch(`/api/panel/conversations?id=${selectedPhone}`, {
-      headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
-    })
-      .then(res => res.json())
-      .then(data => {
+    const fetchMsgs = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/panel/conversations?id=${selectedPhone}`, {
+          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        });
+        const data = await res.json();
         if (isMounted && data.messages) {
           setMessages(data.messages);
         }
-      })
-      .catch(console.error);
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-    return () => { isMounted = false; };
+    fetchMsgs();
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchMsgs();
+    }, 5000);
+
+    return () => { 
+      isMounted = false; 
+      clearInterval(interval);
+    };
   }, [selectedPhone]);
 
   const selectedConv = useMemo(() => {
@@ -107,6 +119,16 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
         headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
         body: formData
       });
+      
+      // Re-fetch messages immediately to show the sent message
+      const res = await fetch(`/api/panel/conversations?id=${selectedPhone}`, {
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+      });
+      const data = await res.json();
+      if (data.messages) {
+        setMessages(data.messages);
+      }
+      
       onRefresh();
     } catch (err) {
       console.error(err);
