@@ -3722,6 +3722,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [calYear, setCalYear] = useState(2026);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [fetchedModels, setFetchedModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -6798,6 +6800,29 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setPasswordError(err?.message || 'Error de conexión');
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const fetchModels = async (apiKeyToUse: string) => {
+    if (!apiKeyToUse || apiKeyToUse === '***') {
+      setToast({ type: 'error', message: 'Ingresa una API Key válida primero' });
+      return;
+    }
+    setIsFetchingModels(true);
+    try {
+      const res = await authFetch('/api/panel/ai-models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: apiKeyToUse })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al obtener modelos');
+      setFetchedModels(data.models || []);
+      setToast({ type: 'success', message: 'Modelos cargados exitosamente' });
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message });
+    } finally {
+      setIsFetchingModels(false);
     }
   };
 
@@ -10731,9 +10756,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">{language === 'en' ? 'AI Provider' : 'Proveedor de IA'}</label>
                         <select className="w-full bg-white border-none rounded-xl p-3 text-sm font-bold text-primary focus:ring-2 focus:ring-primary-container/20 shadow-sm" value={botModelSelected} onChange={e => setBotModelSelected(e.target.value)}>
                           <optgroup label="OpenAI">
-                            <option value="gpt-4o">GPT-4o</option>
-                            <option value="gpt-4o-mini">GPT-4o Mini</option>
-                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                            {fetchedModels.length > 0 ? (
+                              fetchedModels.map(m => <option key={m} value={m}>{m}</option>)
+                            ) : (
+                              <>
+                                <option value="gpt-4o">GPT-4o</option>
+                                <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                              </>
+                            )}
                           </optgroup>
                           <optgroup label="Google Gemini">
                             <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
@@ -17313,16 +17344,30 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <div className="grid md:grid-cols-2 gap-6">
                         {/* OpenAI Key */}
                         <div className="space-y-2">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            OPENAI_API_KEY
-                            <span className={`ml-2 px-2 py-0.5 rounded-md text-[8px] font-black ${
-                              configData.visual_render_provider !== 'flux'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-slate-100 text-slate-400'
-                            }`}>
-                              {configData.visual_render_provider !== 'flux' ? 'ACTIVO' : 'ESPERA'}
-                            </span>
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              OPENAI_API_KEY
+                              <span className={`ml-2 px-2 py-0.5 rounded-md text-[8px] font-black ${
+                                configData.visual_render_provider !== 'flux'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {configData.visual_render_provider !== 'flux' ? 'ACTIVO' : 'ESPERA'}
+                              </span>
+                            </label>
+                            <button 
+                              onClick={() => fetchModels(configData.openai_key || '')}
+                              disabled={isFetchingModels}
+                              className="text-[9px] font-bold text-[#00c6ff] hover:text-[#0099cc] flex items-center gap-1 transition-colors"
+                            >
+                              {isFetchingModels ? (
+                                <div className="w-3 h-3 border-2 border-[#00c6ff]/30 border-t-[#00c6ff] rounded-full animate-spin" />
+                              ) : (
+                                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>sync</span>
+                              )}
+                              Cargar Modelos
+                            </button>
+                          </div>
                           <div className="relative">
                             <input
                               className={`w-full rounded-xl px-4 py-3.5 pr-10 text-xs font-mono font-bold transition-all border-2 ${
@@ -17418,12 +17463,70 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <option value="groq">Groq</option>
                                 </select>
                               </div>
-                              <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</label>
-                                <input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
-                                  value={adminGlobalAi?.model || ''} placeholder="ej. gpt-4o, gemini-1.5-pro"
-                                  onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
-                                />
+                              <div className="space-y-2 relative">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</label>
+                                  {adminGlobalAi?.provider === 'openai' && (
+                                    <button 
+                                      onClick={() => fetchModels(adminGlobalAi?.apiKey || '')}
+                                      disabled={isFetchingModels}
+                                      className="text-[9px] font-bold text-[#00c6ff] hover:text-[#0099cc] flex items-center gap-1 transition-colors"
+                                    >
+                                      {isFetchingModels ? (
+                                        <div className="w-3 h-3 border-2 border-[#00c6ff]/30 border-t-[#00c6ff] rounded-full animate-spin" />
+                                      ) : (
+                                        <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>sync</span>
+                                      )}
+                                      Cargar Modelos
+                                    </button>
+                                  )}
+                                </div>
+                                {adminGlobalAi?.provider === 'openai' ? (
+                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                    value={adminGlobalAi?.model || ''}
+                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  >
+                                    <option value="" disabled>Selecciona un modelo...</option>
+                                    {fetchedModels.length > 0 ? (
+                                      fetchedModels.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                      ))
+                                    ) : (
+                                      <>
+                                        <option value="gpt-4o">gpt-4o</option>
+                                        <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                        <option value="gpt-4-turbo">gpt-4-turbo</option>
+                                        <option value="o1-preview">o1-preview</option>
+                                        <option value="o1-mini">o1-mini</option>
+                                      </>
+                                    )}
+                                  </select>
+                                ) : adminGlobalAi?.provider === 'gemini' ? (
+                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                    value={adminGlobalAi?.model || ''}
+                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  >
+                                    <option value="" disabled>Selecciona un modelo...</option>
+                                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                                  </select>
+                                ) : adminGlobalAi?.provider === 'groq' ? (
+                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                    value={adminGlobalAi?.model || ''}
+                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  >
+                                    <option value="" disabled>Selecciona un modelo...</option>
+                                    <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
+                                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+                                    <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+                                  </select>
+                                ) : (
+                                  <input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                    value={adminGlobalAi?.model || ''} placeholder="ej. gpt-4o"
+                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  />
+                                )}
                               </div>
                             </div>
                             <div className="space-y-2">
@@ -17437,7 +17540,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               try {
                                 const getRes = await authFetch('/api/admin/platform-settings');
                                 const curr = await getRes.json();
-                                await authFetch('/api/admin/platform-settings', {
+                                const postRes = await authFetch('/api/admin/platform-settings', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({
@@ -17447,9 +17550,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     tracking_pixels: adminTrackingPixels
                                   })
                                 });
+                                if (!postRes.ok) {
+                                  const errData = await postRes.json();
+                                  throw new Error(errData.error || 'Error al guardar la configuración global');
+                                }
                                 setToast({ type: 'success', message: 'Configuración global guardada exitosamente' });
-                              } catch (err) {
-                                setToast({ type: 'error', message: 'Error al guardar la configuración global' });
+                              } catch (err: any) {
+                                setToast({ type: 'error', message: err.message || 'Error al guardar la configuración global' });
                               }
                             }} className="w-full py-3 mt-4 bg-[#00c6ff] hover:bg-[#0099cc] text-slate-900 font-bold text-sm rounded-xl transition-all shadow-lg shadow-[#00c6ff]/20">Guardar Global API (Chatbot)</button>
                           </div>
