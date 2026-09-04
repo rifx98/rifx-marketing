@@ -885,10 +885,8 @@ export default function PanelClient() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Si hay una URL de checkout, abrimos la pasarela de Lemon Squeezy
-        if (data.url && typeof window !== 'undefined' && (window as any).LemonSqueezy) {
-           (window as any).LemonSqueezy.Url.Open(data.url);
-        } else if (data.url) {
+        // Para diagnosticar el error, abrimos la pasarela en una pestaña nueva
+        if (data.url) {
            window.open(data.url, '_blank');
         } else {
            alert('Checkout generado');
