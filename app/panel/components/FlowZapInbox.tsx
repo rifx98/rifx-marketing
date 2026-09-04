@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { ConversationsModule } from './02-conversations/ConversationsModule';
 import type { ConversationSummary, ConversationDetail, Advisor } from './00-shared/types';
 
@@ -27,6 +27,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [sendingMsg, setSendingMsg] = useState(false);
   const [messages, setMessages] = useState<any[]>([]);
+  const messageCache = useRef<Record<string, any[]>>({});
 
   // Default to first conversation if none selected
   React.useEffect(() => {
@@ -40,6 +41,13 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
     if (!selectedPhone) return;
     let isMounted = true;
     
+    // Instantly load from cache or clear so old messages don't show
+    if (messageCache.current[selectedPhone]) {
+      setMessages(messageCache.current[selectedPhone]);
+    } else {
+      setMessages([]);
+    }
+    
     const fetchMsgs = async () => {
       const token = localStorage.getItem('token');
       try {
@@ -51,6 +59,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
         });
         const data = await res.json();
         if (isMounted && data.messages) {
+          messageCache.current[selectedPhone] = data.messages;
           setMessages(data.messages);
         }
       } catch (err) {
@@ -131,6 +140,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
       });
       const data = await res.json();
       if (data.messages) {
+        messageCache.current[selectedPhone] = data.messages;
         setMessages(data.messages);
       }
       
