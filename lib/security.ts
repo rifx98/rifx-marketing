@@ -9,6 +9,8 @@ export function redactSecret(value: unknown): string {
 
 export function resolveSecretUpdate(input: unknown, currentValue: string): string {
   if (input === undefined || input === SECRET_PLACEHOLDER) return currentValue;
+  // Also treat the visual masked placeholders as "unchanged"
+  if (typeof input === 'string' && /^[a-zA-Z0-9_-]*•{4,}$/.test(input.trim())) return currentValue;
   return typeof input === 'string' ? input.trim() : currentValue;
 }
 
