@@ -65,17 +65,9 @@ const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
               <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
             </button>
             
-            {/* Hover Tooltip Card */}
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-white border border-slate-100 rounded-2xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] min-w-[220px] opacity-0 invisible scale-95 group-hover/trash:opacity-100 group-hover/trash:visible group-hover/trash:scale-100 transition-all duration-200 origin-top pointer-events-none z-[100]">
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-6 h-6 rounded-full bg-[#1e1b4b] text-white flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-[13px]">delete</span>
-                </div>
-                <span className="text-[#1e1b4b] font-bold text-[13px]">Eliminar conexión</span>
-              </div>
-              <p className="text-slate-500 text-[11px] leading-relaxed">
-                Da clic para eliminar este vínculo.
-              </p>
+            {/* Simple Hover Tooltip */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap opacity-0 invisible scale-95 group-hover/trash:opacity-100 group-hover/trash:visible group-hover/trash:scale-100 transition-all duration-200 origin-bottom pointer-events-none" style={{ zIndex: 999999 }}>
+              Eliminar conexión
             </div>
           </div>
         </div>
