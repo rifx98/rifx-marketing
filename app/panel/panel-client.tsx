@@ -11127,10 +11127,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Cantidad</label>
                       <input 
                         type="number"
+                        min="1000"
+                        step="1000"
                         className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#0058bc]/20 transition-all outline-none text-slate-800"
                         placeholder="1000"
                         value={rechargeAmount}
-                        onChange={(e) => setRechargeAmount(Number(e.target.value))}
+                        onChange={(e) => {
+                          let val = Number(e.target.value);
+                          if (val < 1000) val = 1000;
+                          // Force multiples of 1000
+                          val = Math.round(val / 1000) * 1000;
+                          setRechargeAmount(val);
+                        }}
                       />
                     </div>
                     <div>
