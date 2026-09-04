@@ -130,25 +130,32 @@ export async function POST(req: NextRequest) {
       });
 
       let data = await res.json();
-      
-      // Retry with -latest if not found
-      if (res.status === 404 && testModel === 'gemini-1.5-flash') {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "hi" }] }],
-            generationConfig: { maxOutputTokens: 1 }
-          })
-        });
-        data = await res.json();
-      }
 
       if (res.ok) {
         return NextResponse.json({ status: 'success', message: 'La conexión es exitosa y la llave funciona.' });
       } else {
         const errorStatus = data?.error?.status || '';
         const errorMessage = data?.error?.message || '';
+
+        // Si el error es 404, listar los modelos disponibles para ayudar al usuario
+        if (res.status === 404) {
+          try {
+            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+            const listData = await listRes.json();
+            if (listRes.ok && listData.models) {
+              const availableModels = listData.models
+                .map((m: any) => m.name.replace('models/', ''))
+                .filter((name: string) => name.includes('gemini'))
+                .join(', ');
+              return NextResponse.json({ 
+                status: 'invalid_key', 
+                message: `El modelo ${testModel} no está disponible para tu llave. Modelos disponibles: ${availableModels}` 
+              });
+            }
+          } catch (e) {
+            // Ignorar error de listado y seguir con el error original
+          }
+        }
 
         if (res.status === 403 || errorStatus === 'PERMISSION_DENIED') {
           return NextResponse.json({ status: 'invalid_key', message: 'La API Key de Gemini es incorrecta o no tiene permisos.' });
