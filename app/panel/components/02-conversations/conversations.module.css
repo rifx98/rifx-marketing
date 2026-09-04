@@ -1,6 +1,4 @@
 .grid {
-  flex: 1;
-  min-height: 0;
   height: 100%;
   display: grid;
   grid-template-columns: 350px 1fr 300px;

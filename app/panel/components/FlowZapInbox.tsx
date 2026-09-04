@@ -141,7 +141,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div style={{ height: 'calc(100vh - 150px)' }}>
       <ConversationsModule 
         conversations={conversations}
         selected={selectedDetail}
