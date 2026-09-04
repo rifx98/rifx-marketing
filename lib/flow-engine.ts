@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from './supabase';
+import OpenAI from 'openai';
 
 interface FlowNode {
   id: string;
@@ -199,6 +200,103 @@ export async function processFlowEngineMessage(
         }
       }
     };
+  }
+
+  if (nextNode.type === 'ai') {
+    try {
+      // 1. Fetch AI config and Tenant credits
+      const { data: aiConfig } = await supabase
+        .from('ai_provider_configs')
+        .select('is_active, model, api_key, provider')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('ai_credits_balance, ai_prompt')
+        .eq('id', tenantId)
+        .maybeSingle();
+
+      const isAiActive = aiConfig?.is_active === true;
+      const hasCredits = (tenant?.ai_credits_balance || 0) > 0;
+
+      // Si no está activa o no hay créditos, saltamos silenciosamente al siguiente nodo
+      if (!isAiActive || !hasCredits) {
+        console.warn(`[FlowEngine] Nodo IA omitido para tenant ${tenantId}. Activa: ${isAiActive}, Créditos: ${hasCredits}`);
+        const aiEdges = config.edges.filter(e => e.source === nextNode!.id);
+        if (aiEdges.length > 0) {
+          if (conversation) {
+            await supabase.from('conversations').update({ current_node_id: aiEdges[0].target }).eq('id', conversation.id);
+          }
+          // Retornar null hará que se envíe __SYSTEM_PAUSE__ implícitamente o nada,
+          // pero es mejor retornar un system pause para no enviar mensaje en blanco.
+          return { type: 'text', content: '__SYSTEM_PAUSE__' }; 
+        }
+        return null;
+      }
+
+      // 2. Build history from recent messages
+      const { data: recentMsgs } = await supabase
+        .from('messages')
+        .select('content, role')
+        .eq('conversation_id', conversation?.id)
+        .order('created_at', { ascending: false })
+        .limit(6); 
+
+      const history = (recentMsgs || []).reverse().map(m => ({
+        role: (m.role === 'assistant' ? 'assistant' : 'user') as "assistant" | "user",
+        content: m.content
+      }));
+      
+      if (history.length === 0 || history[history.length - 1].content !== userText) {
+        history.push({ role: 'user', content: userText });
+      }
+
+      // 3. Call OpenAI
+      const openai = new OpenAI({
+        apiKey: aiConfig?.api_key || process.env.OPENAI_API_KEY,
+      });
+
+      const response = await openai.chat.completions.create({
+        model: aiConfig?.model || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: tenant?.ai_prompt || 'Eres un asistente útil.' },
+          ...history
+        ],
+        temperature: 0.7
+      });
+
+      const replyText = response.choices[0]?.message?.content || '';
+
+      // 4. Deduct Credits safely
+      const costPerMessage = 0.005; // Costo fijo por mensaje
+      await supabase.rpc('increment_ai_credits', {
+        p_tenant_id: tenantId,
+        p_amount: -costPerMessage
+      });
+
+      await supabase.from('ai_credit_ledger').insert({
+        tenant_id: tenantId,
+        type: 'usage',
+        amount: -costPerMessage,
+        balance_after: (tenant.ai_credits_balance || 0) - costPerMessage,
+        reference: `Mensaje IA - Conversación ${conversation?.id}`
+      });
+
+      return {
+        type: 'text',
+        content: replyText
+      };
+
+    } catch (error) {
+      console.error('[FlowEngine] Error en nodo IA:', error);
+      // Fallback on error
+      const aiEdges = config.edges.filter(e => e.source === nextNode!.id);
+      if (aiEdges.length > 0 && conversation) {
+        await supabase.from('conversations').update({ current_node_id: aiEdges[0].target }).eq('id', conversation.id);
+      }
+      return null;
+    }
   }
 
   if (nextNode.type === 'media') {
