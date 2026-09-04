@@ -397,6 +397,11 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       onNodeClick={(e, node) => setSelectedNode(node)}
+      onEdgeClick={(e, edge) => {
+        if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {
+          setEdges((eds) => eds.filter((ed) => ed.id !== edge.id));
+        }
+      }}
       onPaneClick={() => setSelectedNode(null)}
       nodeTypes={nodeTypes}
       fitView

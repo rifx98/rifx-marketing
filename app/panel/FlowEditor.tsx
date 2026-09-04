@@ -394,6 +394,11 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
           onConnect={onConnect}
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
+          onEdgeClick={(e, edge) => {
+            if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {
+              setEdges((eds) => eds.filter((ed) => ed.id !== edge.id));
+            }
+          }}
           onPaneClick={() => setSelectedNode(null)}
           fitView
         >
