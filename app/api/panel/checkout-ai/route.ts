@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Usaremos un único Variant ID base (el de 1000 créditos) y multiplicaremos la cantidad
-    const variantId = process.env.LEMONSQUEEZY_VARIANT_AI_1K || 'dummy_1k';
+    const variantId = process.env.LEMONSQUEEZY_VARIANT_AI_1K || 'e25d28c0-a5b1-4035-938d-7ae9659a9064';
     const quantity = amount / 1000;
 
     const storeDomain = process.env.LEMONSQUEEZY_STORE_DOMAIN || 'rifxmarketing.lemonsqueezy.com';
