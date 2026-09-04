@@ -26,7 +26,6 @@ import '@xyflow/react/dist/style.css';
 // --- CUSTOM EDGES ---
 const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }: any) => {
   const { setEdges } = useReactFlow();
-  const [showConfirm, setShowConfirm] = useState(false);
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -55,32 +54,30 @@ const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
           }}
           className="nodrag nopan"
         >
-          {showConfirm ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex flex-col gap-2 min-w-[220px]" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[16px]">delete</span>
-                </div>
-                <span className="text-[#1e1b4b] font-extrabold text-[13px]">Eliminar conexión</span>
-              </div>
-              <p className="text-slate-500 text-[11px] leading-relaxed">¿Seguro que deseas eliminar esta conexión?</p>
-              <div className="flex justify-end gap-2 mt-1">
-                <button onClick={(e) => { e.stopPropagation(); setShowConfirm(false); }} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">Cancelar</button>
-                <button onClick={(e) => { e.stopPropagation(); setEdges((eds) => eds.filter((edge) => edge.id !== id)); }} className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white bg-rose-500 hover:bg-rose-600 transition-colors shadow-sm">Aceptar</button>
-              </div>
-            </div>
-          ) : (
+          <div className="relative group/trash flex items-center justify-center">
             <button
-              title="Eliminar conexión"
-              className="w-6 h-6 bg-white text-rose-500 rounded-full flex items-center justify-center shadow-md border border-slate-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer opacity-70 hover:opacity-100 z-50 text-[12px]"
+              className="w-6 h-6 bg-white text-rose-500 rounded-full flex items-center justify-center shadow-md border border-slate-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer opacity-70 group-hover/trash:opacity-100 z-50 text-[12px]"
               onClick={(event) => {
                 event.stopPropagation();
-                setShowConfirm(true);
+                setEdges((eds) => eds.filter((e) => e.id !== id));
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
             </button>
-          )}
+            
+            {/* Hover Tooltip Card */}
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-white border border-slate-100 rounded-2xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] min-w-[220px] opacity-0 invisible scale-95 group-hover/trash:opacity-100 group-hover/trash:visible group-hover/trash:scale-100 transition-all duration-200 origin-top pointer-events-none z-[100]">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-6 h-6 rounded-full bg-[#1e1b4b] text-white flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[13px]">delete</span>
+                </div>
+                <span className="text-[#1e1b4b] font-bold text-[13px]">Eliminar conexión</span>
+              </div>
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                Da clic para eliminar este vínculo.
+              </p>
+            </div>
+          </div>
         </div>
       </EdgeLabelRenderer>
     </>
