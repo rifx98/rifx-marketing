@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { verifyTenantAuth } from '@/lib/auth';
+import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 
 export const maxDuration = 10;
 
 export async function POST(request: Request) {
   try {
-    const tenant = await verifyTenantAuth();
+    const tenant = await getTenantFromRequest(request as any);
     if (!tenant) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
