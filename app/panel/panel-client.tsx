@@ -387,7 +387,7 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
     if (chatMapRef.current && (window as any).L) {
       chatMarkersRef.current.forEach((m, i) => {
         if (m.circle) m.circle.setRadius(radius * 1000);
-        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[i]?.name || 'ðŸ“'}</b><br>${radius}km`);
+        if (m.marker) m.marker.setPopupContent(`<b>${selectedLocs[i]?.name || 'ðŸ“ '}</b><br>${radius}km`);
       });
       setSelectedLocs(prev => prev.map(loc => ({ ...loc, radius })));
     }
@@ -484,7 +484,7 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
         }).addTo(map);
 
         const marker = L.marker([lat, lng]).addTo(map)
-          .bindPopup(`<b>ðŸ“</b><br>${radiusRefLocal.current}km`);
+          .bindPopup(`<b>ðŸ“ </b><br>${radiusRefLocal.current}km`);
         chatMarkersRef.current.push({ circle, marker });
 
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
@@ -838,6 +838,9 @@ export default function PanelClient() {
   const [authStep, setAuthStep] = useState('email');
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [tenantData, setTenantData] = useState<any>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingCheckoutUrl, setPendingCheckoutUrl] = useState('');
+
   
   const [testMessages, setTestMessages] = useState<any[]>([
     { role: 'assistant', content: '¡Hola! Soy el asistente de clasificación. Escribe un mensaje de usuario para ver cómo lo categorizo.' }
@@ -885,9 +888,9 @@ export default function PanelClient() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Para diagnosticar el error, abrimos la pasarela en una pestaña nueva
         if (data.url) {
-           window.open(data.url, '_blank');
+           setPendingCheckoutUrl(data.url);
+           setShowConfirmModal(true);
         } else {
            alert('Checkout generado');
            setRechargeAmount(1000);
@@ -19427,6 +19430,51 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               >
                 {language === 'en' ? 'Cancel' : 'Cancelar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowConfirmModal(false)}>
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] relative overflow-hidden transform transition-all" onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg shadow-blue-500/20">
+                <span className="material-symbols-outlined text-4xl">payments</span>
+              </div>
+              
+              <h3 className="text-xl font-black text-slate-800 mb-2">Confirmar Recarga</h3>
+              <p className="text-sm font-medium text-slate-500 mb-8">
+                Estás a punto de recargar créditos a tu cuenta
+              </p>
+
+              <div className="w-full bg-slate-50 rounded-2xl p-4 flex justify-between items-center mb-8 border border-slate-100">
+                <span className="text-sm font-bold text-slate-600">Total de créditos</span>
+                <span className="text-xl font-black text-slate-900">{rechargeAmount.toLocaleString()}</span>
+              </div>
+
+              <div className="w-full flex gap-3">
+                <button
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 py-3 px-4 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-colors text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && (window as any).LemonSqueezy) {
+                      (window as any).LemonSqueezy.Url.Open(pendingCheckoutUrl);
+                    } else {
+                      window.open(pendingCheckoutUrl, '_blank');
+                    }
+                    setShowConfirmModal(false);
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-black shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  <span className="material-symbols-outlined text-sm">credit_card</span>
+                  Pagar
+                </button>
+              </div>
             </div>
           </div>
         </div>
