@@ -1757,9 +1757,42 @@ export default function PanelClient() {
       .finally(() => { if (!cancelled) setPaymentHistoryLoading(false); });
     return () => { cancelled = true; };
   }, [activeTab]);
-  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
   const [adminGlobalAi, setAdminGlobalAi] = useState<{enabled: boolean, provider: string, model: string, apiKey: string} | null>(null);
   const [adminTrackingPixels, setAdminTrackingPixels] = useState<{google_analytics: string, facebook_pixel: string, tiktok_pixel: string} | null>(null);
+  
+  // States for testing the Global API
+  const [globalApiTestStatus, setGlobalApiTestStatus] = useState<'idle' | 'loading' | 'success' | 'no_credit' | 'invalid_key' | 'error'>('idle');
+  const [globalApiTestMsg, setGlobalApiTestMsg] = useState('');
+
+  const handleTestGlobalApi = async () => {
+    if (!adminGlobalAi) return;
+    setGlobalApiTestStatus('loading');
+    setGlobalApiTestMsg('');
+    try {
+      const res = await authFetch('/api/admin/test-global-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: adminGlobalAi.provider,
+          model: adminGlobalAi.model,
+          apiKey: adminGlobalAi.apiKey
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setGlobalApiTestStatus('error');
+        setGlobalApiTestMsg(data.error || 'Error al conectar con el servidor.');
+      } else {
+        setGlobalApiTestStatus(data.status as any);
+        setGlobalApiTestMsg(data.message || '');
+      }
+    } catch (err: any) {
+      setGlobalApiTestStatus('error');
+      setGlobalApiTestMsg(err.message || 'Error de conexión.');
+    }
+  };
+
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
   
 
 
@@ -17555,11 +17588,52 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">API Key Global</label>
+                              <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">API Key Global</label>
+                                {adminGlobalAi?.apiKey && (
+                                  <button
+                                    onClick={handleTestGlobalApi}
+                                    disabled={globalApiTestStatus === 'loading'}
+                                    className="text-[10px] font-bold text-[#00c6ff] hover:text-[#0099cc] flex items-center gap-1 transition-colors"
+                                  >
+                                    {globalApiTestStatus === 'loading' ? (
+                                      <><span className="w-3 h-3 rounded-full border-2 border-[#00c6ff] border-t-transparent animate-spin"></span> Verificando...</>
+                                    ) : (
+                                      <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Verificar Estado</>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
                               <input type="password" placeholder="Ingresa la llave maestra..." className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono text-white outline-none focus:border-[#00c6ff]"
                                 value={adminGlobalAi?.apiKey || ''}
-                                onChange={e => setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any)}
+                                onChange={e => {
+                                  setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any);
+                                  setGlobalApiTestStatus('idle'); // Resetear estado si cambian la llave
+                                }}
                               />
+                              
+                              {/* Visual Status Badge */}
+                              {globalApiTestStatus !== 'idle' && globalApiTestStatus !== 'loading' && (
+                                <div className={`mt-2 p-3 rounded-xl border text-xs flex items-start gap-2 ${
+                                  globalApiTestStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                  globalApiTestStatus === 'no_credit' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                                  'bg-red-500/10 border-red-500/20 text-red-400'
+                                }`}>
+                                  <div className="mt-0.5">
+                                    {globalApiTestStatus === 'success' && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                    {globalApiTestStatus === 'no_credit' && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>}
+                                    {(globalApiTestStatus === 'invalid_key' || globalApiTestStatus === 'error') && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                  </div>
+                                  <div>
+                                    <p className="font-bold">
+                                      {globalApiTestStatus === 'success' ? 'API Activa' :
+                                       globalApiTestStatus === 'no_credit' ? 'Sin Créditos' :
+                                       'Error en la API'}
+                                    </p>
+                                    <p className="opacity-90 mt-0.5 leading-snug">{globalApiTestMsg}</p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
