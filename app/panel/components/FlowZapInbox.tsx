@@ -128,6 +128,7 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
       await fetch('/api/panel/send-message', {
         method: 'POST',
         headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        credentials: 'same-origin',
         body: formData
       });
       
