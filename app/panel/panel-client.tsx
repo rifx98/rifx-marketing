@@ -19453,26 +19453,44 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <span className="text-xl font-black text-slate-900">{rechargeAmount.toLocaleString()}</span>
               </div>
 
-              <div className="w-full flex gap-3">
+              <div className="w-full">
+                <a
+                  id="ls-hidden-checkout"
+                  href={pendingCheckoutUrl}
+                  className="lemonsqueezy-button"
+                  style={{ display: 'none' }}
+                >
+                  Checkout
+                </a>
+                
+                <div className="relative w-full h-14 bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-200 group">
+                  <span className="text-sm font-black text-slate-400 z-0 select-none group-hover:text-slate-500 transition-colors">
+                    DESLIZA PARA PAGAR
+                  </span>
+                  
+                  <motion.div
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 210 }}
+                    dragSnapToOrigin={true}
+                    dragElastic={0.05}
+                    onDragEnd={(e, info) => {
+                      if (info.offset.x > 180) {
+                        document.getElementById('ls-hidden-checkout')?.click();
+                        setTimeout(() => setShowConfirmModal(false), 500);
+                      }
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    className="absolute left-1.5 w-11 h-11 bg-blue-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/30 z-10 cursor-grab active:cursor-grabbing"
+                  >
+                    <span className="material-symbols-outlined text-white text-xl">double_arrow</span>
+                  </motion.div>
+                </div>
+                
                 <button
                   onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 py-3 px-4 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-colors text-sm"
+                  className="w-full mt-4 py-3 text-slate-500 font-bold hover:text-slate-700 transition-colors text-xs uppercase tracking-widest"
                 >
                   Cancelar
-                </button>
-                <button
-                  onClick={() => {
-                    if (typeof window !== 'undefined' && (window as any).LemonSqueezy) {
-                      (window as any).LemonSqueezy.Url.Open(pendingCheckoutUrl);
-                    } else {
-                      window.open(pendingCheckoutUrl, '_blank');
-                    }
-                    setShowConfirmModal(false);
-                  }}
-                  className="flex-1 py-3 px-4 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-black shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 text-sm"
-                >
-                  <span className="material-symbols-outlined text-sm">credit_card</span>
-                  Pagar
                 </button>
               </div>
             </div>
