@@ -1761,15 +1761,7 @@ export default function PanelClient() {
   const [adminGlobalAi, setAdminGlobalAi] = useState<{enabled: boolean, provider: string, model: string, apiKey: string} | null>(null);
   const [adminTrackingPixels, setAdminTrackingPixels] = useState<{google_analytics: string, facebook_pixel: string, tiktok_pixel: string} | null>(null);
   
-  useEffect(() => {
-    const shouldLoad = (settingsSection === 'ai' || adminTab === 'ai_engine') && tenantData?.isAdmin;
-    if (shouldLoad) {
-      authFetch('/api/admin/platform-settings').then(res => res.json()).then(data => {
-        if (data && data.global_ai_config) setAdminGlobalAi(data.global_ai_config);
-        if (data && data.tracking_pixels) setAdminTrackingPixels(data.tracking_pixels);
-      }).catch(err => console.error(err));
-    }
-  }, [settingsSection, adminTab, tenantData?.isAdmin]);
+
 
   // API Setup Assistant State
   const [apiHelperFlow, setApiHelperFlow] = useState<'idle' | 'whatsapp' | 'meta'>('idle');
@@ -3747,6 +3739,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [adminLoading, setAdminLoading] = useState(false);
   const [disconnectingWhatsappConnectionId, setDisconnectingWhatsappConnectionId] = useState<string | null>(null);
   const [adminTab, setAdminTab] = useState<any>('overview');
+
+  // Cargar configuración global si somos admin
+  useEffect(() => {
+    const shouldLoad = (settingsSection === 'ai' || adminTab === 'ai_engine') && tenantData?.isAdmin;
+    if (shouldLoad) {
+      authFetch('/api/admin/platform-settings').then(res => res.json()).then(data => {
+        if (data && data.global_ai_config) setAdminGlobalAi(data.global_ai_config);
+        if (data && data.tracking_pixels) setAdminTrackingPixels(data.tracking_pixels);
+      }).catch(err => console.error(err));
+    }
+  }, [settingsSection, adminTab, tenantData?.isAdmin]);
   const [localPlanPermissions, setLocalPlanPermissions] = useState<any>(null);
   const [savingPermissions, setSavingPermissions] = useState(false);
   const canManageWhatsApp = adminData?.canManageWhatsApp === true;
