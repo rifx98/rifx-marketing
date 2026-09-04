@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     else if (provider === 'gemini') {
       // Test Gemini
       const testModel = model || 'gemini-1.5-flash';
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`, {
+      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -129,7 +129,20 @@ export async function POST(req: NextRequest) {
         })
       });
 
-      const data = await res.json();
+      let data = await res.json();
+      
+      // Retry with -latest if not found
+      if (res.status === 404 && testModel === 'gemini-1.5-flash') {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "hi" }] }],
+            generationConfig: { maxOutputTokens: 1 }
+          })
+        });
+        data = await res.json();
+      }
 
       if (res.ok) {
         return NextResponse.json({ status: 'success', message: 'La conexión es exitosa y la llave funciona.' });
