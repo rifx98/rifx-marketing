@@ -10825,9 +10825,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             )}
                           </optgroup>
                           <optgroup label="Google Gemini">
-                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                            <option value="gemini-2.5-pro-latest">Gemini 2.5 Pro</option>
+                            <option value="gemini-2.5-flash-latest">Gemini 2.5 Flash</option>
+                            <option value="gemini-2.0-flash-latest">Gemini 2.0 Flash</option>
                           </optgroup>
                           <optgroup label="Groq">
                             <option value="llama-3.3-70b">Llama 3.3 70B (Groq)</option>
@@ -17565,9 +17565,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
                                   >
                                     <option value="" disabled>Selecciona un modelo...</option>
-                                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-                                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                                    <option value="gemini-2.5-pro-latest">gemini-2.5-pro</option>
+                                    <option value="gemini-1.5-pro-latest">gemini-1.5-pro</option>
+                                    <option value="gemini-1.5-flash-latest">gemini-1.5-flash</option>
                                   </select>
                                 ) : adminGlobalAi?.provider === 'groq' ? (
                                   <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
