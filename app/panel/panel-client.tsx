@@ -875,25 +875,20 @@ export default function PanelClient() {
     if (!rechargeAmount || rechargeAmount <= 0) return;
     setIsRecharging(true);
     try {
-      const res = await fetch('/api/panel/checkout-ai', {
+      const res = await fetch('/api/panel/ai-ledger/recharge', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           ...(localStorage.getItem('rifx_session_token') ? { 'Authorization': `Bearer ${localStorage.getItem('rifx_session_token')}` } : {})
         },
-        body: JSON.stringify({ amount: rechargeAmount })
+        body: JSON.stringify({ amount: rechargeAmount, note: rechargeNote })
       });
       if (res.ok) {
         const data = await res.json();
-        // Si hay una URL de checkout, abrimos la pasarela de Lemon Squeezy
-        if (data.url && typeof window !== 'undefined' && (window as any).LemonSqueezy) {
-           (window as any).LemonSqueezy.Url.Open(data.url);
-        } else if (data.url) {
-           window.open(data.url, '_blank');
-        } else {
-           alert('Créditos agregados con éxito');
-           setRechargeAmount(1000);
-        }
+        alert('Créditos agregados con éxito. Nuevo balance: ' + data.balance);
+        setRechargeAmount(1000);
+        // Dispatch event to refresh balance
+        window.dispatchEvent(new CustomEvent('ai_credits_updated'));
       } else {
         const data = await res.json();
         alert('Error: ' + (data.error || 'No autorizado'));
