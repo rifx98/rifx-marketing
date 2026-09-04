@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const variantId = process.env.LEMONSQUEEZY_VARIANT_AI_1K || 'dummy_1k';
     const quantity = amount / 1000;
 
-    const storeDomain = process.env.LEMONSQUEEZY_STORE_DOMAIN || 'rifx-marketing.lemonsqueezy.com';
+    const storeDomain = process.env.LEMONSQUEEZY_STORE_DOMAIN || 'rifxmarketing.lemonsqueezy.com';
     
     // Construir la URL de Checkout con Custom Data y Quantity
     const checkoutUrl = `https://${storeDomain}/checkout/buy/${variantId}?checkout[custom][tenant_id]=${tenant.tenantId}&checkout[custom][type]=ai_credits&checkout[custom][credits]=${amount}&checkout[quantity]=${quantity}`;
