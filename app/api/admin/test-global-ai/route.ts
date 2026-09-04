@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const authorization = await requireAdminPermission(req, 'platform_settings.update');
     if (!authorization.ok) return authorization.response;
 
-    const tenantId = authorization.tenantId;
+    const tenantId = 'admin';
 
     // 2. Rate Limiting (10 requests per minute)
     const limit = await checkRateLimit(rateLimitKey('test-global-ai', tenantId || 'admin'), 10, 60_000);
