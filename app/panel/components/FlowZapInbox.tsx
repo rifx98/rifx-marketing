@@ -43,8 +43,11 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
     const fetchMsgs = async () => {
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch(`/api/panel/conversations?id=${selectedPhone}`, {
-          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        const url = `/api/panel/conversations?id=${selectedPhone}&_t=${Date.now()}`;
+        const res = await fetch(url, {
+          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          credentials: 'same-origin',
+          cache: 'no-store'
         });
         const data = await res.json();
         if (isMounted && data.messages) {
@@ -82,7 +85,6 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
       messages: messages
         .filter((m: any) => m.content !== '__SYSTEM_PAUSE__' && m.content !== '__SYSTEM_RESUME__' && m.content !== '__HUMAN_REQUEST__' && m.content !== '__HUMAN_ASK__' && !(m.content && m.content.startsWith('__ORDER_DATA__:')))
         .slice()
-        .reverse()
         .map((m: any) => ({
         id: m.id || m.message_id || Date.now().toString(),
         direction: m.role === 'user' ? 'in' : 'out',
@@ -121,8 +123,11 @@ export default function FlowZapInbox({ conversationsData, activeAccountId, onRef
       });
       
       // Re-fetch messages immediately to show the sent message
-      const res = await fetch(`/api/panel/conversations?id=${selectedPhone}`, {
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+      const url = `/api/panel/conversations?id=${selectedPhone}&_t=${Date.now()}`;
+      const res = await fetch(url, {
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        credentials: 'same-origin',
+        cache: 'no-store'
       });
       const data = await res.json();
       if (data.messages) {
