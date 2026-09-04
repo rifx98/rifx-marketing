@@ -1762,13 +1762,14 @@ export default function PanelClient() {
   const [adminTrackingPixels, setAdminTrackingPixels] = useState<{google_analytics: string, facebook_pixel: string, tiktok_pixel: string} | null>(null);
   
   useEffect(() => {
-    if (settingsSection === 'ai' && tenantData?.isAdmin) {
+    const shouldLoad = (settingsSection === 'ai' || adminTab === 'ai_engine') && tenantData?.isAdmin;
+    if (shouldLoad) {
       authFetch('/api/admin/platform-settings').then(res => res.json()).then(data => {
         if (data && data.global_ai_config) setAdminGlobalAi(data.global_ai_config);
         if (data && data.tracking_pixels) setAdminTrackingPixels(data.tracking_pixels);
       }).catch(err => console.error(err));
     }
-  }, [settingsSection, tenantData?.isAdmin]);
+  }, [settingsSection, adminTab, tenantData?.isAdmin]);
 
   // API Setup Assistant State
   const [apiHelperFlow, setApiHelperFlow] = useState<'idle' | 'whatsapp' | 'meta'>('idle');
@@ -6879,6 +6880,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       });
       const result = await res.json();
       if (res.ok && result.success) {
+        
+        // Si es admin y ha modificado cosas globales, guardarlas también usando el mismo botón
+        if (tenantData?.isAdmin && adminGlobalAi) {
+          try {
+            const getRes = await authFetch('/api/admin/platform-settings');
+            const curr = await getRes.json();
+            await authFetch('/api/admin/platform-settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                platform_name: curr.platform_name || 'Sovereign',
+                sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+                global_ai_config: adminGlobalAi,
+                tracking_pixels: adminTrackingPixels
+              })
+            });
+          } catch (err) {
+            console.error('Error guardando configuración global de IA:', err);
+          }
+        }
+
         setShowSuccess(true);
         // Recargar config
         fetchConfig();
@@ -17536,29 +17558,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 onChange={e => setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any)}
                               />
                             </div>
-                            <button onClick={async () => {
-                              try {
-                                const getRes = await authFetch('/api/admin/platform-settings');
-                                const curr = await getRes.json();
-                                const postRes = await authFetch('/api/admin/platform-settings', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    platform_name: curr.platform_name || 'Sovereign',
-                                    sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
-                                    global_ai_config: adminGlobalAi,
-                                    tracking_pixels: adminTrackingPixels
-                                  })
-                                });
-                                if (!postRes.ok) {
-                                  const errData = await postRes.json();
-                                  throw new Error(errData.error || 'Error al guardar la configuración global');
-                                }
-                                setToast({ type: 'success', message: 'Configuración global guardada exitosamente' });
-                              } catch (err: any) {
-                                setToast({ type: 'error', message: err.message || 'Error al guardar la configuración global' });
-                              }
-                            }} className="w-full py-3 mt-4 bg-[#00c6ff] hover:bg-[#0099cc] text-slate-900 font-bold text-sm rounded-xl transition-all shadow-lg shadow-[#00c6ff]/20">Guardar Global API (Chatbot)</button>
                           </div>
                         )}
                       </div>
