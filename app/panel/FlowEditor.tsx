@@ -59,9 +59,7 @@ const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
             className="w-6 h-6 bg-white text-rose-500 rounded-full flex items-center justify-center shadow-md border border-slate-200 hover:scale-110 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer opacity-70 hover:opacity-100 z-50 text-[12px]"
             onClick={(event) => {
               event.stopPropagation();
-              if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {
-                setEdges((eds) => eds.filter((e) => e.id !== id));
-              }
+              setEdges((eds) => eds.filter((e) => e.id !== id));
             }}
           >
             <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>delete</span>
@@ -458,9 +456,7 @@ export default function FlowEditor({ initialData, onSave }: { initialData: any, 
           edgeTypes={edgeTypes}
           onNodeClick={onNodeClick}
           onEdgeClick={(e, edge) => {
-            if (window.confirm('¿Seguro que deseas eliminar esta conexión?')) {
-              setEdges((eds) => eds.filter((ed) => ed.id !== edge.id));
-            }
+            setEdges((eds) => eds.filter((ed) => ed.id !== edge.id));
           }}
           onPaneClick={() => setSelectedNode(null)}
           fitView
