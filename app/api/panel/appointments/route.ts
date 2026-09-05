@@ -48,17 +48,21 @@ export async function GET(req: NextRequest) {
 
     let query = createSupabaseAdmin()
       .from('appointments')
-      .select(APPOINTMENT_SELECT)
+      .select('*')
       .eq('tenant_id', authorization.tenant.tenantId)
       .order('scheduled_time', { ascending: false })
       .range(offset, offset + limit - 1);
     if (status && status !== 'all') query = query.eq('status', status);
     if (resource && resource !== 'all') {
-      query = query.or(`resource_name.eq.${resource},resource_id.eq.${resource}`);
+      try {
+        query = query.or(`resource_name.eq.${resource},resource_id.eq.${resource}`);
+      } catch {
+        // Ignorar si la columna no existe en consultas dinámicas
+      }
     }
     const { data, error } = await query;
     if (error) {
-      console.error('Appointment lookup failed:', error.code || 'database_error');
+      console.error('Appointment lookup failed:', error.code || 'database_error', error.message);
       return internalApiError();
     }
 
@@ -157,29 +161,87 @@ export async function POST(req: NextRequest) {
         console.warn('[Appointments API] Error al sincronizar con Google Calendar:', calErr);
       }
 
-      // Guardar cita en Supabase
-      const { data: newAppt, error: insertError } = await supabase
+      // 1. Obtener o crear conversación en el CRM si es una cita directa/manual
+      let finalConvId = validConvId;
+      if (!finalConvId) {
+        const cleanDigits = phone_number.replace(/[^0-9]/g, '');
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('tenant_id', authorization.tenant.tenantId)
+          .ilike('customer_phone', `%${cleanDigits.slice(-8)}%`)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingConv?.id) {
+          finalConvId = existingConv.id;
+        } else {
+          try {
+            const { data: createdConv } = await supabase
+              .from('conversations')
+              .insert({
+                tenant_id: authorization.tenant.tenantId,
+                customer_name: customer_name.trim().slice(0, 160),
+                customer_phone: phone_number.trim().slice(0, 30),
+                sales_stage: 'appointment_booked',
+                platform: 'whatsapp',
+              })
+              .select('id')
+              .maybeSingle();
+
+            if (createdConv?.id) {
+              finalConvId = createdConv.id;
+            }
+          } catch (convErr) {
+            console.warn('[Appointments API] No se pudo crear conversación placeholder:', convErr);
+          }
+        }
+      }
+
+      // 2. Preparar payload de cita
+      const baseApptPayload: any = {
+        tenant_id: authorization.tenant.tenantId,
+        conversation_id: finalConvId,
+        event_id: eventId || `manual_${Date.now()}`,
+        customer_name: customer_name.trim().slice(0, 160),
+        phone_number: phone_number.trim().slice(0, 30),
+        scheduled_time: startDate.toISOString(),
+        service: String(service || 'Asesoría').slice(0, 200),
+        status: 'confirmed',
+      };
+
+      const fullApptPayload = {
+        ...baseApptPayload,
+        resource_id: validResId,
+        resource_name: resource_name ? String(resource_name).slice(0, 150) : null,
+        confirmed_at: now,
+      };
+
+      // Intentar primero con todas las columnas
+      let insertResult = await supabase
         .from('appointments')
-        .insert({
-          tenant_id: authorization.tenant.tenantId,
-          conversation_id: validConvId,
-          event_id: eventId,
-          customer_name: customer_name.trim().slice(0, 160),
-          phone_number: phone_number.trim().slice(0, 30),
-          scheduled_time: startDate.toISOString(),
-          service: String(service || 'Asesoría').slice(0, 200),
-          resource_id: validResId,
-          resource_name: resource_name ? String(resource_name).slice(0, 150) : null,
-          status: 'confirmed',
-          confirmed_at: now,
-        })
-        .select(APPOINTMENT_SELECT)
+        .insert(fullApptPayload)
+        .select('*')
         .single();
 
-      if (insertError) {
-        console.error('[Appointments API] Error al guardar cita en DB:', insertError);
-        return internalApiError();
+      // Si falla por columnas que aún no existen en la tabla appointments (ej. resource_id o confirmed_at)
+      if (insertResult.error && (insertResult.error.message?.includes('column') || insertResult.error.code === '42703')) {
+        console.warn('[Appointments API] Reintentando con columnas básicas:', insertResult.error.message);
+        insertResult = await supabase
+          .from('appointments')
+          .insert(baseApptPayload)
+          .select('*')
+          .single();
       }
+
+      if (insertResult.error) {
+        console.error('[Appointments API] Error al guardar cita en DB:', insertResult.error);
+        return NextResponse.json({
+          error: `Error al guardar cita: ${insertResult.error.message}. Aplica la migración SQL en Supabase para resolver restricciones.`,
+        }, { status: 400 });
+      }
+
+      const newAppt = insertResult.data;
 
       // Si viene de una conversación en el CRM, actualizar etapa a appointment_booked
       if (validConvId) {
