@@ -301,7 +301,7 @@ export async function processFlowEngineMessage(
         tenant_id: tenantId,
         type: 'usage',
         amount: -costPerMessage,
-        balance_after: (tenant.ai_credits_balance || 0) - costPerMessage,
+        balance_after: (tenant?.ai_credits_balance || 0) - costPerMessage,
         reference: `Mensaje IA - Conversación ${conversation?.id}`
       });
 
