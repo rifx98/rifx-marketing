@@ -2086,50 +2086,52 @@ export default function BitrixCalendarView({
                 </div>
               ) : (
                 <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col flex-1 min-h-[340px]">
-                  {/* Header */}
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/50 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-amber-500 text-base">hourglass_top</span>
-                      <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
-                        {language === 'en' ? 'Waitlist' : 'Lista de espera'}
-                      </h3>
-                      {groupedWaitlist.totalCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
-                          {groupedWaitlist.totalCount}
-                        </span>
-                      )}
-                    </div>
+                  {/* Header Bitrix24 Clean & Structured */}
+                  <div className="pb-3 border-b border-slate-100 dark:border-slate-700/50 mb-3 space-y-2">
+                    {/* Fila Principal: Título + Botón Primario Agregar */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-sm">hourglass_top</span>
+                        </div>
+                        <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider whitespace-nowrap">
+                          {language === 'en' ? 'Waitlist' : 'Lista de espera'}
+                        </h3>
+                        {groupedWaitlist.totalCount > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 shrink-0">
+                            {groupedWaitlist.totalCount}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="flex items-center gap-1">
-                      {/* Help icon */}
-                      <button
-                        type="button"
-                        onClick={() => setShowWaitlistHelpModal(true)}
-                        className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
-                        title={language === 'en' ? 'How does waitlist work?' : '¿Cómo funciona la lista de espera?'}
-                      >
-                        <span className="material-symbols-outlined text-sm">help</span>
-                      </button>
-
-                      {/* Contraer button */}
-                      <button
-                        type="button"
-                        onClick={() => setIsWaitlistCollapsed(true)}
-                        className="px-2 py-1 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg text-[10px] font-bold flex items-center gap-0.5 transition-all cursor-pointer"
-                        title={language === 'en' ? 'Collapse waitlist' : 'Contraer lista de espera'}
-                      >
-                        <span className="material-symbols-outlined text-xs">unfold_less</span>
-                        <span>{language === 'en' ? 'Collapse' : 'Contraer'}</span>
-                      </button>
-
-                      {/* + Agregar button */}
                       <button
                         type="button"
                         onClick={onOpenAddWaitlist}
-                        className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black flex items-center gap-0.5 shadow-sm transition-all cursor-pointer"
+                        className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white rounded-xl text-[11px] font-black flex items-center gap-1 shadow-md shadow-amber-500/20 transition-all cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <span className="material-symbols-outlined text-xs">add</span>
                         <span>{language === 'en' ? 'Add' : 'Agregar'}</span>
+                      </button>
+                    </div>
+
+                    {/* Fila de Herramientas: ¿Cómo funciona? + Contraer Bloque */}
+                    <div className="flex items-center justify-between text-[11px] pt-1.5 text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800/60">
+                      <button
+                        type="button"
+                        onClick={() => setShowWaitlistHelpModal(true)}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1 transition-colors cursor-pointer group font-medium"
+                      >
+                        <span className="material-symbols-outlined text-xs text-blue-500 group-hover:scale-110 transition-transform">help</span>
+                        <span>{language === 'en' ? 'How does it work?' : '¿Cómo funciona?'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsWaitlistCollapsed(true)}
+                        className="hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-0.5 transition-colors cursor-pointer group font-medium"
+                      >
+                        <span className="material-symbols-outlined text-xs group-hover:-translate-y-0.5 transition-transform">unfold_less</span>
+                        <span>{language === 'en' ? 'Collapse' : 'Contraer'}</span>
                       </button>
                     </div>
                   </div>
@@ -2258,17 +2260,25 @@ export default function BitrixCalendarView({
                     </div>
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 flex items-center justify-center mb-3">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 flex items-center justify-center mb-3 shadow-inner">
                         <span className="material-symbols-outlined text-2xl">content_paste</span>
                       </div>
                       <h4 className="text-xs font-black text-slate-700 dark:text-slate-200 mb-1">
                         {language === 'en' ? 'Waitlist' : 'Lista de espera'}
                       </h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                      <p className="text-[11px] text-slate-400 leading-relaxed mb-3 max-w-[210px]">
                         {language === 'en'
                           ? 'Drag an existing online booking here, or click "Add" to create a new one.'
                           : 'Arrastre una reserva online existente aquí, o haga clic en "Agregar" para crear una nueva.'}
                       </p>
+                      <button
+                        type="button"
+                        onClick={onOpenAddWaitlist}
+                        className="mb-3 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 rounded-xl text-[11px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-xs font-black">add</span>
+                        <span>{language === 'en' ? 'Add request' : 'Agregar solicitud'}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setShowWaitlistHelpModal(true)}
