@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import GoogleTimePicker, { time24ToMinutes, minutesToTime24, formatDurationLabel } from './GoogleTimePicker';
 
 interface BitrixCalendarViewProps {
   appointments: any[];
@@ -170,7 +171,9 @@ export default function BitrixCalendarView({
   // Modal mode: details, reschedule, confirm_delete
   const [apptModalMode, setApptModalMode] = useState<'details' | 'reschedule' | 'confirm_delete'>('details');
   const [rescheduleDate, setRescheduleDate] = useState('');
-  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('09:00');
+  const [rescheduleEndTime, setRescheduleEndTime] = useState('10:00');
+  const [rescheduleDuration, setRescheduleDuration] = useState(60);
   const [rescheduleResource, setRescheduleResource] = useState('');
   const [rescheduleSlots, setRescheduleSlots] = useState<{ start: string; end: string; label: string }[]>([]);
   const [loadingRescheduleSlots, setLoadingRescheduleSlots] = useState(false);
@@ -218,11 +221,19 @@ export default function BitrixCalendarView({
 
         const hours = apptDateObj.getHours().toString().padStart(2, '0');
         const minutes = apptDateObj.getMinutes().toString().padStart(2, '0');
-        setRescheduleTime(`${hours}:${minutes}`);
+        const startT = `${hours}:${minutes}`;
+        setRescheduleTime(startT);
+
+        const dur = selectedApptDetails.duration_minutes || 60;
+        setRescheduleDuration(dur);
+        const endTotalMins = (apptDateObj.getHours() * 60 + apptDateObj.getMinutes()) + dur;
+        setRescheduleEndTime(minutesToTime24(endTotalMins));
       } catch {
         const todayStr = new Date().toISOString().split('T')[0];
         setRescheduleDate(todayStr);
-        setRescheduleTime('10:00');
+        setRescheduleTime('09:00');
+        setRescheduleEndTime('10:00');
+        setRescheduleDuration(60);
       }
       setRescheduleResource(selectedApptDetails.resource_name || '');
     }
@@ -1008,15 +1019,16 @@ export default function BitrixCalendarView({
                               const apptHour = date.getHours() + date.getMinutes() / 60;
                               if (apptHour < startHour || apptHour > endHour + 1) return null;
 
+                              const durationMinutes = appt.duration_minutes || 60;
                               const top = (apptHour - startHour) * hourRowHeight;
-                              const height = Math.max(38, 0.9 * hourRowHeight);
+                              const height = Math.max(36, (durationMinutes / 60) * hourRowHeight - 4);
                               const statusConf = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
 
-                              const timeFormatted = new Intl.DateTimeFormat('es-EC', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                              }).format(date);
+                              const startDate = new Date(appt.scheduled_time);
+                              const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+                              const startStr = new Intl.DateTimeFormat('es-EC', { hour: 'numeric', minute: '2-digit', hour12: true }).format(startDate);
+                              const endStr = new Intl.DateTimeFormat('es-EC', { hour: 'numeric', minute: '2-digit', hour12: true }).format(endDate);
+                              const timeFormatted = `${startStr} – ${endStr}`;
 
                               return (
                                   <motion.div
@@ -1136,15 +1148,16 @@ export default function BitrixCalendarView({
                               const apptHour = date.getHours() + date.getMinutes() / 60;
                               if (apptHour < startHour || apptHour > endHour + 1) return null;
 
+                              const durationMinutes = appt.duration_minutes || 60;
                               const top = (apptHour - startHour) * hourRowHeight;
-                              const height = Math.max(34, 0.9 * hourRowHeight);
+                              const height = Math.max(30, (durationMinutes / 60) * hourRowHeight - 3);
                               const statusConf = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
 
-                              const timeFormatted = new Intl.DateTimeFormat('es-EC', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                              }).format(date);
+                              const startDate = new Date(appt.scheduled_time);
+                              const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+                              const startStr = new Intl.DateTimeFormat('es-EC', { hour: 'numeric', minute: '2-digit', hour12: true }).format(startDate);
+                              const endStr = new Intl.DateTimeFormat('es-EC', { hour: 'numeric', minute: '2-digit', hour12: true }).format(endDate);
+                              const timeFormatted = `${startStr} – ${endStr}`;
 
                               return (
                                 <motion.div
@@ -1959,20 +1972,8 @@ export default function BitrixCalendarView({
                       )}
                     </div>
 
-                    {/* Selector de Horario */}
+                    {/* Selector de Horario estilo Google Calendar */}
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                          {language === 'en' ? 'Available Time Slots' : 'Horarios Disponibles'} *
-                        </label>
-                        {loadingRescheduleSlots && (
-                          <span className="text-[11px] text-blue-500 font-bold animate-pulse flex items-center gap-1">
-                            <span className="material-symbols-outlined text-xs">sync</span>
-                            {language === 'en' ? 'Checking calendar...' : 'Consultando Google Calendar...'}
-                          </span>
-                        )}
-                      </div>
-
                       {checkIsNonWorkingDay(rescheduleDate) ? (
                         <div className="p-3.5 bg-rose-500/5 dark:bg-rose-950/20 border border-dashed border-rose-200 dark:border-rose-900/40 rounded-xl text-center text-xs text-rose-600 dark:text-rose-400 font-bold">
                           {language === 'en'
@@ -1980,40 +1981,20 @@ export default function BitrixCalendarView({
                             : 'No hay horarios disponibles en días sin atención comercial.'}
                         </div>
                       ) : (
-                        <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto pr-1">
-                          {(rescheduleSlots.length > 0
-                            ? rescheduleSlots.map((s) => s.label)
-                            : ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']
-                          ).map((slotLabel) => {
-                            const isSelected = rescheduleTime === slotLabel;
-                            return (
-                              <button
-                                key={slotLabel}
-                                type="button"
-                                onClick={() => setRescheduleTime(slotLabel)}
-                                className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all text-center ${
-                                  isSelected
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md shadow-blue-500/25'
-                                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400'
-                                }`}
-                              >
-                                {slotLabel}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {!checkIsNonWorkingDay(rescheduleDate) && (
-                        <div className="flex items-center gap-2 pt-2">
-                          <span className="text-xs text-slate-400 font-bold">{language === 'en' ? 'Exact time:' : 'Hora exacta:'}</span>
-                          <input
-                            type="time"
-                            value={rescheduleTime}
-                            onChange={(e) => setRescheduleTime(e.target.value)}
-                            className="px-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-slate-200"
-                          />
-                        </div>
+                        <GoogleTimePicker
+                          startTime={rescheduleTime || '09:00'}
+                          endTime={rescheduleEndTime || '10:00'}
+                          durationMinutes={rescheduleDuration || 60}
+                          dateStr={rescheduleDate}
+                          suggestedSlots={rescheduleSlots}
+                          loadingSlots={loadingRescheduleSlots}
+                          language={language}
+                          onChange={({ startTime, endTime: newEnd, durationMinutes: newDur }) => {
+                            setRescheduleTime(startTime);
+                            setRescheduleEndTime(newEnd);
+                            setRescheduleDuration(newDur);
+                          }}
+                        />
                       )}
                     </div>
 
@@ -2055,6 +2036,8 @@ export default function BitrixCalendarView({
                             const scheduled_time = `${rescheduleDate}T${rescheduleTime}:00-05:00`;
                             await onApptAction(selectedApptDetails.id, 'reschedule', {
                               scheduled_time,
+                              duration_minutes: rescheduleDuration || 60,
+                              end_time: rescheduleEndTime,
                               resource_name: rescheduleResource || undefined,
                             });
                             setSelectedApptDetails(null);
@@ -2272,16 +2255,27 @@ export default function BitrixCalendarView({
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
                           {language === 'en' ? 'Scheduled Date & Time' : 'Horario de la Cita'}
                         </span>
-                        <span className="text-xs font-mono font-black text-slate-800 dark:text-white">
-                          {new Intl.DateTimeFormat('es-EC', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          }).format(new Date(selectedApptDetails.scheduled_time))}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-mono font-black text-slate-800 dark:text-white">
+                            {new Intl.DateTimeFormat('es-EC', {
+                              weekday: 'short',
+                              day: 'numeric',
+                              month: 'short',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            }).format(new Date(selectedApptDetails.scheduled_time))}
+                            {' – '}
+                            {new Intl.DateTimeFormat('es-EC', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              hour12: true,
+                            }).format(new Date(new Date(selectedApptDetails.scheduled_time).getTime() + (selectedApptDetails.duration_minutes || 60) * 60 * 1000))}
+                          </span>
+                          <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 border border-blue-200/60 dark:border-blue-800/60 px-2 py-0.5 rounded-full">
+                            {formatDurationLabel(selectedApptDetails.duration_minutes || 60)}
+                          </span>
+                        </div>
                       </div>
                       <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${STATUS_CONFIG[selectedApptDetails.status]?.badgeBg || 'bg-slate-100'}`}>
                         {STATUS_CONFIG[selectedApptDetails.status]?.label || selectedApptDetails.status}

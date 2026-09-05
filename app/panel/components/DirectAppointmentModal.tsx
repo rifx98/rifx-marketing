@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import GoogleTimePicker, { time24ToMinutes, minutesToTime24 } from './GoogleTimePicker';
 
 interface DirectAppointmentModalProps {
   isOpen: boolean;
@@ -39,7 +40,9 @@ export default function DirectAppointmentModal({
   const [service, setService] = useState('Asesoría Comercial');
   const [resourceName, setResourceName] = useState('');
   const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [time, setTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
+  const [durationMinutes, setDurationMinutes] = useState(60);
   const [conversationId, setConversationId] = useState('');
 
   const [availableSlots, setAvailableSlots] = useState<{ start: string; end: string; label: string }[]>([]);
@@ -69,7 +72,11 @@ export default function DirectAppointmentModal({
       setService(initialData?.service || 'Asesoría Comercial');
       setResourceName(initialData?.resource_name || '');
       setDate(initialData?.date || today);
-      setTime(initialData?.time || '');
+      const initialStart = initialData?.time || '09:00';
+      setTime(initialStart);
+      const startMins = time24ToMinutes(initialStart);
+      setEndTime(minutesToTime24(Math.min(1439, startMins + 60)));
+      setDurationMinutes(60);
       setConversationId(initialData?.conversation_id || '');
     }
   }, [isOpen, initialData]);
@@ -141,6 +148,8 @@ export default function DirectAppointmentModal({
           customer_name: customerName.trim(),
           phone_number: phoneNumber.trim(),
           scheduled_time,
+          duration_minutes: durationMinutes || 60,
+          end_time: endTime,
           service,
           resource_name: resourceName || undefined,
           conversation_id: conversationId || undefined,
@@ -319,20 +328,12 @@ export default function DirectAppointmentModal({
               )}
             </div>
 
-            {/* Horarios Disponibles Google Calendar */}
+            {/* Horario y Duración Estilo Google Calendar */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-blue-500">schedule</span>
-                  <span>{language === 'en' ? 'Available Slots (Google Calendar)' : 'Horarios Disponibles (Google Calendar)'} *</span>
-                </label>
-                {loadingSlots && (
-                  <span className="text-[11px] text-blue-500 font-bold flex items-center gap-1">
-                    <span className="material-symbols-outlined animate-spin text-[14px]">sync</span>
-                    Consultando agenda...
-                  </span>
-                )}
-              </div>
+              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                <span className="material-symbols-outlined text-sm text-blue-500">schedule</span>
+                <span>{language === 'en' ? 'Appointment Schedule & Duration' : 'Horario de Cita y Duración'} *</span>
+              </label>
 
               {isDateNonWorking ? (
                 <div className="p-4 bg-rose-500/5 dark:bg-rose-950/20 rounded-xl border border-dashed border-rose-200 dark:border-rose-900/40 text-center">
@@ -348,42 +349,21 @@ export default function DirectAppointmentModal({
                       : 'Selecciona una fecha hábil o habilita este día en Horario de Atención.'}
                   </p>
                 </div>
-              ) : availableSlots.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                  {availableSlots.map((slot) => {
-                    const slotHour = slot.start.split('T')[1]?.substring(0, 5) || '';
-                    const isSelected = time === slotHour;
-                    return (
-                      <button
-                        type="button"
-                        key={slot.start}
-                        onClick={() => setTime(slotHour)}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center border ${
-                          isSelected
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/30 scale-[1.02]'
-                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:bg-blue-50/50'
-                        }`}
-                      >
-                        {slotHour}
-                      </button>
-                    );
-                  })}
-                </div>
               ) : (
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
-                  <p className="text-xs text-slate-400 font-medium mb-2">
-                    {loadingSlots
-                      ? 'Buscando horarios libres...'
-                      : 'No se detectaron bloques automáticos o Google Calendar no está vinculado. Puedes ingresar la hora manualmente:'}
-                  </p>
-                  <input
-                    type="time"
-                    required
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
+                <GoogleTimePicker
+                  startTime={time || '09:00'}
+                  endTime={endTime || '10:00'}
+                  durationMinutes={durationMinutes || 60}
+                  dateStr={date}
+                  suggestedSlots={availableSlots}
+                  loadingSlots={loadingSlots}
+                  language={language}
+                  onChange={({ startTime, endTime: newEnd, durationMinutes: newDur }) => {
+                    setTime(startTime);
+                    setEndTime(newEnd);
+                    setDurationMinutes(newDur);
+                  }}
+                />
               )}
             </div>
 

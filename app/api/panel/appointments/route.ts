@@ -125,6 +125,8 @@ export async function POST(req: NextRequest) {
         resource_id,
         resource_name,
         conversation_id,
+        duration_minutes,
+        end_time,
       } = parsed.body;
 
       if (typeof customer_name !== 'string' || !customer_name.trim() ||
@@ -143,9 +145,9 @@ export async function POST(req: NextRequest) {
       let allowedBusinessDays = [1, 2, 3, 4, 5];
       if (tenantConfig?.openai_key) {
         try {
-          const parsed = JSON.parse(tenantConfig.openai_key);
-          if (Array.isArray(parsed?.business_days)) {
-            allowedBusinessDays = parsed.business_days;
+          const parsedConfig = JSON.parse(tenantConfig.openai_key);
+          if (Array.isArray(parsedConfig?.business_days)) {
+            allowedBusinessDays = parsedConfig.business_days;
           }
         } catch {}
       }
@@ -163,9 +165,23 @@ export async function POST(req: NextRequest) {
       const validConvId = typeof conversation_id === 'string' && UUID_PATTERN.test(conversation_id) ? conversation_id : null;
       const validResId = typeof resource_id === 'string' && UUID_PATTERN.test(resource_id) ? resource_id : null;
 
-      // Preparar evento para Google Calendar
+      // Extraer duración personalizada en minutos (o calcular según hora de fin)
+      let durationMinutes = 60;
+      if (typeof duration_minutes === 'number' && duration_minutes > 0 && duration_minutes <= 1440) {
+        durationMinutes = Math.round(duration_minutes);
+      } else if (typeof end_time === 'string' && end_time.includes(':')) {
+        const [endH, endM] = end_time.split(':').map(Number);
+        const startDateTemp = new Date(scheduled_time);
+        const startTotal = startDateTemp.getHours() * 60 + startDateTemp.getMinutes();
+        const endTotal = endH * 60 + endM;
+        if (endTotal > startTotal) {
+          durationMinutes = endTotal - startTotal;
+        }
+      }
+
+      // Preparar evento para Google Calendar con duración exacta
       const startDate = new Date(scheduled_time);
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hora de duración por defecto
+      const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
       const startDateTime = startDate.toISOString();
       const endDateTime = endDate.toISOString();
 
@@ -241,6 +257,7 @@ export async function POST(req: NextRequest) {
         ...baseApptPayload,
         resource_id: validResId,
         resource_name: resource_name ? String(resource_name).slice(0, 150) : null,
+        duration_minutes: durationMinutes,
         confirmed_at: now,
       };
 
@@ -251,7 +268,7 @@ export async function POST(req: NextRequest) {
         .select('*')
         .single();
 
-      // Si falla por columnas que aún no existen en la tabla appointments (ej. resource_id o confirmed_at)
+      // Si falla por columnas que aún no existen en la tabla appointments (ej. resource_id, duration_minutes o confirmed_at)
       if (insertResult.error && (insertResult.error.message?.includes('column') || insertResult.error.code === '42703')) {
         console.warn('[Appointments API] Reintentando con columnas básicas:', insertResult.error.message);
         insertResult = await supabase
@@ -430,9 +447,23 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Extraer o calcular duración en minutos para reagendar
+      let durationMinutes = appointment.duration_minutes || 60;
+      if (typeof parsed.body.duration_minutes === 'number' && parsed.body.duration_minutes > 0 && parsed.body.duration_minutes <= 1440) {
+        durationMinutes = Math.round(parsed.body.duration_minutes);
+      } else if (typeof parsed.body.end_time === 'string' && parsed.body.end_time.includes(':')) {
+        const [endH, endM] = parsed.body.end_time.split(':').map(Number);
+        const startDateTemp = new Date(newScheduledTime);
+        const startTotal = startDateTemp.getHours() * 60 + startDateTemp.getMinutes();
+        const endTotal = endH * 60 + endM;
+        if (endTotal > startTotal) {
+          durationMinutes = endTotal - startTotal;
+        }
+      }
+
       const newDate = new Date(newScheduledTime);
       const newStartIso = newDate.toISOString();
-      const newEndIso = new Date(newDate.getTime() + 60 * 60 * 1000).toISOString();
+      const newEndIso = new Date(newDate.getTime() + durationMinutes * 60 * 1000).toISOString();
 
       let eventId = appointment.event_id;
       // Re-sincronizar con Google Calendar
@@ -476,6 +507,7 @@ export async function POST(req: NextRequest) {
 
       const updatePayload: any = {
         scheduled_time: newStartIso,
+        duration_minutes: durationMinutes,
         status: 'rescheduled',
         updated_at: now,
         event_id: eventId || appointment.event_id || `manual_${Date.now()}`,
@@ -492,7 +524,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (updateError && (updateError.message?.includes('column') || updateError.code === '42703')) {
-        const { resource_name: _rn, resource_id: _ri, ...basePayload } = updatePayload;
+        const { resource_name: _rn, resource_id: _ri, duration_minutes: _dm, ...basePayload } = updatePayload;
         const retryRes = await supabase
           .from('appointments')
           .update(basePayload)

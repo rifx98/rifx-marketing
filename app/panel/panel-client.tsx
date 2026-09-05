@@ -4913,6 +4913,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       scheduled_time?: string;
       resource_id?: string;
       resource_name?: string;
+      duration_minutes?: number;
+      end_time?: string;
     }
   ) => {
     setIsPerformingApptAction(`${apptId}-${action}`);
