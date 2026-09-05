@@ -21,67 +21,30 @@ export async function POST(req: NextRequest) {
 
     const variantId = process.env.LEMONSQUEEZY_VARIANT_AI_1K || 'e25d28c0-a5b1-4035-938d-7ae9659a9064';
     const quantity = amount / 1000;
-    const storeId = process.env.LEMONSQUEEZY_STORE_ID;
-    const apiKey = process.env.LEMONSQUEEZY_API_KEY;
-
-    if (!storeId || !apiKey) {
-      return NextResponse.json({ error: 'La pasarela de pagos no está configurada' }, { status: 503 });
-    }
-
-    const appOrigin = process.env.APP_URL || req.nextUrl.origin;
     
-    // Generar checkout usando la API oficial para permitir redirección
-    const result = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/vnd.api+json',
-        Accept: 'application/vnd.api+json',
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'checkouts',
-          attributes: {
-            checkout_data: {
-              email: tenant.email || '',
-              custom: { tenant_id: tenant.tenantId, type: 'ai_credits', credits: amount }
-            },
-            product_options: {
-              redirect_url: `${appOrigin}/panel?payment=success`,
-              receipt_button_text: 'Volver al Panel',
-              receipt_link_url: `${appOrigin}/panel?payment=success`,
-            },
-            expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-          },
-          relationships: {
-            store: { data: { type: 'stores', id: storeId } },
-            variant: { data: { type: 'variants', id: variantId } },
-          },
-        },
-      }),
-    });
-
-    if (!result.ok) {
-      const errorText = await result.text();
-      console.error('Error de LemonSqueezy API:', errorText);
-      return NextResponse.json({ error: 'No se pudo crear la sesión de pago' }, { status: 502 });
+    // Generar URL de checkout directamente usando los query parameters de Lemon Squeezy
+    // Esto evita problemas de autenticación de API o IDs de variantes numéricos faltantes
+    const baseUrl = `https://rifx-marketing.lemonsqueezy.com/checkout/buy/${variantId}`;
+    const url = new URL(baseUrl);
+    
+    // Datos de usuario
+    if (tenant.email) {
+      url.searchParams.append('checkout[email]', tenant.email);
     }
-
-    const checkoutData = await result.json();
-    let checkoutUrl = checkoutData?.data?.attributes?.url;
-
-    // Workaround para quantity: si la API no permite mandarlo directamente, lo adjuntamos a la url generada
-    if (checkoutUrl && quantity > 1) {
-      checkoutUrl += `&checkout[quantity]=${quantity}`;
-    }
-
-    if (!checkoutUrl) {
-      return NextResponse.json({ error: 'Respuesta inválida del proveedor de pagos' }, { status: 502 });
+    
+    // Custom data para el Webhook
+    url.searchParams.append('checkout[custom][tenant_id]', tenant.tenantId);
+    url.searchParams.append('checkout[custom][type]', 'ai_credits');
+    url.searchParams.append('checkout[custom][credits]', amount.toString());
+    
+    // Cantidad si es mayor a 1
+    if (quantity > 1) {
+      url.searchParams.append('checkout[quantity]', quantity.toString());
     }
 
     return NextResponse.json({ 
       success: true,
-      url: checkoutUrl
+      url: url.toString()
     });
   } catch (error) {
     console.error('Error in checkout-ai route:', error);
