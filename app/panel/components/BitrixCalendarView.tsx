@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GoogleTimePicker, { time24ToMinutes, minutesToTime24, formatDurationLabel } from './GoogleTimePicker';
 
@@ -188,7 +188,21 @@ export default function BitrixCalendarView({
   // Contactos Modal state (Bitrix24 CRM style ventana emergente)
   const [showContactsModal, setShowContactsModal] = useState(false);
   const [contactsSearch, setContactsSearch] = useState('');
-  const [contactsFilterType, setContactsFilterType] = useState<'all' | 'incoming' | 'planned'>('all');
+  const [activeFilterTag, setActiveFilterTag] = useState<string | null>('Todos los contactos');
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Formulario de filtros avanzados Bitrix24 (Captura 3)
+  const [filterForm, setFilterForm] = useState({
+    nombre: '',
+    apellido: '',
+    creadoPor: '',
+    modificadoPor: '',
+    telefono: '',
+    email: '',
+    responsable: '',
+  });
+
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [contactsSortAsc, setContactsSortAsc] = useState(true);
 
@@ -217,6 +231,21 @@ export default function BitrixCalendarView({
     setNewResourceName('');
     setShowAddResourceModal(false);
   };
+
+  // Cerrar popover de búsqueda avanzada al hacer clic fuera
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    if (showSearchDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [showSearchDropdown]);
 
   // Sincronizar estado del modal al abrir detalles de una cita
   useEffect(() => {
@@ -494,35 +523,70 @@ export default function BitrixCalendarView({
   const incomingCount = useMemo(() => contactsList.filter((c) => c.hasIncoming).length, [contactsList]);
   const plannedCount = useMemo(() => contactsList.filter((c) => c.hasPlanned).length, [contactsList]);
 
-  // Filtered contacts based on search and subheader tab
+  // Filtered contacts based on search, active tag, and advanced filter form
   const filteredContacts = useMemo(() => {
     let list = [...contactsList];
 
-    if (contactsFilterType === 'incoming') {
+    // Filter by tag
+    if (activeFilterTag === 'Entrante') {
       list = list.filter((c) => c.hasIncoming);
-    } else if (contactsFilterType === 'planned') {
+    } else if (activeFilterTag === 'Planeado') {
       list = list.filter((c) => c.hasPlanned);
+    } else if (activeFilterTag === 'Mis contactos') {
+      list = list.filter((c) =>
+        (c.responsible || '').toLowerCase().includes('yo') ||
+        (c.responsible || '').toLowerCase().includes('asesor') ||
+        (c.responsible || '').toLowerCase().includes('general')
+      );
     }
 
+    // Filter by advanced form fields (Captura 3)
+    if (filterForm.nombre.trim()) {
+      const q = filterForm.nombre.toLowerCase().trim();
+      list = list.filter((c) => (c.name || '').toLowerCase().includes(q));
+    }
+    if (filterForm.apellido.trim()) {
+      const q = filterForm.apellido.toLowerCase().trim();
+      list = list.filter((c) => (c.name || '').toLowerCase().includes(q));
+    }
+    if (filterForm.telefono.trim()) {
+      const q = filterForm.telefono.replace(/[^0-9]/g, '');
+      list = list.filter((c) => (c.phone || '').replace(/[^0-9]/g, '').includes(q));
+    }
+    if (filterForm.email.trim()) {
+      const q = filterForm.email.toLowerCase().trim();
+      list = list.filter((c) => (c.email || '').toLowerCase().includes(q));
+    }
+    if (filterForm.responsable.trim()) {
+      const q = filterForm.responsable.toLowerCase().trim();
+      list = list.filter((c) => (c.responsible || '').toLowerCase().includes(q));
+    }
+    if (filterForm.creadoPor.trim()) {
+      const q = filterForm.creadoPor.toLowerCase().trim();
+      list = list.filter((c) => (c.responsible || '').toLowerCase().includes(q));
+    }
+
+    // Filter by quick text search in bar
     if (contactsSearch.trim()) {
       const q = contactsSearch.toLowerCase().trim();
       list = list.filter(
         (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
-          c.activity.toLowerCase().includes(q) ||
-          c.responsible.toLowerCase().includes(q)
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.phone || '').includes(q) ||
+          (c.activity || '').toLowerCase().includes(q) ||
+          (c.responsible || '').toLowerCase().includes(q) ||
+          (c.journey || '').toLowerCase().includes(q)
       );
     }
 
     list.sort((a, b) => {
-      const nameA = a.name.toLowerCase();
-      const nameB = b.name.toLowerCase();
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
       return contactsSortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
     });
 
     return list;
-  }, [contactsList, contactsFilterType, contactsSearch, contactsSortAsc]);
+  }, [contactsList, activeFilterTag, filterForm, contactsSearch, contactsSortAsc]);
 
   // Real-time Current Time line
   const [currentTimeMinutes, setCurrentTimeMinutes] = useState<number | null>(null);
@@ -1966,45 +2030,303 @@ export default function BitrixCalendarView({
                     <span>{language === 'en' ? 'Create' : 'Crear'}</span>
                   </button>
 
-                  {/* Pill Search & Filter Bar (Exact from Captura 1) */}
-                  <div className="bg-white dark:bg-slate-800 rounded-full pl-2 pr-3 py-1 flex items-center gap-2 border border-slate-200/80 dark:border-slate-700 shadow-xs w-72 sm:w-96">
-                    {/* Active Filter Chip */}
-                    <span className="bg-[#e8f2fe] dark:bg-blue-950/70 text-[#1b6cd8] dark:text-blue-300 text-[11px] font-normal px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shrink-0 select-none">
-                      <span>{language === 'en' ? 'All contacts' : 'Todos los contactos'}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setContactsFilterType('all');
-                          setContactsSearch('');
-                        }}
-                        className="hover:text-blue-800 dark:hover:text-white cursor-pointer ml-0.5"
-                      >
-                        ✕
-                      </button>
-                    </span>
+                  {/* Pill Search & Filter Bar with Bitrix24 Filter Popover (Capturas 2 & 3) */}
+                  <div ref={searchDropdownRef} className="relative">
+                    <div
+                      onClick={() => setShowSearchDropdown(true)}
+                      className={`bg-white dark:bg-slate-800 rounded-full pl-2 pr-3 py-1 flex items-center gap-2 border shadow-xs transition-all w-72 sm:w-96 cursor-text ${
+                        showSearchDropdown
+                          ? 'border-blue-500 ring-2 ring-blue-500/20'
+                          : 'border-slate-200/80 dark:border-slate-700'
+                      }`}
+                    >
+                      {/* Active Filter Chip (Funcional: clic en X lo quita) */}
+                      {activeFilterTag && (
+                        <span className="bg-[#e8f2fe] dark:bg-blue-950/70 text-[#1b6cd8] dark:text-blue-300 text-[11px] font-normal px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shrink-0 select-none">
+                          <span>{activeFilterTag}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveFilterTag(null);
+                            }}
+                            className="hover:text-blue-800 dark:hover:text-white cursor-pointer ml-0.5 leading-none font-bold"
+                            title="Quitar etiqueta"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )}
 
-                    {/* Input "buscar" */}
-                    <input
-                      type="text"
-                      placeholder={language === 'en' ? 'search' : 'buscar'}
-                      value={contactsSearch}
-                      onChange={(e) => setContactsSearch(e.target.value)}
-                      className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
-                    />
+                      {/* Input "buscar" */}
+                      <input
+                        type="text"
+                        placeholder={language === 'en' ? 'search' : 'buscar'}
+                        value={contactsSearch}
+                        onFocus={() => setShowSearchDropdown(true)}
+                        onChange={(e) => setContactsSearch(e.target.value)}
+                        className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none cursor-text"
+                      />
 
-                    {/* Search & Clear icons */}
-                    {contactsSearch ? (
-                      <button
-                        type="button"
-                        onClick={() => setContactsSearch('')}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-sm">close</span>
-                      </button>
-                    ) : (
-                      <span className="material-symbols-outlined text-sm text-slate-400 pointer-events-none">
-                        search
-                      </span>
+                      {/* Search & Clear icons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="material-symbols-outlined text-sm text-slate-400 pointer-events-none">
+                          search
+                        </span>
+                        {(contactsSearch || activeFilterTag || Object.values(filterForm).some((v) => v.trim() !== '')) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContactsSearch('');
+                              setActiveFilterTag(null);
+                              setFilterForm({
+                                nombre: '',
+                                apellido: '',
+                                creadoPor: '',
+                                modificadoPor: '',
+                                telefono: '',
+                                email: '',
+                                responsable: '',
+                              });
+                            }}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                            title="Limpiar búsqueda y filtros"
+                          >
+                            <span className="material-symbols-outlined text-sm">close</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Popover de Filtros Avanzados Bitrix24 (Captura 3) */}
+                    {showSearchDropdown && (
+                      <div className="absolute left-0 top-full mt-2 w-[620px] max-w-[90vw] z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 flex overflow-hidden text-xs text-slate-700 dark:text-slate-200 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {/* Panel Izquierdo: Vistas de filtro predeterminadas */}
+                        <div className="w-48 bg-slate-50/70 dark:bg-slate-950/50 border-r border-slate-200/80 dark:border-slate-800 p-3.5 flex flex-col justify-between shrink-0">
+                          <div className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveFilterTag('Todos los contactos');
+                                setShowSearchDropdown(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                                activeFilterTag === 'Todos los contactos'
+                                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold'
+                                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                              }`}
+                            >
+                              <span>{language === 'en' ? 'All contacts' : 'Todos los contactos'}</span>
+                              <span className="material-symbols-outlined text-xs text-slate-400">push_pin</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveFilterTag('Mis contactos');
+                                setShowSearchDropdown(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center justify-between cursor-pointer ${
+                                activeFilterTag === 'Mis contactos'
+                                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold'
+                                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                              }`}
+                            >
+                              <span>{language === 'en' ? 'My contacts' : 'Mis contactos'}</span>
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-4 border-t border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                            <button
+                              type="button"
+                              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <span className="font-bold">+</span>
+                              <span>{language === 'en' ? 'Save filter' : 'Guardar filtro'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1 hover:text-slate-700 dark:hover:text-slate-200 rounded transition-colors cursor-pointer"
+                              title="Ajustes de filtro"
+                            >
+                              <span className="material-symbols-outlined text-sm">settings</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Panel Derecho: Campos del formulario */}
+                        <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between max-h-[480px] overflow-y-auto">
+                          <div className="space-y-2.5">
+                            {/* Nombre */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'First Name' : 'Nombre'}
+                              </label>
+                              <div className="relative flex items-center">
+                                <input
+                                  type="text"
+                                  value={filterForm.nombre}
+                                  onChange={(e) => setFilterForm({ ...filterForm, nombre: e.target.value })}
+                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all pr-8"
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
+                                  title="Más opciones"
+                                >
+                                  ···
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Apellido */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'Last Name' : 'Apellido'}
+                              </label>
+                              <div className="relative flex items-center">
+                                <input
+                                  type="text"
+                                  value={filterForm.apellido}
+                                  onChange={(e) => setFilterForm({ ...filterForm, apellido: e.target.value })}
+                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all pr-8"
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
+                                  title="Más opciones"
+                                >
+                                  ···
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Creado por */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'Created by' : 'Creado por'}
+                              </label>
+                              <input
+                                type="text"
+                                value={filterForm.creadoPor}
+                                onChange={(e) => setFilterForm({ ...filterForm, creadoPor: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                              />
+                            </div>
+
+                            {/* Modificado por */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'Modified by' : 'Modificado por'}
+                              </label>
+                              <input
+                                type="text"
+                                value={filterForm.modificadoPor}
+                                onChange={(e) => setFilterForm({ ...filterForm, modificadoPor: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                              />
+                            </div>
+
+                            {/* Teléfono */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'Phone' : 'Teléfono'}
+                              </label>
+                              <input
+                                type="text"
+                                value={filterForm.telefono}
+                                onChange={(e) => setFilterForm({ ...filterForm, telefono: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                              />
+                            </div>
+
+                            {/* Correo electrónico */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'Email' : 'Correo electrónico'}
+                              </label>
+                              <input
+                                type="text"
+                                value={filterForm.email}
+                                onChange={(e) => setFilterForm({ ...filterForm, email: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                              />
+                            </div>
+
+                            {/* Persona responsable */}
+                            <div>
+                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                {language === 'en' ? 'Responsible person' : 'Persona responsable'}
+                              </label>
+                              <input
+                                type="text"
+                                value={filterForm.responsable}
+                                onChange={(e) => setFilterForm({ ...filterForm, responsable: e.target.value })}
+                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                              />
+                            </div>
+
+                            {/* Action links */}
+                            <div className="flex items-center gap-4 pt-1">
+                              <button
+                                type="button"
+                                className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-[11px] cursor-pointer"
+                              >
+                                {language === 'en' ? 'Add field' : 'Agregar campo'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFilterForm({
+                                    nombre: '',
+                                    apellido: '',
+                                    creadoPor: '',
+                                    modificadoPor: '',
+                                    telefono: '',
+                                    email: '',
+                                    responsable: '',
+                                  })
+                                }
+                                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-[11px] cursor-pointer transition-colors"
+                              >
+                                {language === 'en' ? 'Restore default fields' : 'Restaurar campos predeterminados'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Bottom Buttons: Buscar + Reiniciar */}
+                          <div className="flex items-center justify-center gap-3 pt-4 mt-3 border-t border-slate-100 dark:border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setShowSearchDropdown(false)}
+                              className="bg-[#0088e8] hover:bg-[#0077cc] text-white px-6 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
+                            >
+                              <span className="material-symbols-outlined text-sm">search</span>
+                              <span>{language === 'en' ? 'Search' : 'Buscar'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFilterForm({
+                                  nombre: '',
+                                  apellido: '',
+                                  creadoPor: '',
+                                  modificadoPor: '',
+                                  telefono: '',
+                                  email: '',
+                                  responsable: '',
+                                });
+                                setContactsSearch('');
+                                setActiveFilterTag(null);
+                              }}
+                              className="text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-4 py-2 text-xs font-medium cursor-pointer transition-colors"
+                            >
+                              {language === 'en' ? 'Reset' : 'Reiniciar'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2029,13 +2351,13 @@ export default function BitrixCalendarView({
                 </div>
               </div>
 
-              {/* Subheader Filters: 0 Entrante | 0 Planeado | 0 Más ▾ */}
+              {/* Subheader Filters: 0 Entrante | 0 Planeado | Más ▾ (Funcionales) */}
               <div className="flex items-center gap-4 px-4 sm:px-6 mb-3 text-xs font-normal text-slate-500 dark:text-slate-400 select-none">
                 <button
                   type="button"
-                  onClick={() => setContactsFilterType(contactsFilterType === 'incoming' ? 'all' : 'incoming')}
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'Entrante' ? null : 'Entrante')}
                   className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
-                    contactsFilterType === 'incoming'
+                    activeFilterTag === 'Entrante'
                       ? 'text-blue-600 dark:text-blue-400 font-bold'
                       : 'hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
@@ -2046,9 +2368,9 @@ export default function BitrixCalendarView({
 
                 <button
                   type="button"
-                  onClick={() => setContactsFilterType(contactsFilterType === 'planned' ? 'all' : 'planned')}
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'Planeado' ? null : 'Planeado')}
                   className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
-                    contactsFilterType === 'planned'
+                    activeFilterTag === 'Planeado'
                       ? 'text-blue-600 dark:text-blue-400 font-bold'
                       : 'hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
@@ -2060,6 +2382,7 @@ export default function BitrixCalendarView({
                 <div className="relative">
                   <button
                     type="button"
+                    onClick={() => setActiveFilterTag(activeFilterTag === 'Todos los contactos' ? null : 'Todos los contactos')}
                     className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <span className="text-slate-400 font-normal">{contactsList.length}</span>
@@ -2071,10 +2394,10 @@ export default function BitrixCalendarView({
 
               {/* Main White Card Container (Scrollable inside modal) */}
               <div className="flex-1 mx-4 sm:mx-6 mb-4 sm:mb-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col min-h-[380px]">
-                {/* Table Head */}
+                {/* Table Head: 12-Column Grid Centrado y Ordenado */}
                 <div className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-12 py-3 px-6 text-xs font-normal text-slate-500 dark:text-slate-400 items-center select-none shrink-0">
-                  {/* Checkbox + Gear + Contacto ▴ */}
-                  <div className="col-span-4 flex items-center gap-3">
+                  {/* Checkbox + Gear + Contacto ▴ (col-span-3) */}
+                  <div className="col-span-3 flex items-center gap-3">
                     <input
                       type="checkbox"
                       checked={
@@ -2102,7 +2425,7 @@ export default function BitrixCalendarView({
                     <button
                       type="button"
                       onClick={() => setContactsSortAsc((prev) => !prev)}
-                      className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer text-slate-600 dark:text-slate-300"
+                      className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer text-slate-600 dark:text-slate-300 font-medium"
                     >
                       <span>{language === 'en' ? 'Contact' : 'Contacto'}</span>
                       <span className="text-[10px] text-slate-400">
@@ -2111,24 +2434,29 @@ export default function BitrixCalendarView({
                     </button>
                   </div>
 
-                  {/* Actividad */}
+                  {/* Actividad (col-span-2) */}
                   <div className="col-span-2">
                     <span>{language === 'en' ? 'Activity' : 'Actividad'}</span>
                   </div>
 
-                  {/* Responsable */}
+                  {/* Responsable (col-span-2) */}
                   <div className="col-span-2">
                     <span>{language === 'en' ? 'Responsible' : 'Responsable'}</span>
                   </div>
 
-                  {/* Creado */}
+                  {/* Creado (col-span-2) */}
                   <div className="col-span-2">
                     <span>{language === 'en' ? 'Created' : 'Creado'}</span>
                   </div>
 
-                  {/* Recorrido del cliente */}
-                  <div className="col-span-2 text-right">
+                  {/* Recorrido del cliente (col-span-2, Centrado) */}
+                  <div className="col-span-2 text-center">
                     <span>{language === 'en' ? 'Customer Journey' : 'Recorrido del cliente'}</span>
+                  </div>
+
+                  {/* Acciones (col-span-1, Centrado) */}
+                  <div className="col-span-1 text-center">
+                    <span>{language === 'en' ? 'Actions' : 'Acciones'}</span>
                   </div>
                 </div>
 
@@ -2187,8 +2515,8 @@ export default function BitrixCalendarView({
                                 : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
                             }`}
                           >
-                            {/* Checkbox + Contact Info */}
-                            <div className="col-span-4 flex items-center gap-3">
+                            {/* Checkbox + Contact Info (col-span-3) */}
+                            <div className="col-span-3 flex items-center gap-3 min-w-0 pr-2">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -2199,12 +2527,12 @@ export default function BitrixCalendarView({
                                   else next.add(key);
                                   setSelectedContactIds(next);
                                 }}
-                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer shrink-0"
                               />
                               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white font-semibold text-xs flex items-center justify-center shrink-0 shadow-xs">
                                 {contact.name.charAt(0).toUpperCase()}
                               </div>
-                              <div className="truncate">
+                              <div className="truncate min-w-0">
                                 <span
                                   onClick={() => {
                                     setShowContactsModal(false);
@@ -2227,7 +2555,7 @@ export default function BitrixCalendarView({
                               </div>
                             </div>
 
-                            {/* Actividad */}
+                            {/* Actividad (col-span-2) */}
                             <div className="col-span-2 text-slate-600 dark:text-slate-300 truncate pr-2">
                               <div className="flex items-center gap-1.5 truncate">
                                 <span
@@ -2239,18 +2567,18 @@ export default function BitrixCalendarView({
                               </div>
                             </div>
 
-                            {/* Responsable */}
+                            {/* Responsable (col-span-2) */}
                             <div className="col-span-2 text-slate-700 dark:text-slate-300 truncate pr-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-sm text-slate-400">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="material-symbols-outlined text-sm text-slate-400 shrink-0">
                                   person
                                 </span>
                                 <span className="truncate">{contact.responsible}</span>
                               </div>
                             </div>
 
-                            {/* Creado */}
-                            <div className="col-span-2 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                            {/* Creado (col-span-2) */}
+                            <div className="col-span-2 text-slate-500 dark:text-slate-400 font-mono text-[11px] truncate">
                               {(() => {
                                 try {
                                   const d = new Date(contact.created_at);
@@ -2267,12 +2595,15 @@ export default function BitrixCalendarView({
                               })()}
                             </div>
 
-                            {/* Recorrido del cliente + Acciones */}
-                            <div className="col-span-2 flex items-center justify-end gap-2">
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                            {/* Recorrido del cliente (col-span-2, Centrado, Sin cortes de línea) */}
+                            <div className="col-span-2 flex items-center justify-center px-2">
+                              <span className="inline-flex items-center justify-center px-3 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap select-none">
                                 {contact.journey}
                               </span>
+                            </div>
 
+                            {/* Acciones (col-span-1, Centrado con WhatsApp y Calendario) */}
+                            <div className="col-span-1 flex items-center justify-center gap-1.5">
                               {contact.phone && (
                                 <a
                                   href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, '')}`}
@@ -2281,7 +2612,7 @@ export default function BitrixCalendarView({
                                   className="p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
                                   title="Abrir WhatsApp"
                                 >
-                                  <span className="material-symbols-outlined text-sm">chat</span>
+                                  <span className="material-symbols-outlined text-base">chat</span>
                                 </a>
                               )}
 
@@ -2299,7 +2630,7 @@ export default function BitrixCalendarView({
                                 className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
                                 title="Agendar cita"
                               >
-                                <span className="material-symbols-outlined text-sm">event</span>
+                                <span className="material-symbols-outlined text-base">event</span>
                               </button>
                             </div>
                           </div>
