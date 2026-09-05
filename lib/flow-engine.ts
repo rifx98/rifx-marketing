@@ -84,7 +84,8 @@ export async function processFlowEngineMessage(
   // 2. Identify Start node if no current node
   if (!currentNodeId) {
     const startNode = config.nodes.find(n => n.type === 'start');
-    currentNodeId = startNode ? startNode.id : config.nodes[0].id;
+    const startEdge = startNode ? config.edges.find(e => e.source === startNode.id) : null;
+    currentNodeId = startEdge ? startEdge.target : (startNode ? startNode.id : config.nodes[0].id);
   } else {
     // 3. Process user response against current node
     const currentNode = config.nodes.find(n => n.id === currentNodeId);
@@ -304,6 +305,26 @@ export async function processFlowEngineMessage(
         balance_after: (tenant?.ai_credits_balance || 0) - costPerMessage,
         reference: `Mensaje IA - Conversación ${conversation?.id}`
       });
+
+      // 5. If AI node has an outgoing edge to an interactive node (e.g. menu, buttons)
+      const aiOutgoingEdges = config.edges.filter(e => e.source === nextNode!.id);
+      if (aiOutgoingEdges.length > 0) {
+        const postAiNode = config.nodes.find(n => n.id === aiOutgoingEdges[0].target);
+        if (postAiNode) {
+          if (conversation) {
+            await supabase.from('conversations').update({ current_node_id: postAiNode.id }).eq('id', conversation.id);
+          }
+          if (postAiNode.type === 'buttons' || postAiNode.type === 'menu') {
+            const buttons = Array.isArray(postAiNode.data?.buttons) ? postAiNode.data.buttons : [];
+            const menuText = postAiNode.data?.text || 'Opciones:';
+            const buttonList = buttons.map((b: any, i: number) => `${i + 1}. ${b.label}`).join('\n');
+            return {
+              type: 'text',
+              content: `${replyText}\n\n${menuText}\n${buttonList}`
+            };
+          }
+        }
+      }
 
       return {
         type: 'text',

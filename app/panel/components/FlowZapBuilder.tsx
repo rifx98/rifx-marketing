@@ -340,10 +340,13 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
       } else if (node.type === 'question') {
         if ((node.data as any)?.variable) vars[(node.data as any).variable] = userMessage;
         if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+        node = nodes.find((n: any) => n.id === nextNodeId);
+      } else if (node.type === 'ai') {
+        // The user replied to the AI node: keep node as AI so the while loop processes userMessage through the AI
       } else {
         if (outEdges.length > 0) nextNodeId = outEdges[0].target;
+        node = nodes.find((n: any) => n.id === nextNodeId);
       }
-      node = nodes.find((n: any) => n.id === nextNodeId);
     }
 
     let iterations = 0;
@@ -384,7 +387,20 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         let text = (node.data as any)?.text || '';
         text = text.replace(/\{\{([^}]+)\}\}/g, (m: any, k: string) => vars[k.trim()] || m);
         botReplies.push(text);
-        autoAdvance = true;
+        
+        // Check if next node is interactive (like AI, question, etc.)
+        const outEdges = edges.filter(e => e.source === node!.id);
+        if (outEdges.length > 0) {
+          const nextTarget = nodes.find((n: any) => n.id === outEdges[0].target);
+          if (nextTarget?.type === 'ai') {
+            // Stop and wait for user to reply so their input can be passed to the AI
+            nextNodeId = nextTarget.id;
+            break;
+          }
+          autoAdvance = true;
+        } else {
+          break;
+        }
       }
       else if (node.type === 'media') {
         botReplies.push(`[Archivo adjunto: ${(node.data as any)?.url || 'media'}]`);
@@ -396,8 +412,34 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         break; 
       }
       else if (node.type === 'ai') {
-        botReplies.push(`[Simulando IA Premium: procesando consulta...]`);
-        autoAdvance = true;
+        if (!userMessage) {
+          // If we reached AI without user input yet, stop and wait for the user to type
+          nextNodeId = node.id;
+          break;
+        }
+
+        const context = (node.data as any)?.context || '';
+        const tone = (node.data as any)?.tone || 'amigable';
+        const nodeTitle = (node.data as any)?.name || 'IA';
+
+        let aiReply = '';
+        if (context.trim()) {
+          aiReply = `🤖 [${nodeTitle}]: ¡Hola! He analizado tu consulta sobre "${userMessage}". Según nuestro catálogo y reglas: ${context.slice(0, 160)}${context.length > 160 ? '...' : ''}`;
+        } else {
+          aiReply = `🤖 [${nodeTitle}]: ¡Hola! Recibí tu consulta: "${userMessage}". Con gusto te asesoro de manera personalizada.`;
+        }
+
+        botReplies.push(aiReply);
+
+        const outEdges = edges.filter(e => e.source === node!.id);
+        if (outEdges.length > 0) {
+          // If followed by a post-AI menu or action, advance to it
+          autoAdvance = true;
+        } else {
+          // Free-standing AI node: remain here for continuous chat
+          nextNodeId = node.id;
+          break;
+        }
       }
       else if (node.type === 'menu' || node.type === 'buttons') {
         let text = (node.data as any)?.text || 'Opciones:';
