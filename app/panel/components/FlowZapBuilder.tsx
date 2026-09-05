@@ -644,6 +644,32 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
         </div>
       )}
 
+      {selectedNode.type === 'ai' && (
+        <>
+          <InspectorField label="Catálogo / Memoria de IA" help="Pega aquí los precios, productos o reglas. La IA leerá esto antes de responder.">
+            <textarea 
+              value={selectedNode.data.context || ''} 
+              onChange={(e) => updateSelectedNodeData('context', e.target.value)}
+              placeholder="Ej: Vendemos zapatos a $50. Horario: 9 a 5."
+              rows={4}
+            />
+          </InspectorField>
+          <InspectorField label="Tono de Voz">
+            <select value={selectedNode.data.tone || 'profesional'} onChange={(e) => updateSelectedNodeData('tone', e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'10px'}}>
+              <option value="amigable">Amigable y Cercano</option>
+              <option value="profesional">Profesional y Serio</option>
+              <option value="vendedor">Vendedor Experto (Enfocado en vender)</option>
+            </select>
+          </InspectorField>
+          <InspectorField label="Modo Estricto" help="¿La IA debe negarse a inventar cosas que no están en el catálogo?">
+            <select value={selectedNode.data.strictMode || 'yes'} onChange={(e) => updateSelectedNodeData('strictMode', e.target.value)} style={{width:'100%', padding:'8px', borderRadius:'8px', border:'1px solid #e5e7eb', fontSize:'10px'}}>
+              <option value="yes">Sí, responder solo con la memoria</option>
+              <option value="no">No, permitir respuestas generales</option>
+            </select>
+          </InspectorField>
+        </>
+      )}
+
       <InspectorDivider />
 
       <button onClick={deleteNode} style={{width:'100%', padding:'10px', background:'#fee2e2', color:'#ef4444', border:'none', borderRadius:8, fontWeight:'bold', cursor:'pointer', fontSize:11}}>

@@ -252,7 +252,29 @@ export async function processFlowEngineMessage(
         history.push({ role: 'user', content: userText });
       }
 
-      // 3. Call OpenAI
+      // 3. Prepare Prompt Configuration
+      const blockContext = nextNode.data?.context || '';
+      const blockTone = nextNode.data?.tone || 'profesional';
+      const isStrict = nextNode.data?.strictMode === 'yes';
+
+      let toneInstruction = '';
+      if (blockTone === 'amigable') toneInstruction = 'Usa un tono muy amigable, cercano y casual. Usa emojis.';
+      if (blockTone === 'profesional') toneInstruction = 'Usa un tono profesional, claro y respetuoso.';
+      if (blockTone === 'vendedor') toneInstruction = 'Usa un tono persuasivo, resalta los beneficios de los productos y trata de cerrar la venta.';
+
+      let strictInstruction = '';
+      if (isStrict) {
+        strictInstruction = 'REGLA ESTRICTA: Basa tus respuestas ÚNICAMENTE en el catálogo/memoria provista. Si te preguntan sobre un producto, precio o servicio que no está en el catálogo, DEBES responder amablemente que no tienes esa información o que no ofrecen ese producto. NUNCA inventes precios ni productos.';
+      }
+
+      const globalPrompt = tenant?.ai_prompt || 'Eres un asistente útil.';
+      
+      let finalSystemPrompt = `${globalPrompt}\n\n${toneInstruction}\n${strictInstruction}`;
+      if (blockContext.trim()) {
+        finalSystemPrompt += `\n\n--- MEMORIA / CATÁLOGO DEL NEGOCIO ---\n${blockContext}\n-----------------------------------\n`;
+      }
+
+      // 4. Call OpenAI
       const openai = new OpenAI({
         apiKey: aiConfig?.api_key || process.env.OPENAI_API_KEY,
       });
@@ -260,10 +282,10 @@ export async function processFlowEngineMessage(
       const response = await openai.chat.completions.create({
         model: aiConfig?.model || 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: tenant?.ai_prompt || 'Eres un asistente útil.' },
+          { role: 'system', content: finalSystemPrompt },
           ...history
         ],
-        temperature: 0.7
+        temperature: isStrict ? 0.3 : 0.7
       });
 
       const replyText = response.choices[0]?.message?.content || '';
