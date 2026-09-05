@@ -205,32 +205,87 @@ export async function processFlowEngineMessage(
 
   if (nextNode.type === 'ai') {
     try {
-      // 1. Fetch AI config and Tenant credits
-      const { data: aiConfig } = await supabase
-        .from('ai_provider_configs')
-        .select('is_active, model, api_key, provider')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-
+      // 1. Fetch AI config, Config row, Platform Settings and Tenant credits
       const { data: tenant } = await supabase
         .from('tenants')
         .select('ai_credits_balance, ai_prompt')
         .eq('id', tenantId)
         .maybeSingle();
 
-      const isAiActive = aiConfig?.is_active === true;
-      const hasCredits = (tenant?.ai_credits_balance || 0) > 0;
+      const { data: tenantConfig } = await supabase
+        .from('config')
+        .select('openai_key, ai_prompt')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
 
-      // Si no está activa o no hay créditos, saltamos silenciosamente al siguiente nodo
-      if (!isAiActive || !hasCredits) {
-        console.warn(`[FlowEngine] Nodo IA omitido para tenant ${tenantId}. Activa: ${isAiActive}, Créditos: ${hasCredits}`);
+      const { data: platformSettings } = await supabase
+        .from('platform_settings')
+        .select('global_ai_config')
+        .eq('id', 1)
+        .maybeSingle();
+
+      const { data: aiConfig } = await supabase
+        .from('ai_provider_configs')
+        .select('is_active, model, api_key, provider')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      // Resolve key, model & provider
+      let provider = 'openai';
+      let model = 'gpt-4o-mini';
+      let apiKey = '';
+
+      const globalAi = (platformSettings as any)?.global_ai_config;
+      if (globalAi && globalAi.enabled && globalAi.apiKey) {
+        provider = globalAi.provider || 'openai';
+        model = globalAi.model || (provider === 'gemini' ? 'gemini-3.8-flash' : 'gpt-4o');
+        apiKey = globalAi.apiKey;
+      } else if (tenantConfig?.openai_key) {
+        try {
+          const parsed = JSON.parse(tenantConfig.openai_key);
+          if (parsed.gemini_key) {
+            provider = 'gemini';
+            apiKey = parsed.gemini_key;
+            model = parsed.model_selection || 'gemini-3.8-flash';
+          } else if (parsed.openai_key) {
+            provider = 'openai';
+            apiKey = parsed.openai_key;
+            model = parsed.model_selection || 'gpt-4o-mini';
+          } else if (parsed.groq_key) {
+            provider = 'groq';
+            apiKey = parsed.groq_key;
+            model = parsed.model_selection || 'llama-3.3-70b-versatile';
+          }
+        } catch {
+          apiKey = tenantConfig.openai_key;
+        }
+      } else if (aiConfig?.is_active && aiConfig.api_key) {
+        provider = aiConfig.provider || 'openai';
+        model = aiConfig.model || 'gpt-4o-mini';
+        apiKey = aiConfig.api_key;
+      }
+
+      if (!apiKey) {
+        if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+          provider = 'gemini';
+          model = 'gemini-3.8-flash';
+          apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+        } else if (process.env.OPENAI_API_KEY) {
+          provider = 'openai';
+          model = 'gpt-4o-mini';
+          apiKey = process.env.OPENAI_API_KEY;
+        }
+      }
+
+      const hasCredits = (tenant?.ai_credits_balance || 0) > 0 || !!globalAi?.enabled;
+
+      if (!apiKey || !hasCredits) {
+        console.warn(`[FlowEngine] Nodo IA omitido para tenant ${tenantId}. Tiene key: ${!!apiKey}, Créditos: ${hasCredits}`);
         const aiEdges = config.edges.filter(e => e.source === nextNode!.id);
         if (aiEdges.length > 0) {
           if (conversation) {
             await supabase.from('conversations').update({ current_node_id: aiEdges[0].target }).eq('id', conversation.id);
           }
-          // Retornar null hará que se envíe __SYSTEM_PAUSE__ implícitamente o nada,
-          // pero es mejor retornar un system pause para no enviar mensaje en blanco.
           return { type: 'text', content: '__SYSTEM_PAUSE__' }; 
         }
         return null;
@@ -268,28 +323,61 @@ export async function processFlowEngineMessage(
         strictInstruction = 'REGLA ESTRICTA: Basa tus respuestas ÚNICAMENTE en el catálogo/memoria provista. Si te preguntan sobre un producto, precio o servicio que no está en el catálogo, DEBES responder amablemente que no tienes esa información o que no ofrecen ese producto. NUNCA inventes precios ni productos.';
       }
 
-      const globalPrompt = tenant?.ai_prompt || 'Eres un asistente útil.';
+      const globalPrompt = tenant?.ai_prompt || tenantConfig?.ai_prompt || 'Eres un asistente de ventas útil y profesional.';
       
       let finalSystemPrompt = `${globalPrompt}\n\n${toneInstruction}\n${strictInstruction}`;
       if (blockContext.trim()) {
         finalSystemPrompt += `\n\n--- MEMORIA / CATÁLOGO DEL NEGOCIO ---\n${blockContext}\n-----------------------------------\n`;
       }
 
-      // 4. Call OpenAI
-      const openai = new OpenAI({
-        apiKey: aiConfig?.api_key || process.env.OPENAI_API_KEY,
-      });
+      // Integrar PDFs y documentos de la Base de Conocimiento si existen
+      const { data: activeKnowledge } = await supabase
+        .from('knowledge_documents')
+        .select('title, content')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'indexed')
+        .limit(5);
 
-      const response = await openai.chat.completions.create({
-        model: aiConfig?.model || 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: finalSystemPrompt },
-          ...history
-        ],
-        temperature: isStrict ? 0.3 : 0.7
-      });
+      if (activeKnowledge && activeKnowledge.length > 0) {
+        const docsSummary = activeKnowledge.map(k => `[CATÁLOGO/DOC: ${k.title}]\n${k.content}`).join('\n\n');
+        finalSystemPrompt += `\n\n--- BASE DE CONOCIMIENTO (DOCUMENTOS Y PDFS SUBIDOS) ---\n${docsSummary}\n----------------------------------------------------\n`;
+      }
 
-      const replyText = response.choices[0]?.message?.content || '';
+      // 4. Call AI Model (Gemini or OpenAI)
+      let replyText = '';
+      if (provider === 'gemini' || model.startsWith('gemini')) {
+        const geminiContents = history.map(h => ({
+          role: h.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: h.content }]
+        }));
+        if (geminiContents.length > 0 && geminiContents[0].role !== 'user') {
+          geminiContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
+        }
+        const geminiPayload: any = {
+          contents: geminiContents,
+          systemInstruction: { parts: [{ text: finalSystemPrompt }] },
+          generationConfig: { maxOutputTokens: 600, temperature: isStrict ? 0.2 : 0.7 }
+        };
+        const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(geminiPayload),
+          signal: AbortSignal.timeout(25_000),
+        });
+        const gemData = await gemRes.json();
+        replyText = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        const openai = new OpenAI({ apiKey });
+        const response = await openai.chat.completions.create({
+          model,
+          messages: [
+            { role: 'system', content: finalSystemPrompt },
+            ...history
+          ],
+          temperature: isStrict ? 0.2 : 0.7
+        });
+        replyText = response.choices[0]?.message?.content || '';
+      }
 
       // 4. Deduct Credits safely
       const costPerMessage = 0.005; // Costo fijo por mensaje
