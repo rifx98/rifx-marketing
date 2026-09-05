@@ -370,7 +370,8 @@ export async function POST(req: NextRequest) {
         const { error: creditError } = await supabase.rpc('increment_ai_credits', {
           p_tenant_id: tenantId,
           p_amount: creditsAmount,
-          p_note: `Compra de paquete de ${creditsAmount} créditos (Orden: ${data.id})`
+          p_note: `Compra de paquete de ${creditsAmount} créditos (Orden: ${data.id})`,
+          p_user_id: null
         });
 
         if (creditError) {
