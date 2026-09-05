@@ -15084,7 +15084,64 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
             {appointmentSubTab === 'schedule' ? (
               <>
-            {/* Bento Statistics Grid */}
+                {calendarDisplayMode === 'timeline' ? (
+                  <BitrixCalendarView
+                    appointments={appointmentsList}
+                    waitlist={waitlistList}
+                    teamAgents={teamAgentsList}
+                    language={language}
+                    onOpenBooking={handleOpenDirectBooking}
+                    onOpenAddWaitlist={() => setShowAddWaitlistModal(true)}
+                    onApptAction={handleApptAction}
+                    onWaitlistNotify={handleWaitlistNotify}
+                    onWaitlistStatus={handleWaitlistStatus}
+                    isPerformingAction={isPerformingApptAction}
+                    appointmentStats={statsData?.appointmentStats}
+                    configData={configData}
+                    setConfigData={setConfigData}
+                    onSaveSchedule={handleSaveSettings as any}
+                    isSavingSchedule={isSaving}
+                    onSwitchToTable={() => setCalendarDisplayMode('table')}
+                  />
+                ) : (
+                  <div className="space-y-6">
+                    {/* View Switcher to toggle back */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                          {language === 'en' ? 'View' : 'Modo'}:
+                        </span>
+                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setCalendarDisplayMode('timeline')}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                          >
+                            <span className="material-symbols-outlined text-sm">calendar_view_week</span>
+                            <span>{language === 'en' ? 'Timeline Scheduler' : 'Agenda Visual (Timeline)'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCalendarDisplayMode('table')}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer bg-blue-600 text-white shadow-md shadow-blue-500/25"
+                          >
+                            <span className="material-symbols-outlined text-sm">table_rows</span>
+                            <span>{language === 'en' ? 'Data Table' : 'Tabla Detallada'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setCalendarDisplayMode('timeline')}
+                        className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">arrow_back</span>
+                        <span>{language === 'en' ? 'Back to Timeline' : 'Volver a Agenda Visual'}</span>
+                      </button>
+                    </div>
+
+                    {/* Bento Statistics Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
               {[
                 { 
@@ -15288,73 +15345,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               </div>
             </div>
 
-            {/* View Switcher: Timeline Bitrix24 vs Tabla Detallada */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  {language === 'en' ? 'View' : 'Modo'}:
-                </span>
-                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setCalendarDisplayMode('timeline')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                      calendarDisplayMode === 'timeline'
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">calendar_view_week</span>
-                    <span>{language === 'en' ? 'Timeline Scheduler' : 'Agenda Visual (Timeline)'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCalendarDisplayMode('table')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                      calendarDisplayMode === 'table'
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">table_rows</span>
-                    <span>{language === 'en' ? 'Data Table' : 'Tabla Detallada'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {calendarDisplayMode === 'table' && (
-                <button
-                  type="button"
-                  onClick={() => setCalendarDisplayMode('timeline')}
-                  className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-sm">calendar_month</span>
-                  <span>{language === 'en' ? 'Switch to Timeline' : 'Ver en Agenda Visual'}</span>
-                </button>
-              )}
-            </div>
-
-            {calendarDisplayMode === 'timeline' ? (
-              <BitrixCalendarView
-                appointments={appointmentsList}
-                waitlist={waitlistList}
-                teamAgents={teamAgentsList}
-                language={language}
-                onOpenBooking={handleOpenDirectBooking}
-                onOpenAddWaitlist={() => setShowAddWaitlistModal(true)}
-                onApptAction={handleApptAction}
-                onWaitlistNotify={handleWaitlistNotify}
-                onWaitlistStatus={handleWaitlistStatus}
-                isPerformingAction={isPerformingApptAction}
-                businessHours={{
-                  start: configData.business_start_hour || '08:00',
-                  end: configData.business_end_hour || '19:00',
-                }}
-                onSwitchToTable={() => setCalendarDisplayMode('table')}
-              />
-            ) : (
-              /* Interactive Schedule Table */
-              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                    {/* Interactive Schedule Table */}
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
               {/* Header and Controls */}
               <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -15577,8 +15569,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 </div>
               )}
             </div>
-            )}
-          </>
+          </div>
+        )}
+      </>
         ) : (
           <div className="space-y-6">
             {/* Bento Statistics for Waitlist */}
