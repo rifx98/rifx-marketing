@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     
     // Generar URL de checkout directamente usando los query parameters de Lemon Squeezy
     // Esto evita problemas de autenticación de API o IDs de variantes numéricos faltantes
-    const baseUrl = `https://rifx-marketing.lemonsqueezy.com/checkout/buy/${variantId}`;
+    const storeDomain = process.env.LEMONSQUEEZY_STORE_DOMAIN || 'rifxmarketing.lemonsqueezy.com';
+    const baseUrl = `https://${storeDomain}/checkout/buy/${variantId}`;
     const url = new URL(baseUrl);
     
     // Datos de usuario
