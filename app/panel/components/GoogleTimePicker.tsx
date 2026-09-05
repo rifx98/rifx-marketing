@@ -205,15 +205,15 @@ export default function GoogleTimePicker({
   return (
     <div ref={containerRef} className={`space-y-3 ${className}`}>
       {/* Date & Time Row (Google Calendar Style) */}
-      <div className="bg-slate-50/80 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+      <div className="bg-slate-50/80 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
         {/* Header: Date with Clock Icon */}
         {formattedDate && (
-          <div className="flex items-center gap-2 mb-2.5 text-slate-700 dark:text-slate-200">
-            <span className="material-symbols-outlined text-lg text-blue-600 dark:text-blue-400">
+          <div className="flex items-center gap-2 mb-2.5 text-slate-700 dark:text-slate-300">
+            <span className="material-symbols-outlined text-base text-slate-500">
               schedule
             </span>
-            <span className="text-xs font-black tracking-tight">{formattedDate}</span>
-            <span className="ml-auto text-[11px] font-bold text-slate-400 dark:text-slate-500">
+            <span className="text-sm font-normal text-slate-700 dark:text-slate-200">{formattedDate}</span>
+            <span className="ml-auto text-xs font-normal text-slate-500 dark:text-slate-400">
               {durationBadgeLabel}
             </span>
           </div>
@@ -230,19 +230,14 @@ export default function GoogleTimePicker({
                 setIsEndOpen(false);
                 setIsStartOpen((prev) => !prev);
               }}
-              className={`w-full py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-between cursor-pointer border ${
+              className={`w-full py-2 px-3.5 rounded-lg text-sm font-normal transition-all flex items-center justify-between cursor-pointer border ${
                 isStartOpen
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25 ring-2 ring-blue-500/20'
-                  : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:border-blue-400 hover:bg-slate-50'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-500 ring-2 ring-blue-500/20'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50 hover:border-slate-300'
               } disabled:opacity-50`}
             >
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-xs text-blue-500 dark:text-blue-400">
-                  play_circle
-                </span>
-                <span>{startPillLabel}</span>
-              </div>
-              <span className="material-symbols-outlined text-xs opacity-70">
+              <span>{startPillLabel}</span>
+              <span className="material-symbols-outlined text-sm text-slate-400">
                 {isStartOpen ? 'expand_less' : 'expand_more'}
               </span>
             </button>
@@ -251,10 +246,10 @@ export default function GoogleTimePicker({
             {isStartOpen && (
               <div
                 ref={startListRef}
-                className="absolute left-0 top-full mt-1.5 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-50 max-h-56 overflow-y-auto"
+                className="absolute left-0 top-full mt-1.5 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 max-h-56 overflow-y-auto"
               >
-                <div className="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-100 dark:border-slate-700/60 sticky top-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xs">
-                  {language === 'en' ? 'Start Time' : 'Hora de Inicio'}
+                <div className="px-3 py-1 text-[11px] font-medium uppercase text-slate-400 tracking-wider border-b border-slate-100 dark:border-slate-700/60 sticky top-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xs">
+                  {language === 'en' ? 'Start Time' : 'Hora de inicio'}
                 </div>
                 {START_TIME_OPTIONS.map((opt) => {
                   const isSelected = opt.minutes === startMins;
@@ -264,15 +259,15 @@ export default function GoogleTimePicker({
                       type="button"
                       data-selected={isSelected}
                       onClick={() => handleSelectStart(opt.time24)}
-                      className={`w-full text-left px-3.5 py-1.5 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-1.5 text-sm transition-colors flex items-center justify-between cursor-pointer ${
                         isSelected
-                          ? 'bg-slate-100 dark:bg-slate-700 font-black text-blue-600 dark:text-blue-400 border-l-4 border-blue-600'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-semibold'
+                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-normal'
                       }`}
                     >
                       <span>{opt.label12h}</span>
                       {isSelected && (
-                        <span className="material-symbols-outlined text-xs text-blue-600 dark:text-blue-400">
+                        <span className="material-symbols-outlined text-sm text-blue-600 dark:text-blue-400">
                           check
                         </span>
                       )}
@@ -284,7 +279,7 @@ export default function GoogleTimePicker({
           </div>
 
           {/* Separator Dash */}
-          <span className="text-slate-400 font-black select-none">–</span>
+          <span className="text-slate-400 text-sm font-normal select-none">–</span>
 
           {/* End Time Pill & Dropdown */}
           <div className="relative flex-1">
@@ -295,19 +290,14 @@ export default function GoogleTimePicker({
                 setIsStartOpen(false);
                 setIsEndOpen((prev) => !prev);
               }}
-              className={`w-full py-2 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-between cursor-pointer border ${
+              className={`w-full py-2 px-3.5 rounded-lg text-sm font-normal transition-all flex items-center justify-between cursor-pointer border ${
                 isEndOpen
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25 ring-2 ring-indigo-500/20'
-                  : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-500 ring-2 ring-blue-500/20'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50 hover:border-slate-300'
               } disabled:opacity-50`}
             >
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="material-symbols-outlined text-xs text-indigo-500 dark:text-indigo-400">
-                  stop_circle
-                </span>
-                <span className="truncate">{endPillLabel}</span>
-              </div>
-              <span className="material-symbols-outlined text-xs opacity-70">
+              <span className="truncate">{endPillLabel}</span>
+              <span className="material-symbols-outlined text-sm text-slate-400">
                 {isEndOpen ? 'expand_less' : 'expand_more'}
               </span>
             </button>
@@ -316,10 +306,10 @@ export default function GoogleTimePicker({
             {isEndOpen && (
               <div
                 ref={endListRef}
-                className="absolute right-0 top-full mt-1.5 w-60 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-50 max-h-56 overflow-y-auto"
+                className="absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 max-h-56 overflow-y-auto"
               >
-                <div className="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-100 dark:border-slate-700/60 sticky top-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xs">
-                  {language === 'en' ? 'End Time (Duration)' : 'Hora de Fin (Duración)'}
+                <div className="px-3 py-1 text-[11px] font-medium uppercase text-slate-400 tracking-wider border-b border-slate-100 dark:border-slate-700/60 sticky top-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xs">
+                  {language === 'en' ? 'End Time (Duration)' : 'Hora de fin (duración)'}
                 </div>
                 {endTimeOptions.map((opt) => {
                   const isSelected = opt.minutes === endMins;
@@ -329,15 +319,15 @@ export default function GoogleTimePicker({
                       type="button"
                       data-selected={isSelected}
                       onClick={() => handleSelectEnd(opt)}
-                      className={`w-full text-left px-3.5 py-1.5 text-xs transition-colors flex items-center justify-between cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-1.5 text-sm transition-colors flex items-center justify-between cursor-pointer ${
                         isSelected
-                          ? 'bg-slate-100 dark:bg-slate-700 font-black text-indigo-600 dark:text-indigo-400 border-l-4 border-indigo-600'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-semibold'
+                          ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-normal'
                       }`}
                     >
                       <span>{opt.label}</span>
                       {isSelected && (
-                        <span className="material-symbols-outlined text-xs text-indigo-600 dark:text-indigo-400">
+                        <span className="material-symbols-outlined text-sm text-blue-600 dark:text-blue-400">
                           check
                         </span>
                       )}
@@ -354,12 +344,12 @@ export default function GoogleTimePicker({
       {suggestedSlots && suggestedSlots.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <span className="text-xs font-normal text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <span className="material-symbols-outlined text-xs text-blue-500">event_available</span>
               <span>{language === 'en' ? 'Google Calendar Free Slots:' : 'Horarios Libres de Google Calendar:'}</span>
             </span>
             {loadingSlots && (
-              <span className="text-[10px] text-blue-500 font-bold animate-pulse flex items-center gap-1">
+              <span className="text-[11px] text-blue-500 font-normal animate-pulse flex items-center gap-1">
                 <span className="material-symbols-outlined text-xs animate-spin">sync</span>
                 <span>{language === 'en' ? 'Syncing...' : 'Sincronizando...'}</span>
               </span>
@@ -375,9 +365,9 @@ export default function GoogleTimePicker({
                   key={idx}
                   type="button"
                   onClick={() => handleSelectStart(slotLabel)}
-                  className={`py-1 px-2.5 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                  className={`py-1 px-2.5 rounded-lg text-xs font-normal transition-all border cursor-pointer ${
                     isSelected
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-blue-400'
                   }`}
                 >

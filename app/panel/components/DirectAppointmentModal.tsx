@@ -194,10 +194,10 @@ export default function DirectAppointmentModal({
                   <span className="material-symbols-outlined text-white text-xl">calendar_month</span>
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-white leading-tight">
+                  <h2 className="text-lg font-semibold text-white leading-tight">
                     {language === 'en' ? 'Direct Appointment Booking' : 'Agendamiento Directo de Cita'}
                   </h2>
-                  <p className="text-xs text-white/80 font-medium">
+                  <p className="text-xs text-white/80 font-normal">
                     {language === 'en'
                       ? 'Syncs in real time with Google Calendar and WhatsApp'
                       : 'Sincroniza en tiempo real con Google Calendar y notifica por WhatsApp'}
@@ -218,7 +218,7 @@ export default function DirectAppointmentModal({
             {/* Cliente: Nombre y Teléfono */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   {language === 'en' ? 'Client Name' : 'Nombre del Cliente'} *
                 </label>
                 <input
@@ -227,12 +227,12 @@ export default function DirectAppointmentModal({
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Ej: Juan Pérez"
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   {language === 'en' ? 'WhatsApp Phone' : 'Teléfono WhatsApp'} *
                 </label>
                 <input
@@ -241,7 +241,7 @@ export default function DirectAppointmentModal({
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="Ej: 593987654321"
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                 />
               </div>
             </div>
@@ -249,7 +249,7 @@ export default function DirectAppointmentModal({
             {/* Servicio y Especialista / Recurso */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                   {language === 'en' ? 'Service' : 'Servicio'}
                 </label>
                 <input
@@ -257,20 +257,20 @@ export default function DirectAppointmentModal({
                   value={service}
                   onChange={(e) => setService(e.target.value)}
                   placeholder="Ej: Asesoría Comercial"
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
                   <span>{language === 'en' ? 'Specialist / Resource' : 'Especialista / Recurso'}</span>
-                  <span className="text-[10px] text-blue-500 font-bold lowercase">opcional</span>
+                  <span className="text-[10px] text-blue-500 font-normal lowercase">opcional</span>
                 </label>
                 {teamAgents && teamAgents.length > 0 ? (
                   <select
                     value={resourceName}
                     onChange={(e) => setResourceName(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer"
                   >
                     <option value="">-- Sin asignar / General --</option>
                     {teamAgents.map((agent: any) => (
@@ -285,7 +285,7 @@ export default function DirectAppointmentModal({
                     value={resourceName}
                     onChange={(e) => setResourceName(e.target.value)}
                     placeholder="Ej: Dr. Carlos / Asesor 1"
-                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   />
                 )}
               </div>
@@ -293,7 +293,7 @@ export default function DirectAppointmentModal({
 
             {/* Fecha */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 {language === 'en' ? 'Date' : 'Fecha'} *
               </label>
               <input
@@ -302,7 +302,7 @@ export default function DirectAppointmentModal({
                 min={new Date().toISOString().split('T')[0]}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className={`w-full bg-slate-50 dark:bg-slate-800/80 border rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 outline-none transition-all cursor-pointer ${
+                className={`w-full bg-slate-50 dark:bg-slate-800/80 border rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 outline-none transition-all cursor-pointer ${
                   isDateNonWorking
                     ? 'border-rose-300 dark:border-rose-800 focus:ring-rose-500/20 focus:border-rose-500'
                     : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500/20 focus:border-blue-500'
@@ -315,10 +315,10 @@ export default function DirectAppointmentModal({
                     <span className="material-symbols-outlined text-base">event_busy</span>
                   </div>
                   <div className="text-xs">
-                    <p className="font-black text-rose-600 dark:text-rose-400">
+                    <p className="font-semibold text-rose-600 dark:text-rose-400">
                       {language === 'en' ? 'Non-working Day' : 'Día No Laborable (Sin Atención)'}
                     </p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5 font-medium">
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5 font-normal">
                       {language === 'en'
                         ? 'Appointments cannot be booked on this day because it is not enabled in your working schedule.'
                         : 'No se pueden agendar citas este día porque no está marcado en tus días de atención.'}
@@ -330,7 +330,7 @@ export default function DirectAppointmentModal({
 
             {/* Horario y Duración Estilo Google Calendar */}
             <div>
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5 mb-2">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-2">
                 <span className="material-symbols-outlined text-sm text-blue-500">schedule</span>
                 <span>{language === 'en' ? 'Appointment Schedule & Duration' : 'Horario de Cita y Duración'} *</span>
               </label>
@@ -338,12 +338,12 @@ export default function DirectAppointmentModal({
               {isDateNonWorking ? (
                 <div className="p-4 bg-rose-500/5 dark:bg-rose-950/20 rounded-xl border border-dashed border-rose-200 dark:border-rose-900/40 text-center">
                   <span className="material-symbols-outlined text-2xl text-rose-400 mb-1">block</span>
-                  <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
                     {language === 'en'
                       ? 'Reservations are disabled for non-working days.'
                       : 'Las reservas están desactivadas para este día sin atención.'}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-slate-400 mt-1 font-normal">
                     {language === 'en'
                       ? 'Please select another day or enable this day in the Operating Schedule.'
                       : 'Selecciona una fecha hábil o habilita este día en Horario de Atención.'}
@@ -373,14 +373,14 @@ export default function DirectAppointmentModal({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 {language === 'en' ? 'Cancel' : 'Cancelar'}
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || !time || isDateNonWorking}
-                className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -395,7 +395,7 @@ export default function DirectAppointmentModal({
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[16px]">check</span>
-                    <span>{language === 'en' ? 'Confirm & Book' : 'Confirmar y Agendar'}</span>
+                    <span>{language === 'en' ? 'Confirm & Book' : 'Confirmar y agendar'}</span>
                   </>
                 )}
               </button>
