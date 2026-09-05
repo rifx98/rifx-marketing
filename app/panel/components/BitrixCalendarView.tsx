@@ -875,22 +875,6 @@ export default function BitrixCalendarView({
     return checkIsNonWorkingDay(selectedDate);
   }, [selectedDate, checkIsNonWorkingDay]);
 
-  // Habilitar con 1 clic un día de la semana y guardar en backend
-  const handleQuickEnableDay = async (dayOfWeek: number) => {
-    const current = configData?.business_days || [];
-    if (!current.includes(dayOfWeek)) {
-      const updated = [...current, dayOfWeek].sort();
-      setConfigData((prev: any) => ({ ...prev, business_days: updated }));
-      if (onSaveSchedule) {
-        await onSaveSchedule({
-          business_days: updated,
-          business_start_hour: configData?.business_start_hour || '09:00',
-          business_end_hour: configData?.business_end_hour || '18:00',
-        });
-      }
-    }
-  };
-
   // Mini Calendar generation
   const miniCalendarDays = useMemo(() => {
     const year = currentMonthDate.getFullYear();
@@ -1531,14 +1515,16 @@ export default function BitrixCalendarView({
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => onOpenBooking({ resource_name: resourceName, date: selectedDateStr })}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all text-xs cursor-pointer"
-                            title="Agendar con este especialista"
-                          >
-                            <span className="material-symbols-outlined text-sm">add</span>
-                          </button>
+                          {!isSelectedDateNonWorking && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenBooking({ resource_name: resourceName, date: selectedDateStr })}
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all text-xs cursor-pointer"
+                              title="Agendar con este especialista"
+                            >
+                              <span className="material-symbols-outlined text-sm">add</span>
+                            </button>
+                          )}
                         </div>
                       );
                     })}
@@ -1619,42 +1605,6 @@ export default function BitrixCalendarView({
                   </div>
                 )}
 
-                {/* Banner de Día No Laborable / Sin Atención */}
-                {viewMode === 'day' && isSelectedDateNonWorking && (
-                  <div className="p-4 mx-4 my-3 rounded-2xl bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/25 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
-                        <span className="material-symbols-outlined text-xl">event_busy</span>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                            {language === 'en' ? 'Non-working Day (No Attention)' : 'Día No Laborable (Sin Atención)'}
-                          </h4>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300">
-                            {language === 'en' ? 'Reservations Locked' : 'Reservas Bloqueadas'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
-                          {language === 'en'
-                            ? 'This day is not active in your business hours. Reservations are disabled for this date.'
-                            : 'Este día no está marcado en tu horario comercial. Las reservas están desactivadas para esta fecha.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleQuickEnableDay(selectedDate.getDay())}
-                      disabled={isSavingSchedule}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-sm">check_circle</span>
-                      <span>{language === 'en' ? 'Enable Bookings for this Day' : 'Habilitar Reservas para este Día'}</span>
-                    </button>
-                  </div>
-                )}
-
                 {/* Grid */}
                 <div className="flex divide-x divide-slate-100 dark:divide-slate-800 relative">
                   {/* Left Hours Gutter */}
@@ -1688,7 +1638,6 @@ export default function BitrixCalendarView({
                                   style={{ height: `${hourRowHeight}px` }}
                                   onClick={() => {
                                     if (isSelectedDateNonWorking) {
-                                      setShowScheduleModal(true);
                                       return;
                                     }
                                     onOpenBooking({
@@ -1699,24 +1648,19 @@ export default function BitrixCalendarView({
                                   }}
                                   className={`border-b border-slate-100 dark:border-slate-800/80 transition-colors relative group ${
                                     isSelectedDateNonWorking
-                                      ? 'bg-slate-50/70 dark:bg-slate-900/60 cursor-not-allowed opacity-75'
+                                      ? 'bg-white dark:bg-slate-900 select-none'
                                       : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer'
                                   }`}
                                 >
                                   <div className="absolute left-0 right-0 top-1/2 border-b border-dashed border-slate-100 dark:border-slate-800/40 pointer-events-none" />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                    {isSelectedDateNonWorking ? (
-                                      <span className="bg-rose-600 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-xs">block</span>
-                                        <span>{language === 'en' ? 'Closed (Enable)' : 'Sin atención (Habilitar)'}</span>
-                                      </span>
-                                    ) : (
-                                      <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
+                                  {!isSelectedDateNonWorking && (
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                      <span className="bg-blue-600 text-white text-[10px] font-normal px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
                                         <span className="material-symbols-outlined text-xs">add</span>
                                         <span>{timeStr}</span>
                                       </span>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1811,7 +1755,7 @@ export default function BitrixCalendarView({
 
                         return (
                           <div key={colIdx} className={`flex-1 min-w-[130px] relative ${
-                            isColDayNonWorking ? 'bg-slate-50/40 dark:bg-slate-900/40' : ''
+                            isColDayNonWorking ? 'bg-white dark:bg-slate-900 select-none' : ''
                           }`}>
                             {hoursArray.map((hour) => {
                               const timeStr = `${String(hour).padStart(2, '0')}:00`;
@@ -1821,7 +1765,6 @@ export default function BitrixCalendarView({
                                   style={{ height: `${hourRowHeight}px` }}
                                   onClick={() => {
                                     if (isColDayNonWorking) {
-                                      setShowScheduleModal(true);
                                       return;
                                     }
                                     onOpenBooking({
@@ -1831,22 +1774,18 @@ export default function BitrixCalendarView({
                                   }}
                                   className={`border-b border-slate-100 dark:border-slate-800/80 transition-colors relative group ${
                                     isColDayNonWorking
-                                      ? 'cursor-not-allowed opacity-75'
+                                      ? 'bg-white dark:bg-slate-900 select-none'
                                       : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer'
                                   }`}
                                 >
                                   <div className="absolute left-0 right-0 top-1/2 border-b border-dashed border-slate-100 dark:border-slate-800/40 pointer-events-none" />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                    {isColDayNonWorking ? (
-                                      <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
-                                        {language === 'en' ? 'Closed' : 'Cerrado'}
-                                      </span>
-                                    ) : (
-                                      <span className="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                  {!isColDayNonWorking && (
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                      <span className="bg-blue-600 text-white text-[9px] font-normal px-1.5 py-0.5 rounded shadow-sm">
                                         + {timeStr}
                                       </span>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
