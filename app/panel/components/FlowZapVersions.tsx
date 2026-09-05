@@ -103,6 +103,60 @@ export default function FlowZapVersions({ dbFlows = [], onApplyTemplate, onDelet
                 </button>
               </td>
             </tr>
+            <tr className="hover:bg-slate-50 transition-colors">
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">04/09/2026, 12:00</td>
+              <td className="p-3 border-b border-slate-100">
+                <strong className="text-[11px] text-slate-800 block">IA: Atención al Cliente</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Plantilla predeterminada</small>
+              </td>
+              <td className="p-3 border-b border-slate-100">
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-purple-100 text-purple-700 font-bold tracking-wide">plantilla ia</span>
+              </td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v1</td>
+              <td className="p-3 border-b border-slate-100 text-right">
+                <button 
+                  onClick={() => onApplyTemplate?.('ia_atencion_cliente')}
+                  className="bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
+                </button>
+              </td>
+            </tr>
+            <tr className="hover:bg-slate-50 transition-colors">
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">04/09/2026, 12:05</td>
+              <td className="p-3 border-b border-slate-100">
+                <strong className="text-[11px] text-slate-800 block">IA: Calificación de Leads</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Plantilla predeterminada</small>
+              </td>
+              <td className="p-3 border-b border-slate-100">
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-purple-100 text-purple-700 font-bold tracking-wide">plantilla ia</span>
+              </td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v1</td>
+              <td className="p-3 border-b border-slate-100 text-right">
+                <button 
+                  onClick={() => onApplyTemplate?.('ia_calificacion_leads')}
+                  className="bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
+                </button>
+              </td>
+            </tr>
+            <tr className="hover:bg-slate-50 transition-colors">
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">04/09/2026, 12:10</td>
+              <td className="p-3 border-b border-slate-100">
+                <strong className="text-[11px] text-slate-800 block">IA: Recomendador de Productos</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Plantilla predeterminada</small>
+              </td>
+              <td className="p-3 border-b border-slate-100">
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-purple-100 text-purple-700 font-bold tracking-wide">plantilla ia</span>
+              </td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v1</td>
+              <td className="p-3 border-b border-slate-100 text-right">
+                <button 
+                  onClick={() => onApplyTemplate?.('ia_recomendacion_ventas')}
+                  className="bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
