@@ -3,6 +3,7 @@ import { processFlowEngineMessage } from '@/lib/flow-engine';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
 import { checkAvailability, createCalendarEvent, getCalendarCredentials, deleteCalendarEvent } from '@/lib/google-calendar';
+import { notifyNextInWaitlist } from '@/lib/waitlist-engine';
 import { classifyIntent } from '@/lib/intent-router';
 import { detectSignalsFromMessage, calculateLeadScore, inferSalesStage, extractSalesMetadata } from '@/lib/lead-scoring';
 import { getSalesStageInstructions, DEFAULT_SALES_PROMPT, DEFAULT_SUPPORT_PROMPT } from '@/lib/sales-prompts';
@@ -2085,10 +2086,10 @@ Transportadora: *${orderResult.carrier}*`;
       console.log(`📅 Cancelando cita ${apptId}...`);
 
       try {
-        // Obtener el event_id de la cita para eliminar de Google Calendar
+        // Obtener el event_id de la cita para eliminar de Google Calendar y datos para la lista de espera
         const { data: appt, error: apptQueryErr } = await supabase
           .from('appointments')
-          .select('event_id, tenant_id')
+          .select('event_id, tenant_id, scheduled_time, service')
           .eq('id', apptId)
           .eq('tenant_id', tenantId)
           .eq('conversation_id', conversation.id)
@@ -2122,6 +2123,22 @@ Transportadora: *${orderResult.carrier}*`;
           console.error(`❌ Error al marcar cita ${apptId} como cancelada:`, dbCancelErr);
         } else {
           console.log(`✅ Cita ${apptId} marcada como cancelada en la base de datos`);
+          // Disparar notificación automática al siguiente cliente en lista de espera
+          if (appt?.scheduled_time && appt?.tenant_id) {
+            try {
+              const apptDate = new Date(appt.scheduled_time);
+              const freedDate = apptDate.toISOString().split('T')[0];
+              const freedTime = apptDate.toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hour12: false });
+              notifyNextInWaitlist({
+                tenantId: appt.tenant_id,
+                freedDate,
+                freedTime,
+                service: appt.service,
+              }).catch((err) => console.error('[Waitlist Trigger] Error:', err));
+            } catch (err) {
+              console.error('[Waitlist Trigger] Error parsing slot:', err);
+            }
+          }
         }
       } catch (dbErr) {
         console.error(`❌ Error al procesar cancelación de cita:`, dbErr);

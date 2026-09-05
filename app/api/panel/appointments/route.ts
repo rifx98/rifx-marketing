@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
-import { deleteCalendarEvent } from '@/lib/google-calendar';
+import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google-calendar';
+import { notifyNextInWaitlist } from '@/lib/waitlist-engine';
 import { denyUnlessFeature } from '@/lib/feature-access';
 import {
   enforceTenantRateLimit,
@@ -14,9 +15,9 @@ const STATUSES = new Set([
   'pending', 'confirmed', 'awaiting_reschedule', 'rescheduled',
   'cancelled', 'completed', 'no_show', 'pending_completion',
 ]);
-const ACTIONS = new Set(['complete', 'no_show', 'cancel', 'reschedule']);
+const ACTIONS = new Set(['complete', 'no_show', 'cancel', 'reschedule', 'create']);
 const ACTIONABLE = ['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'];
-const APPOINTMENT_SELECT = 'id,conversation_id,event_id,customer_name,phone_number,scheduled_time,service,status,confirmation_message,confirmed_at,cancelled_at,completed_at,created_at,updated_at';
+const APPOINTMENT_SELECT = 'id,conversation_id,event_id,customer_name,phone_number,scheduled_time,service,status,confirmation_message,confirmed_at,cancelled_at,completed_at,resource_id,resource_name,created_at,updated_at';
 
 async function authorize(req: NextRequest, namespace: string, attempts: number) {
   const tenant = await getTenantFromRequest(req);
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
     const authorization = await authorize(req, 'appointments-read', 90);
     if ('response' in authorization) return authorization.response;
     const status = req.nextUrl.searchParams.get('status');
+    const resource = req.nextUrl.searchParams.get('resource')?.trim() || '';
     const search = req.nextUrl.searchParams.get('search')?.trim() || '';
     const limit = Number(req.nextUrl.searchParams.get('limit') || 200);
     const offset = Number(req.nextUrl.searchParams.get('offset') || 0);
@@ -51,6 +53,9 @@ export async function GET(req: NextRequest) {
       .order('scheduled_time', { ascending: false })
       .range(offset, offset + limit - 1);
     if (status && status !== 'all') query = query.eq('status', status);
+    if (resource && resource !== 'all') {
+      query = query.or(`resource_name.eq.${resource},resource_id.eq.${resource}`);
+    }
     const { data, error } = await query;
     if (error) {
       console.error('Appointment lookup failed:', error.code || 'database_error');
@@ -63,6 +68,7 @@ export async function GET(req: NextRequest) {
           appointment.customer_name,
           appointment.phone_number,
           appointment.service,
+          appointment.resource_name,
         ].some((value) => typeof value === 'string' && value.toLocaleLowerCase('es').includes(needle)))
       : (data || []);
     return NextResponse.json(filtered, { headers: { 'Cache-Control': 'private, no-store' } });
@@ -93,18 +99,160 @@ export async function POST(req: NextRequest) {
   try {
     const authorization = await authorize(req, 'appointments-write', 40);
     if ('response' in authorization) return authorization.response;
-    const parsed = await readLimitedJsonObject(req, 4 * 1024);
+    const parsed = await readLimitedJsonObject(req, 8 * 1024);
     if (!parsed.ok) return parsed.response;
-    const { appointmentId, action } = parsed.body;
-    if (typeof appointmentId !== 'string' || !UUID_PATTERN.test(appointmentId)
-        || typeof action !== 'string' || !ACTIONS.has(action)) {
+    const { action } = parsed.body;
+    if (typeof action !== 'string' || !ACTIONS.has(action)) {
       return NextResponse.json({ error: 'Accion de cita invalida' }, { status: 400 });
     }
 
     const supabase = createSupabaseAdmin();
+    const now = new Date().toISOString();
+
+    // ============================================
+    // ACCIÓN: CREATE (Agendamiento Directo desde CRM/Panel)
+    // ============================================
+    if (action === 'create') {
+      const {
+        customer_name,
+        phone_number,
+        scheduled_time,
+        service = 'Asesoría',
+        resource_id,
+        resource_name,
+        conversation_id,
+      } = parsed.body;
+
+      if (typeof customer_name !== 'string' || !customer_name.trim() ||
+          typeof phone_number !== 'string' || !phone_number.trim() ||
+          typeof scheduled_time !== 'string' || !Date.parse(scheduled_time)) {
+        return NextResponse.json({ error: 'Nombre, teléfono y fecha/hora válidos son obligatorios' }, { status: 400 });
+      }
+
+      const validConvId = typeof conversation_id === 'string' && UUID_PATTERN.test(conversation_id) ? conversation_id : null;
+      const validResId = typeof resource_id === 'string' && UUID_PATTERN.test(resource_id) ? resource_id : null;
+
+      // Preparar evento para Google Calendar
+      const startDate = new Date(scheduled_time);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hora de duración por defecto
+      const startDateTime = startDate.toISOString();
+      const endDateTime = endDate.toISOString();
+
+      const summary = `📅 Cita: ${customer_name.trim()} — ${service}${resource_name ? ` (${resource_name})` : ''}`;
+      const description = `Cliente: ${customer_name.trim()}\nTeléfono: ${phone_number.trim()}\nServicio: ${service}\nEspecialista/Recurso: ${resource_name || 'No asignado'}\nAgendado desde CRM RIFX Marketing`;
+
+      let eventId = `manual_${Date.now()}`;
+      try {
+        const calResult = await createCalendarEvent(authorization.tenant.tenantId, {
+          summary,
+          description,
+          startDateTime,
+          endDateTime,
+          timeZone: 'America/Guayaquil',
+        });
+        if (calResult.success && calResult.eventId) {
+          eventId = calResult.eventId;
+        }
+      } catch (calErr) {
+        console.warn('[Appointments API] Error al sincronizar con Google Calendar:', calErr);
+      }
+
+      // Guardar cita en Supabase
+      const { data: newAppt, error: insertError } = await supabase
+        .from('appointments')
+        .insert({
+          tenant_id: authorization.tenant.tenantId,
+          conversation_id: validConvId,
+          event_id: eventId,
+          customer_name: customer_name.trim().slice(0, 160),
+          phone_number: phone_number.trim().slice(0, 30),
+          scheduled_time: startDate.toISOString(),
+          service: String(service || 'Asesoría').slice(0, 200),
+          resource_id: validResId,
+          resource_name: resource_name ? String(resource_name).slice(0, 150) : null,
+          status: 'confirmed',
+          confirmed_at: now,
+        })
+        .select(APPOINTMENT_SELECT)
+        .single();
+
+      if (insertError) {
+        console.error('[Appointments API] Error al guardar cita en DB:', insertError);
+        return internalApiError();
+      }
+
+      // Si viene de una conversación en el CRM, actualizar etapa a appointment_booked
+      if (validConvId) {
+        await supabase
+          .from('conversations')
+          .update({ sales_stage: 'appointment_booked', updated_at: now })
+          .eq('id', validConvId)
+          .eq('tenant_id', authorization.tenant.tenantId);
+      }
+
+      // Enviar confirmación por WhatsApp si está configurado
+      try {
+        const { data: config } = await supabase
+          .from('config')
+          .select('whatsapp_token,whatsapp_phone_id')
+          .eq('tenant_id', authorization.tenant.tenantId)
+          .maybeSingle();
+
+        if (config?.whatsapp_token && config?.whatsapp_phone_id) {
+          const formattedDate = new Intl.DateTimeFormat('es-EC', {
+            timeZone: 'America/Guayaquil',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }).format(startDate);
+
+          const confirmMsg = `Hola *${customer_name.trim()}* 👋\n\nTu cita ha sido agendada con éxito.\n\n📅 *Fecha y Hora:* ${formattedDate}\n📋 *Servicio:* ${service}${resource_name ? `\n👤 *Especialista:* ${resource_name}` : ''}\n\n¡Te esperamos! 😊`;
+
+          await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(config.whatsapp_phone_id)}/messages`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${config.whatsapp_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: phone_number.trim(),
+              type: 'text',
+              text: { body: confirmMsg },
+            }),
+          });
+
+          if (validConvId) {
+            await supabase.from('messages').insert({
+              tenant_id: authorization.tenant.tenantId,
+              conversation_id: validConvId,
+              role: 'assistant',
+              content: `[Cita Agendada]: ${confirmMsg}`,
+            });
+          }
+        }
+      } catch (waErr) {
+        console.warn('[Appointments API] Error al enviar confirmación por WhatsApp:', waErr);
+      }
+
+      return NextResponse.json({ success: true, appointment: newAppt }, { status: 201 });
+    }
+
+    // ============================================
+    // ACCIONES SOBRE CITA EXISTENTE (complete, cancel, reschedule, no_show)
+    // ============================================
+    const { appointmentId } = parsed.body;
+    if (typeof appointmentId !== 'string' || !UUID_PATTERN.test(appointmentId)) {
+      return NextResponse.json({ error: 'Accion de cita invalida: appointmentId requerido' }, { status: 400 });
+    }
+
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
-      .select('id,conversation_id,event_id,phone_number,status')
+      .select('id,conversation_id,event_id,phone_number,status,scheduled_time,service')
       .eq('id', appointmentId)
       .eq('tenant_id', authorization.tenant.tenantId)
       .maybeSingle();
@@ -114,7 +262,6 @@ export async function POST(req: NextRequest) {
     }
     if (!appointment) return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
 
-    const now = new Date().toISOString();
     const targetStatus = action === 'complete'
       ? 'completed'
       : action === 'no_show'
@@ -144,6 +291,23 @@ export async function POST(req: NextRequest) {
     }
     if (!transitioned) {
       return NextResponse.json({ error: 'La cita ya no admite esta transicion' }, { status: 409 });
+    }
+
+    // Si se cancela o reagenda, activar notificación a lista de espera
+    if ((action === 'cancel' || action === 'reschedule') && appointment.scheduled_time) {
+      try {
+        const apptDate = new Date(appointment.scheduled_time);
+        const freedDate = apptDate.toISOString().split('T')[0];
+        const freedTime = apptDate.toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hour12: false });
+        notifyNextInWaitlist({
+          tenantId: authorization.tenant.tenantId,
+          freedDate,
+          freedTime,
+          service: appointment.service,
+        }).catch((e) => console.error('[Waitlist Trigger] Error:', e));
+      } catch (err) {
+        console.error('[Waitlist Trigger] Error:', err);
+      }
     }
 
     if (action === 'cancel' && typeof appointment.event_id === 'string' && appointment.event_id.length <= 1_024) {

@@ -9,6 +9,8 @@ import FlowZapInbox from './components/FlowZapInbox';
 import CampaignsTab from './CampaignsTab';
 import AILedger from './AILedger';
 import TeamTab from './TeamTab';
+import DirectAppointmentModal from './components/DirectAppointmentModal';
+import AddWaitlistModal from './components/AddWaitlistModal';
 import { templates } from './components/templates';
 import InboxClient from './inbox/inbox-client';
 import { createPortal } from 'react-dom';
@@ -223,7 +225,7 @@ const AdPerformanceChart = ({ dailyInsights, language }: { dailyInsights: any[] 
 };
 
 // Kanban Card Component
-const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { conv: any, onClick: () => void, getLeadClassification: (score: number) => any, formatIntent: (intent: string) => string }) => {
+const KanbanCard = ({ conv, onClick, onSchedule, getLeadClassification, formatIntent }: { conv: any, onClick: () => void, onSchedule?: () => void, getLeadClassification: (score: number) => any, formatIntent: (intent: string) => string }) => {
   const score = conv.lead_score ?? 0;
   const classification = getLeadClassification(score);
   const isHot = score >= 70;
@@ -285,9 +287,25 @@ const KanbanCard = ({ conv, onClick, getLeadClassification, formatIntent }: { co
       </div>
       
       <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
-        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : conv.status === 'interested' ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
-          {conv.status || 'Activo'}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${conv.status === 'chatting' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : conv.status === 'interested' ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+            {conv.status || 'Activo'}
+          </span>
+          {onSchedule && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSchedule();
+              }}
+              className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-0.5"
+              title="Agendar Cita en Google Calendar"
+            >
+              <span className="material-symbols-outlined text-[10px]">calendar_month</span>
+              <span>Cita</span>
+            </button>
+          )}
+        </div>
         <span className="text-[9px] text-slate-400 flex items-center gap-1">
           <span className="material-symbols-outlined text-[10px]">schedule</span>
           {lastDate ? new Date(lastDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : 'N/A'}
@@ -1226,8 +1244,22 @@ export default function PanelClient() {
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
   const [apptStatusFilter, setApptStatusFilter] = useState('all');
+  const [apptResourceFilter, setApptResourceFilter] = useState('all');
   const [apptSearchQuery, setApptSearchQuery] = useState('');
   const [isPerformingApptAction, setIsPerformingApptAction] = useState<string | null>(null);
+  const [appointmentSubTab, setAppointmentSubTab] = useState<'schedule' | 'waitlist'>('schedule');
+
+  // Waitlist states (Lista de Espera & Overbooking)
+  const [waitlistList, setWaitlistList] = useState<any[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistStatusFilter, setWaitlistStatusFilter] = useState('all');
+  const [showAddWaitlistModal, setShowAddWaitlistModal] = useState(false);
+  const [waitlistInitialData, setWaitlistInitialData] = useState<any>(null);
+
+  // Direct Booking Modal states
+  const [showDirectBookingModal, setShowDirectBookingModal] = useState(false);
+  const [directBookingInitialData, setDirectBookingInitialData] = useState<any>(null);
+  const [teamAgentsList, setTeamAgentsList] = useState<any[]>([]);
 
   // OmniPublish V1 & V2 States
   const [socialAccounts, setSocialAccounts] = useState<any[]>([]);
@@ -4773,7 +4805,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     if (!isLoggedIn) return;
     setAppointmentsLoading(true);
     try {
-      const res = await authFetch(`/api/panel/appointments?status=${apptStatusFilter}&search=${encodeURIComponent(apptSearchQuery)}`);
+      const res = await authFetch(`/api/panel/appointments?status=${apptStatusFilter}&resource=${encodeURIComponent(apptResourceFilter)}&search=${encodeURIComponent(apptSearchQuery)}`);
       if (res.ok) {
         const data = await res.json();
         setAppointmentsList(data);
@@ -4783,13 +4815,94 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } finally {
       setAppointmentsLoading(false);
     }
-  }, [isLoggedIn, apptStatusFilter, apptSearchQuery]);
+  }, [isLoggedIn, apptStatusFilter, apptResourceFilter, apptSearchQuery]);
+
+  const fetchWaitlist = React.useCallback(async () => {
+    if (!isLoggedIn) return;
+    setWaitlistLoading(true);
+    try {
+      const res = await authFetch(`/api/panel/appointments/waitlist?status=${waitlistStatusFilter}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWaitlistList(data);
+      }
+    } catch (e) {
+      console.error('Error fetching waitlist:', e);
+    } finally {
+      setWaitlistLoading(false);
+    }
+  }, [isLoggedIn, waitlistStatusFilter]);
+
+  const fetchTeamAgents = React.useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const res = await authFetch('/api/panel/team');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.agents) setTeamAgentsList(data.agents);
+      }
+    } catch (e) {
+      console.error('Error fetching team agents:', e);
+    }
+  }, [isLoggedIn]);
 
   React.useEffect(() => {
     if (isLoggedIn && activeTab === 'appointments') {
       fetchAppointments();
+      fetchWaitlist();
+      fetchTeamAgents();
     }
-  }, [isLoggedIn, activeTab, apptStatusFilter, apptSearchQuery, fetchAppointments]);
+  }, [isLoggedIn, activeTab, apptStatusFilter, apptResourceFilter, apptSearchQuery, waitlistStatusFilter, fetchAppointments, fetchWaitlist, fetchTeamAgents]);
+
+  const handleOpenDirectBooking = (initialData?: {
+    customer_name?: string;
+    phone_number?: string;
+    conversation_id?: string;
+    service?: string;
+    resource_name?: string;
+    date?: string;
+  }) => {
+    setDirectBookingInitialData(initialData || {});
+    setShowDirectBookingModal(true);
+  };
+
+  const handleWaitlistNotify = async (waitlistId: string, time = '10:00') => {
+    try {
+      const res = await authFetch('/api/panel/appointments/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'notify', waitlistId, time })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ type: 'success', message: language === 'en' ? '✓ Slot offer sent to client via WhatsApp' : '✓ Oferta de cupo enviada al cliente por WhatsApp' });
+        fetchWaitlist();
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al notificar al cliente' });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error de conexión' });
+    }
+  };
+
+  const handleWaitlistStatus = async (waitlistId: string, status: string) => {
+    try {
+      const res = await authFetch('/api/panel/appointments/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_status', waitlistId, status })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({ type: 'success', message: language === 'en' ? '✓ Waitlist status updated' : '✓ Estado de lista de espera actualizado' });
+        fetchWaitlist();
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al actualizar estado' });
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error de conexión' });
+    }
+  };
 
   const handleApptAction = async (apptId: string, action: 'complete' | 'no_show' | 'cancel' | 'reschedule') => {
     setIsPerformingApptAction(`${apptId}-${action}`);
@@ -9214,6 +9327,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         >
                           <span className="material-symbols-outlined text-sm">chat</span>
                           {language === 'en' ? 'Direct Chat' : 'Chat Directo'}
+                        </button>
+                        <button 
+                          onClick={() => handleOpenDirectBooking({
+                            customer_name: selectedChat.customer_name || selectedChat.name || '',
+                            phone_number: selectedChat.phone_number || '',
+                            conversation_id: selectedChat.id,
+                            service: selectedConv?.service_interest || 'Asesoría Comercial',
+                          })}
+                          className="w-full mt-2 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md shadow-blue-500/20 hover:shadow-lg transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-sm">calendar_month</span>
+                          {language === 'en' ? 'Book Appointment' : 'Agendar Cita'}
                         </button>
                         {/* Quick Action Bar */}
                         <div className="flex items-center justify-center gap-1 mt-3">
@@ -14898,10 +15023,65 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       ? 'Monitor your automated schedule, track attendance metrics, and take direct actions on customer appointments synced with Google Calendar.'
                       : 'Monitorea tu agenda automatizada, realiza seguimiento de métricas de asistencia y toma acciones manuales sobre las citas vinculadas con Google Calendar.'}
                   </p>
+
+                  {/* Subtabs Selector: Agenda vs Lista de Espera */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentSubTab('schedule')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                        appointmentSubTab === 'schedule'
+                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">calendar_month</span>
+                      <span>{language === 'en' ? 'Schedule & Calendar' : 'Agenda y Calendario'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentSubTab('waitlist')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                        appointmentSubTab === 'waitlist'
+                          ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">hourglass_top</span>
+                      <span>{language === 'en' ? 'Waitlist & Overbooking' : 'Lista de Espera & Overbooking'}</span>
+                      {waitlistList.filter((w: any) => w.status === 'waiting').length > 0 && (
+                        <span className="bg-amber-400 text-slate-900 px-1.5 py-0.2 rounded-full text-[10px] font-black">
+                          {waitlistList.filter((w: any) => w.status === 'waiting').length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDirectBooking()}
+                    className="px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">add_circle</span>
+                    <span>{language === 'en' ? 'New Booking' : 'Nueva Cita'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddWaitlistModal(true)}
+                    className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">hourglass_top</span>
+                    <span>{language === 'en' ? 'Add Waitlist' : 'Añadir a Espera'}</span>
+                  </button>
                 </div>
               </div>
             </div>
 
+            {appointmentSubTab === 'schedule' ? (
+              <>
             {/* Bento Statistics Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
               {[
@@ -15133,6 +15313,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <option value="pending_completion">{language === 'en' ? 'Pending Completion' : 'Pendientes de Validar'}</option>
                   </select>
 
+                  {/* Resource / Specialist Filter */}
+                  <select
+                    value={apptResourceFilter}
+                    onChange={(e) => setApptResourceFilter(e.target.value)}
+                    className="w-full sm:w-auto bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-2xl border-none focus:ring-2 focus:ring-primary-container/20 cursor-pointer text-black"
+                  >
+                    <option value="all">{language === 'en' ? 'All Specialists' : 'Todos los Especialistas'}</option>
+                    {Array.from(new Set(appointmentsList.map((a: any) => a.resource_name).filter(Boolean))).map((resName: any) => (
+                      <option key={resName} value={resName}>👨‍⚕️ {resName}</option>
+                    ))}
+                  </select>
+
                   {/* Search Input */}
                   <div className="relative w-full sm:w-64">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
@@ -15238,7 +15430,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               <span className="text-xs text-slate-500 font-mono">{appt.phone_number}</span>
                             </td>
                             <td className="px-6 py-5">
-                              <span className="text-xs text-slate-800 font-medium">{appt.service || 'Asesoría'}</span>
+                              <div className="flex flex-col">
+                                <span className="text-xs text-slate-800 font-bold">{appt.service || 'Asesoría'}</span>
+                                {appt.resource_name && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md font-bold mt-1 w-fit border border-indigo-100 dark:border-indigo-900/30">
+                                    <span className="material-symbols-outlined text-[12px]">badge</span>
+                                    {appt.resource_name}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-5">
                               <span className="text-xs text-slate-500">{formattedTime}</span>
@@ -15310,8 +15510,193 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 </div>
               )}
             </div>
-          </motion.div>
+          </>
+        ) : (
+          <div className="space-y-6">
+            {/* Bento Statistics for Waitlist */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Active Waitlist' : 'En Espera Activa'}</span>
+                  <h3 className="text-3xl font-black text-amber-500 mt-2">
+                    {waitlistList.filter((w: any) => w.status === 'waiting').length}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">{language === 'en' ? 'Clients waiting for freed slots' : 'Clientes esperando cupo liberado'}</p>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl">hourglass_empty</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Notified / Offered' : 'Cupos Notificados'}</span>
+                  <h3 className="text-3xl font-black text-blue-500 mt-2">
+                    {waitlistList.filter((w: any) => w.status === 'notified').length}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">{language === 'en' ? 'Alerts sent via WhatsApp' : 'Avisos enviados por WhatsApp'}</p>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl">send</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Converted Bookings' : 'Cupos Recuperados'}</span>
+                  <h3 className="text-3xl font-black text-emerald-500 mt-2">
+                    {waitlistList.filter((w: any) => w.status === 'booked').length}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">{language === 'en' ? 'Slots saved from cancellation' : 'Citas rescatadas de cancelaciones'}</p>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl">check_circle</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Waitlist Table */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-500">hourglass_top</span>
+                  <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Waitlist & Overbooking Queue' : 'Cola de Espera y Overbooking'}</h2>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <select
+                    value={waitlistStatusFilter}
+                    onChange={(e) => setWaitlistStatusFilter(e.target.value)}
+                    className="bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-2xl border-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer text-black"
+                  >
+                    <option value="all">{language === 'en' ? 'All Statuses' : 'Todos los Estados'}</option>
+                    <option value="waiting">{language === 'en' ? 'Waiting' : 'En Espera'}</option>
+                    <option value="notified">{language === 'en' ? 'Notified' : 'Notificados'}</option>
+                    <option value="booked">{language === 'en' ? 'Booked' : 'Agendados'}</option>
+                    <option value="cancelled">{language === 'en' ? 'Cancelled' : 'Cancelados'}</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddWaitlistModal(true)}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">add</span>
+                    <span>{language === 'en' ? 'Add to Waitlist' : 'Añadir a Espera'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {waitlistLoading ? (
+                <div className="py-20 flex flex-col justify-center items-center space-y-4">
+                  <div className="w-10 h-10 rounded-full border-4 border-amber-500/20 border-t-amber-500 animate-spin" />
+                  <p className="text-slate-400 text-xs tracking-wider uppercase">{language === 'en' ? 'Loading waitlist...' : 'Cargando lista de espera...'}</p>
+                </div>
+              ) : waitlistList.length === 0 ? (
+                <div className="py-20 text-center text-slate-400 space-y-2">
+                  <span className="material-symbols-outlined text-4xl text-slate-300">hourglass_disabled</span>
+                  <p className="text-xs font-bold uppercase tracking-wider">{language === 'en' ? 'No clients on waitlist' : 'No hay clientes en lista de espera'}</p>
+                  <p className="text-[11px] text-slate-400">{language === 'en' ? 'Add clients who want full slots or let the AI manage overbooking.' : 'Registra clientes interesados en fechas llenas para avisarles cuando se cancele un turno.'}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/50">
+                        <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Client' : 'Cliente'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Phone' : 'Teléfono'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Service' : 'Servicio'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Desired Date & Slot' : 'Fecha y Franja'}</th>
+                        <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">{language === 'en' ? 'Status' : 'Estado'}</th>
+                        <th className="px-8 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {waitlistList.map((item: any) => {
+                        const statusBadges: Record<string, { label: string; class: string }> = {
+                          waiting: { label: language === 'en' ? 'Waiting' : 'En Espera', class: 'bg-amber-50 text-amber-600 border-amber-200' },
+                          notified: { label: language === 'en' ? 'Slot Offered' : 'Cupo Ofertado', class: 'bg-blue-50 text-blue-600 border-blue-200' },
+                          booked: { label: language === 'en' ? 'Booked' : 'Agendado', class: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+                          cancelled: { label: language === 'en' ? 'Cancelled' : 'Cancelado', class: 'bg-slate-50 text-slate-500 border-slate-200' },
+                          expired: { label: language === 'en' ? 'Expired' : 'Expirado', class: 'bg-rose-50 text-rose-500 border-rose-200' },
+                        };
+                        const badge = statusBadges[item.status] || { label: item.status, class: 'bg-slate-50 text-slate-600 border-slate-200' };
+
+                        return (
+                          <tr key={item.id} className="hover:bg-slate-50/30 transition-all">
+                            <td className="px-8 py-5">
+                              <span className="text-sm font-bold text-slate-800 block">{item.customer_name}</span>
+                              {item.notes && <span className="text-[10px] text-slate-400 italic block">{item.notes}</span>}
+                            </td>
+                            <td className="px-6 py-5">
+                              <span className="text-xs text-slate-500 font-mono">{item.phone_number}</span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <span className="text-xs text-slate-800 font-medium">{item.service || 'General'}</span>
+                              {item.resource_name && <span className="text-[10px] text-indigo-600 font-bold block">{item.resource_name}</span>}
+                            </td>
+                            <td className="px-6 py-5">
+                              <span className="text-xs text-slate-700 font-bold block">{item.desired_date}</span>
+                              <span className="text-[10px] text-slate-400 capitalize">{item.preferred_time_range === 'any' ? 'Cualquier hora' : item.preferred_time_range === 'morning' ? 'Mañana' : item.preferred_time_range === 'afternoon' ? 'Tarde' : item.preferred_time_range}</span>
+                            </td>
+                            <td className="px-6 py-5 text-center">
+                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badge.class}`}>
+                                {badge.label}
+                              </span>
+                            </td>
+                            <td className="px-8 py-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {item.status === 'waiting' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWaitlistNotify(item.id)}
+                                    className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors flex items-center border border-blue-100"
+                                    title="Enviar oferta de cupo por WhatsApp"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">send</span>
+                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Offer Slot' : 'Ofrecer Cupo'}</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDirectBooking({
+                                    customer_name: item.customer_name,
+                                    phone_number: item.phone_number,
+                                    service: item.service,
+                                    resource_name: item.resource_name,
+                                    date: item.desired_date,
+                                    conversation_id: item.conversation_id,
+                                  })}
+                                  className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center border border-emerald-100"
+                                  title="Agendar Cita Directamente"
+                                >
+                                  <span className="material-symbols-outlined text-sm">calendar_month</span>
+                                  <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Book' : 'Agendar'}</span>
+                                </button>
+                                {item.status !== 'cancelled' && item.status !== 'booked' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleWaitlistStatus(item.id, 'cancelled')}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors flex items-center"
+                                    title="Cancelar de lista"
+                                  >
+                                    <span className="material-symbols-outlined text-sm">close</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
+      </motion.div>
+    )}
 
         {/* ========== OMNIPUBLISH V1 TAB ========== */}
         {activeTab === 'social' && (
@@ -18189,7 +18574,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           </div>
                           <div className="p-3 flex flex-col gap-3 overflow-y-auto max-h-[600px] bg-slate-50/50 flex-1 min-h-[100px]">
                             {contacts.map((conv: any) => (
-                              <KanbanCard key={conv.id} conv={conv} onClick={() => { setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at}); setShowChartModal(true); }} getLeadClassification={getLeadClassification} formatIntent={formatIntent} />
+                              <KanbanCard
+                                key={conv.id}
+                                conv={conv}
+                                onClick={() => { setSelectedChat({id: conv.id, name: conv.customer_name, status: conv.status, phone_number: conv.phone_number, created_at: conv.created_at}); setShowChartModal(true); }}
+                                onSchedule={() => handleOpenDirectBooking({ customer_name: conv.customer_name, phone_number: conv.phone_number, conversation_id: conv.id })}
+                                getLeadClassification={getLeadClassification}
+                                formatIntent={formatIntent}
+                              />
                             ))}
                             {contacts.length === 0 && (
                               <div className="flex flex-col items-center justify-center py-8 text-slate-300">
@@ -18521,6 +18913,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <button onClick={() => { const phone = (selectedChat.phone_number || '').replace(/[^0-9]/g, ''); if (phone) window.open(`https://wa.me/${phone}`, '_blank'); else setToast({ message: language === 'es' ? 'No hay número de teléfono registrado' : 'No phone number registered', type: 'info' }); }} className="flex flex-col items-center justify-center p-3 rounded-lg bg-crm-surface-container-low hover:bg-primary-container hover:text-white transition-all group">
                         <span className="material-symbols-outlined text-primary-container group-hover:text-white">call</span>
                         <span className="text-[10px] mt-1 font-bold uppercase">{language === 'en' ? 'Call' : 'Llamar'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleOpenDirectBooking({
+                            customer_name: selectedChat.customer_name || selectedChat.name || '',
+                            phone_number: selectedChat.phone_number || '',
+                            conversation_id: selectedChat.id,
+                          });
+                        }}
+                        className="flex flex-col items-center justify-center p-3 rounded-lg bg-blue-50/80 hover:bg-blue-600 hover:text-white transition-all group border border-blue-100 dark:border-blue-900/30"
+                        title={language === 'en' ? 'Book Appointment' : 'Agendar Cita'}
+                      >
+                        <span className="material-symbols-outlined text-blue-600 group-hover:text-white">calendar_month</span>
+                        <span className="text-[10px] mt-1 font-bold uppercase text-blue-600 group-hover:text-white">{language === 'en' ? 'Book' : 'Agendar'}</span>
                       </button>
                       <button 
                         onClick={async () => {
@@ -19506,6 +19912,35 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </div>
         </div>
       )}
+
+      {/* Direct Appointment Modal */}
+      <DirectAppointmentModal
+        isOpen={showDirectBookingModal}
+        onClose={() => setShowDirectBookingModal(false)}
+        onSuccess={() => {
+          fetchAppointments();
+          fetchWaitlist();
+        }}
+        initialData={directBookingInitialData}
+        language={language}
+        authFetch={authFetch}
+        setToast={setToast}
+        teamAgents={teamAgentsList}
+      />
+
+      {/* Add Waitlist Modal */}
+      <AddWaitlistModal
+        isOpen={showAddWaitlistModal}
+        onClose={() => setShowAddWaitlistModal(false)}
+        onSuccess={() => {
+          fetchWaitlist();
+        }}
+        initialData={waitlistInitialData}
+        language={language}
+        authFetch={authFetch}
+        setToast={setToast}
+        teamAgents={teamAgentsList}
+      />
 
     </>
     </ThemeProvider>
