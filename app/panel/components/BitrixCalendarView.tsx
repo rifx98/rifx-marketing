@@ -158,8 +158,8 @@ export default function BitrixCalendarView({
   onSwitchToTable,
   authFetch,
 }: BitrixCalendarViewProps) {
-  // Top Navigation Tab (Bitrix24 style navigation: Reservas, Contactos, Métricas, Recursos, Espera)
-  const [activeSection, setActiveSection] = useState<'timeline' | 'contacts' | 'metrics' | 'resources' | 'waitlist'>('timeline');
+  // Top Navigation Tab (Bitrix24 style navigation: Reservas, Métricas, Recursos, Espera)
+  const [activeSection, setActiveSection] = useState<'timeline' | 'metrics' | 'resources' | 'waitlist'>('timeline');
 
   // Calendar View mode: Day or Week
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -185,7 +185,8 @@ export default function BitrixCalendarView({
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [hoveredTooltip, setHoveredTooltip] = useState<'clients' | 'revenue' | null>(null);
 
-  // Contactos Screen state (Bitrix24 CRM style)
+  // Contactos Modal state (Bitrix24 CRM style ventana emergente)
+  const [showContactsModal, setShowContactsModal] = useState(false);
   const [contactsSearch, setContactsSearch] = useState('');
   const [contactsFilterType, setContactsFilterType] = useState<'all' | 'incoming' | 'planned'>('all');
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
@@ -691,24 +692,6 @@ export default function BitrixCalendarView({
 
           <button
             type="button"
-            onClick={() => setActiveSection('contacts')}
-            className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeSection === 'contacts'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span className="material-symbols-outlined text-base">group</span>
-            <span>{language === 'en' ? 'Contacts' : 'Contactos'}</span>
-            {contactsList.length > 0 && (
-              <span className="bg-slate-700 text-slate-200 px-1.5 py-0.2 rounded-full text-[10px] font-bold">
-                {contactsList.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActiveSection('metrics')}
             className={`px-4 py-2 rounded-xl font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeSection === 'metrics'
@@ -797,7 +780,7 @@ export default function BitrixCalendarView({
                   >
                     <button
                       type="button"
-                      onClick={() => setShowClientsModal(true)}
+                      onClick={() => setShowContactsModal(true)}
                       className="text-slate-700 dark:text-slate-200 border-b border-dotted border-slate-400 dark:border-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-500 transition-colors cursor-pointer text-left"
                     >
                       + {dayMetrics.clientCount} {language === 'en' ? 'clients' : 'clientes'}
@@ -832,7 +815,7 @@ export default function BitrixCalendarView({
                             type="button"
                             onClick={() => {
                               setHoveredTooltip(null);
-                              setActiveSection('contacts');
+                              setShowContactsModal(true);
                             }}
                             className="w-full mt-3 py-1.5 px-3 rounded-lg border border-white/40 hover:bg-white/15 text-[11px] font-bold text-white uppercase tracking-wider transition-all cursor-pointer text-center"
                           >
@@ -1703,372 +1686,6 @@ export default function BitrixCalendarView({
         </div>
       )}
 
-      {/* B. VISTA 2: BITRIX24 CONTACTOS (EXACTA A CAPTURA 1) */}
-      {activeSection === 'contacts' && (
-        <div className="flex flex-col bg-[#eef2f7] dark:bg-[#0b1120] text-slate-800 dark:text-slate-100 p-4 sm:p-6 min-h-[700px] rounded-b-3xl">
-          {/* Top Bar: Contactos 📌 + Crear | [ Todos los contactos x ] buscar 🔍 ✕ | ⚙️ */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Title & Pin Icon */}
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
-                  {language === 'en' ? 'Contacts' : 'Contactos'}
-                </h1>
-                <button
-                  type="button"
-                  title="Fijar pantalla"
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-sm rotate-45">push_pin</span>
-                </button>
-              </div>
-
-              {/* Green "+ Crear" Button (Exact from Captura 1) */}
-              <button
-                type="button"
-                onClick={() => onOpenBooking()}
-                className="bg-[#22c55e] hover:bg-[#16a34a] text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-              >
-                <span className="text-sm font-black leading-none">+</span>
-                <span>{language === 'en' ? 'Create' : 'Crear'}</span>
-              </button>
-
-              {/* Pill Search & Filter Bar (Exact from Captura 1) */}
-              <div className="bg-white dark:bg-slate-800 rounded-full pl-2 pr-3 py-1 flex items-center gap-2 border border-slate-200/80 dark:border-slate-700 shadow-xs w-72 sm:w-96">
-                {/* Active Filter Chip */}
-                <span className="bg-[#e8f2fe] dark:bg-blue-950/70 text-[#1b6cd8] dark:text-blue-300 text-[11px] font-normal px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shrink-0 select-none">
-                  <span>{language === 'en' ? 'All contacts' : 'Todos los contactos'}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setContactsFilterType('all');
-                      setContactsSearch('');
-                    }}
-                    className="hover:text-blue-800 dark:hover:text-white cursor-pointer ml-0.5"
-                  >
-                    ✕
-                  </button>
-                </span>
-
-                {/* Input "buscar" */}
-                <input
-                  type="text"
-                  placeholder={language === 'en' ? 'search' : 'buscar'}
-                  value={contactsSearch}
-                  onChange={(e) => setContactsSearch(e.target.value)}
-                  className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
-                />
-
-                {/* Search & Clear icons */}
-                {contactsSearch ? (
-                  <button
-                    type="button"
-                    onClick={() => setContactsSearch('')}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">close</span>
-                  </button>
-                ) : (
-                  <span className="material-symbols-outlined text-sm text-slate-400 pointer-events-none">
-                    search
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Right Settings Gear */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Configuración de vista de contactos"
-              >
-                <span className="material-symbols-outlined text-base">settings</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Subheader Filters: 0 Entrante | 0 Planeado | 0 Más ▾ */}
-          <div className="flex items-center gap-4 mb-4 text-xs font-normal text-slate-500 dark:text-slate-400 select-none">
-            <button
-              type="button"
-              onClick={() => setContactsFilterType(contactsFilterType === 'incoming' ? 'all' : 'incoming')}
-              className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
-                contactsFilterType === 'incoming'
-                  ? 'text-blue-600 dark:text-blue-400 font-bold'
-                  : 'hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <span className="text-slate-400 font-normal">{incomingCount}</span>
-              <span>{language === 'en' ? 'Incoming' : 'Entrante'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setContactsFilterType(contactsFilterType === 'planned' ? 'all' : 'planned')}
-              className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
-                contactsFilterType === 'planned'
-                  ? 'text-blue-600 dark:text-blue-400 font-bold'
-                  : 'hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <span className="text-slate-400 font-normal">{plannedCount}</span>
-              <span>{language === 'en' ? 'Planned' : 'Planeado'}</span>
-            </button>
-
-            <div className="relative">
-              <button
-                type="button"
-                className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <span className="text-slate-400 font-normal">{contactsList.length}</span>
-                <span>{language === 'en' ? 'More' : 'Más'}</span>
-                <span className="material-symbols-outlined text-xs text-slate-400">arrow_drop_down</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Main White Card with Table and Empty State (Exact from Captura 1) */}
-          <div className="flex-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col text-slate-800 dark:text-slate-200 min-h-[520px]">
-            {/* Table Head */}
-            <div className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-12 py-3 px-6 text-xs font-normal text-slate-500 dark:text-slate-400 items-center select-none">
-              {/* Checkbox + Gear + Contacto ▴ */}
-              <div className="col-span-4 flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={
-                    filteredContacts.length > 0 &&
-                    selectedContactIds.size === filteredContacts.length
-                  }
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedContactIds(
-                        new Set(filteredContacts.map((c) => c.id || c.phone || c.name))
-                      );
-                    } else {
-                      setSelectedContactIds(new Set());
-                    }
-                  }}
-                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
-                />
-                <button
-                  type="button"
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                  title="Configurar columnas"
-                >
-                  <span className="material-symbols-outlined text-sm">settings</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setContactsSortAsc((prev) => !prev)}
-                  className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer text-slate-600 dark:text-slate-300"
-                >
-                  <span>{language === 'en' ? 'Contact' : 'Contacto'}</span>
-                  <span className="text-[10px] text-slate-400">
-                    {contactsSortAsc ? '▴' : '▾'}
-                  </span>
-                </button>
-              </div>
-
-              {/* Actividad */}
-              <div className="col-span-2">
-                <span>{language === 'en' ? 'Activity' : 'Actividad'}</span>
-              </div>
-
-              {/* Responsable */}
-              <div className="col-span-2">
-                <span>{language === 'en' ? 'Responsible' : 'Responsable'}</span>
-              </div>
-
-              {/* Creado */}
-              <div className="col-span-2">
-                <span>{language === 'en' ? 'Created' : 'Creado'}</span>
-              </div>
-
-              {/* Recorrido del cliente */}
-              <div className="col-span-2 text-right">
-                <span>{language === 'en' ? 'Customer Journey' : 'Recorrido del cliente'}</span>
-              </div>
-            </div>
-
-            {/* Table Body */}
-            {filteredContacts.length === 0 ? (
-              /* Exact Empty State from Captura 1: Document Icon with X & "- Sin datos -" */
-              <div className="flex-1 flex flex-col items-center justify-center py-36 text-center bg-white dark:bg-slate-900 select-none">
-                {/* SVG Outline Document with X in Center */}
-                <div className="w-20 h-24 mb-4 relative flex items-center justify-center">
-                  <svg
-                    className="w-full h-full text-slate-300 dark:text-slate-700"
-                    viewBox="0 0 48 56"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M2 6C2 3.79086 3.79086 2 6 2H30L46 18V50C46 52.2091 44.2091 54 42 54H6C3.79086 54 2 52.2091 2 50V6Z"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M30 2V18H46"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M18 30L30 42"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M30 30L18 42"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
-                <p className="text-base font-normal text-slate-400 dark:text-slate-500 tracking-wider">
-                  {language === 'en' ? '- No data -' : '- Sin datos -'}
-                </p>
-              </div>
-            ) : (
-              /* Contact Rows */
-              <div className="divide-y divide-slate-100 dark:divide-slate-800/70 overflow-y-auto max-h-[600px]">
-                {filteredContacts.map((contact, idx) => {
-                  const isSelected = selectedContactIds.has(contact.id || contact.phone || contact.name);
-                  return (
-                    <div
-                      key={contact.id || idx}
-                      className={`grid grid-cols-12 py-3 px-6 text-xs items-center transition-colors ${
-                        isSelected
-                          ? 'bg-blue-50/60 dark:bg-blue-950/30'
-                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
-                      }`}
-                    >
-                      {/* Checkbox + Contact Info */}
-                      <div className="col-span-4 flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {
-                            const key = contact.id || contact.phone || contact.name;
-                            const next = new Set(selectedContactIds);
-                            if (next.has(key)) next.delete(key);
-                            else next.add(key);
-                            setSelectedContactIds(next);
-                          }}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
-                        />
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white font-semibold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                          {contact.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="truncate">
-                          <span
-                            onClick={() =>
-                              onOpenBooking({
-                                customer_name: contact.name,
-                                phone_number: contact.phone,
-                                service: contact.lastAppt?.service || '',
-                                date: selectedDateStr,
-                              })
-                            }
-                            className="font-medium text-slate-800 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors block truncate"
-                          >
-                            {contact.name}
-                          </span>
-                          {contact.phone && (
-                            <span className="text-[11px] font-mono text-slate-400 block truncate">
-                              {contact.phone}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actividad */}
-                      <div className="col-span-2 text-slate-600 dark:text-slate-300 truncate pr-2">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              contact.totalBookings > 0 ? 'bg-blue-500' : 'bg-slate-400'
-                            }`}
-                          />
-                          <span className="truncate">{contact.activity}</span>
-                        </div>
-                      </div>
-
-                      {/* Responsable */}
-                      <div className="col-span-2 text-slate-700 dark:text-slate-300 truncate pr-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm text-slate-400">
-                            person
-                          </span>
-                          <span className="truncate">{contact.responsible}</span>
-                        </div>
-                      </div>
-
-                      {/* Creado */}
-                      <div className="col-span-2 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                        {(() => {
-                          try {
-                            const d = new Date(contact.created_at);
-                            if (isNaN(d.getTime())) return '-';
-                            const day = String(d.getDate()).padStart(2, '0');
-                            const m = String(d.getMonth() + 1).padStart(2, '0');
-                            const y = d.getFullYear();
-                            const hr = String(d.getHours()).padStart(2, '0');
-                            const min = String(d.getMinutes()).padStart(2, '0');
-                            return `${day}.${m}.${y} ${hr}:${min}`;
-                          } catch {
-                            return '-';
-                          }
-                        })()}
-                      </div>
-
-                      {/* Recorrido del cliente + Acciones */}
-                      <div className="col-span-2 flex items-center justify-end gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          {contact.journey}
-                        </span>
-
-                        {contact.phone && (
-                          <a
-                            href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
-                            title="Abrir WhatsApp"
-                          >
-                            <span className="material-symbols-outlined text-sm">chat</span>
-                          </a>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenBooking({
-                              customer_name: contact.name,
-                              phone_number: contact.phone,
-                              service: contact.lastAppt?.service || '',
-                              date: selectedDateStr,
-                            })
-                          }
-                          className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
-                          title="Agendar cita"
-                        >
-                          <span className="material-symbols-outlined text-sm">event</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* B. VISTA 2: MÉTRICAS Y RENDIMIENTO */}
       {activeSection === 'metrics' && (
         <div className="p-8 space-y-8 bg-white dark:bg-slate-900">
@@ -2300,6 +1917,402 @@ export default function BitrixCalendarView({
           )}
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 1. MODAL: BITRIX24 CONTACTOS (VENTANA EMERGENTE) */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showContactsModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowContactsModal(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl max-h-[92vh] bg-[#eef2f7] dark:bg-[#0b1120] rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+            >
+              {/* Modal Top Bar: Contactos 📌 + Crear | [ Todos los contactos x ] buscar 🔍 ✕ | ⚙️ ✕ */}
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-6 pb-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Title & Pin Icon */}
+                  <div className="flex items-center gap-1.5">
+                    <h1 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
+                      {language === 'en' ? 'Contacts' : 'Contactos'}
+                    </h1>
+                    <button
+                      type="button"
+                      title="Fijar pantalla"
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm rotate-45">push_pin</span>
+                    </button>
+                  </div>
+
+                  {/* Green "+ Crear" Button (Exact from Captura 1) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowContactsModal(false);
+                      onOpenBooking();
+                    }}
+                    className="bg-[#22c55e] hover:bg-[#16a34a] text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <span className="text-sm font-black leading-none">+</span>
+                    <span>{language === 'en' ? 'Create' : 'Crear'}</span>
+                  </button>
+
+                  {/* Pill Search & Filter Bar (Exact from Captura 1) */}
+                  <div className="bg-white dark:bg-slate-800 rounded-full pl-2 pr-3 py-1 flex items-center gap-2 border border-slate-200/80 dark:border-slate-700 shadow-xs w-72 sm:w-96">
+                    {/* Active Filter Chip */}
+                    <span className="bg-[#e8f2fe] dark:bg-blue-950/70 text-[#1b6cd8] dark:text-blue-300 text-[11px] font-normal px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shrink-0 select-none">
+                      <span>{language === 'en' ? 'All contacts' : 'Todos los contactos'}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContactsFilterType('all');
+                          setContactsSearch('');
+                        }}
+                        className="hover:text-blue-800 dark:hover:text-white cursor-pointer ml-0.5"
+                      >
+                        ✕
+                      </button>
+                    </span>
+
+                    {/* Input "buscar" */}
+                    <input
+                      type="text"
+                      placeholder={language === 'en' ? 'search' : 'buscar'}
+                      value={contactsSearch}
+                      onChange={(e) => setContactsSearch(e.target.value)}
+                      className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none"
+                    />
+
+                    {/* Search & Clear icons */}
+                    {contactsSearch ? (
+                      <button
+                        type="button"
+                        onClick={() => setContactsSearch('')}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                      </button>
+                    ) : (
+                      <span className="material-symbols-outlined text-sm text-slate-400 pointer-events-none">
+                        search
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Action Icons: Settings Gear + Close Modal X */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Configuración de vista de contactos"
+                  >
+                    <span className="material-symbols-outlined text-base">settings</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowContactsModal(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Cerrar ventana"
+                  >
+                    <span className="material-symbols-outlined text-xl">close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Subheader Filters: 0 Entrante | 0 Planeado | 0 Más ▾ */}
+              <div className="flex items-center gap-4 px-4 sm:px-6 mb-3 text-xs font-normal text-slate-500 dark:text-slate-400 select-none">
+                <button
+                  type="button"
+                  onClick={() => setContactsFilterType(contactsFilterType === 'incoming' ? 'all' : 'incoming')}
+                  className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    contactsFilterType === 'incoming'
+                      ? 'text-blue-600 dark:text-blue-400 font-bold'
+                      : 'hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span className="text-slate-400 font-normal">{incomingCount}</span>
+                  <span>{language === 'en' ? 'Incoming' : 'Entrante'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setContactsFilterType(contactsFilterType === 'planned' ? 'all' : 'planned')}
+                  className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    contactsFilterType === 'planned'
+                      ? 'text-blue-600 dark:text-blue-400 font-bold'
+                      : 'hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <span className="text-slate-400 font-normal">{plannedCount}</span>
+                  <span>{language === 'en' ? 'Planned' : 'Planeado'}</span>
+                </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="text-slate-400 font-normal">{contactsList.length}</span>
+                    <span>{language === 'en' ? 'More' : 'Más'}</span>
+                    <span className="material-symbols-outlined text-xs text-slate-400">arrow_drop_down</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Main White Card Container (Scrollable inside modal) */}
+              <div className="flex-1 mx-4 sm:mx-6 mb-4 sm:mb-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col min-h-[380px]">
+                {/* Table Head */}
+                <div className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-12 py-3 px-6 text-xs font-normal text-slate-500 dark:text-slate-400 items-center select-none shrink-0">
+                  {/* Checkbox + Gear + Contacto ▴ */}
+                  <div className="col-span-4 flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredContacts.length > 0 &&
+                        selectedContactIds.size === filteredContacts.length
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedContactIds(
+                            new Set(filteredContacts.map((c) => c.id || c.phone || c.name))
+                          );
+                        } else {
+                          setSelectedContactIds(new Set());
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                    />
+                    <button
+                      type="button"
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                      title="Configurar columnas"
+                    >
+                      <span className="material-symbols-outlined text-sm">settings</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContactsSortAsc((prev) => !prev)}
+                      className="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer text-slate-600 dark:text-slate-300"
+                    >
+                      <span>{language === 'en' ? 'Contact' : 'Contacto'}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {contactsSortAsc ? '▴' : '▾'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Actividad */}
+                  <div className="col-span-2">
+                    <span>{language === 'en' ? 'Activity' : 'Actividad'}</span>
+                  </div>
+
+                  {/* Responsable */}
+                  <div className="col-span-2">
+                    <span>{language === 'en' ? 'Responsible' : 'Responsable'}</span>
+                  </div>
+
+                  {/* Creado */}
+                  <div className="col-span-2">
+                    <span>{language === 'en' ? 'Created' : 'Creado'}</span>
+                  </div>
+
+                  {/* Recorrido del cliente */}
+                  <div className="col-span-2 text-right">
+                    <span>{language === 'en' ? 'Customer Journey' : 'Recorrido del cliente'}</span>
+                  </div>
+                </div>
+
+                {/* Table Body / Scrollable Content */}
+                <div className="flex-1 overflow-y-auto">
+                  {filteredContacts.length === 0 ? (
+                    /* Exact Empty State from Captura 1 */
+                    <div className="flex flex-col items-center justify-center py-28 text-center bg-white dark:bg-slate-900 select-none">
+                      <div className="w-20 h-24 mb-4 relative flex items-center justify-center">
+                        <svg
+                          className="w-full h-full text-slate-300 dark:text-slate-700"
+                          viewBox="0 0 48 56"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M2 6C2 3.79086 3.79086 2 6 2H30L46 18V50C46 52.2091 44.2091 54 42 54H6C3.79086 54 2 52.2091 2 50V6Z"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M30 2V18H46"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M18 30L30 42"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M30 30L18 42"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-base font-normal text-slate-400 dark:text-slate-500 tracking-wider">
+                        {language === 'en' ? '- No data -' : '- Sin datos -'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
+                      {filteredContacts.map((contact, idx) => {
+                        const isSelected = selectedContactIds.has(contact.id || contact.phone || contact.name);
+                        return (
+                          <div
+                            key={contact.id || idx}
+                            className={`grid grid-cols-12 py-3 px-6 text-xs items-center transition-colors ${
+                              isSelected
+                                ? 'bg-blue-50/60 dark:bg-blue-950/30'
+                                : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                            }`}
+                          >
+                            {/* Checkbox + Contact Info */}
+                            <div className="col-span-4 flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const key = contact.id || contact.phone || contact.name;
+                                  const next = new Set(selectedContactIds);
+                                  if (next.has(key)) next.delete(key);
+                                  else next.add(key);
+                                  setSelectedContactIds(next);
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                              />
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white font-semibold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                {contact.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="truncate">
+                                <span
+                                  onClick={() => {
+                                    setShowContactsModal(false);
+                                    onOpenBooking({
+                                      customer_name: contact.name,
+                                      phone_number: contact.phone,
+                                      service: contact.lastAppt?.service || '',
+                                      date: selectedDateStr,
+                                    });
+                                  }}
+                                  className="font-medium text-slate-800 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors block truncate"
+                                >
+                                  {contact.name}
+                                </span>
+                                {contact.phone && (
+                                  <span className="text-[11px] font-mono text-slate-400 block truncate">
+                                    {contact.phone}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actividad */}
+                            <div className="col-span-2 text-slate-600 dark:text-slate-300 truncate pr-2">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    contact.totalBookings > 0 ? 'bg-blue-500' : 'bg-slate-400'
+                                  }`}
+                                />
+                                <span className="truncate">{contact.activity}</span>
+                              </div>
+                            </div>
+
+                            {/* Responsable */}
+                            <div className="col-span-2 text-slate-700 dark:text-slate-300 truncate pr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm text-slate-400">
+                                  person
+                                </span>
+                                <span className="truncate">{contact.responsible}</span>
+                              </div>
+                            </div>
+
+                            {/* Creado */}
+                            <div className="col-span-2 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                              {(() => {
+                                try {
+                                  const d = new Date(contact.created_at);
+                                  if (isNaN(d.getTime())) return '-';
+                                  const day = String(d.getDate()).padStart(2, '0');
+                                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                                  const y = d.getFullYear();
+                                  const hr = String(d.getHours()).padStart(2, '0');
+                                  const min = String(d.getMinutes()).padStart(2, '0');
+                                  return `${day}.${m}.${y} ${hr}:${min}`;
+                                } catch {
+                                  return '-';
+                                }
+                              })()}
+                            </div>
+
+                            {/* Recorrido del cliente + Acciones */}
+                            <div className="col-span-2 flex items-center justify-end gap-2">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                {contact.journey}
+                              </span>
+
+                              {contact.phone && (
+                                <a
+                                  href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
+                                  title="Abrir WhatsApp"
+                                >
+                                  <span className="material-symbols-outlined text-sm">chat</span>
+                                </a>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowContactsModal(false);
+                                  onOpenBooking({
+                                    customer_name: contact.name,
+                                    phone_number: contact.phone,
+                                    service: contact.lastAppt?.service || '',
+                                    date: selectedDateStr,
+                                  });
+                                }}
+                                className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
+                                title="Agendar cita"
+                              >
+                                <span className="material-symbols-outlined text-sm">event</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ========================================================================= */}
       {/* 1.5 MODAL: EDITAR HORARIO DE ATENCIÓN DIRECTO */}
