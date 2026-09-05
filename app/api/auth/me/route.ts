@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
       planStartedAt: data.plan_started_at,
       planExpiresAt: data.plan_expires_at,
       pendingPlan: data.pending_plan || null,
+      ai_credits_balance: data.ai_credits_balance || 0,
       storageLimitBytes: data.storage_limit_bytes,
       storageUsedBytes: data.storage_used_bytes,
       contactLimit: data.contact_limit,
