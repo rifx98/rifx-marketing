@@ -157,6 +157,24 @@ export default function FlowZapVersions({ dbFlows = [], onApplyTemplate, onDelet
                 </button>
               </td>
             </tr>
+            <tr className="hover:bg-slate-50 transition-colors">
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700">05/09/2026, 02:30</td>
+              <td className="p-3 border-b border-slate-100">
+                <strong className="text-[11px] text-slate-800 block">IA: Embudo Híbrido (Sin IA + Con IA) ⭐</strong>
+                <small className="text-[8px] text-slate-500 block mt-0.5">Separación perfecta: Menú inicial, Rama IA autónoma y Rama Asesor</small>
+              </td>
+              <td className="p-3 border-b border-slate-100">
+                <span className="inline-block text-[8px] px-1.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold tracking-wide">recomendada</span>
+              </td>
+              <td className="p-3 border-b border-slate-100 text-[10px] text-slate-700 font-bold">v1</td>
+              <td className="p-3 border-b border-slate-100 text-right">
+                <button 
+                  onClick={() => onApplyTemplate?.('ia_embudo_hibrido')}
+                  className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors">
+                  Aplicar
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
