@@ -205,6 +205,7 @@ export default function BitrixCalendarView({
 
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [contactsSortAsc, setContactsSortAsc] = useState(true);
+  const [isContactsFullscreen, setIsContactsFullscreen] = useState(false);
 
   // Custom resources state
   const [customResources, setCustomResources] = useState<string[]>(() => {
@@ -1988,17 +1989,23 @@ export default function BitrixCalendarView({
       <AnimatePresence>
         {showContactsModal && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-sm"
+            className={`fixed inset-0 z-50 flex items-center justify-center ${
+              isContactsFullscreen ? 'p-0' : 'p-2 sm:p-3 md:p-4'
+            } bg-slate-900/70 backdrop-blur-sm transition-all duration-200`}
             onClick={(e) => {
               if (e.target === e.currentTarget) setShowContactsModal(false);
             }}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 15 }}
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 15 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-6xl max-h-[92vh] bg-[#eef2f7] dark:bg-[#0b1120] rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100"
+              className={`relative ${
+                isContactsFullscreen
+                  ? 'w-screen h-screen max-w-none max-h-none rounded-none'
+                  : 'w-[98vw] max-w-[1760px] h-[94vh] max-h-[96vh] rounded-2xl sm:rounded-3xl'
+              } bg-[#eef2f7] dark:bg-[#0b1120] shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 transition-all duration-200`}
             >
               {/* Modal Top Bar: Contactos 📌 + Crear | [ Todos los contactos x ] buscar 🔍 ✕ | ⚙️ ✕ */}
               <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-6 pb-2">
@@ -2342,6 +2349,16 @@ export default function BitrixCalendarView({
                   </button>
                   <button
                     type="button"
+                    onClick={() => setIsContactsFullscreen((prev) => !prev)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    title={isContactsFullscreen ? (language === 'en' ? 'Restore size' : 'Restaurar tamaño') : (language === 'en' ? 'Fullscreen' : 'Pantalla completa')}
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {isContactsFullscreen ? 'fullscreen_exit' : 'fullscreen'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setShowContactsModal(false)}
                     className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                     title="Cerrar ventana"
@@ -2393,7 +2410,7 @@ export default function BitrixCalendarView({
               </div>
 
               {/* Main White Card Container (Scrollable inside modal) */}
-              <div className="flex-1 mx-4 sm:mx-6 mb-4 sm:mb-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col min-h-[380px]">
+              <div className="flex-1 mx-4 sm:mx-6 mb-4 sm:mb-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col">
                 {/* Table Head: 12-Column Grid Centrado y Ordenado */}
                 <div className="border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-12 py-3 px-6 text-xs font-normal text-slate-500 dark:text-slate-400 items-center select-none shrink-0">
                   {/* Checkbox + Gear + Contacto ▴ (col-span-3) */}
@@ -2461,10 +2478,10 @@ export default function BitrixCalendarView({
                 </div>
 
                 {/* Table Body / Scrollable Content */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto flex flex-col">
                   {filteredContacts.length === 0 ? (
                     /* Exact Empty State from Captura 1 */
-                    <div className="flex flex-col items-center justify-center py-28 text-center bg-white dark:bg-slate-900 select-none">
+                    <div className="flex-1 flex flex-col items-center justify-center py-20 text-center bg-white dark:bg-slate-900 select-none">
                       <div className="w-20 h-24 mb-4 relative flex items-center justify-center">
                         <svg
                           className="w-full h-full text-slate-300 dark:text-slate-700"
