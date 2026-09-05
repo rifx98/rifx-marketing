@@ -15,7 +15,7 @@ const STATUSES = new Set([
   'pending', 'confirmed', 'awaiting_reschedule', 'rescheduled',
   'cancelled', 'completed', 'no_show', 'pending_completion',
 ]);
-const ACTIONS = new Set(['complete', 'no_show', 'cancel', 'reschedule', 'create']);
+const ACTIONS = new Set(['complete', 'no_show', 'cancel', 'reschedule', 'create', 'delete']);
 const ACTIONABLE = ['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'];
 const APPOINTMENT_SELECT = 'id,conversation_id,event_id,customer_name,phone_number,scheduled_time,service,status,confirmation_message,confirmed_at,cancelled_at,completed_at,resource_id,resource_name,created_at,updated_at';
 
@@ -314,7 +314,7 @@ export async function POST(req: NextRequest) {
 
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
-      .select('id,conversation_id,event_id,phone_number,status,scheduled_time,service')
+      .select('*')
       .eq('id', appointmentId)
       .eq('tenant_id', authorization.tenant.tenantId)
       .maybeSingle();
@@ -323,6 +323,189 @@ export async function POST(req: NextRequest) {
       return internalApiError();
     }
     if (!appointment) return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
+
+    // ============================================
+    // ACCIÓN: DELETE (Eliminar cita permanentemente)
+    // ============================================
+    if (action === 'delete') {
+      if (typeof appointment.event_id === 'string' && !appointment.event_id.startsWith('manual_')) {
+        try {
+          await deleteCalendarEvent(authorization.tenant.tenantId, appointment.event_id);
+        } catch (calErr) {
+          console.warn('[Appointments API] Error al eliminar evento de Google Calendar:', calErr);
+        }
+      }
+
+      const { error: deleteError } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId)
+        .eq('tenant_id', authorization.tenant.tenantId);
+
+      if (deleteError) {
+        console.error('[Appointments API] Error deleting appointment:', deleteError);
+        return NextResponse.json({ error: 'No se pudo eliminar la cita de la base de datos' }, { status: 400 });
+      }
+
+      // Si era una cita futura y activa, notificar a la lista de espera
+      if (appointment.scheduled_time && ['pending', 'confirmed', 'rescheduled'].includes(appointment.status)) {
+        try {
+          const apptDate = new Date(appointment.scheduled_time);
+          const freedDate = apptDate.toISOString().split('T')[0];
+          const freedTime = apptDate.toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hour12: false });
+          notifyNextInWaitlist({
+            tenantId: authorization.tenant.tenantId,
+            freedDate,
+            freedTime,
+            service: appointment.service,
+          }).catch((e) => console.error('[Waitlist Trigger] Error:', e));
+        } catch (err) {
+          console.error('[Waitlist Trigger] Error:', err);
+        }
+      }
+
+      return NextResponse.json({ success: true, message: 'Cita eliminada permanentemente' });
+    }
+
+    // ============================================
+    // ACCIÓN: RESCHEDULE CON NUEVO HORARIO
+    // ============================================
+    if (action === 'reschedule' && parsed.body.scheduled_time) {
+      const { scheduled_time: newScheduledTime, resource_id: newResId, resource_name: newResName } = parsed.body;
+      if (typeof newScheduledTime !== 'string' || !Date.parse(newScheduledTime)) {
+        return NextResponse.json({ error: 'Fecha y hora válidas son requeridas para reagendar' }, { status: 400 });
+      }
+
+      const newDate = new Date(newScheduledTime);
+      const newStartIso = newDate.toISOString();
+      const newEndIso = new Date(newDate.getTime() + 60 * 60 * 1000).toISOString();
+
+      let eventId = appointment.event_id;
+      // Re-sincronizar con Google Calendar
+      try {
+        if (eventId && !eventId.startsWith('manual_')) {
+          await deleteCalendarEvent(authorization.tenant.tenantId, eventId);
+        }
+        const effectiveResource = newResName || appointment.resource_name || '';
+        const summary = `📅 Cita (Reagendada): ${appointment.customer_name || 'Cliente'} — ${appointment.service || 'Asesoría'}${effectiveResource ? ` (${effectiveResource})` : ''}`;
+        const description = `Cliente: ${appointment.customer_name || ''}\nTeléfono: ${appointment.phone_number || ''}\nServicio: ${appointment.service || ''}\nEspecialista/Recurso: ${effectiveResource || 'No asignado'}\nReagendada desde CRM RIFX Marketing`;
+        const calResult = await createCalendarEvent(authorization.tenant.tenantId, {
+          summary,
+          description,
+          startDateTime: newStartIso,
+          endDateTime: newEndIso,
+          timeZone: 'America/Guayaquil',
+        });
+        if (calResult.success && calResult.eventId) {
+          eventId = calResult.eventId;
+        }
+      } catch (calErr) {
+        console.warn('[Appointments API] Error al sincronizar Google Calendar en reagendamiento:', calErr);
+      }
+
+      // Notificar lista de espera por el horario liberado
+      if (appointment.scheduled_time) {
+        try {
+          const oldDate = new Date(appointment.scheduled_time);
+          const freedDate = oldDate.toISOString().split('T')[0];
+          const freedTime = oldDate.toLocaleTimeString('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hour12: false });
+          notifyNextInWaitlist({
+            tenantId: authorization.tenant.tenantId,
+            freedDate,
+            freedTime,
+            service: appointment.service,
+          }).catch((e) => console.error('[Waitlist Trigger] Error:', e));
+        } catch (err) {
+          console.error('[Waitlist Trigger] Error:', err);
+        }
+      }
+
+      const updatePayload: any = {
+        scheduled_time: newStartIso,
+        status: 'rescheduled',
+        updated_at: now,
+        event_id: eventId || appointment.event_id || `manual_${Date.now()}`,
+      };
+      if (typeof newResName === 'string') updatePayload.resource_name = newResName.trim().slice(0, 150);
+      if (typeof newResId === 'string' && UUID_PATTERN.test(newResId)) updatePayload.resource_id = newResId;
+
+      let { data: updatedAppt, error: updateError } = await supabase
+        .from('appointments')
+        .update(updatePayload)
+        .eq('id', appointmentId)
+        .eq('tenant_id', authorization.tenant.tenantId)
+        .select('*')
+        .single();
+
+      if (updateError && (updateError.message?.includes('column') || updateError.code === '42703')) {
+        const { resource_name: _rn, resource_id: _ri, ...basePayload } = updatePayload;
+        const retryRes = await supabase
+          .from('appointments')
+          .update(basePayload)
+          .eq('id', appointmentId)
+          .eq('tenant_id', authorization.tenant.tenantId)
+          .select('*')
+          .single();
+        updatedAppt = retryRes.data;
+        updateError = retryRes.error;
+      }
+
+      if (updateError) {
+        console.error('[Appointments API] Error updating appointment on reschedule:', updateError);
+        return NextResponse.json({ error: updateError.message || 'Error al reagendar la cita' }, { status: 400 });
+      }
+
+      // Enviar confirmación por WhatsApp si está configurado
+      try {
+        const { data: config } = await supabase
+          .from('config')
+          .select('whatsapp_token,whatsapp_phone_id')
+          .eq('tenant_id', authorization.tenant.tenantId)
+          .maybeSingle();
+
+        if (config?.whatsapp_token && config?.whatsapp_phone_id && appointment.phone_number) {
+          const formattedDate = new Intl.DateTimeFormat('es-EC', {
+            timeZone: 'America/Guayaquil',
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          }).format(newDate);
+
+          const rescheduleMsg = `Hola *${appointment.customer_name || 'Cliente'}* 👋\n\nTu cita ha sido *reagendada* con éxito.\n\n📅 *Nuevo Horario:* ${formattedDate}\n📋 *Servicio:* ${appointment.service || 'Asesoría'}${newResName ? `\n👤 *Especialista:* ${newResName}` : ''}\n\n¡Te esperamos! 😊`;
+
+          await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(config.whatsapp_phone_id)}/messages`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${config.whatsapp_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: appointment.phone_number,
+              type: 'text',
+              text: { body: rescheduleMsg },
+            }),
+          });
+
+          if (appointment.conversation_id) {
+            await supabase.from('messages').insert({
+              tenant_id: authorization.tenant.tenantId,
+              conversation_id: appointment.conversation_id,
+              role: 'assistant',
+              content: `[Cita Reagendada]: ${rescheduleMsg}`,
+            });
+          }
+        }
+      } catch (waErr) {
+        console.warn('[Appointments API] Error al enviar confirmación de reagendamiento por WhatsApp:', waErr);
+      }
+
+      return NextResponse.json({ success: true, status: 'rescheduled', appointment: updatedAppt });
+    }
 
     const targetStatus = action === 'complete'
       ? 'completed'
@@ -451,6 +634,61 @@ export async function POST(req: NextRequest) {
     });
   } catch {
     console.error('Appointment mutation failed');
+    return internalApiError();
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const authorization = await authorize(req, 'appointments-write', 40);
+    if ('response' in authorization) return authorization.response;
+
+    let appointmentId = req.nextUrl.searchParams.get('appointmentId');
+    if (!appointmentId) {
+      const parsed = await readLimitedJsonObject(req, 4 * 1024);
+      if (parsed.ok && typeof parsed.body?.appointmentId === 'string') {
+        appointmentId = parsed.body.appointmentId;
+      }
+    }
+
+    if (!appointmentId || !UUID_PATTERN.test(appointmentId)) {
+      return NextResponse.json({ error: 'appointmentId inválido requerido' }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdmin();
+    const { data: appointment } = await supabase
+      .from('appointments')
+      .select('id,event_id,status,scheduled_time,service')
+      .eq('id', appointmentId)
+      .eq('tenant_id', authorization.tenant.tenantId)
+      .maybeSingle();
+
+    if (!appointment) {
+      return NextResponse.json({ error: 'Cita no encontrada' }, { status: 404 });
+    }
+
+    if (typeof appointment.event_id === 'string' && !appointment.event_id.startsWith('manual_')) {
+      try {
+        await deleteCalendarEvent(authorization.tenant.tenantId, appointment.event_id);
+      } catch (calErr) {
+        console.warn('[Appointments API] Error al eliminar evento de Google Calendar:', calErr);
+      }
+    }
+
+    const { error: deleteError } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', appointmentId)
+      .eq('tenant_id', authorization.tenant.tenantId);
+
+    if (deleteError) {
+      console.error('[Appointments API] Error deleting appointment:', deleteError);
+      return NextResponse.json({ error: 'No se pudo eliminar la cita de la base de datos' }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Cita eliminada correctamente' });
+  } catch {
+    console.error('Appointment deletion failed');
     return internalApiError();
   }
 }

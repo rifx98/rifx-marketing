@@ -18,7 +18,11 @@ interface BitrixCalendarViewProps {
     time?: string;
   }) => void;
   onOpenAddWaitlist: () => void;
-  onApptAction: (apptId: string, action: 'complete' | 'no_show' | 'cancel' | 'reschedule') => Promise<void>;
+  onApptAction: (
+    apptId: string,
+    action: 'complete' | 'no_show' | 'cancel' | 'reschedule' | 'delete',
+    payload?: any
+  ) => Promise<void>;
   onWaitlistNotify: (waitlistId: string, time?: string) => Promise<void>;
   onWaitlistStatus: (waitlistId: string, status: string) => Promise<void>;
   isPerformingAction?: string | null;
@@ -30,6 +34,7 @@ interface BitrixCalendarViewProps {
   onSaveSchedule: () => Promise<void> | void;
   isSavingSchedule?: boolean;
   onSwitchToTable?: () => void;
+  authFetch?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; border: string; text: string; dot: string }> = {
@@ -108,6 +113,7 @@ export default function BitrixCalendarView({
   onSaveSchedule,
   isSavingSchedule,
   onSwitchToTable,
+  authFetch,
 }: BitrixCalendarViewProps) {
   // Top Navigation Tab (Bitrix24 style navigation: Reservas, Métricas, Recursos, Espera)
   const [activeSection, setActiveSection] = useState<'timeline' | 'metrics' | 'resources' | 'waitlist'>('timeline');
@@ -120,6 +126,15 @@ export default function BitrixCalendarView({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [selectedApptDetails, setSelectedApptDetails] = useState<any | null>(null);
+
+  // Modal mode: details, reschedule, confirm_delete
+  const [apptModalMode, setApptModalMode] = useState<'details' | 'reschedule' | 'confirm_delete'>('details');
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduleResource, setRescheduleResource] = useState('');
+  const [rescheduleSlots, setRescheduleSlots] = useState<{ start: string; end: string; label: string }[]>([]);
+  const [loadingRescheduleSlots, setLoadingRescheduleSlots] = useState(false);
+  const [isSubmittingModalAction, setIsSubmittingModalAction] = useState(false);
 
   // Edit Schedule Modal state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -149,6 +164,49 @@ export default function BitrixCalendarView({
     setNewResourceName('');
     setShowAddResourceModal(false);
   };
+
+  // Sincronizar estado del modal al abrir detalles de una cita
+  useEffect(() => {
+    if (selectedApptDetails) {
+      setApptModalMode('details');
+      setIsSubmittingModalAction(false);
+      try {
+        const apptDateObj = new Date(selectedApptDetails.scheduled_time);
+        const todayStr = new Date().toISOString().split('T')[0];
+        const apptDateStr = !isNaN(apptDateObj.getTime()) ? apptDateObj.toISOString().split('T')[0] : todayStr;
+        setRescheduleDate(apptDateStr < todayStr ? todayStr : apptDateStr);
+
+        const hours = apptDateObj.getHours().toString().padStart(2, '0');
+        const minutes = apptDateObj.getMinutes().toString().padStart(2, '0');
+        setRescheduleTime(`${hours}:${minutes}`);
+      } catch {
+        const todayStr = new Date().toISOString().split('T')[0];
+        setRescheduleDate(todayStr);
+        setRescheduleTime('10:00');
+      }
+      setRescheduleResource(selectedApptDetails.resource_name || '');
+    }
+  }, [selectedApptDetails]);
+
+  // Cargar disponibilidad de horarios cuando se activa el modo reagendar
+  useEffect(() => {
+    if (apptModalMode === 'reschedule' && rescheduleDate) {
+      if (authFetch) {
+        setLoadingRescheduleSlots(true);
+        authFetch(`/api/panel/appointments/availability?date=${rescheduleDate}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.available && Array.isArray(d.available) && d.available.length > 0) {
+              setRescheduleSlots(d.available);
+            } else {
+              setRescheduleSlots([]);
+            }
+          })
+          .catch(() => setRescheduleSlots([]))
+          .finally(() => setLoadingRescheduleSlots(false));
+      }
+    }
+  }, [apptModalMode, rescheduleDate, authFetch]);
 
   // Hour range calculation
   const startHour = Math.max(6, Math.min(9, parseInt((configData?.business_start_hour || '08:00').split(':')[0], 10) || 8));
@@ -1574,121 +1632,387 @@ export default function BitrixCalendarView({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 w-full max-w-md relative"
+              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 w-full max-w-md relative overflow-hidden"
             >
+              {/* Botón cerrar */}
               <button
                 type="button"
-                onClick={() => setSelectedApptDetails(null)}
-                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={() => {
+                  setSelectedApptDetails(null);
+                  setApptModalMode('details');
+                }}
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <span className="material-symbols-outlined text-base">close</span>
               </button>
 
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-xl">
-                  <span className="material-symbols-outlined text-2xl">event_available</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">
-                    {selectedApptDetails.customer_name}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono">
-                    {selectedApptDetails.phone_number}
-                  </p>
-                </div>
-              </div>
+              {/* ======================================================= */}
+              {/* MODO 1: REAGENDAR CITA */}
+              {/* ======================================================= */}
+              {apptModalMode === 'reschedule' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setApptModalMode('details')}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">arrow_back</span>
+                    </button>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-blue-600 text-lg">event_repeat</span>
+                        {language === 'en' ? 'Reschedule Appointment' : 'Reagendar Cita'}
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        {selectedApptDetails.customer_name} • {selectedApptDetails.phone_number}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl space-y-2.5 mb-6 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400 font-bold">{language === 'en' ? 'Service' : 'Servicio'}:</span>
-                  <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                    {selectedApptDetails.service || 'Asesoría'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400 font-bold">{language === 'en' ? 'Specialist' : 'Especialista'}:</span>
-                  <span className="font-extrabold text-indigo-600 dark:text-indigo-400">
-                    {selectedApptDetails.resource_name || 'Atención General'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400 font-bold">{language === 'en' ? 'Schedule' : 'Horario'}:</span>
-                  <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
-                    {new Intl.DateTimeFormat('es-EC', {
-                      weekday: 'short',
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true,
-                    }).format(new Date(selectedApptDetails.scheduled_time))}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
-                  <span className="text-slate-400 font-bold">{language === 'en' ? 'Status' : 'Estado'}:</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black capitalize ${STATUS_CONFIG[selectedApptDetails.status]?.bg || 'bg-slate-100'} ${STATUS_CONFIG[selectedApptDetails.status]?.text || 'text-slate-700'}`}>
-                    {STATUS_CONFIG[selectedApptDetails.status]?.label || selectedApptDetails.status}
-                  </span>
-                </div>
-              </div>
+                  {/* Selector de Nueva Fecha */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      {language === 'en' ? 'New Date' : 'Nueva Fecha'} *
+                    </label>
+                    <input
+                      type="date"
+                      min={new Date().toISOString().split('T')[0]}
+                      value={rescheduleDate}
+                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {language === 'en' ? 'Actions' : 'Acciones Disponibles'}
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onApptAction(selectedApptDetails.id, 'complete');
-                      setSelectedApptDetails(null);
-                    }}
-                    disabled={!!isPerformingAction}
-                    className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                    <span>{language === 'en' ? 'Attended' : 'Asistió'}</span>
-                  </button>
+                  {/* Selector de Horario */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                        {language === 'en' ? 'Available Time Slots' : 'Horarios Disponibles'} *
+                      </label>
+                      {loadingRescheduleSlots && (
+                        <span className="text-[10px] text-blue-500 font-bold animate-pulse">
+                          {language === 'en' ? 'Checking calendar...' : 'Consultando Google Calendar...'}
+                        </span>
+                      )}
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onApptAction(selectedApptDetails.id, 'no_show');
-                      setSelectedApptDetails(null);
-                    }}
-                    disabled={!!isPerformingAction}
-                    className="p-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">cancel</span>
-                    <span>{language === 'en' ? 'No Show' : 'No Asistió'}</span>
-                  </button>
+                    <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                      {(rescheduleSlots.length > 0
+                        ? rescheduleSlots.map((s) => s.label)
+                        : ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']
+                      ).map((slotLabel) => {
+                        const isSelected = rescheduleTime === slotLabel;
+                        return (
+                          <button
+                            key={slotLabel}
+                            type="button"
+                            onClick={() => setRescheduleTime(slotLabel)}
+                            className={`py-2 px-1 rounded-xl text-xs font-extrabold border transition-all text-center ${
+                              isSelected
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
+                                : 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400'
+                            }`}
+                          >
+                            {slotLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const phone = (selectedApptDetails.phone_number || '').replace(/[^0-9]/g, '');
-                      if (phone) window.open(`https://wa.me/${phone}`, '_blank');
-                    }}
-                    className="p-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">chat</span>
-                    <span>WhatsApp</span>
-                  </button>
+                    {/* Hora manual opcional */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-[10px] text-slate-400 font-bold">{language === 'en' ? 'Custom:' : 'Hora exacta:'}</span>
+                      <input
+                        type="time"
+                        value={rescheduleTime}
+                        onChange={(e) => setRescheduleTime(e.target.value)}
+                        className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onApptAction(selectedApptDetails.id, 'cancel');
-                      setSelectedApptDetails(null);
-                    }}
-                    disabled={!!isPerformingAction}
-                    className="p-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                    <span>{language === 'en' ? 'Cancel' : 'Cancelar'}</span>
-                  </button>
+                  {/* Selector de Especialista / Recurso */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                      {language === 'en' ? 'Specialist / Resource' : 'Especialista / Recurso'}
+                    </label>
+                    <select
+                      value={rescheduleResource}
+                      onChange={(e) => setRescheduleResource(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    >
+                      <option value="">{language === 'en' ? 'General Attention' : 'Atención General'}</option>
+                      {resourcesList.map((res) => (
+                        <option key={res} value={res}>
+                          {res}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Botones de acción de Reagendar */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setApptModalMode('details')}
+                      disabled={isSubmittingModalAction}
+                      className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-bold transition-all"
+                    >
+                      {language === 'en' ? 'Back' : 'Volver'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!rescheduleDate || !rescheduleTime || isSubmittingModalAction || !!isPerformingAction}
+                      onClick={async () => {
+                        setIsSubmittingModalAction(true);
+                        try {
+                          const scheduled_time = `${rescheduleDate}T${rescheduleTime}:00-05:00`;
+                          await onApptAction(selectedApptDetails.id, 'reschedule', {
+                            scheduled_time,
+                            resource_name: rescheduleResource || undefined,
+                          });
+                          setSelectedApptDetails(null);
+                          setApptModalMode('details');
+                        } finally {
+                          setIsSubmittingModalAction(false);
+                        }
+                      }}
+                      className="flex-2 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {isSubmittingModalAction ? (
+                        <>
+                          <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                          <span>{language === 'en' ? 'Rescheduling...' : 'Reagendando...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-sm">event_repeat</span>
+                          <span>{language === 'en' ? 'Confirm Reschedule' : 'Confirmar Reagendamiento'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* ======================================================= */}
+              {/* MODO 2: CONFIRMAR ELIMINACIÓN PERMANENTE */}
+              {/* ======================================================= */}
+              {apptModalMode === 'confirm_delete' && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold text-xl">
+                      <span className="material-symbols-outlined text-2xl">delete_forever</span>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-rose-600 dark:text-rose-400">
+                        {language === 'en' ? 'Permanently Delete' : 'Eliminar Cita Definitivamente'}
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        {selectedApptDetails.customer_name} • {selectedApptDetails.phone_number}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-xs text-rose-800 dark:text-rose-300 space-y-2">
+                    <p className="font-bold">
+                      {language === 'en'
+                        ? 'Are you sure you want to permanently delete this appointment?'
+                        : '¿Estás seguro de que deseas eliminar permanentemente esta cita?'}
+                    </p>
+                    <p className="text-[11px] opacity-90 leading-relaxed">
+                      {language === 'en'
+                        ? 'This action will completely remove the appointment from Supabase and Google Calendar. It cannot be recovered.'
+                        : 'Esta acción borrará la cita de la base de datos y cancelará el evento en Google Calendar si estaba sincronizado. No se puede deshacer.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setApptModalMode('details')}
+                      disabled={isSubmittingModalAction}
+                      className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-bold transition-all"
+                    >
+                      {language === 'en' ? 'Cancel' : 'Volver'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSubmittingModalAction || !!isPerformingAction}
+                      onClick={async () => {
+                        setIsSubmittingModalAction(true);
+                        try {
+                          await onApptAction(selectedApptDetails.id, 'delete');
+                          setSelectedApptDetails(null);
+                          setApptModalMode('details');
+                        } finally {
+                          setIsSubmittingModalAction(false);
+                        }
+                      }}
+                      className="flex-2 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-xs font-black shadow-lg shadow-rose-500/20 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {isSubmittingModalAction ? (
+                        <>
+                          <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                          <span>{language === 'en' ? 'Deleting...' : 'Eliminando...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-sm">delete_forever</span>
+                          <span>{language === 'en' ? 'Yes, Delete' : 'Sí, Eliminar Definitivamente'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ======================================================= */}
+              {/* MODO 3: DETALLES PRINCIPALES Y TODAS LAS ACCIONES */}
+              {/* ======================================================= */}
+              {apptModalMode === 'details' && (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-xl">
+                      <span className="material-symbols-outlined text-2xl">event_available</span>
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">
+                        {selectedApptDetails.customer_name}
+                      </h3>
+                      <p className="text-xs text-slate-400 font-mono">
+                        {selectedApptDetails.phone_number}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl space-y-2.5 mb-5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-bold">{language === 'en' ? 'Service' : 'Servicio'}:</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                        {selectedApptDetails.service || 'Asesoría'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-bold">{language === 'en' ? 'Specialist' : 'Especialista'}:</span>
+                      <span className="font-extrabold text-indigo-600 dark:text-indigo-400">
+                        {selectedApptDetails.resource_name || 'Atención General'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-bold">{language === 'en' ? 'Schedule' : 'Horario'}:</span>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200 font-mono">
+                        {new Intl.DateTimeFormat('es-EC', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        }).format(new Date(selectedApptDetails.scheduled_time))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                      <span className="text-slate-400 font-bold">{language === 'en' ? 'Status' : 'Estado'}:</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black capitalize ${STATUS_CONFIG[selectedApptDetails.status]?.bg || 'bg-slate-100'} ${STATUS_CONFIG[selectedApptDetails.status]?.text || 'text-slate-700'}`}>
+                        {STATUS_CONFIG[selectedApptDetails.status]?.label || selectedApptDetails.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      {language === 'en' ? 'Actions' : 'Acciones Disponibles'}
+                    </p>
+
+                    {/* Fila 1: Asistencia */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onApptAction(selectedApptDetails.id, 'complete');
+                          setSelectedApptDetails(null);
+                        }}
+                        disabled={!!isPerformingAction}
+                        className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">check_circle</span>
+                        <span>{language === 'en' ? 'Attended' : 'Asistió'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onApptAction(selectedApptDetails.id, 'no_show');
+                          setSelectedApptDetails(null);
+                        }}
+                        disabled={!!isPerformingAction}
+                        className="p-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">cancel</span>
+                        <span>{language === 'en' ? 'No Show' : 'No Asistió'}</span>
+                      </button>
+                    </div>
+
+                    {/* Fila 2: WhatsApp y Reagendar */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const phone = (selectedApptDetails.phone_number || '').replace(/[^0-9]/g, '');
+                          if (phone) window.open(`https://wa.me/${phone}`, '_blank');
+                        }}
+                        className="p-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">chat</span>
+                        <span>WhatsApp</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setApptModalMode('reschedule')}
+                        disabled={!!isPerformingAction}
+                        className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">event_repeat</span>
+                        <span>{language === 'en' ? 'Reschedule' : 'Reagendar'}</span>
+                      </button>
+                    </div>
+
+                    {/* Fila 3: Cancelar y Eliminar */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await onApptAction(selectedApptDetails.id, 'cancel');
+                          setSelectedApptDetails(null);
+                        }}
+                        disabled={selectedApptDetails.status === 'cancelled' || !!isPerformingAction}
+                        className={`p-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all ${
+                          selectedApptDetails.status === 'cancelled'
+                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 cursor-pointer'
+                        }`}
+                        title={selectedApptDetails.status === 'cancelled' ? 'La cita ya se encuentra cancelada' : 'Cancelar cita'}
+                      >
+                        <span className="material-symbols-outlined text-sm">block</span>
+                        <span>{language === 'en' ? 'Cancel' : 'Cancelar Cita'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setApptModalMode('confirm_delete')}
+                        disabled={!!isPerformingAction}
+                        className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete_forever</span>
+                        <span>{language === 'en' ? 'Delete' : 'Eliminar Cita'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}

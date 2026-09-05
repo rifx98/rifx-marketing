@@ -4906,19 +4906,36 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
   };
 
-  const handleApptAction = async (apptId: string, action: 'complete' | 'no_show' | 'cancel' | 'reschedule') => {
+  const handleApptAction = async (
+    apptId: string,
+    action: 'complete' | 'no_show' | 'cancel' | 'reschedule' | 'delete',
+    payload?: {
+      scheduled_time?: string;
+      resource_id?: string;
+      resource_name?: string;
+    }
+  ) => {
     setIsPerformingApptAction(`${apptId}-${action}`);
     try {
       const res = await authFetch('/api/panel/appointments', {
-        method: 'POST',
+        method: action === 'delete' ? 'DELETE' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: apptId, action })
+        body: JSON.stringify({ appointmentId: apptId, action, ...payload })
       });
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && (data.success || res.status === 200)) {
+        const actionLabels: Record<string, string> = {
+          complete: 'asistió',
+          no_show: 'no asistió',
+          cancel: 'cancelada',
+          reschedule: 'reagendada con éxito',
+          delete: 'eliminada permanentemente',
+        };
         setToast({
           type: 'success',
-          message: language === 'en' ? `✓ Action completed: ${action}` : `✓ Acción completada: ${action === 'complete' ? 'asistió' : action === 'no_show' ? 'no asistió' : action === 'cancel' ? 'cancelada' : 'reagendada'}`
+          message: language === 'en'
+            ? `✓ Action completed: ${action}`
+            : `✓ Cita ${actionLabels[action] || 'actualizada'}`
         });
         fetchAppointments();
         authFetch('/api/panel/stats')
@@ -4928,13 +4945,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       } else {
         setToast({
           type: 'error',
-          message: data.error || 'Error processing action'
+          message: data.error || 'Error al procesar la acción de la cita'
         });
       }
     } catch (e: any) {
       setToast({
         type: 'error',
-        message: e.message || 'Connection error'
+        message: e.message || 'Error de conexión'
       });
     } finally {
       setIsPerformingApptAction(null);
@@ -15047,6 +15064,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     onSaveSchedule={handleSaveSettings as any}
                     isSavingSchedule={isSaving}
                     onSwitchToTable={() => setCalendarDisplayMode('table')}
+                    authFetch={authFetch}
                   />
                 ) : (
                   <div className="space-y-6">
