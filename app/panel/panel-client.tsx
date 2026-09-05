@@ -19476,7 +19476,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     dragElastic={0.05}
                     onDragEnd={(e, info) => {
                       if (info.offset.x > 200) {
-                        document.getElementById('ls-hidden-checkout')?.click();
+                        if (typeof window !== 'undefined' && (window as any).LemonSqueezy) {
+                           (window as any).LemonSqueezy.Url.Open(pendingCheckoutUrl);
+                        } else {
+                           document.getElementById('ls-hidden-checkout')?.click();
+                        }
                         setTimeout(() => setShowConfirmModal(false), 500);
                       }
                     }}

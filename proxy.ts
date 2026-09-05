@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const CSRF_EXEMPT_SERVER_PATHS = new Set([
   '/api/whatsapp',
   '/api/cron/whatsapp',
+  '/api/webhooks/lemonsqueezy',
 ]);
 
 function buildPanelCsp(nonce: string): string {
