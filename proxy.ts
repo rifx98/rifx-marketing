@@ -22,7 +22,7 @@ function buildPanelCsp(nonce: string): string {
     "media-src 'self' blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' https: wss:",
-    "frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.payphone.app https://app.lemonsqueezy.com",
+    "frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.payphone.app https://app.lemonsqueezy.com https://*.lemonsqueezy.com",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
