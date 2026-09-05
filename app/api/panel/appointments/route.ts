@@ -136,19 +136,27 @@ export async function POST(req: NextRequest) {
       // Validar si el día de la cita está habilitado en business_days
       const { data: tenantConfig } = await supabase
         .from('config')
-        .select('business_days')
+        .select('openai_key')
         .eq('tenant_id', authorization.tenant.tenantId)
         .maybeSingle();
 
-      if (Array.isArray(tenantConfig?.business_days) && tenantConfig.business_days.length > 0) {
-        const dateParts = scheduled_time.split('T')[0].split('-').map(Number);
-        if (dateParts.length === 3) {
-          const dayOfWeek = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay();
-          if (!tenantConfig.business_days.includes(dayOfWeek)) {
-            return NextResponse.json({
-              error: 'No se pueden agendar citas en un día sin atención según el horario comercial configurado.'
-            }, { status: 400 });
+      let allowedBusinessDays = [1, 2, 3, 4, 5];
+      if (tenantConfig?.openai_key) {
+        try {
+          const parsed = JSON.parse(tenantConfig.openai_key);
+          if (Array.isArray(parsed?.business_days)) {
+            allowedBusinessDays = parsed.business_days;
           }
+        } catch {}
+      }
+
+      const dateParts = scheduled_time.split('T')[0].split('-').map(Number);
+      if (dateParts.length === 3) {
+        const dayOfWeek = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay();
+        if (!allowedBusinessDays.includes(dayOfWeek)) {
+          return NextResponse.json({
+            error: 'No se pueden agendar citas en un día sin atención según el horario comercial configurado.'
+          }, { status: 400 });
         }
       }
 
@@ -398,19 +406,27 @@ export async function POST(req: NextRequest) {
       // Validar si el nuevo día de la cita está habilitado en business_days
       const { data: tenantConfig } = await supabase
         .from('config')
-        .select('business_days')
+        .select('openai_key')
         .eq('tenant_id', authorization.tenant.tenantId)
         .maybeSingle();
 
-      if (Array.isArray(tenantConfig?.business_days) && tenantConfig.business_days.length > 0) {
-        const dateParts = newScheduledTime.split('T')[0].split('-').map(Number);
-        if (dateParts.length === 3) {
-          const dayOfWeek = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay();
-          if (!tenantConfig.business_days.includes(dayOfWeek)) {
-            return NextResponse.json({
-              error: 'No se pueden reagendar citas a un día sin atención según el horario comercial configurado.'
-            }, { status: 400 });
+      let allowedBusinessDays = [1, 2, 3, 4, 5];
+      if (tenantConfig?.openai_key) {
+        try {
+          const parsed = JSON.parse(tenantConfig.openai_key);
+          if (Array.isArray(parsed?.business_days)) {
+            allowedBusinessDays = parsed.business_days;
           }
+        } catch {}
+      }
+
+      const dateParts = newScheduledTime.split('T')[0].split('-').map(Number);
+      if (dateParts.length === 3) {
+        const dayOfWeek = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay();
+        if (!allowedBusinessDays.includes(dayOfWeek)) {
+          return NextResponse.json({
+            error: 'No se pueden reagendar citas a un día sin atención según el horario comercial configurado.'
+          }, { status: 400 });
         }
       }
 

@@ -31,7 +31,11 @@ interface BitrixCalendarViewProps {
   // Business hours configuration
   configData: any;
   setConfigData: React.Dispatch<React.SetStateAction<any>>;
-  onSaveSchedule: () => Promise<void> | void;
+  onSaveSchedule: (scheduleData?: {
+    business_days?: number[];
+    business_start_hour?: string;
+    business_end_hour?: string;
+  }) => Promise<boolean | void> | void;
   isSavingSchedule?: boolean;
   onSwitchToTable?: () => void;
   authFetch?: (url: string, init?: RequestInit) => Promise<Response>;
@@ -405,9 +409,13 @@ export default function BitrixCalendarView({
     const current = configData?.business_days || [];
     if (!current.includes(dayOfWeek)) {
       const updated = [...current, dayOfWeek].sort();
-      setConfigData({ ...configData, business_days: updated });
+      setConfigData((prev: any) => ({ ...prev, business_days: updated }));
       if (onSaveSchedule) {
-        await onSaveSchedule();
+        await onSaveSchedule({
+          business_days: updated,
+          business_start_hour: configData?.business_start_hour || '09:00',
+          business_end_hour: configData?.business_end_hour || '18:00',
+        });
       }
     }
   };
@@ -1774,8 +1782,17 @@ export default function BitrixCalendarView({
                 <button
                   type="button"
                   onClick={async () => {
-                    await onSaveSchedule();
-                    setShowScheduleModal(false);
+                    const days = configData?.business_days || [1, 2, 3, 4, 5];
+                    const start = configData?.business_start_hour || '09:00';
+                    const end = configData?.business_end_hour || '18:00';
+                    const ok = await onSaveSchedule({
+                      business_days: days,
+                      business_start_hour: start,
+                      business_end_hour: end,
+                    });
+                    if (ok !== false) {
+                      setShowScheduleModal(false);
+                    }
                   }}
                   disabled={isSavingSchedule}
                   className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"

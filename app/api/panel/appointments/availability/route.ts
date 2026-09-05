@@ -31,35 +31,49 @@ export async function GET(req: NextRequest) {
     const supabase = createSupabaseAdmin();
     const { data: config } = await supabase
       .from('config')
-      .select('business_start_hour,business_end_hour,business_days')
+      .select('openai_key')
       .eq('tenant_id', tenant.tenantId)
       .limit(1)
       .maybeSingle();
 
+    let businessDays = [1, 2, 3, 4, 5];
     let startHour = 9;
     let endHour = 18;
-    if (config?.business_start_hour) {
-      const parsed = parseInt(config.business_start_hour.split(':')[0], 10);
-      if (Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 23) startHour = parsed;
-    }
-    if (config?.business_end_hour) {
-      const parsed = parseInt(config.business_end_hour.split(':')[0], 10);
-      if (Number.isSafeInteger(parsed) && parsed > startHour && parsed <= 24) endHour = parsed;
+
+    if (config?.openai_key) {
+      try {
+        const parsed = JSON.parse(config.openai_key);
+        if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.business_days)) {
+            businessDays = parsed.business_days;
+          }
+          if (typeof parsed.business_start_hour === 'string') {
+            const parsedStart = parseInt(parsed.business_start_hour.split(':')[0], 10);
+            if (Number.isSafeInteger(parsedStart) && parsedStart >= 0 && parsedStart <= 23) {
+              startHour = parsedStart;
+            }
+          }
+          if (typeof parsed.business_end_hour === 'string') {
+            const parsedEnd = parseInt(parsed.business_end_hour.split(':')[0], 10);
+            if (Number.isSafeInteger(parsedEnd) && parsedEnd > startHour && parsedEnd <= 24) {
+              endHour = parsedEnd;
+            }
+          }
+        }
+      } catch {}
     }
 
     // Comprobar si el día de la semana es laborable según la configuración
-    if (Array.isArray(config?.business_days) && config.business_days.length > 0) {
-      const [y, m, d] = dateParam.split('-').map(Number);
-      const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
-      if (!config.business_days.includes(dayOfWeek)) {
-        return NextResponse.json({
-          available: [],
-          isNonWorkingDay: true,
-          message: 'Día no laborable según tu horario comercial.',
-        }, {
-          headers: { 'Cache-Control': 'private, no-store' }
-        });
-      }
+    const [y, m, d] = dateParam.split('-').map(Number);
+    const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
+    if (!businessDays.includes(dayOfWeek)) {
+      return NextResponse.json({
+        available: [],
+        isNonWorkingDay: true,
+        message: 'Día no laborable según tu horario comercial.',
+      }, {
+        headers: { 'Cache-Control': 'private, no-store' }
+      });
     }
 
     const availabilityResult = await checkAvailability(

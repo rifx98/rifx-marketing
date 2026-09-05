@@ -125,6 +125,9 @@ const EMPTY_CONFIG = {
   payphone_token_configured: false,
   facebook_access_token_configured: false,
   dropi_token_configured: false,
+  business_days: [1, 2, 3, 4, 5],
+  business_start_hour: '09:00',
+  business_end_hour: '18:00',
 };
 
 class ConfigInputError extends Error {}
@@ -189,6 +192,7 @@ function decodeExtendedConfig(stored: unknown): ExtendedConfig {
 }
 
 function inputString(value: unknown, maxLength: number): string {
+  if (value === null || value === undefined) return '';
   if (typeof value !== 'string') throw new ConfigInputError('Campo de texto invalido');
   const normalized = value.trim();
   if (normalized.length > maxLength) throw new ConfigInputError('Campo de texto demasiado largo');
@@ -196,24 +200,27 @@ function inputString(value: unknown, maxLength: number): string {
 }
 
 function updatedString(value: unknown, current: string, maxLength: number): string {
-  return value === undefined ? current : inputString(value, maxLength);
+  if (value === undefined) return current;
+  if (value === null) return '';
+  return inputString(value, maxLength);
 }
 
 function updatedSecret(value: unknown, current: string): string {
-  if (value !== undefined && typeof value !== 'string') throw new ConfigInputError('Credencial invalida');
+  if (value === undefined || value === null) return current;
+  if (typeof value !== 'string') throw new ConfigInputError('Credencial invalida');
   const updated = resolveSecretUpdate(value, current);
   if (updated.length > 8_192) throw new ConfigInputError('Credencial demasiado larga');
   return updated;
 }
 
 function updatedBoolean(value: unknown, current: boolean): boolean {
-  if (value === undefined) return current;
+  if (value === undefined || value === null) return current;
   if (typeof value !== 'boolean') throw new ConfigInputError('Valor booleano invalido');
   return value;
 }
 
 function updatedNumber(value: unknown, current: number, min: number, max: number): number {
-  if (value === undefined) return current;
+  if (value === undefined || value === null) return current;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
     throw new ConfigInputError('Valor numerico invalido');
   }
@@ -304,6 +311,9 @@ export async function GET(req: NextRequest) {
       sales_prompt: extended.sales_prompt,
       support_prompt: extended.support_prompt,
       admin_notification_phone: extended.admin_notification_phone,
+      business_days: Array.isArray(extended.business_days) ? extended.business_days : EXTENDED_DEFAULTS.business_days,
+      business_start_hour: extended.business_start_hour || EXTENDED_DEFAULTS.business_start_hour,
+      business_end_hour: extended.business_end_hour || EXTENDED_DEFAULTS.business_end_hour,
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0, must-revalidate' } });
   } catch {
     console.error('Panel configuration request failed');
@@ -387,8 +397,8 @@ export async function POST(req: NextRequest) {
       assertPattern(next.facebook_page_id, META_PAGE_PATTERN, 'Pagina de Facebook');
       assertPattern(next.dropi_default_product_id, IDENTIFIER_PATTERN, 'Producto Dropi');
       assertPattern(next.admin_notification_phone, ALERT_PHONE_PATTERN, 'Telefono de alertas');
-      if (!MODELS.has(next.model_selection)) throw new ConfigInputError('Modelo no permitido');
-      if (!VISUAL_PROVIDERS.has(next.visual_render_provider)) throw new ConfigInputError('Proveedor visual no permitido');
+      if (!MODELS.has(next.model_selection)) next.model_selection = EXTENDED_DEFAULTS.model_selection;
+      if (!VISUAL_PROVIDERS.has(next.visual_render_provider)) next.visual_render_provider = EXTENDED_DEFAULTS.visual_render_provider;
 
       if (next.facebook_ad_account_id) {
         const conflict = await findConflictingTenantForExtendedField(
@@ -492,12 +502,16 @@ export async function POST(req: NextRequest) {
       console.error('[Config] Write returned no tenant row');
       return internalApiError();
     }
+    const savedExtended = decodeExtendedConfig(updateData.openai_key || existing?.openai_key);
     return NextResponse.json(
       {
         success: true,
         message: 'Configuracion guardada correctamente',
         whatsapp_token_configured: Boolean(savedConfig.whatsapp_token),
         whatsapp_phone_id: storedString(savedConfig.whatsapp_phone_id, 30),
+        business_days: savedExtended.business_days,
+        business_start_hour: savedExtended.business_start_hour,
+        business_end_hour: savedExtended.business_end_hour,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

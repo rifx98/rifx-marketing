@@ -6996,8 +6996,59 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
   };
 
-  const handleSaveSettings = async (e: React.FormEvent | React.MouseEvent) => {
-    e.preventDefault();
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const handleSaveSchedule = async (scheduleData?: {
+    business_days?: number[];
+    business_start_hour?: string;
+    business_end_hour?: string;
+  }) => {
+    setIsSavingSchedule(true);
+    try {
+      const daysToSave = scheduleData?.business_days ?? configData.business_days ?? [1, 2, 3, 4, 5];
+      const startToSave = scheduleData?.business_start_hour ?? configData.business_start_hour ?? '09:00';
+      const endToSave = scheduleData?.business_end_hour ?? configData.business_end_hour ?? '18:00';
+
+      const res = await authFetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_days: daysToSave,
+          business_start_hour: startToSave,
+          business_end_hour: endToSave,
+        }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setConfigData((prev: any) => ({
+          ...prev,
+          business_days: daysToSave,
+          business_start_hour: startToSave,
+          business_end_hour: endToSave,
+        }));
+        setToast({
+          message: language === 'en' ? '✓ Operating schedule saved successfully!' : '✓ ¡Horario de atención guardado con éxito!',
+          type: 'success',
+        });
+        return true;
+      } else {
+        const errMsg = result.error || 'Error al guardar el horario';
+        setToast({ message: 'Error: ' + errMsg, type: 'error' });
+        return false;
+      }
+    } catch (err: any) {
+      console.error('Error guardando horario:', err);
+      setToast({ message: 'Error de conexión al guardar horario', type: 'error' });
+      return false;
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const handleSaveSettings = async (e?: React.FormEvent | React.MouseEvent | any) => {
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
     setIsSaving(true);
     setSaveError('');
     setShowSuccess(false);
@@ -15061,8 +15112,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     appointmentStats={statsData?.appointmentStats}
                     configData={configData}
                     setConfigData={setConfigData}
-                    onSaveSchedule={handleSaveSettings as any}
-                    isSavingSchedule={isSaving}
+                    onSaveSchedule={handleSaveSchedule}
+                    isSavingSchedule={isSavingSchedule}
                     onSwitchToTable={() => setCalendarDisplayMode('table')}
                     authFetch={authFetch}
                   />
@@ -15293,11 +15344,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
                 <div className="pt-2">
                   <button
-                    onClick={handleSaveSettings as any}
-                    disabled={isSaving}
+                    onClick={() => handleSaveSchedule()}
+                    disabled={isSavingSchedule}
                     className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2"
                   >
-                    {isSaving ? (
+                    {isSavingSchedule ? (
                       <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
                     ) : (
                       <span className="material-symbols-outlined text-[18px]">save</span>
