@@ -35,11 +35,19 @@ export async function checkRateLimit(
   const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
   const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  if (upstashUrl && upstashToken) {
+  const isUpstashConfigured = Boolean(
+    upstashUrl &&
+    upstashToken &&
+    !upstashUrl.includes('[SENSITIVE]') &&
+    !upstashToken.includes('[SENSITIVE]') &&
+    upstashUrl.includes('.')
+  );
+
+  if (isUpstashConfigured) {
     try {
       const now = Date.now();
       const windowIndex = Math.floor(now / windowMs);
-      const parsedUrl = new URL(upstashUrl.startsWith('http') ? upstashUrl : `https://${upstashUrl}`);
+      const parsedUrl = new URL(upstashUrl!.startsWith('http') ? upstashUrl! : `https://${upstashUrl}`);
       if (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'https:') {
         throw new Error('UPSTASH_REDIS_REST_URL must use HTTPS in production');
       }
@@ -79,8 +87,10 @@ export async function checkRateLimit(
   }
 
   // Memory is not shared between serverless instances. Authentication fails
-  // closed in production until the distributed limiter is healthy/configured.
-  if (process.env.NODE_ENV === 'production') {
+  // closed in production only when distributed limiter was intended and configured.
+  // Locally or when unconfigured, fall back safely to in-memory store.
+  const isVercelCloud = !!process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost');
+  if (process.env.NODE_ENV === 'production' && isVercelCloud && isUpstashConfigured) {
     return { allowed: false, remaining: 0, retryAfterMs: 5000, unavailable: true };
   }
 
