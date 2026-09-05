@@ -173,6 +173,67 @@ export const CRM_FILTER_FIELDS: FilterFieldOption[] = [
   { id: 'origenActividad', label: 'Origen de la actividad', category: 'actividad', default: false },
 ];
 
+// Helper to parse metadata from waitlist notes: [Empresa: ... | Correo: ...] Notes
+export function parseWaitlistNotes(notes?: string | null): {
+  company?: string;
+  email?: string;
+  schedulePreference: string;
+} {
+  if (!notes) return { schedulePreference: '' };
+
+  let company: string | undefined;
+  let email: string | undefined;
+  let schedulePreference = notes;
+
+  const metaMatch = notes.match(/^\[(.*?)\]\s*(.*)$/s);
+  if (metaMatch) {
+    const metaString = metaMatch[1];
+    schedulePreference = metaMatch[2]?.trim() || '';
+
+    const compMatch = metaString.match(/(?:Empresa|Compañía|Company):\s*([^|\]]+)/i);
+    if (compMatch) company = compMatch[1].trim();
+
+    const emailMatch = metaString.match(/(?:Correo|Email):\s*([^|\]]+)/i);
+    if (emailMatch) email = emailMatch[1].trim();
+  }
+
+  return {
+    company,
+    email,
+    schedulePreference,
+  };
+}
+
+// Seniority evaluation based on Bitrix24: Hoy, Semana actual, Semana anterior
+export function getWaitlistSeniority(
+  createdAtStr?: string,
+  desiredDateStr?: string
+): 'today' | 'this_week' | 'older' {
+  const dateStr = createdAtStr || desiredDateStr;
+  if (!dateStr) return 'today';
+
+  const itemDate = new Date(dateStr);
+  if (isNaN(itemDate.getTime())) return 'today';
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const itemDayStart = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
+
+  const diffDays = Math.round((todayStart.getTime() - itemDayStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) {
+    return 'today';
+  }
+
+  // Monday of this week: dayOfWeek 0=Mon, ..., 6=Sun
+  const dayOfWeek = (now.getDay() + 6) % 7;
+  if (diffDays <= dayOfWeek) {
+    return 'this_week';
+  }
+
+  return 'older';
+}
+
 export default function BitrixCalendarView({
   appointments,
   waitlist,
@@ -195,6 +256,35 @@ export default function BitrixCalendarView({
 }: BitrixCalendarViewProps) {
   // Top Navigation Tab (Bitrix24 style navigation: Reservas, Métricas, Recursos, Espera)
   const [activeSection, setActiveSection] = useState<'timeline' | 'metrics' | 'resources' | 'waitlist'>('timeline');
+
+  // Waitlist Bitrix24 features state
+  const [isWaitlistCollapsed, setIsWaitlistCollapsed] = useState(false);
+  const [showWaitlistHelpModal, setShowWaitlistHelpModal] = useState(false);
+  const [waitlistSeniorityFilter, setWaitlistSeniorityFilter] = useState<'all' | 'today' | 'this_week' | 'older'>('all');
+  const [waitlistDeletingId, setWaitlistDeletingId] = useState<string | null>(null);
+
+  // Group waitlist by seniority (Hoy, Semana actual, Semana anterior)
+  const groupedWaitlist = useMemo(() => {
+    const waiting = waitlist.filter((w) => w.status === 'waiting');
+    const today: any[] = [];
+    const thisWeek: any[] = [];
+    const older: any[] = [];
+
+    waiting.forEach((item) => {
+      const seniority = getWaitlistSeniority(item.created_at, item.desired_date);
+      if (seniority === 'today') today.push(item);
+      else if (seniority === 'this_week') thisWeek.push(item);
+      else older.push(item);
+    });
+
+    return {
+      waiting,
+      today,
+      thisWeek,
+      older,
+      totalCount: waiting.length,
+    };
+  }, [waitlist]);
 
   // Calendar View mode: Day or Week
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -876,6 +966,167 @@ export default function BitrixCalendarView({
   const monthName = useMemo(() => {
     return new Intl.DateTimeFormat('es-EC', { month: 'long', year: 'numeric' }).format(currentMonthDate);
   }, [currentMonthDate]);
+
+  const renderWaitlistCard = (wItem: any, seniority: 'today' | 'this_week' | 'older') => {
+    const parsed = parseWaitlistNotes(wItem.notes);
+    const matchedContact = contacts?.find(
+      (c) =>
+        (wItem.conversation_id && c.id === wItem.conversation_id) ||
+        (wItem.phone_number && (c.phone_number === wItem.phone_number || c.phone === wItem.phone_number)) ||
+        (wItem.customer_name && (c.customer_name === wItem.customer_name || c.name === wItem.customer_name))
+    );
+    const companyDisplay = parsed.company || matchedContact?.company;
+    const emailDisplay = parsed.email || matchedContact?.email;
+    const isDeleting = waitlistDeletingId === wItem.id;
+
+    return (
+      <div
+        key={wItem.id}
+        className="p-3 bg-white dark:bg-slate-800 border border-amber-200/70 dark:border-amber-900/40 rounded-xl hover:shadow-md transition-all group space-y-2"
+      >
+        {/* Top: Name, Company, Seniority Pill */}
+        <div className="flex items-start justify-between gap-1.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate flex items-center gap-1.5">
+              <span>{wItem.customer_name}</span>
+              {companyDisplay && (
+                <span className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-1 py-0.2 rounded truncate max-w-[120px]">
+                  🏢 {companyDisplay}
+                </span>
+              )}
+            </p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
+              <span>{wItem.service || 'General'}</span>
+              {wItem.resource_name && <span>• 👤 {wItem.resource_name}</span>}
+            </p>
+          </div>
+
+          <span
+            className={`text-[9px] font-black px-1.5 py-0.5 rounded flex-shrink-0 ${
+              seniority === 'today'
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                : seniority === 'this_week'
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300'
+                : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+            }`}
+          >
+            {seniority === 'today'
+              ? (language === 'en' ? 'Today' : 'Hoy')
+              : seniority === 'this_week'
+              ? (language === 'en' ? 'This week' : 'Semana actual')
+              : (language === 'en' ? 'Older' : 'Semana anterior')}
+          </span>
+        </div>
+
+        {/* Date & Time Preferences */}
+        <div className="flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 px-2 py-1 rounded-lg">
+          <span className="font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-xs text-amber-500">event</span>
+            <span>{wItem.desired_date}</span>
+          </span>
+          <span className="font-bold text-amber-700 dark:text-amber-400">
+            {wItem.preferred_time_range === 'any'
+              ? (language === 'en' ? 'Any time' : 'Cualquier hora')
+              : wItem.preferred_time_range === 'morning'
+              ? (language === 'en' ? 'Morning (09-13)' : 'Mañana (09-13)')
+              : wItem.preferred_time_range === 'afternoon'
+              ? (language === 'en' ? 'Afternoon (14-18)' : 'Tarde (14-18)')
+              : wItem.preferred_time_range === 'evening'
+              ? (language === 'en' ? 'Evening (18-21)' : 'Noche (18-21)')
+              : wItem.preferred_time_range}
+          </span>
+        </div>
+
+        {/* Schedule Preferences Note if present */}
+        {parsed.schedulePreference && (
+          <div className="p-1.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/50 dark:border-amber-900/40 rounded-lg text-[10px] text-amber-900 dark:text-amber-200 flex items-start gap-1">
+            <span className="material-symbols-outlined text-xs text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5">
+              edit_note
+            </span>
+            <span className="line-clamp-2 leading-tight">
+              <strong>{language === 'en' ? 'Note:' : 'Nota:'}</strong> {parsed.schedulePreference}
+            </span>
+          </div>
+        )}
+
+        {/* Contact info & Action buttons */}
+        {isDeleting ? (
+          <div className="p-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-1.5 text-center">
+            <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300">
+              {language === 'en' ? 'Discard this request?' : '¿Descartar solicitud obsoleta?'}
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setWaitlistDeletingId(null)}
+                className="px-2 py-0.5 text-[9px] font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
+              >
+                {language === 'en' ? 'Cancel' : 'Cancelar'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await onWaitlistStatus(wItem.id, 'cancelled');
+                  setWaitlistDeletingId(null);
+                }}
+                className="px-2 py-0.5 text-[9px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
+              >
+                {language === 'en' ? 'Yes, discard' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-slate-100 dark:border-slate-700/60">
+            <div className="min-w-0 pr-1">
+              <span className="font-mono text-slate-500 dark:text-slate-400 block truncate">{wItem.phone_number}</span>
+              {emailDisplay && <span className="text-[9px] text-slate-400 truncate block">{emailDisplay}</span>}
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {/* WhatsApp Notify */}
+              <button
+                type="button"
+                onClick={() => onWaitlistNotify(wItem.id)}
+                className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg cursor-pointer"
+                title={language === 'en' ? 'Notify via WhatsApp' : 'Notificar por WhatsApp'}
+              >
+                <span className="material-symbols-outlined text-xs">send</span>
+              </button>
+
+              {/* Trasladar al calendario */}
+              <button
+                type="button"
+                onClick={() =>
+                  onOpenBooking({
+                    customer_name: wItem.customer_name,
+                    phone_number: wItem.phone_number,
+                    service: wItem.service,
+                    resource_name: wItem.resource_name,
+                    date: wItem.desired_date || selectedDateStr,
+                  })
+                }
+                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black flex items-center gap-1 shadow-sm cursor-pointer"
+                title={language === 'en' ? 'Transfer to calendar' : 'Trasladar al calendario'}
+              >
+                <span className="material-symbols-outlined text-xs">calendar_month</span>
+                <span>{language === 'en' ? 'Book' : 'Trasladar'}</span>
+              </button>
+
+              {/* Descartar / Eliminar */}
+              <button
+                type="button"
+                onClick={() => setWaitlistDeletingId(wItem.id)}
+                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer"
+                title={language === 'en' ? 'Discard obsolete request' : 'Descartar solicitud obsoleta'}
+              >
+                <span className="material-symbols-outlined text-xs">delete</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col transition-all">
@@ -1792,102 +2043,244 @@ export default function BitrixCalendarView({
                 </div>
               </div>
 
-              {/* Waitlist drop-zone widget */}
-              <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col flex-1">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/50 mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-amber-500 text-base">hourglass_top</span>
-                    <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
-                      {language === 'en' ? 'Waitlist' : 'Lista de espera'}
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onOpenAddWaitlist}
-                    className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+              {/* Waitlist drop-zone widget (Bitrix24 Style: Collapsible, Seniority Grouped, Agile Reassignment) */}
+              {isWaitlistCollapsed ? (
+                <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/60 shadow-sm transition-all">
+                  <div
+                    onClick={() => setIsWaitlistCollapsed(false)}
+                    className="flex items-center justify-between cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-750/50 p-1.5 rounded-xl transition-colors"
                   >
-                    <span className="material-symbols-outlined text-xs">add</span>
-                    <span>{language === 'en' ? 'Add' : 'Agregar'}</span>
-                  </button>
-                </div>
-
-                {waitlist.filter((w) => w.status === 'waiting').length > 0 ? (
-                  <div className="space-y-2.5 overflow-y-auto max-h-[300px] pr-1">
-                    {waitlist
-                      .filter((w) => w.status === 'waiting')
-                      .map((wItem) => (
-                        <div
-                          key={wItem.id}
-                          className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 rounded-xl hover:shadow-sm transition-all group"
-                        >
-                          <div className="flex items-start justify-between gap-1">
-                            <div>
-                              <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                                {wItem.customer_name}
-                              </p>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
-                                {wItem.service || 'General'}
-                              </p>
-                            </div>
-                            <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded">
-                              {wItem.preferred_time_range || 'Cualquier hora'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 pt-2 border-t border-amber-200/40 dark:border-amber-900/40">
-                            <span className="font-mono">{wItem.phone_number}</span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => onWaitlistNotify(wItem.id)}
-                                className="p-1 text-blue-600 hover:bg-blue-100 rounded cursor-pointer"
-                                title="Notificar por WhatsApp"
-                              >
-                                <span className="material-symbols-outlined text-xs">send</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  onOpenBooking({
-                                    customer_name: wItem.customer_name,
-                                    phone_number: wItem.phone_number,
-                                    service: wItem.service,
-                                    date: wItem.desired_date || selectedDateStr,
-                                  })
-                                }
-                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-black cursor-pointer"
-                              >
-                                {language === 'en' ? 'Book' : 'Agendar'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 flex items-center justify-center mb-3">
-                      <span className="material-symbols-outlined text-2xl">content_paste</span>
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-500 text-lg">hourglass_top</span>
+                      <div>
+                        <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                          {language === 'en' ? 'Waitlist' : 'Lista de espera'}
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-semibold">
+                          {groupedWaitlist.totalCount === 1
+                            ? `1 ${language === 'en' ? 'request' : 'solicitud en espera'}`
+                            : `${groupedWaitlist.totalCount} ${language === 'en' ? 'requests' : 'solicitudes en espera'}`}
+                        </p>
+                      </div>
                     </div>
-                    <h4 className="text-xs font-black text-slate-700 dark:text-slate-200 mb-1">
-                      {language === 'en' ? 'Waitlist' : 'Lista de espera'}
-                    </h4>
-                    <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                      {language === 'en'
-                        ? 'Drag an existing online booking here, or click "Add" to create a new one.'
-                        : 'Arrastre una reserva online existente aquí, o haga clic en "Agregar" para crear una nueva.'}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={onOpenAddWaitlist}
-                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-xs">help</span>
-                      <span>{language === 'en' ? 'How does it work?' : '¿Cómo funciona?'}</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      {groupedWaitlist.totalCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                          {groupedWaitlist.totalCount}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsWaitlistCollapsed(false);
+                        }}
+                        className="px-2 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-lg text-[10px] font-bold flex items-center gap-0.5 cursor-pointer"
+                        title={language === 'en' ? 'Expand waitlist' : 'Expandir lista de espera'}
+                      >
+                        <span className="material-symbols-outlined text-xs">unfold_more</span>
+                        <span>{language === 'en' ? 'Expand' : 'Expandir'}</span>
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-slate-800/90 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/60 shadow-sm flex flex-col flex-1 min-h-[340px]">
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/50 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-500 text-base">hourglass_top</span>
+                      <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">
+                        {language === 'en' ? 'Waitlist' : 'Lista de espera'}
+                      </h3>
+                      {groupedWaitlist.totalCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                          {groupedWaitlist.totalCount}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {/* Help icon */}
+                      <button
+                        type="button"
+                        onClick={() => setShowWaitlistHelpModal(true)}
+                        className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-colors cursor-pointer"
+                        title={language === 'en' ? 'How does waitlist work?' : '¿Cómo funciona la lista de espera?'}
+                      >
+                        <span className="material-symbols-outlined text-sm">help</span>
+                      </button>
+
+                      {/* Contraer button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsWaitlistCollapsed(true)}
+                        className="px-2 py-1 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded-lg text-[10px] font-bold flex items-center gap-0.5 transition-all cursor-pointer"
+                        title={language === 'en' ? 'Collapse waitlist' : 'Contraer lista de espera'}
+                      >
+                        <span className="material-symbols-outlined text-xs">unfold_less</span>
+                        <span>{language === 'en' ? 'Collapse' : 'Contraer'}</span>
+                      </button>
+
+                      {/* + Agregar button */}
+                      <button
+                        type="button"
+                        onClick={onOpenAddWaitlist}
+                        className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-black flex items-center gap-0.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-xs">add</span>
+                        <span>{language === 'en' ? 'Add' : 'Agregar'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {groupedWaitlist.totalCount > 0 ? (
+                    <div className="flex flex-col flex-1 space-y-2.5">
+                      {/* Seniority Filter Tabs */}
+                      <div className="flex items-center gap-1 pb-1 overflow-x-auto text-[10px] font-bold border-b border-slate-100 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setWaitlistSeniorityFilter('all')}
+                          className={`px-2 py-0.5 rounded-md transition-all cursor-pointer whitespace-nowrap ${
+                            waitlistSeniorityFilter === 'all'
+                              ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 font-black'
+                              : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {language === 'en' ? 'All' : 'Todos'} ({groupedWaitlist.totalCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaitlistSeniorityFilter('today')}
+                          className={`px-2 py-0.5 rounded-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                            waitlistSeniorityFilter === 'today'
+                              ? 'bg-emerald-600 text-white font-black'
+                              : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span>{language === 'en' ? 'Today' : 'Hoy'}</span> ({groupedWaitlist.today.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaitlistSeniorityFilter('this_week')}
+                          className={`px-2 py-0.5 rounded-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                            waitlistSeniorityFilter === 'this_week'
+                              ? 'bg-blue-600 text-white font-black'
+                              : 'text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          <span>{language === 'en' ? 'This week' : 'Esta semana'}</span> ({groupedWaitlist.thisWeek.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaitlistSeniorityFilter('older')}
+                          className={`px-2 py-0.5 rounded-md transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                            waitlistSeniorityFilter === 'older'
+                              ? 'bg-purple-600 text-white font-black'
+                              : 'text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30'
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                          <span>{language === 'en' ? 'Older' : 'Anteriores'}</span> ({groupedWaitlist.older.length})
+                        </button>
+                      </div>
+
+                      {/* Entries grouped by seniority */}
+                      <div className="space-y-3 overflow-y-auto max-h-[380px] pr-1">
+                        {/* 1. SECCIÓN HOY */}
+                        {(waitlistSeniorityFilter === 'all' || waitlistSeniorityFilter === 'today') &&
+                          groupedWaitlist.today.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[10px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-900/30">
+                                <span className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-xs text-emerald-600">bolt</span>
+                                  <span>{language === 'en' ? 'Today (Immediate Attention)' : 'Hoy (Atención Inmediata)'}</span>
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded-full bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 text-[9px]">
+                                  {groupedWaitlist.today.length}
+                                </span>
+                              </div>
+
+                              {groupedWaitlist.today.map((wItem) => renderWaitlistCard(wItem, 'today'))}
+                            </div>
+                          )}
+
+                        {/* 2. SECCIÓN SEMANA ACTUAL */}
+                        {(waitlistSeniorityFilter === 'all' || waitlistSeniorityFilter === 'this_week') &&
+                          groupedWaitlist.thisWeek.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[10px] font-black text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-lg border border-blue-200/60 dark:border-blue-900/30">
+                                <span className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-xs text-blue-600">date_range</span>
+                                  <span>{language === 'en' ? 'This Week' : 'Semana Actual'}</span>
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded-full bg-blue-200/70 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-[9px]">
+                                  {groupedWaitlist.thisWeek.length}
+                                </span>
+                              </div>
+
+                              {groupedWaitlist.thisWeek.map((wItem) => renderWaitlistCard(wItem, 'this_week'))}
+                            </div>
+                          )}
+
+                        {/* 3. SECCIÓN SEMANA ANTERIOR / ANTERIORES */}
+                        {(waitlistSeniorityFilter === 'all' || waitlistSeniorityFilter === 'older') &&
+                          groupedWaitlist.older.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-[10px] font-black text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 px-2 py-1 rounded-lg border border-purple-200/60 dark:border-purple-900/30">
+                                <span className="flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-xs text-purple-600">history</span>
+                                  <span>{language === 'en' ? 'Previous Week / Older' : 'Semana Anterior / Más Antiguas'}</span>
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded-full bg-purple-200/70 dark:bg-purple-900 text-purple-800 dark:text-purple-200 text-[9px]">
+                                  {groupedWaitlist.older.length}
+                                </span>
+                              </div>
+
+                              {groupedWaitlist.older.map((wItem) => renderWaitlistCard(wItem, 'older'))}
+                            </div>
+                          )}
+
+                        {/* Filtro específico vacío */}
+                        {waitlistSeniorityFilter !== 'all' &&
+                          ((waitlistSeniorityFilter === 'today' && groupedWaitlist.today.length === 0) ||
+                            (waitlistSeniorityFilter === 'this_week' && groupedWaitlist.thisWeek.length === 0) ||
+                            (waitlistSeniorityFilter === 'older' && groupedWaitlist.older.length === 0)) && (
+                            <div className="py-8 text-center text-slate-400 text-xs">
+                              {language === 'en'
+                                ? 'No entries found in this seniority category.'
+                                : 'No hay solicitudes en esta categoría de antigüedad.'}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 flex items-center justify-center mb-3">
+                        <span className="material-symbols-outlined text-2xl">content_paste</span>
+                      </div>
+                      <h4 className="text-xs font-black text-slate-700 dark:text-slate-200 mb-1">
+                        {language === 'en' ? 'Waitlist' : 'Lista de espera'}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+                        {language === 'en'
+                          ? 'Drag an existing online booking here, or click "Add" to create a new one.'
+                          : 'Arrastre una reserva online existente aquí, o haga clic en "Agregar" para crear una nueva.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowWaitlistHelpModal(true)}
+                        className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-xs">help</span>
+                        <span>{language === 'en' ? 'How does it work?' : '¿Cómo funciona?'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2069,55 +2462,137 @@ export default function BitrixCalendarView({
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700">
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Antigüedad</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teléfono</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Servicio</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha Deseada</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha y Horario</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Preferencia / Notas</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Estado</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {waitlist.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-200">{item.customer_name}</td>
-                      <td className="px-6 py-4 text-xs font-mono text-slate-500">{item.phone_number}</td>
-                      <td className="px-6 py-4 text-xs text-slate-700 dark:text-slate-300">{item.service || 'General'}</td>
-                      <td className="px-6 py-4 text-xs font-bold text-slate-800 dark:text-slate-200">{item.desired_date} ({item.preferred_time_range || 'Cualquier hora'})</td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-600 border border-amber-200 capitalize">
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onWaitlistNotify(item.id)}
-                            className="px-2 py-1 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-bold border border-blue-100 flex items-center gap-1 cursor-pointer"
+                  {waitlist.map((item) => {
+                    const parsed = parseWaitlistNotes(item.notes);
+                    const seniority = getWaitlistSeniority(item.created_at, item.desired_date);
+                    const matchedContact = contacts?.find(
+                      (c) =>
+                        (item.conversation_id && c.id === item.conversation_id) ||
+                        (item.phone_number && (c.phone_number === item.phone_number || c.phone === item.phone_number)) ||
+                        (item.customer_name && (c.customer_name === item.customer_name || c.name === item.customer_name))
+                    );
+                    const companyDisplay = parsed.company || matchedContact?.company;
+                    const emailDisplay = parsed.email || matchedContact?.email;
+
+                    return (
+                      <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="px-6 py-4 text-xs font-black text-slate-800 dark:text-slate-200">
+                          <div>
+                            <p>{item.customer_name}</p>
+                            {companyDisplay && (
+                              <p className="text-[10px] font-normal text-slate-500">🏢 {companyDisplay}</p>
+                            )}
+                            {emailDisplay && (
+                              <p className="text-[10px] font-normal text-slate-400">{emailDisplay}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                              seniority === 'today'
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                : seniority === 'this_week'
+                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                : 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                            }`}
                           >
-                            <span className="material-symbols-outlined text-xs">send</span>
-                            <span>Notificar</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onOpenBooking({
-                                customer_name: item.customer_name,
-                                phone_number: item.phone_number,
-                                service: item.service,
-                                date: item.desired_date,
-                              });
-                              setActiveSection('timeline');
-                            }}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-xs">calendar_month</span>
-                            <span>Agendar</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {seniority === 'today'
+                              ? (language === 'en' ? 'Today' : 'Hoy')
+                              : seniority === 'this_week'
+                              ? (language === 'en' ? 'This week' : 'Semana actual')
+                              : (language === 'en' ? 'Older' : 'Semana anterior')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-mono text-slate-500">{item.phone_number}</td>
+                        <td className="px-6 py-4 text-xs text-slate-700 dark:text-slate-300">
+                          <p className="font-semibold">{item.service || 'General'}</p>
+                          {item.resource_name && (
+                            <p className="text-[10px] text-slate-400">👤 {item.resource_name}</p>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <p>{item.desired_date}</p>
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                            {item.preferred_time_range === 'any'
+                              ? (language === 'en' ? 'Any time' : 'Cualquier hora')
+                              : item.preferred_time_range === 'morning'
+                              ? (language === 'en' ? 'Morning (09-13)' : 'Mañana (09-13)')
+                              : item.preferred_time_range === 'afternoon'
+                              ? (language === 'en' ? 'Afternoon (14-18)' : 'Tarde (14-18)')
+                              : item.preferred_time_range}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-300 max-w-xs">
+                          {parsed.schedulePreference ? (
+                            <div className="p-1.5 bg-amber-50/80 dark:bg-amber-950/30 rounded-lg text-[10px] text-amber-900 dark:text-amber-200 border border-amber-200/50">
+                              {parsed.schedulePreference}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px] italic">Sin notas</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-600 border border-amber-200 capitalize">
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => onWaitlistNotify(item.id)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg text-xs font-bold border border-blue-100 dark:border-blue-900/40 flex items-center gap-1 cursor-pointer"
+                              title="Notificar por WhatsApp"
+                            >
+                              <span className="material-symbols-outlined text-xs">send</span>
+                              <span>Notificar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onOpenBooking({
+                                  customer_name: item.customer_name,
+                                  phone_number: item.phone_number,
+                                  service: item.service,
+                                  resource_name: item.resource_name,
+                                  date: item.desired_date,
+                                });
+                                setActiveSection('timeline');
+                              }}
+                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer shadow-sm"
+                              title="Trasladar al calendario"
+                            >
+                              <span className="material-symbols-outlined text-xs">calendar_month</span>
+                              <span>{language === 'en' ? 'Book' : 'Trasladar'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm(language === 'en' ? 'Discard this waitlist entry?' : '¿Descartar esta solicitud de la lista de espera?')) {
+                                  await onWaitlistStatus(item.id, 'cancelled');
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
+                              title="Descartar / Eliminar"
+                            >
+                              <span className="material-symbols-outlined text-xs">delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -3706,6 +4181,229 @@ export default function BitrixCalendarView({
                   </div>
                 </>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* 4. MODAL: ¿CÓMO FUNCIONA LA LISTA DE ESPERA? (BITRIX24 STYLE) */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showWaitlistHelpModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowWaitlistHelpModal(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-6 max-h-[92vh] flex flex-col text-slate-800 dark:text-slate-100"
+            >
+              {/* Header */}
+              <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-6 py-5 text-white flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-sm">
+                      <span className="material-symbols-outlined text-white text-2xl">help_outline</span>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-white leading-tight">
+                        {language === 'en' ? 'How Does the Waitlist Work?' : '¿Cómo Funciona la Lista de Espera?'}
+                      </h2>
+                      <p className="text-xs text-white/85 font-medium">
+                        {language === 'en'
+                          ? 'Online booking, specialist assignment, and agile slot reassignment'
+                          : 'Gestión de citas, asignación de especialistas y reasignación ágil de espacios'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowWaitlistHelpModal(false)}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 transition-colors flex items-center justify-center text-white cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto space-y-6 text-xs text-slate-600 dark:text-slate-300">
+                {/* Intro summary */}
+                <div className="p-4 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40 rounded-2xl">
+                  <p className="leading-relaxed font-medium text-slate-700 dark:text-slate-200">
+                    {language === 'en'
+                      ? 'Online booking allows you to manage appointments with specialists and team equipment allocation. When immediate availability is not present, clients can be placed on the waitlist with three critical benefits:'
+                      : 'La reserva online te permite gestionar citas con especialistas y la asignación de equipos. Cuando no haya disponibilidad inmediata, puedes incluir clientes a la lista de espera, lo que brinda estos beneficios:'}
+                  </p>
+                </div>
+
+                {/* 3 Beneficios Clave (Tarjetas) */}
+                <div>
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
+                    {language === 'en' ? 'Core Waitlist Benefits' : 'Beneficios de la Lista de Espera'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined text-base">contact_phone</span>
+                      </div>
+                      <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                        {language === 'en' ? 'Client data & preferences' : 'Guardar datos y preferencias'}
+                      </h5>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                        {language === 'en'
+                          ? 'Stores customer contact info and exact schedule preferences.'
+                          : 'Registra los datos de contacto y preferencias horarias del cliente.'}
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined text-base">bolt</span>
+                      </div>
+                      <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                        {language === 'en' ? 'Agile slot reassignment' : 'Reasignar espacios con agilidad'}
+                      </h5>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                        {language === 'en'
+                          ? 'Quickly reallocate slots with 1-click when cancellations occur.'
+                          : 'Reasigna espacios al instante cuando ocurran cancelaciones en el calendario.'}
+                      </p>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined text-base">trending_up</span>
+                      </div>
+                      <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                        {language === 'en' ? 'Max occupancy & retention' : 'Maximizar ocupación'}
+                      </h5>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                        {language === 'en'
+                          ? 'Maximize calendar occupancy and retain prospective clients.'
+                          : 'Maximiza la ocupación de agenda y evita perder clientes potenciales.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Paso a paso */}
+                <div className="space-y-3">
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                    {language === 'en' ? 'Workflow & Features Guide' : 'Flujo Oficial de Gestión'}
+                  </h4>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        1
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                          {language === 'en' ? 'Add or select client from CRM' : 'Agregar o seleccionar cliente'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                          {language === 'en'
+                            ? 'Click "+ (Add)". Choose an existing CRM contact or click "Create new contact" (new contacts are automatically saved in your CRM).'
+                            : 'Haz clic en + (Agregar). Elige un contacto existente de tu CRM o haz clic en "Crear un nuevo contacto" (se guardará automáticamente en tu base de datos CRM).'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        2
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                          {language === 'en' ? 'Add note for schedule preferences' : 'Agregar nota de horario'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                          {language === 'en'
+                            ? 'Use "Add note" to record customer schedule preferences (e.g. mornings only, fridays, etc.) or other relevant instructions.'
+                            : 'Utiliza "Agregar nota" para registrar preferencias de horario del cliente (ej. sólo mañanas, cancelaciones de viernes) u otra información relevante.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        3
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                          {language === 'en' ? 'Automatic grouping by seniority' : 'Organización por antigüedad'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                          {language === 'en'
+                            ? 'The system organizes requests by age: Today, Current week, and Previous week / Older, facilitating prioritized attention.'
+                            : 'El sistema organiza las solicitudes por antigüedad: hoy, semana actual y semana anterior, facilitando la atención prioritaria.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        4
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                          {language === 'en' ? 'Transfer to calendar or discard' : 'Trasladar al calendario o descartar'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                          {language === 'en'
+                            ? 'When a slot opens up, transfer the entry directly to the calendar. To remove obsolete requests, delete them.'
+                            : 'Al liberarse un espacio, traslada la entrada al calendario. Para descartar solicitudes obsoletas, elimínalas con un solo clic.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                        5
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                          {language === 'en' ? 'Collapse / Expand the block' : 'Ocultar / Mostrar lista de espera'}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                          {language === 'en'
+                            ? 'To hide or show the waitlist block in the sidebar, click Collapse/Expand.'
+                            : 'Para ocultar o mostrar el bloque de Lista de espera en la barra lateral, haz clic en Contraer/Expandir.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowWaitlistHelpModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+                >
+                  {language === 'en' ? 'Close' : 'Cerrar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWaitlistHelpModal(false);
+                    onOpenAddWaitlist();
+                  }}
+                  className="px-5 py-2 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-xl shadow-md shadow-amber-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                  <span>{language === 'en' ? 'Add Entry Now' : 'Agregar Entrada a Lista de Espera'}</span>
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

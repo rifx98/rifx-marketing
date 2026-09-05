@@ -20019,6 +20019,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         authFetch={authFetch}
         setToast={setToast}
         teamAgents={teamAgentsList}
+        contacts={allContacts}
       />
 
     </>
