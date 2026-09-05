@@ -138,6 +138,41 @@ const STATUS_CONFIG: Record<
   },
 };
 
+export interface FilterFieldOption {
+  id: string;
+  label: string;
+  category: 'contacto' | 'actividad';
+  default?: boolean;
+}
+
+export const CRM_FILTER_FIELDS: FilterFieldOption[] = [
+  // Contacto (Esenciales para CRM de Marketing y Clientes)
+  { id: 'nombre', label: 'Nombre', category: 'contacto', default: true },
+  { id: 'apellido', label: 'Apellido', category: 'contacto', default: true },
+  { id: 'creadoPor', label: 'Creado por', category: 'contacto', default: true },
+  { id: 'modificadoPor', label: 'Modificado por', category: 'contacto', default: true },
+  { id: 'telefono', label: 'Teléfono', category: 'contacto', default: true },
+  { id: 'email', label: 'Correo electrónico', category: 'contacto', default: true },
+  { id: 'responsable', label: 'Persona responsable', category: 'contacto', default: true },
+  { id: 'tieneTelefono', label: 'Tiene teléfono', category: 'contacto', default: false },
+  { id: 'tieneEmail', label: 'Tiene correo electrónico', category: 'contacto', default: false },
+  { id: 'journey', label: 'Recorrido del cliente', category: 'contacto', default: false },
+  { id: 'origen', label: 'Origen', category: 'contacto', default: false },
+  { id: 'tipoContacto', label: 'Tipo de contacto', category: 'contacto', default: false },
+  { id: 'compania', label: 'Nombre de la compañía', category: 'contacto', default: false },
+  { id: 'cargo', label: 'Cargo', category: 'contacto', default: false },
+  { id: 'comentario', label: 'Comentario', category: 'contacto', default: false },
+  { id: 'creadoEl', label: 'Creado el', category: 'contacto', default: false },
+  { id: 'modificadoEl', label: 'Última actualización', category: 'contacto', default: false },
+  { id: 'utmSource', label: 'UTM Source', category: 'contacto', default: false },
+  { id: 'utmCampaign', label: 'UTM Campaign', category: 'contacto', default: false },
+  // Actividad (Esenciales para Citas y Reservas)
+  { id: 'actividadEstado', label: 'Estado', category: 'actividad', default: false },
+  { id: 'actividadTipo', label: 'Tipo de actividad', category: 'actividad', default: false },
+  { id: 'actividadFechaLimite', label: 'Fecha límite', category: 'actividad', default: false },
+  { id: 'origenActividad', label: 'Origen de la actividad', category: 'actividad', default: false },
+];
+
 export default function BitrixCalendarView({
   appointments,
   waitlist,
@@ -193,7 +228,7 @@ export default function BitrixCalendarView({
   const searchDropdownRef = useRef<HTMLDivElement>(null);
 
   // Formulario de filtros avanzados Bitrix24 (Captura 3)
-  const [filterForm, setFilterForm] = useState({
+  const [filterForm, setFilterForm] = useState<Record<string, string>>({
     nombre: '',
     apellido: '',
     creadoPor: '',
@@ -201,7 +236,48 @@ export default function BitrixCalendarView({
     telefono: '',
     email: '',
     responsable: '',
+    tieneTelefono: '',
+    tieneEmail: '',
+    journey: '',
+    origen: '',
+    tipoContacto: '',
+    compania: '',
+    cargo: '',
+    comentario: '',
+    creadoEl: '',
+    modificadoEl: '',
+    utmSource: '',
+    utmCampaign: '',
+    actividadEstado: '',
+    actividadTipo: '',
+    actividadFechaLimite: '',
+    origenActividad: '',
   });
+
+  // Lista de IDs de campos visibles en el formulario de filtro avanzado
+  const [activeFilterFieldIds, setActiveFilterFieldIds] = useState<string[]>([
+    'nombre',
+    'apellido',
+    'creadoPor',
+    'modificadoPor',
+    'telefono',
+    'email',
+    'responsable',
+  ]);
+
+  // Modal para configurar campos ("Ajustes del campo de filtros" - Captura 1)
+  const [showFieldSettingsModal, setShowFieldSettingsModal] = useState(false);
+  const [tempFieldIds, setTempFieldIds] = useState<string[]>([
+    'nombre',
+    'apellido',
+    'creadoPor',
+    'modificadoPor',
+    'telefono',
+    'email',
+    'responsable',
+  ]);
+  const [fieldSearchFilter, setFieldSearchFilter] = useState('');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<'all' | 'contacto' | 'actividad'>('all');
 
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [contactsSortAsc, setContactsSortAsc] = useState(true);
@@ -542,29 +618,95 @@ export default function BitrixCalendarView({
     }
 
     // Filter by advanced form fields (Captura 3)
-    if (filterForm.nombre.trim()) {
+    if (filterForm.nombre?.trim()) {
       const q = filterForm.nombre.toLowerCase().trim();
       list = list.filter((c) => (c.name || '').toLowerCase().includes(q));
     }
-    if (filterForm.apellido.trim()) {
+    if (filterForm.apellido?.trim()) {
       const q = filterForm.apellido.toLowerCase().trim();
       list = list.filter((c) => (c.name || '').toLowerCase().includes(q));
     }
-    if (filterForm.telefono.trim()) {
+    if (filterForm.telefono?.trim()) {
       const q = filterForm.telefono.replace(/[^0-9]/g, '');
       list = list.filter((c) => (c.phone || '').replace(/[^0-9]/g, '').includes(q));
     }
-    if (filterForm.email.trim()) {
+    if (filterForm.email?.trim()) {
       const q = filterForm.email.toLowerCase().trim();
       list = list.filter((c) => (c.email || '').toLowerCase().includes(q));
     }
-    if (filterForm.responsable.trim()) {
+    if (filterForm.responsable?.trim()) {
       const q = filterForm.responsable.toLowerCase().trim();
       list = list.filter((c) => (c.responsible || '').toLowerCase().includes(q));
     }
-    if (filterForm.creadoPor.trim()) {
+    if (filterForm.creadoPor?.trim()) {
       const q = filterForm.creadoPor.toLowerCase().trim();
       list = list.filter((c) => (c.responsible || '').toLowerCase().includes(q));
+    }
+    if (filterForm.modificadoPor?.trim()) {
+      const q = filterForm.modificadoPor.toLowerCase().trim();
+      list = list.filter((c) => (c.responsible || '').toLowerCase().includes(q));
+    }
+    if (filterForm.journey?.trim()) {
+      const q = filterForm.journey.toLowerCase().trim();
+      list = list.filter((c) => (c.journey || '').toLowerCase().includes(q));
+    }
+    if (filterForm.origen?.trim()) {
+      const q = filterForm.origen.toLowerCase().trim();
+      list = list.filter((c) => (c.source || c.channel || 'crm').toLowerCase().includes(q));
+    }
+    if (filterForm.tipoContacto?.trim()) {
+      const q = filterForm.tipoContacto.toLowerCase().trim();
+      list = list.filter((c) => (c.type || c.journey || '').toLowerCase().includes(q));
+    }
+    if (filterForm.compania?.trim()) {
+      const q = filterForm.compania.toLowerCase().trim();
+      list = list.filter((c) => (c.company || c.name || '').toLowerCase().includes(q));
+    }
+    if (filterForm.cargo?.trim()) {
+      const q = filterForm.cargo.toLowerCase().trim();
+      list = list.filter((c) => (c.position || '').toLowerCase().includes(q));
+    }
+    if (filterForm.comentario?.trim()) {
+      const q = filterForm.comentario.toLowerCase().trim();
+      list = list.filter((c) => (c.notes || c.comment || '').toLowerCase().includes(q));
+    }
+    if (filterForm.creadoEl?.trim()) {
+      const q = filterForm.creadoEl.trim();
+      list = list.filter((c) => (c.created_at || '').includes(q));
+    }
+    if (filterForm.modificadoEl?.trim()) {
+      const q = filterForm.modificadoEl.trim();
+      list = list.filter((c) => (c.created_at || '').includes(q));
+    }
+    if (filterForm.utmSource?.trim()) {
+      const q = filterForm.utmSource.toLowerCase().trim();
+      list = list.filter((c) => (c.utm_source || '').toLowerCase().includes(q));
+    }
+    if (filterForm.utmCampaign?.trim()) {
+      const q = filterForm.utmCampaign.toLowerCase().trim();
+      list = list.filter((c) => (c.utm_campaign || '').toLowerCase().includes(q));
+    }
+    if (filterForm.tieneTelefono?.toLowerCase() === 'si' || filterForm.tieneTelefono?.toLowerCase() === 'sí') {
+      list = list.filter((c) => !!c.phone);
+    }
+    if (filterForm.tieneEmail?.toLowerCase() === 'si' || filterForm.tieneEmail?.toLowerCase() === 'sí') {
+      list = list.filter((c) => !!c.email);
+    }
+    if (filterForm.actividadEstado?.trim()) {
+      const q = filterForm.actividadEstado.toLowerCase().trim();
+      list = list.filter((c) => (c.activity || '').toLowerCase().includes(q));
+    }
+    if (filterForm.actividadTipo?.trim()) {
+      const q = filterForm.actividadTipo.toLowerCase().trim();
+      list = list.filter((c) => (c.activity || '').toLowerCase().includes(q));
+    }
+    if (filterForm.actividadFechaLimite?.trim()) {
+      const q = filterForm.actividadFechaLimite.trim();
+      list = list.filter((c) => (c.lastScheduledTime || '').includes(q));
+    }
+    if (filterForm.origenActividad?.trim()) {
+      const q = filterForm.origenActividad.toLowerCase().trim();
+      list = list.filter((c) => (c.activity || '').toLowerCase().includes(q));
     }
 
     // Filter by quick text search in bar
@@ -2165,126 +2307,53 @@ export default function BitrixCalendarView({
                         {/* Panel Derecho: Campos del formulario */}
                         <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between max-h-[480px] overflow-y-auto">
                           <div className="space-y-2.5">
-                            {/* Nombre */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'First Name' : 'Nombre'}
-                              </label>
-                              <div className="relative flex items-center">
-                                <input
-                                  type="text"
-                                  value={filterForm.nombre}
-                                  onChange={(e) => setFilterForm({ ...filterForm, nombre: e.target.value })}
-                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all pr-8"
-                                />
-                                <button
-                                  type="button"
-                                  className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
-                                  title="Más opciones"
-                                >
-                                  ···
-                                </button>
+                            {CRM_FILTER_FIELDS.filter((f) => activeFilterFieldIds.includes(f.id)).map((field) => (
+                              <div key={field.id}>
+                                <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
+                                  {field.label}
+                                </label>
+                                <div className="relative flex items-center">
+                                  <input
+                                    type="text"
+                                    placeholder={`Filtrar por ${field.label.toLowerCase()}...`}
+                                    value={filterForm[field.id] || ''}
+                                    onChange={(e) => setFilterForm({ ...filterForm, [field.id]: e.target.value })}
+                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all pr-8"
+                                  />
+                                  {['nombre', 'apellido', 'journey', 'origen', 'compania', 'cargo'].includes(field.id) && (
+                                    <button
+                                      type="button"
+                                      className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
+                                      title="Más opciones"
+                                    >
+                                      ···
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            ))}
 
-                            {/* Apellido */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'Last Name' : 'Apellido'}
-                              </label>
-                              <div className="relative flex items-center">
-                                <input
-                                  type="text"
-                                  value={filterForm.apellido}
-                                  onChange={(e) => setFilterForm({ ...filterForm, apellido: e.target.value })}
-                                  className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all pr-8"
-                                />
-                                <button
-                                  type="button"
-                                  className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold text-xs"
-                                  title="Más opciones"
-                                >
-                                  ···
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Creado por */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'Created by' : 'Creado por'}
-                              </label>
-                              <input
-                                type="text"
-                                value={filterForm.creadoPor}
-                                onChange={(e) => setFilterForm({ ...filterForm, creadoPor: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                              />
-                            </div>
-
-                            {/* Modificado por */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'Modified by' : 'Modificado por'}
-                              </label>
-                              <input
-                                type="text"
-                                value={filterForm.modificadoPor}
-                                onChange={(e) => setFilterForm({ ...filterForm, modificadoPor: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                              />
-                            </div>
-
-                            {/* Teléfono */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'Phone' : 'Teléfono'}
-                              </label>
-                              <input
-                                type="text"
-                                value={filterForm.telefono}
-                                onChange={(e) => setFilterForm({ ...filterForm, telefono: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                              />
-                            </div>
-
-                            {/* Correo electrónico */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'Email' : 'Correo electrónico'}
-                              </label>
-                              <input
-                                type="text"
-                                value={filterForm.email}
-                                onChange={(e) => setFilterForm({ ...filterForm, email: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                              />
-                            </div>
-
-                            {/* Persona responsable */}
-                            <div>
-                              <label className="block text-[11px] text-slate-500 dark:text-slate-400 font-normal mb-1">
-                                {language === 'en' ? 'Responsible person' : 'Persona responsable'}
-                              </label>
-                              <input
-                                type="text"
-                                value={filterForm.responsable}
-                                onChange={(e) => setFilterForm({ ...filterForm, responsable: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-                              />
-                            </div>
-
-                            {/* Action links */}
+                            {/* Action links: Agregar campo + Restaurar */}
                             <div className="flex items-center gap-4 pt-1">
                               <button
                                 type="button"
-                                className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-[11px] cursor-pointer"
+                                onClick={() => {
+                                  setTempFieldIds([...activeFilterFieldIds]);
+                                  setFieldSearchFilter('');
+                                  setActiveCategoryTab('all');
+                                  setShowFieldSettingsModal(true);
+                                }}
+                                className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-[11px] cursor-pointer flex items-center gap-1"
                               >
-                                {language === 'en' ? 'Add field' : 'Agregar campo'}
+                                <span>+</span>
+                                <span>{language === 'en' ? 'Add field' : 'Agregar campo'}</span>
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
+                                  setActiveFilterFieldIds(
+                                    CRM_FILTER_FIELDS.filter((f) => f.default).map((f) => f.id)
+                                  );
                                   setFilterForm({
                                     nombre: '',
                                     apellido: '',
@@ -2293,8 +2362,24 @@ export default function BitrixCalendarView({
                                     telefono: '',
                                     email: '',
                                     responsable: '',
-                                  })
-                                }
+                                    tieneTelefono: '',
+                                    tieneEmail: '',
+                                    journey: '',
+                                    origen: '',
+                                    tipoContacto: '',
+                                    compania: '',
+                                    cargo: '',
+                                    comentario: '',
+                                    creadoEl: '',
+                                    modificadoEl: '',
+                                    utmSource: '',
+                                    utmCampaign: '',
+                                    actividadEstado: '',
+                                    actividadTipo: '',
+                                    actividadFechaLimite: '',
+                                    origenActividad: '',
+                                  });
+                                }}
                                 className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-[11px] cursor-pointer transition-colors"
                               >
                                 {language === 'en' ? 'Restore default fields' : 'Restaurar campos predeterminados'}
@@ -2323,6 +2408,22 @@ export default function BitrixCalendarView({
                                   telefono: '',
                                   email: '',
                                   responsable: '',
+                                  tieneTelefono: '',
+                                  tieneEmail: '',
+                                  journey: '',
+                                  origen: '',
+                                  tipoContacto: '',
+                                  compania: '',
+                                  cargo: '',
+                                  comentario: '',
+                                  creadoEl: '',
+                                  modificadoEl: '',
+                                  utmSource: '',
+                                  utmCampaign: '',
+                                  actividadEstado: '',
+                                  actividadTipo: '',
+                                  actividadFechaLimite: '',
+                                  origenActividad: '',
                                 });
                                 setContactsSearch('');
                                 setActiveFilterTag(null);
@@ -2655,6 +2756,241 @@ export default function BitrixCalendarView({
                       })}
                     </div>
                   )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* 1.1 MODAL: AJUSTES DEL CAMPO DE FILTROS (CAPTURA 1) */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showFieldSettingsModal && (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-xs"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setShowFieldSettingsModal(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 max-h-[85vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <h2 className="text-base font-bold text-slate-800 dark:text-white">
+                  {language === 'en' ? 'Filter field settings' : 'Ajustes del campo de filtros'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowFieldSettingsModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg transition-colors cursor-pointer"
+                  title="Cerrar"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              {/* Sub-header: Search & Category Pills (Contacto / Actividad) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 bg-slate-50/70 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800">
+                {/* Search input */}
+                <div className="relative w-60 sm:w-72">
+                  <input
+                    type="text"
+                    placeholder={language === 'en' ? 'Search field' : 'Buscar campo'}
+                    value={fieldSearchFilter}
+                    onChange={(e) => setFieldSearchFilter(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  />
+                  <span className="material-symbols-outlined text-sm text-slate-400 absolute right-2.5 top-2 pointer-events-none">
+                    search
+                  </span>
+                </div>
+
+                {/* Category Pills (Contacto / Actividad) */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveCategoryTab(activeCategoryTab === 'contacto' ? 'all' : 'contacto')
+                    }
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      activeCategoryTab === 'contacto' || activeCategoryTab === 'all'
+                        ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-500'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <span className="text-xs">✓</span>
+                    <span>{language === 'en' ? 'Contact' : 'Contacto'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActiveCategoryTab(activeCategoryTab === 'actividad' ? 'all' : 'actividad')
+                    }
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      activeCategoryTab === 'actividad' || activeCategoryTab === 'all'
+                        ? 'bg-blue-50 border-blue-500 text-blue-600 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-500'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <span className="text-xs">✓</span>
+                    <span>{language === 'en' ? 'Activity' : 'Actividad'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Checkboxes Content Area */}
+              <div className="p-6 overflow-y-auto max-h-[50vh] space-y-5">
+                {/* Section Contacto */}
+                {(activeCategoryTab === 'all' || activeCategoryTab === 'contacto') && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+                      {language === 'en' ? 'Contact' : 'Contacto'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-2.5 gap-x-4">
+                      {CRM_FILTER_FIELDS.filter(
+                        (f) =>
+                          f.category === 'contacto' &&
+                          (!fieldSearchFilter.trim() ||
+                            f.label.toLowerCase().includes(fieldSearchFilter.toLowerCase().trim()))
+                      ).map((field) => {
+                        const isChecked = tempFieldIds.includes(field.id);
+                        return (
+                          <label
+                            key={field.id}
+                            className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer select-none group"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTempFieldIds((prev) => [...prev, field.id]);
+                                } else {
+                                  setTempFieldIds((prev) => prev.filter((id) => id !== field.id));
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                            />
+                            <span className="group-hover:translate-x-0.5 transition-transform">
+                              {field.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section Actividad */}
+                {(activeCategoryTab === 'all' || activeCategoryTab === 'actividad') && (
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-3">
+                      {language === 'en' ? 'Activity' : 'Actividad'}
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-2.5 gap-x-4">
+                      {CRM_FILTER_FIELDS.filter(
+                        (f) =>
+                          f.category === 'actividad' &&
+                          (!fieldSearchFilter.trim() ||
+                            f.label.toLowerCase().includes(fieldSearchFilter.toLowerCase().trim()))
+                      ).map((field) => {
+                        const isChecked = tempFieldIds.includes(field.id);
+                        return (
+                          <label
+                            key={field.id}
+                            className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer select-none group"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTempFieldIds((prev) => [...prev, field.id]);
+                                } else {
+                                  setTempFieldIds((prev) => prev.filter((id) => id !== field.id));
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 cursor-pointer"
+                            />
+                            <span className="group-hover:translate-x-0.5 transition-transform">
+                              {field.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-slate-50/70 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800">
+                {/* Select All */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (tempFieldIds.length === CRM_FILTER_FIELDS.length) {
+                      setTempFieldIds([]);
+                    } else {
+                      setTempFieldIds(CRM_FILTER_FIELDS.map((f) => f.id));
+                    }
+                  }}
+                  className="text-xs text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-2 cursor-pointer font-medium select-none"
+                >
+                  <span
+                    className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] transition-colors ${
+                      tempFieldIds.length === CRM_FILTER_FIELDS.length
+                        ? 'bg-blue-600 border-blue-600 text-white'
+                        : tempFieldIds.length > 0
+                        ? 'bg-blue-50 border-blue-600 text-blue-600 font-bold'
+                        : 'border-slate-300 bg-white dark:bg-slate-800'
+                    }`}
+                  >
+                    {tempFieldIds.length === CRM_FILTER_FIELDS.length ? '✓' : tempFieldIds.length > 0 ? '—' : ''}
+                  </span>
+                  <span>{language === 'en' ? 'Select all' : 'seleccionar todo'}</span>
+                </button>
+
+                {/* Buttons: Aplicar, Cancelar, Predeterminado */}
+                <div className="flex items-center gap-3 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveFilterFieldIds(tempFieldIds);
+                      setShowFieldSettingsModal(false);
+                    }}
+                    className="bg-[#00a3e0] hover:bg-[#0092c9] text-white px-5 py-2 rounded-lg text-xs font-bold tracking-wider uppercase shadow-xs transition-all active:scale-95 cursor-pointer"
+                  >
+                    {language === 'en' ? 'Apply' : 'Aplicar'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFieldSettingsModal(false)}
+                    className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-3 py-2 text-xs font-semibold uppercase cursor-pointer transition-colors"
+                  >
+                    {language === 'en' ? 'Cancel' : 'Cancelar'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setTempFieldIds(CRM_FILTER_FIELDS.filter((f) => f.default).map((f) => f.id))
+                    }
+                    className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-xs flex items-center gap-1 cursor-pointer transition-colors pl-2 border-l border-slate-200 dark:border-slate-700"
+                    title="Restaurar a campos predeterminados"
+                  >
+                    <span className="font-bold">↺</span>
+                    <span>{language === 'en' ? 'Default' : 'predeterminado'}</span>
+                  </button>
                 </div>
               </div>
             </motion.div>
