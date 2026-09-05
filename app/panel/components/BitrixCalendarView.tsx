@@ -109,8 +109,8 @@ export default function BitrixCalendarView({
   isSavingSchedule,
   onSwitchToTable,
 }: BitrixCalendarViewProps) {
-  // Top Navigation Tab (Bitrix24 style navigation: Reservas, Horarios, Métricas, Recursos, Espera)
-  const [activeSection, setActiveSection] = useState<'timeline' | 'schedule_settings' | 'metrics' | 'resources' | 'waitlist'>('timeline');
+  // Top Navigation Tab (Bitrix24 style navigation: Reservas, Métricas, Recursos, Espera)
+  const [activeSection, setActiveSection] = useState<'timeline' | 'metrics' | 'resources' | 'waitlist'>('timeline');
 
   // Calendar View mode: Day or Week
   const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
@@ -120,6 +120,9 @@ export default function BitrixCalendarView({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [selectedApptDetails, setSelectedApptDetails] = useState<any | null>(null);
+
+  // Edit Schedule Modal state
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Custom resources state
   const [customResources, setCustomResources] = useState<string[]>(() => {
@@ -363,19 +366,6 @@ export default function BitrixCalendarView({
 
           <button
             type="button"
-            onClick={() => setActiveSection('schedule_settings')}
-            className={`px-4 py-2 rounded-xl font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeSection === 'schedule_settings'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span className="material-symbols-outlined text-base">schedule</span>
-            <span>{language === 'en' ? 'Business Hours' : 'Días y Horarios'}</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActiveSection('metrics')}
             className={`px-4 py-2 rounded-xl font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeSection === 'metrics'
@@ -604,14 +594,15 @@ export default function BitrixCalendarView({
 
               <button
                 type="button"
-                onClick={() => setActiveSection('schedule_settings')}
-                className="text-slate-500 hover:text-blue-600 flex items-center gap-1.5 font-bold cursor-pointer"
+                onClick={() => setShowScheduleModal(true)}
+                className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1.5 font-bold cursor-pointer px-2.5 py-1 rounded-xl hover:bg-white dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 transition-all shadow-none hover:shadow-sm"
+                title="Haga clic para editar días laborables y horario"
               >
-                <span className="material-symbols-outlined text-sm">schedule</span>
+                <span className="material-symbols-outlined text-sm text-blue-600 dark:text-blue-400">schedule</span>
                 <span>
-                  {language === 'en' ? 'Operating Hours' : 'Horario'}: {configData?.business_start_hour || '08:00'} - {configData?.business_end_hour || '19:00'}
+                  {language === 'en' ? 'Hours' : 'Horario'}: {configData?.business_start_hour || '08:00'} - {configData?.business_end_hour || '19:00'}
                 </span>
-                <span className="material-symbols-outlined text-xs">edit</span>
+                <span className="material-symbols-outlined text-xs text-slate-400">edit</span>
               </button>
             </div>
 
@@ -1141,123 +1132,7 @@ export default function BitrixCalendarView({
         </div>
       )}
 
-      {/* B. VISTA 2: DÍAS Y HORARIOS DE ATENCIÓN */}
-      {activeSection === 'schedule_settings' && (
-        <div className="p-8 space-y-8 bg-white dark:bg-slate-900">
-          <div className="max-w-3xl">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-2xl">schedule</span>
-              </span>
-              <div>
-                <h3 className="text-xl font-black text-slate-900 dark:text-white">
-                  {language === 'en' ? 'Business Operating Hours' : 'Días y Horarios de Atención'}
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {language === 'en'
-                    ? 'Configure when your team attends customers. The AI Bot calculates availability and synchronizes with Google Calendar based on these hours.'
-                    : 'Configura los días y horas que opera tu negocio. El bot de IA usará esto para calcular los turnos libres y sincronizar con Google Calendar.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 mt-6 space-y-6">
-              <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3">
-                  {language === 'en' ? 'Working Days' : 'Días Laborables'}
-                </label>
-                <div className="flex flex-wrap gap-2.5">
-                  {[
-                    { id: 1, label: language === 'en' ? 'Monday' : 'Lunes', short: 'Lun' },
-                    { id: 2, label: language === 'en' ? 'Tuesday' : 'Martes', short: 'Mar' },
-                    { id: 3, label: language === 'en' ? 'Wednesday' : 'Miércoles', short: 'Mié' },
-                    { id: 4, label: language === 'en' ? 'Thursday' : 'Jueves', short: 'Jue' },
-                    { id: 5, label: language === 'en' ? 'Friday' : 'Viernes', short: 'Vie' },
-                    { id: 6, label: language === 'en' ? 'Saturday' : 'Sábado', short: 'Sáb' },
-                    { id: 0, label: language === 'en' ? 'Sunday' : 'Domingo', short: 'Dom' },
-                  ].map((day) => {
-                    const isSelected = (configData?.business_days || []).includes(day.id);
-                    return (
-                      <button
-                        key={day.id}
-                        type="button"
-                        onClick={() => {
-                          const days = configData?.business_days || [];
-                          const newDays = days.includes(day.id)
-                            ? days.filter((d: number) => d !== day.id)
-                            : [...days, day.id].sort();
-                          setConfigData({ ...configData, business_days: newDays });
-                        }}
-                        className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-                          isSelected
-                            ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 scale-[1.02]'
-                            : 'bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          {isSelected ? 'check_circle' : 'circle'}
-                        </span>
-                        <span>{day.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                    {language === 'en' ? 'Opening Time' : 'Hora de Apertura'}
-                  </label>
-                  <input
-                    type="time"
-                    value={configData?.business_start_hour || '09:00'}
-                    onChange={(e) => setConfigData({ ...configData, business_start_hour: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/30 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                    {language === 'en' ? 'Closing Time' : 'Hora de Cierre'}
-                  </label>
-                  <input
-                    type="time"
-                    value={configData?.business_end_hour || '18:00'}
-                    onChange={(e) => setConfigData({ ...configData, business_end_hour: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl px-4 py-3 text-sm font-bold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/30 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={onSaveSchedule}
-                  disabled={isSavingSchedule}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingSchedule ? (
-                    <span className="material-symbols-outlined animate-spin text-sm">sync</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-sm">save</span>
-                  )}
-                  <span>{language === 'en' ? 'Save Schedule' : 'Guardar Horario'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveSection('timeline')}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  {language === 'en' ? 'Back to Calendar' : 'Volver al Calendario'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* C. VISTA 3: MÉTRICAS Y RENDIMIENTO */}
+      {/* B. VISTA 2: MÉTRICAS Y RENDIMIENTO */}
       {activeSection === 'metrics' && (
         <div className="p-8 space-y-8 bg-white dark:bg-slate-900">
           <div>
@@ -1488,6 +1363,141 @@ export default function BitrixCalendarView({
           )}
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 1.5 MODAL: EDITAR HORARIO DE ATENCIÓN DIRECTO */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showScheduleModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl p-6 sm:p-8 w-full max-w-md relative"
+            >
+              <button
+                type="button"
+                onClick={() => setShowScheduleModal(false)}
+                className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold">
+                  <span className="material-symbols-outlined text-2xl">schedule</span>
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-slate-900 dark:text-white">
+                    {language === 'en' ? 'Operating Schedule' : 'Horario de Atención'}
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    {language === 'en'
+                      ? 'Set working days and opening/closing hours'
+                      : 'Configura días laborables y horario comercial'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Working Days */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
+                    {language === 'en' ? 'Working Days' : 'Días Laborables'}
+                  </label>
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+                    {[
+                      { id: 1, label: 'Lun' },
+                      { id: 2, label: 'Mar' },
+                      { id: 3, label: 'Mié' },
+                      { id: 4, label: 'Jue' },
+                      { id: 5, label: 'Vie' },
+                      { id: 6, label: 'Sáb' },
+                      { id: 0, label: 'Dom' },
+                    ].map((day) => {
+                      const isSelected = (configData?.business_days || []).includes(day.id);
+                      return (
+                        <button
+                          key={day.id}
+                          type="button"
+                          onClick={() => {
+                            const days = configData?.business_days || [];
+                            const newDays = days.includes(day.id)
+                              ? days.filter((d: number) => d !== day.id)
+                              : [...days, day.id].sort();
+                            setConfigData({ ...configData, business_days: newDays });
+                          }}
+                          className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Hours inputs */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                      {language === 'en' ? 'Opening' : 'Hora de Apertura'}
+                    </label>
+                    <input
+                      type="time"
+                      value={configData?.business_start_hour || '09:00'}
+                      onChange={(e) => setConfigData({ ...configData, business_start_hour: e.target.value })}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
+                      {language === 'en' ? 'Closing' : 'Hora de Cierre'}
+                    </label>
+                    <input
+                      type="time"
+                      value={configData?.business_end_hour || '18:00'}
+                      onChange={(e) => setConfigData({ ...configData, business_end_hour: e.target.value })}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                >
+                  {language === 'en' ? 'Cancel' : 'Cancelar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await onSaveSchedule();
+                    setShowScheduleModal(false);
+                  }}
+                  disabled={isSavingSchedule}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingSchedule ? (
+                    <span className="material-symbols-outlined animate-spin text-sm">sync</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-sm">save</span>
+                  )}
+                  <span>{language === 'en' ? 'Save Schedule' : 'Guardar Horario'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ========================================================================= */}
       {/* 2. MODAL: AGREGAR RECURSO */}

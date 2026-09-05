@@ -15011,74 +15011,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-gradient-to-tr from-indigo-600/10 to-cyan-400/5 rounded-full blur-3xl" />
               </div>
 
-              <div className="relative z-10 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
-                    <span className="material-symbols-outlined text-sm">calendar_month</span>
-                    <span>{language === 'en' ? 'Appointments & Schedulers' : 'Citas y Reservas'}</span>
-                  </div>
-                  <h1 className="text-3xl font-black text-white tracking-tight leading-none">
-                    {language === 'en' ? 'Manage Bookings & Flow' : 'Gestión de Citas y Reservas'}
-                  </h1>
-                  <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
-                    {language === 'en' 
-                      ? 'Monitor your automated schedule, track attendance metrics, and take direct actions on customer appointments synced with Google Calendar.'
-                      : 'Monitorea tu agenda automatizada, realiza seguimiento de métricas de asistencia y toma acciones manuales sobre las citas vinculadas con Google Calendar.'}
-                  </p>
-
-                  {/* Subtabs Selector: Agenda vs Lista de Espera */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setAppointmentSubTab('schedule')}
-                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
-                        appointmentSubTab === 'schedule'
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-sm">calendar_month</span>
-                      <span>{language === 'en' ? 'Schedule & Calendar' : 'Agenda y Calendario'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAppointmentSubTab('waitlist')}
-                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
-                        appointmentSubTab === 'waitlist'
-                          ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
-                          : 'bg-white/10 text-slate-300 hover:bg-white/20'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-sm">hourglass_top</span>
-                      <span>{language === 'en' ? 'Waitlist & Overbooking' : 'Lista de Espera & Overbooking'}</span>
-                      {waitlistList.filter((w: any) => w.status === 'waiting').length > 0 && (
-                        <span className="bg-amber-400 text-slate-900 px-1.5 py-0.2 rounded-full text-[10px] font-black">
-                          {waitlistList.filter((w: any) => w.status === 'waiting').length}
-                        </span>
-                      )}
-                    </button>
-                  </div>
+              <div className="relative z-10 space-y-3">
+                <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
+                  <span className="material-symbols-outlined text-sm">calendar_month</span>
+                  <span>{language === 'en' ? 'Appointments & Schedulers' : 'Citas y Reservas'}</span>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenDirectBooking()}
-                    className="px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-base">add_circle</span>
-                    <span>{language === 'en' ? 'New Booking' : 'Nueva Cita'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddWaitlistModal(true)}
-                    className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-base">hourglass_top</span>
-                    <span>{language === 'en' ? 'Add Waitlist' : 'Añadir a Espera'}</span>
-                  </button>
-                </div>
+                <h1 className="text-3xl font-black text-white tracking-tight leading-none">
+                  {language === 'en' ? 'Manage Bookings & Flow' : 'Gestión de Citas y Reservas'}
+                </h1>
+                <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
+                  {language === 'en' 
+                    ? 'Monitor your automated schedule, track attendance metrics, and take direct actions on customer appointments synced with Google Calendar.'
+                    : 'Monitorea tu agenda automatizada, realiza seguimiento de métricas de asistencia y toma acciones manuales sobre las citas vinculadas con Google Calendar.'}
+                </p>
               </div>
             </div>
 
