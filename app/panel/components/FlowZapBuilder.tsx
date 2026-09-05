@@ -261,6 +261,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(parsedInitialEdges);
   const [selectedNode, setSelectedNode] = useState<any>(null);
   const [flowName, setFlowName] = useState(initialFlowName || 'Mi chatbot');
+  const [isExtracting, setIsExtracting] = useState(false);
 
   // Simulator states
   const [simulatorOpen, setSimulatorOpen] = useState(false);
@@ -646,6 +647,54 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
 
       {selectedNode.type === 'ai' && (
         <>
+          <div style={{marginBottom: 10}}>
+            <label style={{fontSize: 9, fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', display: 'block', marginBottom: 5}}>
+              Subir Catálogo (PDF/Foto)
+            </label>
+            <input 
+              type="file" 
+              accept=".pdf,image/*" 
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setIsExtracting(true);
+                try {
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  const res = await fetch('/api/panel/memory/extract', {
+                    method: 'POST',
+                    body: formData
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.text) {
+                    const currentContext = selectedNode.data.context || '';
+                    updateSelectedNodeData('context', currentContext + (currentContext ? '\n\n' : '') + data.text);
+                    alert('Catálogo extraído con éxito y añadido a la Memoria.');
+                  } else {
+                    alert(data.error || 'Error al extraer.');
+                  }
+                } catch (error) {
+                  alert('Error de conexión.');
+                } finally {
+                  setIsExtracting(false);
+                }
+                e.target.value = ''; // Reset input
+              }}
+              style={{ display: 'none' }} 
+              id="upload-catalog-input" 
+            />
+            <button 
+              onClick={() => document.getElementById('upload-catalog-input')?.click()}
+              disabled={isExtracting}
+              style={{
+                width: '100%', padding: '8px', background: isExtracting ? '#cbd5e1' : '#10b981', color: 'white',
+                border: 'none', borderRadius: 8, fontSize: 10, fontWeight: 'bold', cursor: isExtracting ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isExtracting ? 'Procesando con Gemini...' : '📤 Subir y Extraer Texto Automáticamente'}
+            </button>
+          </div>
+
           <InspectorField label="Catálogo / Memoria de IA" help="Pega aquí los precios, productos o reglas. La IA leerá esto antes de responder.">
             <textarea 
               value={selectedNode.data.context || ''} 
