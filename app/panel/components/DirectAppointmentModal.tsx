@@ -178,48 +178,47 @@ export default function DirectAppointmentModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden my-8"
+          exit={{ opacity: 0, scale: 0.96, y: 10 }}
+          transition={{ duration: 0.18 }}
+          className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden my-8"
         >
-          {/* Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
-                  <span className="material-symbols-outlined text-white text-xl">calendar_month</span>
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-white leading-tight">
-                    {language === 'en' ? 'Direct Appointment Booking' : 'Agendamiento Directo de Cita'}
-                  </h2>
-                  <p className="text-xs text-white/80 font-normal">
-                    {language === 'en'
-                      ? 'Syncs in real time with Google Calendar and WhatsApp'
-                      : 'Sincroniza en tiempo real con Google Calendar y notifica por WhatsApp'}
-                  </p>
-                </div>
+          {/* Header Corporativo Limpio */}
+          <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/15 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-lg">calendar_month</span>
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white"
-              >
-                <span className="material-symbols-outlined text-base">close</span>
-              </button>
+              <div>
+                <h2 className="text-sm font-normal text-slate-800 dark:text-slate-100 leading-tight">
+                  {language === 'en' ? 'Direct Appointment Booking' : 'Agendamiento directo de cita'}
+                </h2>
+                <p className="text-xs font-normal text-slate-400 dark:text-slate-500 mt-0.5">
+                  {language === 'en'
+                    ? 'Syncs in real time with Google Calendar and WhatsApp'
+                    : 'Sincroniza en tiempo real con Google Calendar y notifica por WhatsApp'}
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Formulario */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4.5 bg-white dark:bg-slate-900">
             {/* Cliente: Nombre y Teléfono */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  {language === 'en' ? 'Client Name' : 'Nombre del Cliente'} *
+                <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5">
+                  {language === 'en' ? 'Client Name' : 'Nombre del Cliente'} <span className="text-rose-500 font-normal">*</span>
                 </label>
                 <input
                   type="text"
@@ -227,13 +226,13 @@ export default function DirectAppointmentModal({
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Ej: Juan Pérez"
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                  {language === 'en' ? 'WhatsApp Phone' : 'Teléfono WhatsApp'} *
+                <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5">
+                  {language === 'en' ? 'WhatsApp Phone' : 'Teléfono WhatsApp'} <span className="text-rose-500 font-normal">*</span>
                 </label>
                 <input
                   type="tel"
@@ -241,7 +240,7 @@ export default function DirectAppointmentModal({
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="Ej: 593987654321"
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 font-mono placeholder:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-all"
                 />
               </div>
             </div>
@@ -249,7 +248,7 @@ export default function DirectAppointmentModal({
             {/* Servicio y Especialista / Recurso */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5">
                   {language === 'en' ? 'Service' : 'Servicio'}
                 </label>
                 <input
@@ -257,20 +256,20 @@ export default function DirectAppointmentModal({
                   value={service}
                   onChange={(e) => setService(e.target.value)}
                   placeholder="Ej: Asesoría Comercial"
-                  className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  className="w-full bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
                   <span>{language === 'en' ? 'Specialist / Resource' : 'Especialista / Recurso'}</span>
-                  <span className="text-[10px] text-blue-500 font-normal lowercase">opcional</span>
+                  <span className="text-[10px] text-slate-400 font-normal">opcional</span>
                 </label>
                 {teamAgents && teamAgents.length > 0 ? (
                   <select
                     value={resourceName}
                     onChange={(e) => setResourceName(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                    className="w-full bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-all cursor-pointer"
                   >
                     <option value="">-- Sin asignar / General --</option>
                     {teamAgents.map((agent: any) => (
@@ -285,7 +284,7 @@ export default function DirectAppointmentModal({
                     value={resourceName}
                     onChange={(e) => setResourceName(e.target.value)}
                     placeholder="Ej: Dr. Carlos / Asesor 1"
-                    className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    className="w-full bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-all"
                   />
                 )}
               </div>
@@ -293,8 +292,8 @@ export default function DirectAppointmentModal({
 
             {/* Fecha */}
             <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                {language === 'en' ? 'Date' : 'Fecha'} *
+              <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5">
+                {language === 'en' ? 'Date' : 'Fecha'} <span className="text-rose-500 font-normal">*</span>
               </label>
               <input
                 type="date"
@@ -302,51 +301,47 @@ export default function DirectAppointmentModal({
                 min={new Date().toISOString().split('T')[0]}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className={`w-full bg-slate-50 dark:bg-slate-800/80 border rounded-xl px-4 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 outline-none transition-all cursor-pointer ${
+                className={`w-full bg-slate-50/50 dark:bg-slate-800/40 border rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 focus:ring-2 outline-none transition-all cursor-pointer ${
                   isDateNonWorking
-                    ? 'border-rose-300 dark:border-rose-800 focus:ring-rose-500/20 focus:border-rose-500'
-                    : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500/20 focus:border-blue-500'
+                    ? 'border-amber-300 dark:border-amber-700/60 focus:ring-amber-500/15 focus:border-amber-500'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-blue-500/15 focus:border-blue-500'
                 }`}
               />
 
               {isDateNonWorking && (
-                <div className="mt-2.5 p-3.5 bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/20 dark:border-rose-800/40 rounded-xl flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-base">event_busy</span>
-                  </div>
-                  <div className="text-xs">
-                    <p className="font-semibold text-rose-600 dark:text-rose-400">
-                      {language === 'en' ? 'Non-working Day' : 'Día No Laborable (Sin Atención)'}
-                    </p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5 font-normal">
-                      {language === 'en'
-                        ? 'Appointments cannot be booked on this day because it is not enabled in your working schedule.'
-                        : 'No se pueden agendar citas este día porque no está marcado en tus días de atención.'}
-                    </p>
-                  </div>
-                </div>
+                <p className="mt-1.5 text-xs font-normal text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm">info</span>
+                  <span>
+                    {language === 'en'
+                      ? 'This date falls outside your scheduled business days.'
+                      : 'Esta fecha corresponde a un día sin atención programada en tu horario.'}
+                  </span>
+                </p>
               )}
             </div>
 
             {/* Horario y Duración Estilo Google Calendar */}
             <div>
-              <label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-2">
+              <label className="text-xs font-normal text-slate-600 dark:text-slate-300 flex items-center gap-1.5 mb-2">
                 <span className="material-symbols-outlined text-sm text-blue-500">schedule</span>
-                <span>{language === 'en' ? 'Appointment Schedule & Duration' : 'Horario de Cita y Duración'} *</span>
+                <span>{language === 'en' ? 'Appointment Schedule & Duration' : 'Horario de cita y duración'}</span>
+                <span className="text-rose-500 font-normal">*</span>
               </label>
 
               {isDateNonWorking ? (
-                <div className="p-4 bg-rose-500/5 dark:bg-rose-950/20 rounded-xl border border-dashed border-rose-200 dark:border-rose-900/40 text-center">
-                  <span className="material-symbols-outlined text-2xl text-rose-400 mb-1">block</span>
-                  <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold">
+                <div className="p-5 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/80 text-center">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto mb-2">
+                    <span className="material-symbols-outlined text-lg">event_busy</span>
+                  </div>
+                  <p className="text-xs font-normal text-slate-700 dark:text-slate-200">
                     {language === 'en'
-                      ? 'Reservations are disabled for non-working days.'
-                      : 'Las reservas están desactivadas para este día sin atención.'}
+                      ? 'No appointment slots available for this date'
+                      : 'No hay horarios disponibles para esta fecha'}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-1 font-normal">
+                  <p className="text-[11px] font-normal text-slate-400 dark:text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
                     {language === 'en'
-                      ? 'Please select another day or enable this day in the Operating Schedule.'
-                      : 'Selecciona una fecha hábil o habilita este día en Horario de Atención.'}
+                      ? 'Appointments are disabled for non-working days. Please select an active business day or update your business hours.'
+                      : 'Las citas no están habilitadas para días no laborables. Selecciona otra fecha o configura tus días de atención en Horario.'}
                   </p>
                 </div>
               ) : (
@@ -368,34 +363,38 @@ export default function DirectAppointmentModal({
             </div>
 
             {/* Footer Buttons */}
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-normal text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 {language === 'en' ? 'Cancel' : 'Cancelar'}
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || !time || isDateNonWorking}
-                className="px-6 py-2.5 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-sm shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                className={`px-5 py-2 rounded-xl text-xs font-normal transition-all flex items-center gap-1.5 ${
+                  isDateNonWorking
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed'
+                    : 'text-white bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-sm shadow-blue-500/20 cursor-pointer disabled:opacity-50'
+                }`}
               >
                 {isSubmitting ? (
                   <>
-                    <span className="material-symbols-outlined animate-spin text-[16px]">sync</span>
+                    <span className="material-symbols-outlined animate-spin text-sm">sync</span>
                     <span>{language === 'en' ? 'Booking...' : 'Agendando...'}</span>
                   </>
                 ) : isDateNonWorking ? (
                   <>
-                    <span className="material-symbols-outlined text-[16px]">block</span>
-                    <span>{language === 'en' ? 'Day Closed' : 'Día Sin Atención'}</span>
+                    <span className="material-symbols-outlined text-sm">event_busy</span>
+                    <span>{language === 'en' ? 'Day closed' : 'Día sin atención'}</span>
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[16px]">check</span>
-                    <span>{language === 'en' ? 'Confirm & Book' : 'Confirmar y agendar'}</span>
+                    <span className="material-symbols-outlined text-sm">check</span>
+                    <span>{language === 'en' ? 'Confirm and book' : 'Confirmar y agendar'}</span>
                   </>
                 )}
               </button>
