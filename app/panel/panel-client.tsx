@@ -15104,6 +15104,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     appointments={appointmentsList}
                     waitlist={waitlistList}
                     teamAgents={teamAgentsList}
+                    contacts={allContacts}
                     language={language}
                     onOpenBooking={handleOpenDirectBooking}
                     onOpenAddWaitlist={() => setShowAddWaitlistModal(true)}
