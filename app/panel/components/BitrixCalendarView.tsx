@@ -181,6 +181,9 @@ export default function BitrixCalendarView({
 
   // Edit Schedule Modal state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [hoveredTooltip, setHoveredTooltip] = useState<'clients' | 'revenue' | null>(null);
+  const [showClientsModal, setShowClientsModal] = useState(false);
+  const [clientsSearchQuery, setClientsSearchQuery] = useState('');
 
   // Custom resources state
   const [customResources, setCustomResources] = useState<string[]>(() => {
@@ -360,6 +363,73 @@ export default function BitrixCalendarView({
     const estimatedRev = clientCount * 35;
     return { clientCount, estimatedRev };
   }, [dayAppointments]);
+
+  // Unique clients count across all time
+  const totalClientsAllTime = useMemo(() => {
+    const set = new Set<string>();
+    appointments.forEach((a) => {
+      const key = (a.phone_number || a.customer_name || '').trim();
+      if (key && !['cancelled', 'no_show'].includes(a.status)) {
+        set.add(key);
+      }
+    });
+    return set.size;
+  }, [appointments]);
+
+  // Monthly revenue metrics
+  const monthMetrics = useMemo(() => {
+    const selYear = selectedDate.getFullYear();
+    const selMonth = selectedDate.getMonth();
+    const monthAppts = appointments.filter((a) => {
+      if (!a.scheduled_time || ['cancelled', 'no_show'].includes(a.status)) return false;
+      const d = new Date(a.scheduled_time);
+      return d.getFullYear() === selYear && d.getMonth() === selMonth;
+    });
+    const clientCount = monthAppts.length;
+    const estimatedRev = clientCount * 35;
+    const mName = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-EC', { month: 'long' }).format(selectedDate);
+    const capitalizedMonth = mName.charAt(0).toUpperCase() + mName.slice(1);
+    return { clientCount, estimatedRev, monthName: capitalizedMonth };
+  }, [appointments, selectedDate, language]);
+
+  // Header short date e.g. "5 de Sep" or "Sep 5" (matching Captura 1)
+  const headerShortDate = useMemo(() => {
+    try {
+      const d = selectedDate.getDate();
+      const mStr = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'es-EC', {
+        month: 'short',
+      }).format(selectedDate);
+      const cleanM = mStr.replace('.', '');
+      const capM = cleanM.charAt(0).toUpperCase() + cleanM.slice(1);
+      return language === 'en' ? `${capM} ${d}` : `${d} de ${capM}`;
+    } catch {
+      return selectedDateStr;
+    }
+  }, [selectedDate, selectedDateStr, language]);
+
+  // Unique clients list for "VER LOS CLIENTES" modal
+  const uniqueClientsList = useMemo(() => {
+    const clientMap = new Map<string, { name: string; phone: string; totalBookings: number; lastAppt: any }>();
+    appointments.forEach((a) => {
+      const key = (a.phone_number || a.customer_name || '').trim();
+      if (!key) return;
+      const existing = clientMap.get(key);
+      if (existing) {
+        existing.totalBookings += 1;
+        if (new Date(a.scheduled_time) > new Date(existing.lastAppt?.scheduled_time || 0)) {
+          existing.lastAppt = a;
+        }
+      } else {
+        clientMap.set(key, {
+          name: a.customer_name || 'Cliente',
+          phone: a.phone_number || '',
+          totalBookings: 1,
+          lastAppt: a,
+        });
+      }
+    });
+    return Array.from(clientMap.values());
+  }, [appointments]);
 
   // Real-time Current Time line
   const [currentTimeMinutes, setCurrentTimeMinutes] = useState<number | null>(null);
@@ -594,30 +664,117 @@ export default function BitrixCalendarView({
         <div className="flex flex-col">
           {/* Top Header Bar inside Timeline */}
           <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-slate-50/90 via-white to-slate-50/90 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-900">
-            {/* Title & Date Navigator */}
+            {/* Title & Date Navigator - Exact order from Captura 1 */}
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
-                  <span className="material-symbols-outlined text-xl">calendar_clock</span>
+              <div className="flex items-center gap-3.5 flex-wrap">
+                {/* 1. Reserva online Title */}
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                  {language === 'en' ? 'Online booking' : 'Reserva online'}
+                </h2>
+
+                {/* 2. Date (e.g. "5 de Sep") */}
+                <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
+                  {headerShortDate}
                 </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
-                      {language === 'en' ? 'Online Bookings' : 'Reserva online'}
-                    </h2>
-                    <span className="text-xs font-black text-blue-600 dark:text-blue-400 capitalize bg-blue-50 dark:bg-blue-950/50 px-2.5 py-0.5 rounded-full border border-blue-200 dark:border-blue-800">
-                      {headerDateTitle}
-                    </span>
+
+                {/* 3. Stacked Interactive Metrics with Dotted Underlines & Hover Tooltips */}
+                <div className="flex flex-col text-[11px] leading-tight font-medium ml-0.5">
+                  {/* Top Line: + 0 clientes */}
+                  <div
+                    className="relative inline-block"
+                    onMouseEnter={() => setHoveredTooltip('clients')}
+                    onMouseLeave={() => setHoveredTooltip(null)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowClientsModal(true)}
+                      className="text-slate-700 dark:text-slate-200 border-b border-dotted border-slate-400 dark:border-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-500 transition-colors cursor-pointer text-left"
+                    >
+                      + {dayMetrics.clientCount} {language === 'en' ? 'clients' : 'clientes'}
+                    </button>
+
+                    {/* Tooltip Popover Clientes (Captura 3) */}
+                    {hoveredTooltip === 'clients' && (
+                      <div className="absolute left-0 top-full pt-2 z-50">
+                        <div
+                          className="relative w-56 bg-blue-600 dark:bg-blue-600 rounded-2xl p-4 text-white shadow-2xl shadow-blue-900/40 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
+                          style={{ filter: 'drop-shadow(0 10px 20px rgba(29,78,216,0.35))' }}
+                        >
+                          {/* Triangle arrow pointing up */}
+                          <div className="absolute -top-1.5 left-5 w-3 h-3 bg-blue-600 rotate-45 transform rounded-xs" />
+
+                          <h4 className="text-sm font-bold text-white mb-2 leading-none">
+                            {language === 'en' ? 'Clients' : 'Clientes'}
+                          </h4>
+
+                          <div className="space-y-1 text-xs text-blue-50">
+                            <div className="flex items-center justify-between py-0.5">
+                              <span>{language === 'en' ? 'New today:' : 'Nuevos hoy:'}</span>
+                              <span className="font-semibold text-white">+{dayMetrics.clientCount}</span>
+                            </div>
+                            <div className="flex items-center justify-between py-0.5">
+                              <span>{language === 'en' ? 'All time:' : 'Desde siempre:'}</span>
+                              <span className="font-semibold text-white">{totalClientsAllTime}</span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setHoveredTooltip(null);
+                              setShowClientsModal(true);
+                            }}
+                            className="w-full mt-3 py-1.5 px-3 rounded-lg border border-white/40 hover:bg-white/15 text-[11px] font-bold text-white uppercase tracking-wider transition-all cursor-pointer text-center"
+                          >
+                            {language === 'en' ? 'View clients' : 'VER LOS CLIENTES'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-slate-400 font-bold mt-0.5">
-                    <span className="text-emerald-600 dark:text-emerald-400">+{dayMetrics.clientCount} {language === 'en' ? 'clients' : 'clientes'}</span>
-                    <span>•</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">+${dayMetrics.estimatedRev} USD</span>
+
+                  {/* Bottom Line: + $0 */}
+                  <div
+                    className="relative inline-block mt-0.5"
+                    onMouseEnter={() => setHoveredTooltip('revenue')}
+                    onMouseLeave={() => setHoveredTooltip(null)}
+                  >
+                    <span className="text-slate-700 dark:text-slate-200 border-b border-dotted border-slate-400 dark:border-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-500 transition-colors cursor-pointer select-none">
+                      + ${dayMetrics.estimatedRev}
+                    </span>
+
+                    {/* Tooltip Popover Ganancias (Captura 4) */}
+                    {hoveredTooltip === 'revenue' && (
+                      <div className="absolute left-0 top-full pt-2 z-50">
+                        <div
+                          className="relative w-52 bg-blue-600 dark:bg-blue-600 rounded-2xl p-4 text-white shadow-2xl shadow-blue-900/40 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
+                          style={{ filter: 'drop-shadow(0 10px 20px rgba(29,78,216,0.35))' }}
+                        >
+                          {/* Triangle arrow pointing up */}
+                          <div className="absolute -top-1.5 left-5 w-3 h-3 bg-blue-600 rotate-45 transform rounded-xs" />
+
+                          <h4 className="text-sm font-bold text-white mb-2 leading-none">
+                            {language === 'en' ? 'Earnings' : 'Ganancias'}
+                          </h4>
+
+                          <div className="space-y-1 text-xs text-blue-50">
+                            <div className="flex items-center justify-between py-0.5">
+                              <span>{language === 'en' ? 'Today:' : 'Hoy:'}</span>
+                              <span className="font-semibold text-white">+${dayMetrics.estimatedRev}</span>
+                            </div>
+                            <div className="flex items-center justify-between py-0.5">
+                              <span>{monthMetrics.monthName}:</span>
+                              <span className="font-semibold text-white">${monthMetrics.estimatedRev}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Date controls */}
+              {/* Date controls (< Hoy >) */}
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
                 <button
                   type="button"
@@ -639,7 +796,7 @@ export default function BitrixCalendarView({
                     setSelectedDate(today);
                     setCurrentMonthDate(today);
                   }}
-                  className="px-2.5 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  className="px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   {language === 'en' ? 'Today' : 'Hoy'}
                 </button>
@@ -663,16 +820,16 @@ export default function BitrixCalendarView({
             <div className="flex items-center gap-2.5 flex-wrap ml-auto">
               {/* Search */}
               <div className="relative w-40 sm:w-52">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                  search
-                </span>
                 <input
                   type="text"
-                  placeholder={language === 'en' ? 'Filter...' : 'Filtrar...'}
+                  placeholder={language === 'en' ? 'Filter...' : 'Filtrar'}
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl py-1.5 pl-3 pr-8 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
+                <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
+                  search
+                </span>
               </div>
 
               {/* Bitrix Style Status Chips */}
@@ -2376,6 +2533,144 @@ export default function BitrixCalendarView({
                   </div>
                 </>
               )}
+            </motion.div>
+          </div>
+        )}
+        {/* Modal: Directorio de Clientes ("VER LOS CLIENTES") */}
+        {showClientsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden my-8"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 p-5 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center border border-white/20">
+                    <span className="material-symbols-outlined text-xl">group</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold">
+                      {language === 'en' ? 'Online Booking Clients' : 'Clientes de Reserva Online'}
+                    </h3>
+                    <p className="text-xs text-white/80 font-normal">
+                      {language === 'en'
+                        ? `${uniqueClientsList.length} registered clients in CRM`
+                        : `${uniqueClientsList.length} clientes registrados en el CRM`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowClientsModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">close</span>
+                </button>
+              </div>
+
+              {/* Search filter in modal */}
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center gap-3">
+                <div className="relative flex-1">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    placeholder={language === 'en' ? 'Search client by name or phone...' : 'Buscar cliente por nombre o teléfono...'}
+                    value={clientsSearchQuery}
+                    onChange={(e) => setClientsSearchQuery(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Clients List */}
+              <div className="p-4 max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                {uniqueClientsList
+                  .filter((c) => {
+                    const q = clientsSearchQuery.toLowerCase().trim();
+                    if (!q) return true;
+                    return c.name.toLowerCase().includes(q) || c.phone.includes(q);
+                  })
+                  .map((client, idx) => (
+                    <div key={idx} className="py-3 flex items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 rounded-xl transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white font-medium text-xs flex items-center justify-center shrink-0">
+                          {client.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase() || 'CL'}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                            {client.name}
+                          </h4>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            <span className="font-mono">{client.phone || 'Sin teléfono'}</span>
+                            <span>•</span>
+                            <span>{client.totalBookings} {client.totalBookings === 1 ? 'cita' : 'citas'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {client.phone && (
+                          <a
+                            href={`https://wa.me/${client.phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">chat</span>
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowClientsModal(false);
+                            onOpenBooking({
+                              customer_name: client.name,
+                              phone_number: client.phone,
+                              service: client.lastAppt?.service || '',
+                              date: selectedDateStr,
+                            });
+                          }}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm">event</span>
+                          <span>{language === 'en' ? 'Book' : 'Agendar'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                {uniqueClientsList.length === 0 && (
+                  <div className="text-center py-12 text-slate-400">
+                    <span className="material-symbols-outlined text-4xl mb-2 text-slate-300">person_off</span>
+                    <p className="text-xs">
+                      {language === 'en' ? 'No clients found' : 'No hay clientes registrados aún'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowClientsModal(false)}
+                  className="px-5 py-2 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  {language === 'en' ? 'Close' : 'Cerrar'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
