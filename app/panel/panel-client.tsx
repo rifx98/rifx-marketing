@@ -10504,7 +10504,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </p>
         </div>
         <div className="text-right">
-          <strong className="text-4xl font-bold text-purple-700 block">0</strong>
+          <strong className="text-4xl font-bold text-purple-700 block">
+            {tenantData?.ai_credits_balance ? tenantData.ai_credits_balance.toLocaleString() : '0'}
+          </strong>
           <span className="text-xs text-slate-500">Créditos disponibles</span>
           <div className="mt-2 inline-block bg-amber-100 text-amber-800 text-[10px] px-2 py-1 rounded-full font-bold">Sin IA configurada</div>
         </div>
