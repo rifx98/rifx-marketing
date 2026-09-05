@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface BitrixCalendarViewProps {
@@ -374,6 +374,44 @@ export default function BitrixCalendarView({
     }).format(selectedDate);
   }, [selectedDate]);
 
+  // Días laborables configurados en el CRM (default: 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb, 0=Dom)
+  const businessDays = useMemo(() => {
+    if (Array.isArray(configData?.business_days) && configData.business_days.length > 0) {
+      return configData.business_days;
+    }
+    return [1, 2, 3, 4, 5];
+  }, [configData?.business_days]);
+
+  // Comprobar si una fecha es día no laborable (sin atención)
+  const checkIsNonWorkingDay = useCallback((targetDate: Date | string) => {
+    let dayOfWeek: number;
+    if (typeof targetDate === 'string') {
+      const parts = targetDate.split('T')[0].split('-').map(Number);
+      if (parts.length !== 3) return false;
+      dayOfWeek = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+    } else {
+      dayOfWeek = targetDate.getDay();
+    }
+    return !businessDays.includes(dayOfWeek);
+  }, [businessDays]);
+
+  // Si el día actualmente seleccionado es no laborable
+  const isSelectedDateNonWorking = useMemo(() => {
+    return checkIsNonWorkingDay(selectedDate);
+  }, [selectedDate, checkIsNonWorkingDay]);
+
+  // Habilitar con 1 clic un día de la semana y guardar en backend
+  const handleQuickEnableDay = async (dayOfWeek: number) => {
+    const current = configData?.business_days || [];
+    if (!current.includes(dayOfWeek)) {
+      const updated = [...current, dayOfWeek].sort();
+      setConfigData({ ...configData, business_days: updated });
+      if (onSaveSchedule) {
+        await onSaveSchedule();
+      }
+    }
+  };
+
   // Mini Calendar generation
   const miniCalendarDays = useMemo(() => {
     const year = currentMonthDate.getFullYear();
@@ -384,7 +422,16 @@ export default function BitrixCalendarView({
     let startDayIdx = firstDay.getDay() - 1;
     if (startDayIdx === -1) startDayIdx = 6;
 
-    const days: { date: Date; dateStr: string; dayNum: number; isCurrentMonth: boolean; hasAppointments: boolean; isSelected: boolean; isToday: boolean }[] = [];
+    const days: {
+      date: Date;
+      dateStr: string;
+      dayNum: number;
+      isCurrentMonth: boolean;
+      hasAppointments: boolean;
+      isSelected: boolean;
+      isToday: boolean;
+      isNonWorkingDay: boolean;
+    }[] = [];
     const todayStr = new Date().toISOString().split('T')[0];
 
     const prevMonthLastDay = new Date(year, month, 0).getDate();
@@ -399,6 +446,7 @@ export default function BitrixCalendarView({
         hasAppointments: appointments.some((a) => a.scheduled_time && a.scheduled_time.startsWith(dateStr)),
         isSelected: dateStr === selectedDateStr,
         isToday: dateStr === todayStr,
+        isNonWorkingDay: !businessDays.includes(d.getDay()),
       });
     }
 
@@ -413,6 +461,7 @@ export default function BitrixCalendarView({
         hasAppointments: appointments.some((a) => a.scheduled_time && a.scheduled_time.startsWith(dateStr)),
         isSelected: dateStr === selectedDateStr,
         isToday: dateStr === todayStr,
+        isNonWorkingDay: !businessDays.includes(d.getDay()),
       });
     }
 
@@ -428,11 +477,12 @@ export default function BitrixCalendarView({
         hasAppointments: appointments.some((a) => a.scheduled_time && a.scheduled_time.startsWith(dateStr)),
         isSelected: dateStr === selectedDateStr,
         isToday: dateStr === todayStr,
+        isNonWorkingDay: !businessDays.includes(d.getDay()),
       });
     }
 
     return days;
-  }, [currentMonthDate, selectedDateStr, appointments]);
+  }, [currentMonthDate, selectedDateStr, appointments, businessDays]);
 
   const monthName = useMemo(() => {
     return new Intl.DateTimeFormat('es-EC', { month: 'long', year: 'numeric' }).format(currentMonthDate);
@@ -772,6 +822,7 @@ export default function BitrixCalendarView({
                       const count = filteredAppointments.filter(
                         (a) => a.scheduled_time && a.scheduled_time.startsWith(wDay.dateStr)
                       ).length;
+                      const isDayNonWorking = checkIsNonWorkingDay(wDay.date);
                       return (
                         <div
                           key={idx}
@@ -782,12 +833,21 @@ export default function BitrixCalendarView({
                           className={`flex-1 min-w-[130px] p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${
                             wDay.isSelected
                               ? 'bg-blue-50/70 dark:bg-blue-950/40'
+                              : isDayNonWorking
+                              ? 'bg-rose-50/25 dark:bg-rose-950/15 hover:bg-rose-50/40'
                               : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
                           }`}
                         >
-                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                            {wDay.label}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${
+                              isDayNonWorking ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400'
+                            }`}>
+                              {wDay.label}
+                            </span>
+                            {isDayNonWorking && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-xs" title="Día sin atención comercial" />
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span
                               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${
@@ -795,6 +855,8 @@ export default function BitrixCalendarView({
                                   ? 'bg-blue-600 text-white shadow-sm'
                                   : wDay.isSelected
                                   ? 'border-2 border-blue-600 text-blue-600 dark:text-blue-400'
+                                  : isDayNonWorking
+                                  ? 'text-rose-600 dark:text-rose-400 font-extrabold'
                                   : 'text-slate-700 dark:text-slate-200'
                               }`}
                             >
@@ -830,6 +892,42 @@ export default function BitrixCalendarView({
                   </div>
                 )}
 
+                {/* Banner de Día No Laborable / Sin Atención */}
+                {viewMode === 'day' && isSelectedDateNonWorking && (
+                  <div className="p-4 mx-4 my-3 rounded-2xl bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/25 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold shrink-0">
+                        <span className="material-symbols-outlined text-xl">event_busy</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-black text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+                            {language === 'en' ? 'Non-working Day (No Attention)' : 'Día No Laborable (Sin Atención)'}
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-700 dark:text-rose-300">
+                            {language === 'en' ? 'Reservations Locked' : 'Reservas Bloqueadas'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
+                          {language === 'en'
+                            ? 'This day is not active in your business hours. Reservations are disabled for this date.'
+                            : 'Este día no está marcado en tu horario comercial. Las reservas están desactivadas para esta fecha.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickEnableDay(selectedDate.getDay())}
+                      disabled={isSavingSchedule}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      <span>{language === 'en' ? 'Enable Bookings for this Day' : 'Habilitar Reservas para este Día'}</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Grid */}
                 <div className="flex divide-x divide-slate-100 dark:divide-slate-800 relative">
                   {/* Left Hours Gutter */}
@@ -861,21 +959,36 @@ export default function BitrixCalendarView({
                                 <div
                                   key={hour}
                                   style={{ height: `${hourRowHeight}px` }}
-                                  onClick={() =>
+                                  onClick={() => {
+                                    if (isSelectedDateNonWorking) {
+                                      setShowScheduleModal(true);
+                                      return;
+                                    }
                                     onOpenBooking({
                                       date: selectedDateStr,
                                       time: timeStr,
                                       resource_name: resourceName,
-                                    })
-                                  }
-                                  className="border-b border-slate-100 dark:border-slate-800/80 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors relative group cursor-pointer"
+                                    });
+                                  }}
+                                  className={`border-b border-slate-100 dark:border-slate-800/80 transition-colors relative group ${
+                                    isSelectedDateNonWorking
+                                      ? 'bg-slate-50/70 dark:bg-slate-900/60 cursor-not-allowed opacity-75'
+                                      : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer'
+                                  }`}
                                 >
                                   <div className="absolute left-0 right-0 top-1/2 border-b border-dashed border-slate-100 dark:border-slate-800/40 pointer-events-none" />
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                    <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
-                                      <span className="material-symbols-outlined text-xs">add</span>
-                                      <span>{timeStr}</span>
-                                    </span>
+                                    {isSelectedDateNonWorking ? (
+                                      <span className="bg-rose-600 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-xs">block</span>
+                                        <span>{language === 'en' ? 'Closed (Enable)' : 'Sin atención (Habilitar)'}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="bg-blue-600 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-xs">add</span>
+                                        <span>{timeStr}</span>
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -966,28 +1079,45 @@ export default function BitrixCalendarView({
                         const colAppts = filteredAppointments.filter(
                           (a) => a.scheduled_time && a.scheduled_time.startsWith(wDay.dateStr)
                         );
+                        const isColDayNonWorking = checkIsNonWorkingDay(wDay.date);
 
                         return (
-                          <div key={colIdx} className="flex-1 min-w-[130px] relative">
+                          <div key={colIdx} className={`flex-1 min-w-[130px] relative ${
+                            isColDayNonWorking ? 'bg-slate-50/40 dark:bg-slate-900/40' : ''
+                          }`}>
                             {hoursArray.map((hour) => {
                               const timeStr = `${String(hour).padStart(2, '0')}:00`;
                               return (
                                 <div
                                   key={hour}
                                   style={{ height: `${hourRowHeight}px` }}
-                                  onClick={() =>
+                                  onClick={() => {
+                                    if (isColDayNonWorking) {
+                                      setShowScheduleModal(true);
+                                      return;
+                                    }
                                     onOpenBooking({
                                       date: wDay.dateStr,
                                       time: timeStr,
-                                    })
-                                  }
-                                  className="border-b border-slate-100 dark:border-slate-800/80 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors relative group cursor-pointer"
+                                    });
+                                  }}
+                                  className={`border-b border-slate-100 dark:border-slate-800/80 transition-colors relative group ${
+                                    isColDayNonWorking
+                                      ? 'cursor-not-allowed opacity-75'
+                                      : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10 cursor-pointer'
+                                  }`}
                                 >
                                   <div className="absolute left-0 right-0 top-1/2 border-b border-dashed border-slate-100 dark:border-slate-800/40 pointer-events-none" />
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                    <span className="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
-                                      + {timeStr}
-                                    </span>
+                                    {isColDayNonWorking ? (
+                                      <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                        {language === 'en' ? 'Closed' : 'Cerrado'}
+                                      </span>
+                                    ) : (
+                                      <span className="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                        + {timeStr}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1144,11 +1274,20 @@ export default function BitrixCalendarView({
                           setCurrentMonthDate(cDay.date);
                         }
                       }}
+                      title={
+                        cDay.isNonWorkingDay
+                          ? (language === 'en' ? 'Non-working day (no attention)' : 'Día sin atención (no reservable)')
+                          : undefined
+                      }
                       className={`h-7 w-7 mx-auto rounded-lg text-xs font-bold transition-all relative flex items-center justify-center cursor-pointer ${
                         cDay.isSelected
                           ? 'bg-blue-600 text-white font-black shadow-md shadow-blue-500/30'
                           : cDay.isToday
                           ? 'border border-blue-500 text-blue-600 dark:text-blue-400'
+                          : cDay.isNonWorkingDay
+                          ? cDay.isCurrentMonth
+                            ? 'text-rose-600 dark:text-rose-500 font-black hover:bg-rose-50 dark:hover:bg-rose-950/40'
+                            : 'text-rose-300/60 dark:text-rose-900/60 font-semibold'
                           : cDay.isCurrentMonth
                           ? 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'
                           : 'text-slate-300 dark:text-slate-600'
@@ -1156,10 +1295,22 @@ export default function BitrixCalendarView({
                     >
                       <span>{cDay.dayNum}</span>
                       {cDay.hasAppointments && !cDay.isSelected && (
-                        <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-blue-500" />
+                        <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${cDay.isNonWorkingDay ? 'bg-rose-500' : 'bg-blue-500'}`} />
                       )}
                     </button>
                   ))}
+                </div>
+
+                {/* Leyenda de Días */}
+                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+                  <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    {language === 'en' ? 'Non-working (red)' : 'Sin atención (rojo)'}
+                  </span>
+                  <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    {language === 'en' ? 'Active days' : 'Con atención'}
+                  </span>
                 </div>
               </div>
 
@@ -1535,9 +1686,14 @@ export default function BitrixCalendarView({
               {/* Working Days */}
               <div className="space-y-4 mb-6">
                 <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
-                    {language === 'en' ? 'Working Days' : 'Días Laborables'}
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                      {language === 'en' ? 'Working Days (Enabled)' : 'Días de Atención (Habilitados)'}
+                    </label>
+                    <span className="text-[10px] text-rose-500 dark:text-rose-400 font-bold">
+                      {language === 'en' ? 'Unchecked = Red & Locked' : 'Desmarcados = Rojo y Bloqueados'}
+                    </span>
+                  </div>
                   <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
                     {[
                       { id: 1, label: 'Lun' },
@@ -1560,17 +1716,23 @@ export default function BitrixCalendarView({
                               : [...days, day.id].sort();
                             setConfigData({ ...configData, business_days: newDays });
                           }}
-                          className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                          className={`py-2 rounded-xl text-xs font-black transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                             isSelected
                               ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200'
+                              : 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-500 dark:text-rose-400 border border-rose-200/60 dark:border-rose-900/40 hover:bg-rose-100/60'
                           }`}
                         >
-                          {day.label}
+                          <span>{day.label}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-rose-500'}`} />
                         </button>
                       );
                     })}
                   </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                    {language === 'en'
+                      ? '💡 Days not marked will be shown in red on the calendar and bookings will be locked until you check them.'
+                      : '💡 Los días no marcados se mostrarán en rojo en el calendario y tendrán las reservas bloqueadas hasta que los actives.'}
+                  </p>
                 </div>
 
                 {/* Hours inputs */}
@@ -1762,8 +1924,22 @@ export default function BitrixCalendarView({
                         min={new Date().toISOString().split('T')[0]}
                         value={rescheduleDate}
                         onChange={(e) => setRescheduleDate(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                        className={`w-full bg-slate-50 dark:bg-slate-800/80 border rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 outline-none transition-all ${
+                          checkIsNonWorkingDay(rescheduleDate)
+                            ? 'border-rose-300 dark:border-rose-800 focus:ring-rose-500/20 focus:border-rose-500'
+                            : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500/20 focus:border-blue-500'
+                        }`}
                       />
+                      {checkIsNonWorkingDay(rescheduleDate) && (
+                        <div className="mt-2.5 p-3 bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/20 dark:border-rose-800/40 rounded-xl flex items-center gap-2 text-xs text-rose-600 dark:text-rose-400 font-bold">
+                          <span className="material-symbols-outlined text-base">event_busy</span>
+                          <span>
+                            {language === 'en'
+                              ? 'This day is not enabled for bookings. Please choose an active working day.'
+                              : 'Día sin atención comercial. Por favor selecciona un día activo en tu horario.'}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Selector de Horario */}
@@ -1780,38 +1956,48 @@ export default function BitrixCalendarView({
                         )}
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto pr-1">
-                        {(rescheduleSlots.length > 0
-                          ? rescheduleSlots.map((s) => s.label)
-                          : ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']
-                        ).map((slotLabel) => {
-                          const isSelected = rescheduleTime === slotLabel;
-                          return (
-                            <button
-                              key={slotLabel}
-                              type="button"
-                              onClick={() => setRescheduleTime(slotLabel)}
-                              className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all text-center ${
-                                isSelected
-                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md shadow-blue-500/25'
-                                  : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400'
-                              }`}
-                            >
-                              {slotLabel}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {checkIsNonWorkingDay(rescheduleDate) ? (
+                        <div className="p-3.5 bg-rose-500/5 dark:bg-rose-950/20 border border-dashed border-rose-200 dark:border-rose-900/40 rounded-xl text-center text-xs text-rose-600 dark:text-rose-400 font-bold">
+                          {language === 'en'
+                            ? 'No slots available on non-working days.'
+                            : 'No hay horarios disponibles en días sin atención comercial.'}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto pr-1">
+                          {(rescheduleSlots.length > 0
+                            ? rescheduleSlots.map((s) => s.label)
+                            : ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00']
+                          ).map((slotLabel) => {
+                            const isSelected = rescheduleTime === slotLabel;
+                            return (
+                              <button
+                                key={slotLabel}
+                                type="button"
+                                onClick={() => setRescheduleTime(slotLabel)}
+                                className={`py-2 px-1 rounded-xl text-xs font-bold border transition-all text-center ${
+                                  isSelected
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md shadow-blue-500/25'
+                                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-blue-400'
+                                }`}
+                              >
+                                {slotLabel}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
 
-                      <div className="flex items-center gap-2 pt-2">
-                        <span className="text-xs text-slate-400 font-bold">{language === 'en' ? 'Exact time:' : 'Hora exacta:'}</span>
-                        <input
-                          type="time"
-                          value={rescheduleTime}
-                          onChange={(e) => setRescheduleTime(e.target.value)}
-                          className="px-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-slate-200"
-                        />
-                      </div>
+                      {!checkIsNonWorkingDay(rescheduleDate) && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-xs text-slate-400 font-bold">{language === 'en' ? 'Exact time:' : 'Hora exacta:'}</span>
+                          <input
+                            type="time"
+                            value={rescheduleTime}
+                            onChange={(e) => setRescheduleTime(e.target.value)}
+                            className="px-3 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Selector de Especialista / Recurso */}
@@ -1839,13 +2025,13 @@ export default function BitrixCalendarView({
                         type="button"
                         onClick={() => setApptModalMode('details')}
                         disabled={isSubmittingModalAction}
-                        className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-xs"
+                        className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-xs cursor-pointer"
                       >
                         {language === 'en' ? 'Back' : 'Volver'}
                       </button>
                       <button
                         type="button"
-                        disabled={!rescheduleDate || !rescheduleTime || isSubmittingModalAction || !!isPerformingAction}
+                        disabled={checkIsNonWorkingDay(rescheduleDate) || !rescheduleDate || !rescheduleTime || isSubmittingModalAction || !!isPerformingAction}
                         onClick={async () => {
                           setIsSubmittingModalAction(true);
                           try {

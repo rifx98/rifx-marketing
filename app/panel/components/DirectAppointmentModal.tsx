@@ -20,6 +20,7 @@ interface DirectAppointmentModalProps {
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
   setToast: (toast: any) => void;
   teamAgents?: any[];
+  businessDays?: number[];
 }
 
 export default function DirectAppointmentModal({
@@ -31,6 +32,7 @@ export default function DirectAppointmentModal({
   authFetch,
   setToast,
   teamAgents = [],
+  businessDays,
 }: DirectAppointmentModalProps) {
   const [customerName, setCustomerName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -43,6 +45,20 @@ export default function DirectAppointmentModal({
   const [availableSlots, setAvailableSlots] = useState<{ start: string; end: string; label: string }[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Comprobar si la fecha seleccionada cae en un día no laborable según business_days
+  const effectiveBusinessDays = React.useMemo(() => {
+    if (Array.isArray(businessDays) && businessDays.length > 0) return businessDays;
+    return [1, 2, 3, 4, 5];
+  }, [businessDays]);
+
+  const isDateNonWorking = React.useMemo(() => {
+    if (!date) return false;
+    const parts = date.split('-').map(Number);
+    if (parts.length !== 3) return false;
+    const dayOfWeek = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+    return !effectiveBusinessDays.includes(dayOfWeek);
+  }, [date, effectiveBusinessDays]);
 
   // Inicializar campos cuando se abre el modal
   useEffect(() => {
@@ -61,6 +77,14 @@ export default function DirectAppointmentModal({
   // Consultar disponibilidad en Google Calendar cuando cambia la fecha
   const loadSlots = useCallback(async (targetDate: string) => {
     if (!targetDate) return;
+    const parts = targetDate.split('-').map(Number);
+    if (parts.length === 3) {
+      const dayOfWeek = new Date(parts[0], parts[1] - 1, parts[2]).getDay();
+      if (!effectiveBusinessDays.includes(dayOfWeek)) {
+        setAvailableSlots([]);
+        return;
+      }
+    }
     setLoadingSlots(true);
     try {
       const res = await authFetch(`/api/panel/appointments/availability?date=${targetDate}`);
@@ -76,7 +100,7 @@ export default function DirectAppointmentModal({
     } finally {
       setLoadingSlots(false);
     }
-  }, [authFetch]);
+  }, [authFetch, effectiveBusinessDays]);
 
   useEffect(() => {
     if (isOpen && date) {
@@ -88,6 +112,15 @@ export default function DirectAppointmentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDateNonWorking) {
+      setToast({
+        type: 'error',
+        message: language === 'en'
+          ? 'Cannot book an appointment on a non-working day.'
+          : 'No se puede agendar una cita en un día sin atención comercial.',
+      });
+      return;
+    }
     if (!customerName.trim() || !phoneNumber.trim()) {
       setToast({ type: 'error', message: 'El nombre y teléfono son requeridos' });
       return;
@@ -260,8 +293,30 @@ export default function DirectAppointmentModal({
                 min={new Date().toISOString().split('T')[0]}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                className={`w-full bg-slate-50 dark:bg-slate-800/80 border rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100 focus:ring-2 outline-none transition-all cursor-pointer ${
+                  isDateNonWorking
+                    ? 'border-rose-300 dark:border-rose-800 focus:ring-rose-500/20 focus:border-rose-500'
+                    : 'border-slate-200 dark:border-slate-700 focus:ring-blue-500/20 focus:border-blue-500'
+                }`}
               />
+
+              {isDateNonWorking && (
+                <div className="mt-2.5 p-3.5 bg-rose-500/10 dark:bg-rose-950/30 border border-rose-500/20 dark:border-rose-800/40 rounded-xl flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-base">event_busy</span>
+                  </div>
+                  <div className="text-xs">
+                    <p className="font-black text-rose-600 dark:text-rose-400">
+                      {language === 'en' ? 'Non-working Day' : 'Día No Laborable (Sin Atención)'}
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5 font-medium">
+                      {language === 'en'
+                        ? 'Appointments cannot be booked on this day because it is not enabled in your working schedule.'
+                        : 'No se pueden agendar citas este día porque no está marcado en tus días de atención.'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Horarios Disponibles Google Calendar */}
@@ -279,7 +334,21 @@ export default function DirectAppointmentModal({
                 )}
               </div>
 
-              {availableSlots.length > 0 ? (
+              {isDateNonWorking ? (
+                <div className="p-4 bg-rose-500/5 dark:bg-rose-950/20 rounded-xl border border-dashed border-rose-200 dark:border-rose-900/40 text-center">
+                  <span className="material-symbols-outlined text-2xl text-rose-400 mb-1">block</span>
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-bold">
+                    {language === 'en'
+                      ? 'Reservations are disabled for non-working days.'
+                      : 'Las reservas están desactivadas para este día sin atención.'}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {language === 'en'
+                      ? 'Please select another day or enable this day in the Operating Schedule.'
+                      : 'Selecciona una fecha hábil o habilita este día en Horario de Atención.'}
+                  </p>
+                </div>
+              ) : availableSlots.length > 0 ? (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                   {availableSlots.map((slot) => {
                     const slotHour = slot.start.split('T')[1]?.substring(0, 5) || '';
@@ -324,19 +393,24 @@ export default function DirectAppointmentModal({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 {language === 'en' ? 'Cancel' : 'Cancelar'}
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || !time}
-                className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2"
+                disabled={isSubmitting || !time || isDateNonWorking}
+                className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
                     <span className="material-symbols-outlined animate-spin text-[16px]">sync</span>
                     <span>{language === 'en' ? 'Booking...' : 'Agendando...'}</span>
+                  </>
+                ) : isDateNonWorking ? (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">block</span>
+                    <span>{language === 'en' ? 'Day Closed' : 'Día Sin Atención'}</span>
                   </>
                 ) : (
                   <>

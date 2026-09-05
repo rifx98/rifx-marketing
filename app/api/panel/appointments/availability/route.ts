@@ -52,7 +52,13 @@ export async function GET(req: NextRequest) {
       const [y, m, d] = dateParam.split('-').map(Number);
       const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
       if (!config.business_days.includes(dayOfWeek)) {
-        return NextResponse.json({ available: [], message: 'Día no laborable según tu horario comercial.' });
+        return NextResponse.json({
+          available: [],
+          isNonWorkingDay: true,
+          message: 'Día no laborable según tu horario comercial.',
+        }, {
+          headers: { 'Cache-Control': 'private, no-store' }
+        });
       }
     }
 

@@ -133,6 +133,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Nombre, teléfono y fecha/hora válidos son obligatorios' }, { status: 400 });
       }
 
+      // Validar si el día de la cita está habilitado en business_days
+      const { data: tenantConfig } = await supabase
+        .from('config')
+        .select('business_days')
+        .eq('tenant_id', authorization.tenant.tenantId)
+        .maybeSingle();
+
+      if (Array.isArray(tenantConfig?.business_days) && tenantConfig.business_days.length > 0) {
+        const dateParts = scheduled_time.split('T')[0].split('-').map(Number);
+        if (dateParts.length === 3) {
+          const dayOfWeek = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay();
+          if (!tenantConfig.business_days.includes(dayOfWeek)) {
+            return NextResponse.json({
+              error: 'No se pueden agendar citas en un día sin atención según el horario comercial configurado.'
+            }, { status: 400 });
+          }
+        }
+      }
+
       const validConvId = typeof conversation_id === 'string' && UUID_PATTERN.test(conversation_id) ? conversation_id : null;
       const validResId = typeof resource_id === 'string' && UUID_PATTERN.test(resource_id) ? resource_id : null;
 
@@ -374,6 +393,25 @@ export async function POST(req: NextRequest) {
       const { scheduled_time: newScheduledTime, resource_id: newResId, resource_name: newResName } = parsed.body;
       if (typeof newScheduledTime !== 'string' || !Date.parse(newScheduledTime)) {
         return NextResponse.json({ error: 'Fecha y hora válidas son requeridas para reagendar' }, { status: 400 });
+      }
+
+      // Validar si el nuevo día de la cita está habilitado en business_days
+      const { data: tenantConfig } = await supabase
+        .from('config')
+        .select('business_days')
+        .eq('tenant_id', authorization.tenant.tenantId)
+        .maybeSingle();
+
+      if (Array.isArray(tenantConfig?.business_days) && tenantConfig.business_days.length > 0) {
+        const dateParts = newScheduledTime.split('T')[0].split('-').map(Number);
+        if (dateParts.length === 3) {
+          const dayOfWeek = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).getDay();
+          if (!tenantConfig.business_days.includes(dayOfWeek)) {
+            return NextResponse.json({
+              error: 'No se pueden reagendar citas a un día sin atención según el horario comercial configurado.'
+            }, { status: 400 });
+          }
+        }
       }
 
       const newDate = new Date(newScheduledTime);
