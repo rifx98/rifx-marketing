@@ -108,6 +108,39 @@ export function ConversationsModule({
   const [copied, setCopied] = useState(false);
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef<number>(0);
+  const prevConvIdRef = useRef<string | null>(null);
+
+  const scrollToBottom = (smooth = false) => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (smooth) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
+  };
+
+  useEffect(() => {
+    if (!selected?.id) return;
+    const isNewConv = selected.id !== prevConvIdRef.current;
+    const msgCount = selected.messages?.length || 0;
+    const hasNewMsgs = msgCount !== prevMsgCountRef.current;
+
+    if (isNewConv) {
+      scrollToBottom(false);
+      const timer = setTimeout(() => scrollToBottom(false), 60);
+      prevConvIdRef.current = selected.id;
+      prevMsgCountRef.current = msgCount;
+      return () => clearTimeout(timer);
+    } else if (hasNewMsgs) {
+      scrollToBottom(true);
+      const timer = setTimeout(() => scrollToBottom(true), 60);
+      prevMsgCountRef.current = msgCount;
+      return () => clearTimeout(timer);
+    }
+  }, [selected?.id, selected?.messages?.length]);
 
   useEffect(() => {
     if (selected?.botPaused) {
@@ -295,7 +328,7 @@ export function ConversationsModule({
               </div>
             </header>
 
-            <div className={styles.messages}>
+            <div ref={messagesContainerRef} className={styles.messages}>
               {selected.messages.length ? (
                 selected.messages.map((m, i) => (
                   <div
