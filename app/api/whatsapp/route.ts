@@ -3,6 +3,7 @@ import { processFlowEngineMessage } from '@/lib/flow-engine';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import OpenAI from 'openai';
 import { checkAvailability, createCalendarEvent, getCalendarCredentials, deleteCalendarEvent } from '@/lib/google-calendar';
+import { generateAppointmentBriefing } from '@/lib/calendar-booking';
 import { notifyNextInWaitlist } from '@/lib/waitlist-engine';
 import { classifyIntent } from '@/lib/intent-router';
 import { detectSignalsFromMessage, calculateLeadScore, inferSalesStage, extractSalesMetadata } from '@/lib/lead-scoring';
@@ -20,6 +21,9 @@ import {
 import { processStaticBotMessage } from '@/lib/interactive-bot';
 import { tenantCanUseFeature } from '@/lib/feature-access';
 import { sendAdminEscalationEmail } from '@/lib/email';
+import { formatForWhatsApp, sanitizeGreetings } from '@/lib/whatsapp-formatting';
+import { getActiveKnowledgeContext } from '@/lib/knowledge-base';
+import { deductAiCredits, hasAvailableCredits } from '@/lib/ai-credits';
 
 export const maxDuration = 60;
 
@@ -63,31 +67,34 @@ function resolveWhatsAppWorkerUrl(req: NextRequest): URL | null {
 }
 
 function scheduleWhatsAppWorker(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const workerUrl = resolveWhatsAppWorkerUrl(req);
-  if (!cronSecret || !workerUrl) {
-    console.error('[WhatsApp] Immediate worker trigger is not configured');
-    return;
-  }
-
-  // Start the durable worker only after Meta has received its fast ACK. The
-  // worker endpoint still performs its own constant-time secret validation.
+  // Start the durable worker only after Meta has received its fast ACK.
   after(async () => {
+    // 1. Direct in-process drain: handles the message immediately without relying on external network HTTP routing
     try {
-      const response = await fetch(workerUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${cronSecret}` },
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(WORKER_TRIGGER_TIMEOUT_MS),
-      });
-      if (!response.ok) {
-        console.error(`[WhatsApp] Immediate worker returned HTTP ${response.status}`);
+      await drainWhatsAppIngressDirectly();
+    } catch (directErr: any) {
+      console.error('[WhatsApp] Direct ingress drain error:', directErr?.message);
+    }
+
+    // 2. Secondary fallback: invoke the external worker endpoint if configured
+    const cronSecret = process.env.CRON_SECRET;
+    const workerUrl = resolveWhatsAppWorkerUrl(req);
+    if (cronSecret && workerUrl) {
+      try {
+        const response = await fetch(workerUrl, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${cronSecret}` },
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(WORKER_TRIGGER_TIMEOUT_MS),
+        });
+        if (!response.ok) {
+          console.error(`[WhatsApp] Secondary worker returned HTTP ${response.status}`);
+        }
+        await response.body?.cancel();
+      } catch {
+        console.error('[WhatsApp] Secondary worker trigger failed');
       }
-      await response.body?.cancel();
-    } catch {
-      // The scheduled GitHub OIDC workflow remains the durable retry path.
-      console.error('[WhatsApp] Immediate worker trigger failed');
     }
   });
 }
@@ -358,9 +365,23 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
+    if (Buffer.byteLength(rawBody, 'utf8') > 1024 * 1024) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
+    const body = JSON.parse(rawBody);
+
     const claimedTenantId = req.headers.get('x-rifx-whatsapp-tenant-id') || '';
     const claimedProviderMessageId = req.headers.get('x-rifx-whatsapp-provider-message-id') || '';
-    const claimedDestinationPhoneId = req.headers.get('x-rifx-whatsapp-destination-phone-id') || '';
+    let claimedDestinationPhoneId = req.headers.get('x-rifx-whatsapp-destination-phone-id') || '';
+
+    // Fallback: extract destination phone ID from Meta payload envelope if header was omitted
+    if (!PHONE_ID_PATTERN.test(claimedDestinationPhoneId)) {
+      const envelopePhoneId = String(body?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id || '');
+      if (PHONE_ID_PATTERN.test(envelopePhoneId)) {
+        claimedDestinationPhoneId = envelopePhoneId;
+      }
+    }
+
     if (
       !TENANT_ID_PATTERN.test(claimedTenantId)
       || !PROVIDER_MESSAGE_ID_PATTERN.test(claimedProviderMessageId)
@@ -368,11 +389,6 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     ) {
       return NextResponse.json({ error: 'Invalid worker claim identity' }, { status: 400 });
     }
-
-    if (Buffer.byteLength(rawBody, 'utf8') > 1024 * 1024) {
-      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
-    }
-    const body = JSON.parse(rawBody);
 
     // Extraer el mensaje del payload de Meta
     const entry = body?.entry?.[0];
@@ -404,14 +420,36 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
     const supabase = createSupabaseAdmin();
 
-    // Keep the tenant selected when the event entered the durable queue. If
-    // ownership changed meanwhile, fail closed instead of routing it again.
-    const { data: matchedAccount, error: accountError } = await supabase
-      .from('whatsapp_accounts')
-      .select('*')
-      .eq('tenant_id', claimedTenantId)
-      .eq('phone_number_id', claimedDestinationPhoneId)
-      .maybeSingle();
+    // Parallelize destination account, config, global AI config, and plan owner queries
+    const [
+      { data: matchedAccount, error: accountError },
+      { data: matchedConfig },
+      { data: globalSet },
+      { data: planOwner, error: planOwnerError },
+    ] = await Promise.all([
+      supabase
+        .from('whatsapp_accounts')
+        .select('*')
+        .eq('tenant_id', claimedTenantId)
+        .eq('phone_number_id', claimedDestinationPhoneId)
+        .maybeSingle(),
+      supabase
+        .from('config')
+        .select('*')
+        .eq('tenant_id', claimedTenantId)
+        .maybeSingle(),
+      supabase
+        .from('platform_settings')
+        .select('global_ai_config')
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('tenants')
+        .select('id, plan, plan_status, plan_expires_at, permission_overrides, is_admin, is_active, deleted_at')
+        .eq('id', claimedTenantId)
+        .maybeSingle(),
+    ]);
+
     if (accountError) {
       console.error('[WhatsApp] Claimed destination lookup failed');
       return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
@@ -421,14 +459,6 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       return NextResponse.json({ status: 'ignored_unknown_destination' });
     }
     const whatsappAccount: Record<string, any> = matchedAccount;
-    // We also need the tenant's config for openai key if AI bot is used, but FlowZap V3 moves it to ai_provider_configs.
-    // Let's still fetch config for legacy support for now.
-    const { data: matchedConfig } = await supabase
-      .from('config')
-      .select('*')
-      .eq('tenant_id', claimedTenantId)
-      .maybeSingle();
-      
     const config: Record<string, any> = matchedConfig || {};
     // Override whatsapp tokens so legacy code uses the specific account
     config.whatsapp_token = whatsappAccount.access_token;
@@ -437,25 +467,16 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     const tenantId = claimedTenantId;
 
     try {
-      const { data: globalSet } = await supabase
-        .from('platform_settings')
-        .select('global_ai_config')
-        .limit(1)
-        .single();
-      
       const globalAiConfig = globalSet?.global_ai_config;
       if (globalAiConfig && globalAiConfig.enabled) {
         config.model_selection = globalAiConfig.model || config.model_selection;
         
-        let targetKeyField = 'openai_key'; // Default to openai config space
+        let targetKeyField = 'openai_key';
         if (globalAiConfig.provider === 'gemini') targetKeyField = 'gemini_key';
         else if (globalAiConfig.provider === 'groq') targetKeyField = 'groq_key';
         
-        // We inject the API key directly into the root config, and also ensure extConfig gets it later
         config[targetKeyField] = globalAiConfig.apiKey;
         
-        // If the user uses a JSON string in openai_key for extended config, we shouldn't overwrite the whole JSON if we can avoid it.
-        // But since we extract extConfig later from JSON.parse(config.openai_key), we can just let it fall back or we inject it into the JSON if it's already a JSON string.
         try {
           const parsedExt = JSON.parse(config.openai_key || '{}');
           parsedExt[targetKeyField] = globalAiConfig.apiKey;
@@ -469,11 +490,6 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       console.error('[WhatsApp] Error reading global_ai_config', e);
     }
 
-    const { data: planOwner, error: planOwnerError } = await supabase
-      .from('tenants')
-      .select('id, plan, plan_status, plan_expires_at, permission_overrides, is_admin, is_active, deleted_at')
-      .eq('id', tenantId)
-      .maybeSingle();
     if (planOwnerError || !planOwner) {
       console.error('[WhatsApp] Tenant entitlement lookup failed:', tenantId, planOwnerError);
       return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
@@ -559,11 +575,17 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       if (hasRemainingMessages && status !== 'failed') throw new ContinueWebhookBatch();
     };
 
-    // Decodificar campos extendidos del config (admin_notification_phone está dentro del JSON de openai_key)
+    // Decodificar campos extendidos del config (admin_notification_phone y guardrails dentro del JSON de openai_key)
     let adminNotificationPhone = '';
+    let botHumanHandoff = true;
+    let botProfanityFilter = true;
+    let botTopicLocks = false;
     try {
       const extCfg = JSON.parse(config?.openai_key || '{}');
       adminNotificationPhone = extCfg.admin_notification_phone || process.env.ADMIN_NOTIFICATION_PHONE || '';
+      botHumanHandoff = extCfg.bot_human_handoff !== false;
+      botProfanityFilter = extCfg.bot_profanity_filter !== false;
+      botTopicLocks = extCfg.bot_topic_locks === true;
     } catch {
       adminNotificationPhone = process.env.ADMIN_NOTIFICATION_PHONE || '';
     }
@@ -665,31 +687,67 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       return NextResponse.json({ error: 'DB error' }, { status: 503 });
     }
 
-    // 2. Guardar mensaje del cliente
+    // 2. Guardar mensaje del cliente y precargar contexto en paralelo para velocidad ultrarrápida
     const dbContent = isAudio ? `🎙️ [Audio]: ${customerMessage}` : customerMessage;
 
-    await supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      role: 'user',
-      content: dbContent,
-    });
+    const [
+      _userMsgInsert,
+      customerProfileRes,
+      signalMessagesRes,
+      rawHistoryRes,
+      kbContextRes,
+      tenantPricingRes,
+      creditsRes,
+      upcomingApptRes,
+    ] = await Promise.all([
+      supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'user',
+        content: dbContent,
+      }),
+      supabase
+        .from('customer_profiles')
+        .select('*')
+        .eq('phone_number', customerPhone)
+        .eq('tenant_id', tenantId)
+        .maybeSingle(),
+      supabase
+        .from('messages')
+        .select('content, created_at')
+        .eq('conversation_id', conversation.id)
+        .in('content', ['__SYSTEM_PAUSE__', '__SYSTEM_RESUME__'])
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('messages')
+        .select('role, content')
+        .eq('conversation_id', conversation.id)
+        .order('created_at', { ascending: false })
+        .limit(15),
+      tenantId ? getActiveKnowledgeContext(supabase, tenantId).catch(() => '') : Promise.resolve(''),
+      tenantId ? loadTenantPricing(supabase, tenantId).catch(() => []) : Promise.resolve([]),
+      tenantId ? hasAvailableCredits(supabase, tenantId).catch(() => ({ hasCredits: true, balance: 100 })) : Promise.resolve({ hasCredits: true, balance: 100 }),
+      Promise.resolve(
+        supabase
+          .from('appointments')
+          .select('*')
+          .eq('conversation_id', conversation.id)
+          .eq('tenant_id', tenantId)
+          .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
+          .gte('scheduled_time', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
+          .order('scheduled_time', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+      ).catch(() => ({ data: null })),
+    ]);
 
-    // 2.1 Buscar perfil de cliente (Memoria a Largo Plazo)
-    const { data: customerProfile } = await supabase
-      .from('customer_profiles')
-      .select('*')
-      .eq('phone_number', customerPhone)
-      .eq('tenant_id', tenantId)
-      .maybeSingle();
-
-    // 2.5 Verificar si la conversación está en MODO HUMANO (señal en mensajes)
-    const { data: signalMessages } = await supabase
-      .from('messages')
-      .select('content, created_at')
-      .eq('conversation_id', conversation.id)
-      .in('content', ['__SYSTEM_PAUSE__', '__SYSTEM_RESUME__'])
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const customerProfile = customerProfileRes?.data;
+    const signalMessages = signalMessagesRes?.data;
+    const rawHistory = rawHistoryRes?.data;
+    const preloadedKbContext = kbContextRes || '';
+    const preloadedTenantPricing = (tenantPricingRes || []) as any[];
+    const preloadedCredits = creditsRes || { hasCredits: true, balance: 100 };
+    const preloadedUpcomingAppt = upcomingApptRes?.data;
 
     const lastSignal = signalMessages && signalMessages.length > 0 ? signalMessages[0] : null;
     const isPausedSignal = lastSignal?.content === '__SYSTEM_PAUSE__';
@@ -793,7 +851,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     let humanAskCount = 0;
     let forceHumanEscalation = false;
 
-    if (wantsHuman) {
+    if (wantsHuman && botHumanHandoff) {
       // Contar cuántas veces ha pedido hablar con humano
       const { data: prevAsks } = await supabase
         .from('messages')
@@ -920,14 +978,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       updatedSignals.acceptedProposal
     );
 
-    // 3. Cargar historial de mensajes (últimos 10, sin mensajes de error)
-    const { data: rawHistory } = await supabase
-      .from('messages')
-      .select('role, content')
-      .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: false })
-      .limit(15);
-
+    // 3. Historial de mensajes (precargado en paralelo)
     // Filtrar mensajes de error/fallback que contaminan el contexto
     const errorPatterns = [
       'Lo siento, no pude procesar',
@@ -992,49 +1043,33 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       aiPrompt = extSupportPrompt || DEFAULT_SUPPORT_PROMPT;
     }
 
-    // 4.2 Cargar Base de Conocimiento del tenant
-    if (tenantId) {
-      try {
-        const { data: activeEntries, error: knowledgeError } = await supabase
-          .from('knowledge_documents')
-          .select('file_name, content')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'ready')
-          .eq('active', true)
-          .order('created_at', { ascending: true })
-          .order('id', { ascending: true })
-          .limit(100);
-        if (knowledgeError) throw new Error('knowledge_context_unavailable');
-
-        if (activeEntries && activeEntries.length > 0) {
-          // Build knowledge context (limit total to ~30K chars to avoid token overflow)
-          let kbContext = '\n\n[BASE DE CONOCIMIENTO — Usa esta información para responder preguntas del cliente]:\n';
-          let totalChars = 0;
-          const maxKbChars = 30000;
-
-          for (const entry of activeEntries) {
-            if (totalChars + entry.content.length > maxKbChars) {
-              const remaining = maxKbChars - totalChars;
-              if (remaining > 200) {
-                kbContext += `\n--- ${entry.file_name} ---\n${entry.content.substring(0, remaining)}...\n`;
-              }
-              break;
-            }
-            kbContext += `\n--- ${entry.file_name} ---\n${entry.content}\n`;
-            totalChars += entry.content.length;
-          }
-
-          aiPrompt += kbContext;
-        }
-      } catch {
-        console.warn('Knowledge context unavailable during WhatsApp processing');
-      }
+    // 4.2 Base de Conocimiento del tenant (precargada en paralelo)
+    if (tenantId && preloadedKbContext) {
+      aiPrompt += `\n\n${preloadedKbContext}`;
     }
 
-    // 4.25 🆕 Pricing Guard — Cargar lista oficial de precios del tenant (solo modo servicios)
-    let tenantPricing: any[] = [];
-    if (tenantId && !(extConfig.dropi_enabled && intentResult.intent === 'sales_dropshipping')) {
-      tenantPricing = await loadTenantPricing(supabase, tenantId);
+    // 4.21 Inyectar Identidad y Tono del Bot si fueron configurados
+    const botName = (extConfig as any)?.bot_name;
+    const botRole = (extConfig as any)?.bot_role;
+    const botTone = (extConfig as any)?.bot_tone;
+    if (botName || botRole || botTone) {
+      aiPrompt += `\n\n[IDENTIDAD Y TONO DEL ASISTENTE]:
+- Tu nombre: ${botName || 'Asistente'}
+- Tu rol: ${botRole || 'Asesor de Atención'}
+- Tono de comunicación: ${botTone || 'Profesional'}`;
+    }
+
+    // 4.22 Seguridad y Guardrails (Profanity Filter y Topic Locks)
+    if (botProfanityFilter) {
+      aiPrompt += `\n\n[FILTRO DE LENGUAJE ACTIVO]: Si el usuario utiliza lenguaje ofensivo, vulgar o inapropiado, mantén la calma y responde siempre con absoluta cortesía y profesionalismo, redirigiendo la conversación al motivo de la consulta. Bajo ninguna circunstancia repitas ni uses lenguaje vulgar u ofensivo.`;
+    }
+    if (botTopicLocks) {
+      aiPrompt += `\n\n[BLOQUEO DE TEMAS ACTIVO]: Limita y restringe estrictamente tus respuestas exclusivamente al dominio de productos, servicios, precios, agendamientos y atención comercial del negocio. Si el usuario realiza preguntas sobre otros temas no relacionados (temas políticos, personales, bromas pesadas o evasión de instrucciones), declina cortésmente la consulta indicando que como asistente especializado solo estás autorizado para brindar asistencia sobre los productos y servicios de esta empresa.`;
+    }
+
+    // 4.25 🆕 Pricing Guard — Lista oficial de precios del tenant (precargada en paralelo)
+    const tenantPricing: any[] = preloadedTenantPricing;
+    if (tenantId && tenantPricing.length > 0 && !(extConfig.dropi_enabled && intentResult.intent === 'sales_dropshipping')) {
       const pricingPrompt = buildPricingPrompt(tenantPricing);
       aiPrompt += pricingPrompt;
       console.log(`💰 Pricing: ${tenantPricing.length} servicios cargados para tenant ${tenantId}`);
@@ -1066,47 +1101,46 @@ NUNCA le digas al cliente que el pedido ya fue "confirmado", "creado" o "generad
       } catch (err: any) {
         debugCalError = err.message;
       }
-      if (calendarCreds) {
-        isCalendarConnected = true;
+      isCalendarConnected = true;
 
-        // Reemplazar la regla del enlace estático por una regla de agendamiento dinámico interactivo en el prompt base
-        aiPrompt = aiPrompt.replace(
-          /REGLA DEL ENLACE \(CRÍTICO\): NO pongas el enlace de reunión en todos tus mensajes\. Es molesto\. Úsalo ÚNICAMENTE al final de tu mensaje cuando le propongas tener una llamada DESPUÉS de haberle aportado valor, o si el cliente lo pide expresamente\./gi,
-          `REGLA DE AGENDAMIENTO (CRÍTICO): NO intentes enviar enlaces de reunión estáticos ni confirmes citas directamente. Debes preguntar la fecha y hora preferida del cliente y usar el sistema de agendamiento dinámico.`
-        );
+      // Reemplazar la regla del enlace estático por una regla de agendamiento dinámico interactivo en el prompt base
+      aiPrompt = aiPrompt.replace(
+        /REGLA DEL ENLACE \(CRÍTICO\): NO pongas el enlace de reunión en todos tus mensajes\. Es molesto\. Úsalo ÚNICAMENTE al final de tu mensaje cuando le propongas tener una llamada DESPUÉS de haberle aportado valor, o si el cliente lo pide expresamente\./gi,
+        `REGLA DE AGENDAMIENTO (CRÍTICO): NO intentes enviar enlaces de reunión estáticos ni confirmes citas directamente. Debes preguntar la fecha y hora preferida del cliente y usar el sistema de agendamiento dinámico.`
+      );
 
-        aiPrompt = aiPrompt.replace(
-          /Después de explicar un beneficio, da un Call To Action \(CTA\) directivo: "Para aterrizar esto a tu negocio, elige un horario aquí 👇: \[PON TU LINK DE REUNIÓN AQUÍ\]" o "Si estás listo para empezar, el pago se hace aquí 💳: \[PON TU LINK DE PAGO AQUÍ\]"\./gi,
-          `Después de explicar un beneficio y responder todas las dudas del cliente, si el cliente muestra interés puedes sugerirle amablemente agendar una llamada para profundizar — pero NUNCA saltes a ofrecer horarios si el cliente está haciendo preguntas sobre el servicio. Primero responde sus preguntas.`
-        );
+      aiPrompt = aiPrompt.replace(
+        /Después de explicar un beneficio, da un Call To Action \(CTA\) directivo: "Para aterrizar esto a tu negocio, elige un horario aquí 👇: \[PON TU LINK DE REUNIÓN AQUÍ\]" o "Si estás listo para empezar, el pago se hace aquí 💳: \[PON TU LINK DE PAGO AQUÍ\]"\./gi,
+        `Después de explicar un beneficio y responder todas las dudas del cliente, si el cliente muestra interés puedes sugerirle amablemente agendar una llamada para profundizar — pero NUNCA saltes a ofrecer horarios si el cliente está haciendo preguntas sobre el servicio. Primero responde sus preguntas.`
+      );
 
-        // Sanitizar cualquier otro enlace estático del prompt base que conflictuaría con el calendario dinámico
-        const staticLinkPatterns = [
-          /\[PON TU LINK DE REUNIÓN AQUÍ\]/gi,
-          /\[enlace de reunión\]/gi,
-          /\[link de reunión\]/gi,
-          /\[enlace de agenda\]/gi,
-          /\[link de agenda\]/gi,
-          /\[tu link de agenda\]/gi,
-          /\[pon tu enlace aquí\]/gi,
-          /\[insertar link de calendly\]/gi,
-          /\[insertar enlace\]/gi,
-        ];
-        for (const pattern of staticLinkPatterns) {
-          aiPrompt = aiPrompt.replace(pattern, '[pregunta disponibilidad por mensaje]');
-        }
+      // Sanitizar cualquier otro enlace estático del prompt base que conflictuaría con el calendario dinámico
+      const staticLinkPatterns = [
+        /\[PON TU LINK DE REUNIÓN AQUÍ\]/gi,
+        /\[enlace de reunión\]/gi,
+        /\[link de reunión\]/gi,
+        /\[enlace de agenda\]/gi,
+        /\[link de agenda\]/gi,
+        /\[tu link de agenda\]/gi,
+        /\[pon tu enlace aquí\]/gi,
+        /\[insertar link de calendly\]/gi,
+        /\[insertar enlace\]/gi,
+      ];
+      for (const pattern of staticLinkPatterns) {
+        aiPrompt = aiPrompt.replace(pattern, '[pregunta disponibilidad por mensaje]');
+      }
 
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
-        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-        const todayName = dayNames[today.getDay()];
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const todayName = dayNames[today.getDay()];
 
-        const bDays = extConfig.business_days || [1,2,3,4,5];
-        const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
-        const scheduleString = `${configuredDaysStr}, de ${extConfig.business_start_hour || '09:00'} a ${extConfig.business_end_hour || '18:00'}`;
+      const bDays = extConfig.business_days || [1,2,3,4,5];
+      const configuredDaysStr = bDays.map((d: number) => dayNames[d]).join(', ');
+      const scheduleString = `${configuredDaysStr}, de ${extConfig.business_start_hour || '09:00'} a ${extConfig.business_end_hour || '18:00'}`;
 
-        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DE CITAS — GOOGLE CALENDAR CONECTADO]:
-Tienes acceso al calendario del negocio para agendar reuniones y citas con los clientes.
+      aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DE CITAS Y CALENDARIO]:
+Tienes acceso al calendario oficial del negocio para agendar reuniones y citas con los clientes.
 Hoy es ${todayName} ${todayStr}.
 El cliente actual es:
 - Nombre: ${customerName || 'Cliente'}
@@ -1114,74 +1148,41 @@ El cliente actual es:
 
 REGLA DE ORO DEL AGENDAMIENTO (CRÍTICO — LEE ESTO PRIMERO):
 NO ofrezcas horarios ni inicies el flujo de agendamiento a menos que el cliente EXPLÍCITAMENTE lo pida usando palabras de intención de agendar como: "agendar", "reunión", "cita", "llamada", "videollamada", "agenda", "quiero una cita", "podemos hablar", "cuándo nos reunimos", "agéndame", "quiero agendar", "me gustaría una reunión", "podemos tener una llamada", o cuando el cliente proponga un día/hora ESPECÍFICO para reunirse (ej. "el jueves a las 4").
-Si el cliente está haciendo PREGUNTAS sobre el servicio (ej. "¿cómo funciona?", "¿qué incluye?", "¿cómo me ayudan?", "¿qué resultados puedo esperar?"), RESPONDE SUS PREGUNTAS con información útil y detallada. NO saltes a ofrecer horarios. Sé un asesor de ventas experto primero — aporta valor, resuelve dudas, genera confianza. Solo cuando el cliente ya esté convencido o pida explícitamente agendar, ahí sí inicia el flujo de agendamiento.
+Si el cliente está haciendo PREGUNTAS sobre el servicio, responde sus dudas primero. Solo cuando el cliente ya esté convencido o pida explícitamente agendar, ahí sí inicia el flujo de agendamiento.
 
-Flujo de agendamiento (SOLO cuando el cliente lo solicite):
-1. Pregúntale qué día y hora le conviene. ESTRICTAMENTE PROHIBIDO: NO PUEDES agendar, ofrecer ni aceptar citas fuera del horario de atención (${scheduleString}). Si el cliente pide un día fuera del horario, DEBES NEGARTE CORTÉSEMENTE y ofrecer solo días hábiles. Si desobedeces esto, el sistema colapsará.
-2. Cuando el cliente proponga una fecha (sin hora específica), usa el siguiente tag para verificar disponibilidad:
+Flujo de agendamiento:
+1. Pregúntale qué día y hora le conviene. Horario de atención: ${scheduleString}.
+2. Cuando el cliente proponga una fecha (sin hora específica), usa el tag:
    [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
-   El sistema te devolverá los horarios disponibles para ese día.
-3. Muéstrale al cliente las opciones de horario disponibles.
-4. Cuando el cliente confirme un horario específico (ej. "a las 4", "10 AM", "las 3 de la tarde", "4:00 PM"), debes usar INMEDIATAMENTE este tag exacto para crear la cita — NO vuelvas a usar [VERIFICAR_DISPONIBILIDAD]:
+3. Cuando el cliente confirme un horario específico (ej. "a las 4", "10 AM", "las 3 de la tarde", "4:00 PM"), debes usar INMEDIATAMENTE este tag exacto para crear la cita:
    [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:YYYY-MM-DD:HH:MM:Asesoría de RIFX]
-   Ejemplo: [AGENDAR_CITA:${customerName || 'Cliente'}:${customerPhone}:2026-06-12:10:00:Asesoría de RIFX]
-   Usa la fecha de la que ya estaban hablando. NUNCA confirmes la cita tú mismo en tu propia respuesta sin poner este tag. El sistema procesará el agendamiento en Google Calendar al ver el tag y te dará la confirmación automáticamente.
-5. Si el cliente pregunta por disponibilidad sin dar una fecha concreta, sugiérele los próximos días hábiles.
-
-REGLA ANTI-CICLO (CRÍTICO): Si ya le mostraste horarios disponibles al cliente y él responde eligiendo uno (ej. "a las 4", "la de las 10", "2 PM", "4:00 PM"), DEBES usar [AGENDAR_CITA] directamente con la fecha y hora correspondiente. JAMÁS vuelvas a usar [VERIFICAR_DISPONIBILIDAD] para la misma fecha después de haber mostrado los slots — hacerlo crea un ciclo infinito. Si el usuario ya indicó día Y hora en un mismo mensaje (ej. "el jueves a las 4"), después de verificar disponibilidad agenda directamente si ese horario está disponible.
-
-IMPORTANTE:
-- Solo usa estos tags cuando el cliente EXPLÍCITAMENTE quiera agendar una cita.
-- No inventes fechas ni horarios. Consulta primero con [VERIFICAR_DISPONIBILIDAD] solo UNA VEZ por fecha.
-- Las citas duran 1 hora por defecto.
-- NUNCA envíes un enlace de reunión estático. Siempre usa los tags [VERIFICAR_DISPONIBILIDAD] y [AGENDAR_CITA] para gestionar citas de forma dinámica.
-- Para calcular fechas relativas (ej. "mañana", "el jueves", "este viernes"), básate en que hoy es ${todayName} ${todayStr}. Por ejemplo, si hoy es Lunes 2026-06-08, "este viernes" es 2026-06-12. Calcula siempre la fecha exacta en formato YYYY-MM-DD.`;
-        console.log(`📅 Calendar: Instrucciones de agendamiento inyectadas para tenant ${tenantId} (enlaces estáticos sanitizados)`);
-      } else {
-        // Fallback when calendar credentials exist but are invalid/expired, OR not connected at all
-        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DESCONECTADO (DEBUG: calendarCreds is null. tenantId=${tenantId}, error=${debugCalError})]:
-ACTUALMENTE NO TIENES ACCESO AL CALENDARIO. ESTÁ ESTRICTAMENTE PROHIBIDO confirmar citas, agendar reuniones o proponer horarios. Si el cliente pide agendar, dile amablemente que en este momento no puedes procesar citas automáticamente y que un asesor humano se pondrá en contacto para agendar, o indícale que te deje sus datos. NUNCA digas "quedo agendado" ni inventes confirmaciones.
-¡MUY IMPORTANTE!: SI LEES ESTE BLOQUE [SISTEMA DE AGENDAMIENTO DESCONECTADO], DEBES EMPEZAR TU RESPUESTA CON LA PALABRA "DEBUG_ERROR_CODE:" SEGUIDO DE: tenantId=${tenantId}, error=${debugCalError}`;
-      }
-    } else if (!extConfig.dropi_enabled) {
-        // Dropi is disabled and no tenantId or no calendar configured
-        aiPrompt += `\n\n[SISTEMA DE AGENDAMIENTO DESCONECTADO]:
-ACTUALMENTE NO TIENES ACCESO AL CALENDARIO. ESTÁ ESTRICTAMENTE PROHIBIDO confirmar citas, agendar reuniones o proponer horarios. Si el cliente pide agendar, dile amablemente que en este momento no puedes procesar citas automáticamente y que un asesor humano se pondrá en contacto para agendar, o indícale que te deje sus datos. NUNCA digas "quedo agendado" ni inventes confirmaciones.`;
+   El sistema procesará el agendamiento y guardará la cita automáticamente en el calendario.
+4. Para calcular fechas relativas (ej. "mañana", "el jueves", "este viernes"), básate en que hoy es ${todayName} ${todayStr}.`;
+      console.log(`📅 Calendar: Instrucciones de agendamiento inyectadas para tenant ${tenantId}`);
     }
 
-    // 4.25 Buscar cita pendiente próxima para este cliente y agregar contexto
+    // 4.25 Buscar cita pendiente próxima para este cliente y agregar contexto (precargada en paralelo)
     let upcomingApptText = '';
     let upcomingApptId = '';
     if (!extConfig.dropi_enabled && conversation) {
-      try {
-        const { data: upcomingAppt } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('conversation_id', conversation.id)
-          .eq('tenant_id', tenantId)
-          .in('status', ['pending', 'confirmed', 'awaiting_reschedule', 'rescheduled', 'pending_completion'])
-          .gte('scheduled_time', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
-          .order('scheduled_time', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        if (upcomingAppt) {
-          upcomingApptId = upcomingAppt.id;
-          const apptDate = new Date(upcomingAppt.scheduled_time);
-          // Format date for Ecuador (UTC-5)
-          const options: Intl.DateTimeFormatOptions = {
-            timeZone: 'America/Guayaquil',
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          };
-          const formattedDate = new Intl.DateTimeFormat('es-EC', options).format(apptDate);
-          
-          upcomingApptText = `\n\n[CITA ENCONTRADA]:
+      const upcomingAppt = preloadedUpcomingAppt;
+      if (upcomingAppt) {
+        upcomingApptId = upcomingAppt.id;
+        const apptDate = new Date(upcomingAppt.scheduled_time);
+        // Format date for Ecuador (UTC-5)
+        const options: Intl.DateTimeFormatOptions = {
+          timeZone: 'America/Guayaquil',
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        };
+        const formattedDate = new Intl.DateTimeFormat('es-EC', options).format(apptDate);
+        
+        upcomingApptText = `\n\n[CITA ENCONTRADA]:
 El cliente tiene una cita programada (Estado actual: ${upcomingAppt.status}):
 - Servicio/Motivo: ${upcomingAppt.service || 'Asesoría'}
 - Fecha y Hora: ${formattedDate}
@@ -1192,14 +1193,11 @@ INSTRUCCIONES CRÍTICAS PARA LA CITA:
 - Si el cliente confirma su asistencia (ej. dice palabras como "Sí", "Confirmado", "Ahí estaré", "Perfecto", "Claro", "Nos vemos", "De acuerdo"), debes responder de manera amable confirmando que su asistencia ha sido registrada y agregar exactamente este tag en tu respuesta: [CONFIRMAR_ASISTENCIA:${upcomingAppt.id}].
 - Si el cliente quiere cambiar el horario de la cita o reagendar (ej. dice "Quiero cambiar de hora/día", "Necesito otro horario", "Reagendar", "Cambiar cita"), debes ofrecerle otras opciones usando el tag [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD] y agregar exactamente este tag en tu respuesta para que el sistema lo ponga en espera de reagendar (manteniendo su cita actual temporalmente activa): [SOLICITAR_REAGENDAMIENTO:${upcomingAppt.id}].
 - Si el cliente cancela definitivamente o dice que no asistirá de ninguna manera (ej. dice "No puedo ir", "Cancela", "Me surgió algo", "Ya no voy a asistir"), debes ofrecer disculpas y agregar exactamente este tag en tu respuesta: [CANCELAR_CITA:${upcomingAppt.id}].`;
-          console.log(`📅 Cita encontrada (${upcomingAppt.status}): ${upcomingAppt.id} para conversación ${conversation.id}`);
-        } else {
-          upcomingApptText = `\n\n[ESTADO DE CITAS]:
+        console.log(`📅 Cita encontrada (${upcomingAppt.status}): ${upcomingAppt.id} para conversación ${conversation.id}`);
+      } else {
+        upcomingApptText = `\n\n[ESTADO DE CITAS]:
 El cliente ACTUALMENTE NO TIENE ninguna cita agendada o programada.
 INSTRUCCIONES CRÍTICAS: Si el cliente pregunta cuándo es su cita o pide información sobre su cita, debes decirle amablemente que revisaste el sistema y no tiene ninguna cita agendada actualmente, y ofrécele agendar una nueva cita en ese momento.`;
-        }
-      } catch (dbErr) {
-        console.error('⚠️ Error al buscar cita pendiente:', dbErr);
       }
       
       // Asegurarnos de agregar este texto al prompt
@@ -1208,10 +1206,15 @@ INSTRUCCIONES CRÍTICAS: Si el cliente pregunta cuándo es su cita o pide inform
       }
     }
 
-    // Enforce greeting/signature rule: only introduce/present once.
-    aiPrompt += `\n\n[REGLA CRÍTICA DE COMUNICACIÓN]:
-- Únicamente debes presentarte como "especialista de RIFX" o decir "Soy especialista de RIFX" en tu primer saludo o inicio de la conversación.
-- En todos los mensajes siguientes de la conversación, está estrictamente PROHIBIDO que repitas "Soy especialista de RIFX", "asistente de RIFX", o que te presentes de nuevo. Responde directamente a las dudas del cliente con naturalidad, empatía y profesionalismo sin repetir tu presentación.`;
+    const isOngoingConversation = (history || []).length > 0;
+
+    // Enforce greeting/signature rule & WhatsApp bold formatting
+    aiPrompt += `\n\n[REGLAS CRÍTICAS DE COMUNICACIÓN Y FORMATO]:
+- FORMATO WHATSAPP: Para texto en negrita, usa SIEMPRE UN SOLO ASTERISCO: *palabra*. NUNCA uses doble asterisco **palabra** ni markdown normal, porque WhatsApp no activa las negritas con doble asterisco.
+${isOngoingConversation
+  ? '- CONVERSACIÓN EN CURSO: El cliente ya está hablando contigo. NO SALUDES (prohibido decir "¡Hola!", "Buenas tardes", "Hola de nuevo", "¿Cómo estás?", etc.). Ve directo a responder y asesorar sin rodeos de saludo.'
+  : '- Saluda de forma natural una sola vez. No repitas saludos.'}
+- Únicamente debes presentarte en tu primer saludo si aplica. En los siguientes mensajes, responde con naturalidad, empatía y profesionalismo sin repetir saludos ni quién eres.`;
 
     // 4.3 Inyectar Memoria a Largo Plazo
     if (customerProfile && (customerProfile.business_type || customerProfile.location || customerProfile.service_interest || customerProfile.budget_range)) {
@@ -1226,8 +1229,8 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
 
     // Determine which provider & model to use
     let selectedModel = extConfig.model_selection || 'gpt-4o';
-    let isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral');
-    let isGemini = selectedModel.startsWith('gemini');
+    let isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('qwen') || selectedModel.startsWith('groq') || selectedModel.includes('qwen') || (globalSet?.global_ai_config?.provider === 'groq' && globalSet?.global_ai_config?.enabled);
+    let isGemini = !isGroq && (selectedModel.startsWith('gemini') || (globalSet?.global_ai_config?.provider === 'gemini' && globalSet?.global_ai_config?.enabled));
     let isOpenAI = !isGroq && !isGemini;
 
     // Resolve API key based on provider
@@ -1248,7 +1251,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
     if (!apiKey || apiKey.length < 10) {
       console.warn(`⚠️ No hay API Key para el modelo seleccionado (${selectedModel}). Buscando fallback...`);
       const fallbackOptions = [
-        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'mixtral-8x7b-32768', name: 'Groq' },
+        { key: extConfig.groq_key || process.env.GROQ_API_KEY || '', model: 'qwen/qwen3.8-27b', name: 'Groq' },
         { key: extConfig.openai_key || process.env.OPENAI_API_KEY || '', model: 'gpt-4o-mini', name: 'OpenAI' },
         { key: extConfig.gemini_key || process.env.GEMINI_API_KEY || '', model: 'gemini-2.0-flash', name: 'Gemini' },
       ];
@@ -1258,8 +1261,8 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
           console.log(`🔄 Fallback de API Key → usando ${fb.name} (${fb.model})`);
           apiKey = fb.key;
           selectedModel = fb.model;
-          isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('gemma') || selectedModel.startsWith('deepseek');
-          isGemini = selectedModel.startsWith('gemini');
+          isGroq = selectedModel.startsWith('llama') || selectedModel.startsWith('mixtral') || selectedModel.startsWith('qwen') || selectedModel.startsWith('groq') || selectedModel.includes('qwen');
+          isGemini = !isGroq && selectedModel.startsWith('gemini');
           isOpenAI = !isGroq && !isGemini;
           foundFallback = true;
           break;
@@ -1278,6 +1281,22 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
         }
         await finalizeWebhookEvent('failed', 'ai_provider_unavailable');
         return NextResponse.json({ error: 'No AI key configured' }, { status: 503 });
+      }
+    }
+
+    // 4.98 Verificar saldo de créditos IA antes de ejecutar la consulta (precargado en paralelo)
+    if (tenantId) {
+      const { hasCredits, balance } = preloadedCredits;
+      if (!hasCredits) {
+        console.warn(`💳 [WhatsApp ${providerMessageId}] Tenant ${tenantId} sin créditos de IA disponibles (saldo: ${balance})`);
+        await sendWhatsAppMessage(
+          customerPhone,
+          'Nuestro asistente virtual se encuentra temporalmente en pausa. Un asesor humano se comunicará contigo a la brevedad posible. 🙏',
+          config,
+          'out_of_credits_fallback'
+        );
+        await finalizeWebhookEvent('processed', 'out_of_credits');
+        return NextResponse.json({ status: 'out_of_credits' });
       }
     }
 
@@ -1395,6 +1414,11 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
       }
     }
 
+    const configuredBotTemp = typeof (extConfig as any)?.bot_temperature === 'number'
+      ? (extConfig as any).bot_temperature
+      : 0.7;
+    const effectiveBotTemp = Math.max(0, Math.min(1.5, configuredBotTemp));
+
     if (!skipAiCall) {
       try {
         if (isGemini) {
@@ -1421,7 +1445,11 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
           
           const geminiPayload: any = {
             contents: geminiContents,
-            generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
+            generationConfig: {
+              maxOutputTokens: 350,
+              temperature: effectiveBotTemp,
+              thinkingConfig: { thinkingBudget: 0 },
+            }
           };
           // Use systemInstruction for system prompt (supported by Gemini 1.5+ and 2.0)
           if (systemMsg) {
@@ -1469,8 +1497,8 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
           const completion = await client.chat.completions.create({
             model: selectedModel,
             messages: chatMessages,
-            max_tokens: 500,
-            temperature: 0.7,
+            max_tokens: 350,
+            temperature: effectiveBotTemp,
           });
           aiResponse = completion.choices[0]?.message?.content || '';
         }
@@ -1524,7 +1552,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
                 if (fbGemContents.length > 0 && fbGemContents[0].role !== 'user') {
                   fbGemContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
                 }
-                const fbPayload: any = { contents: fbGemContents, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } };
+                const fbPayload: any = { contents: fbGemContents, generationConfig: { maxOutputTokens: 500, temperature: effectiveBotTemp } };
                 if (fbSystemMsg) { fbPayload.systemInstruction = { parts: [{ text: fbSystemMsg.content }] }; }
                 const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${fb.model}:generateContent?key=${fb.key}`, {
                   method: 'POST',
@@ -1543,7 +1571,7 @@ ${customerProfile.budget_range ? `- Presupuesto estimado: ${customerProfile.budg
                 aiResponse = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
               } else {
                 const fbClient = new OpenAI({ apiKey: fb.key, baseURL: fb.baseURL });
-                const fbCompletion = await fbClient.chat.completions.create({ model: fb.model, messages: chatMessages, max_tokens: 500, temperature: 0.7 });
+                const fbCompletion = await fbClient.chat.completions.create({ model: fb.model, messages: chatMessages, max_tokens: 500, temperature: effectiveBotTemp });
                 aiResponse = fbCompletion.choices[0]?.message?.content || '';
               }
               if (aiResponse) {
@@ -1741,7 +1769,7 @@ Transportadora: *${orderResult.carrier}*`;
             if (fuContents.length > 0 && fuContents[0].role !== 'user') {
               fuContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
             }
-            const fuPayload: any = { contents: fuContents, generationConfig: { maxOutputTokens: 500, temperature: 0.7 } };
+            const fuPayload: any = { contents: fuContents, generationConfig: { maxOutputTokens: 500, temperature: effectiveBotTemp } };
             if (fuSysMsg) { fuPayload.systemInstruction = { parts: [{ text: fuSysMsg.content }] }; }
             const gemRes2 = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`, {
               method: 'POST',
@@ -1759,7 +1787,7 @@ Transportadora: *${orderResult.carrier}*`;
             slotsResponse = gemData2?.candidates?.[0]?.content?.parts?.[0]?.text || '';
           } else {
             const client2 = new OpenAI({ apiKey, baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined });
-            const comp2 = await client2.chat.completions.create({ model: selectedModel, messages: followUpMessages, max_tokens: 500, temperature: 0.7 });
+            const comp2 = await client2.chat.completions.create({ model: selectedModel, messages: followUpMessages, max_tokens: 500, temperature: effectiveBotTemp });
             slotsResponse = comp2.choices[0]?.message?.content || '';
           }
           if (slotsResponse) {
@@ -1831,6 +1859,20 @@ Transportadora: *${orderResult.carrier}*`;
                 }
               }
 
+              // Generar briefing de contexto con IA para el asesor
+              let briefing: string | null = null;
+              try {
+                briefing = await generateAppointmentBriefing({
+                  tenantId,
+                  customerName: clientName,
+                  service,
+                  conversationId: conversation.id,
+                  bookingDate: new Date().toISOString()
+                });
+              } catch (brErr) {
+                console.warn('[WhatsApp Route] Error generando briefing de cita:', brErr);
+              }
+
               // Actualizar la cita existente en la DB
               const { error: dbUpdateErr } = await supabase
                 .from('appointments')
@@ -1846,7 +1888,7 @@ Transportadora: *${orderResult.carrier}*`;
                   reminder_30m_sent: false,
                   reminder_sent_at: null,
                   confirmed_at: null,
-                  confirmation_message: null,
+                  confirmation_message: briefing || null,
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', existingAppt.id)
@@ -1860,6 +1902,20 @@ Transportadora: *${orderResult.carrier}*`;
                 console.log(`✅ Cita ${existingAppt.id} reagendada con éxito en la DB`);
               }
             } else {
+              // Generar briefing de contexto con IA para el asesor
+              let briefing: string | null = null;
+              try {
+                briefing = await generateAppointmentBriefing({
+                  tenantId,
+                  customerName: clientName,
+                  service,
+                  conversationId: conversation.id,
+                  bookingDate: new Date().toISOString()
+                });
+              } catch (brErr) {
+                console.warn('[WhatsApp Route] Error generando briefing de cita:', brErr);
+              }
+
               // Insertar una nueva cita
               const { error: dbInsertErr } = await supabase.from('appointments').insert({
                 tenant_id: tenantId,
@@ -1872,7 +1928,8 @@ Transportadora: *${orderResult.carrier}*`;
                 status: 'pending',
                 reminder_24h_sent: false,
                 reminder_2h_sent: false,
-                reminder_30m_sent: false
+                reminder_30m_sent: false,
+                confirmation_message: briefing || null
               });
               
               if (dbInsertErr) {
@@ -1880,6 +1937,12 @@ Transportadora: *${orderResult.carrier}*`;
                 dbErrorOcurred = true;
               } else {
                 console.log(`✅ Cita guardada en base de datos para el cliente ${clientName}`);
+                if (briefing) {
+                  await supabase
+                    .from('conversations')
+                    .update({ notes: briefing, updated_at: new Date().toISOString() })
+                    .eq('id', conversation.id);
+                }
               }
             }
           } catch (dbErr) {
@@ -1918,7 +1981,7 @@ Transportadora: *${orderResult.carrier}*`;
     }
 
     // 6.81 Interceptor de Alucinaciones de Agendamiento (SIEMPRE activo)
-    if (!appointmentMatch) {
+    if (!appointmentMatch && !preloadedUpcomingAppt) {
       const hallucinationKeywords = [
         'quedo agendado',
         'quedó agendado',
@@ -2158,26 +2221,47 @@ Transportadora: *${orderResult.carrier}*`;
       }
     }
 
-    // Actualizar campos de ventas en la conversación (no-crítico: no debe impedir envío de respuesta)
-    try {
-      const salesUpdate: Record<string, any> = {
-        intent: intentResult.intent,
-        sales_stage: newSalesStage,
-        lead_score: newLeadScore,
-        updated_at: new Date().toISOString(),
-      };
-      if (salesMeta.objection) salesUpdate.last_objection = salesMeta.objection;
-      if (salesMeta.nextAction) salesUpdate.next_action = salesMeta.nextAction;
-      if (salesMeta.businessType) salesUpdate.business_type = salesMeta.businessType;
-      if (salesMeta.urgency) salesUpdate.urgency_level = salesMeta.urgency;
-      if (salesMeta.serviceInterest) salesUpdate.service_interest = salesMeta.serviceInterest;
-      if (salesMeta.budgetRange) salesUpdate.budget_range = salesMeta.budgetRange;
+    // Sanitize greetings and convert to WhatsApp native single asterisk bolding
+    aiResponse = sanitizeGreetings(formatForWhatsApp(aiResponse), isOngoingConversation);
 
-      await supabase.from('conversations').update(salesUpdate).eq('id', conversation.id);
-      console.log(`📊 Sales: stage=${newSalesStage}, score=${newLeadScore}, intent=${intentResult.intent}`);
+    // Guard: nunca enviar una respuesta vacía al cliente
+    if (!aiResponse || !aiResponse.trim()) {
+      console.warn(`[WhatsApp ${providerMessageId}] aiResponse vacío — usando fallback`);
+      aiResponse = isOngoingConversation
+        ? '¿En qué más te puedo colaborar? 😊'
+        : '¡Hola! Recibí tu mensaje. ¿En qué puedo ayudarte? 😊';
+    }
 
-      // Actualizar también la Memoria a Largo Plazo
-      await supabase.from('customer_profiles').upsert({
+    const salesUpdate: Record<string, any> = {
+      intent: intentResult.intent,
+      sales_stage: newSalesStage,
+      lead_score: newLeadScore,
+      updated_at: new Date().toISOString(),
+    };
+    if (salesMeta.objection) salesUpdate.last_objection = salesMeta.objection;
+    if (salesMeta.nextAction) salesUpdate.next_action = salesMeta.nextAction;
+    if (salesMeta.businessType) salesUpdate.business_type = salesMeta.businessType;
+    if (salesMeta.urgency) salesUpdate.urgency_level = salesMeta.urgency;
+    if (salesMeta.serviceInterest) salesUpdate.service_interest = salesMeta.serviceInterest;
+    if (salesMeta.budgetRange) salesUpdate.budget_range = salesMeta.budgetRange;
+
+    // 7 & 8. Enviar respuesta por WhatsApp INMEDIATAMENTE y persistir en la DB en paralelo para mínima latencia percibida
+    const sendPromise = sendWhatsAppMessage(customerPhone, aiResponse, config, 'assistant_response')
+      .then(() => {
+        console.log(`[WhatsApp ${providerMessageId}] ⚡ Respuesta entregada a WhatsApp`);
+      })
+      .catch((sendErr) => {
+        console.error(`[WhatsApp ${providerMessageId}] Error enviando respuesta al cliente:`, sendErr instanceof Error ? sendErr.message : sendErr);
+      });
+
+    const persistPromise = Promise.allSettled([
+      supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        role: 'assistant',
+        content: aiResponse,
+      }),
+      supabase.from('conversations').update(salesUpdate).eq('id', conversation.id),
+      supabase.from('customer_profiles').upsert({
         phone_number: customerPhone,
         tenant_id: tenantId,
         customer_name: customerName || customerProfile?.customer_name,
@@ -2187,38 +2271,13 @@ Transportadora: *${orderResult.carrier}*`;
         service_interest: salesUpdate.service_interest || customerProfile?.service_interest,
         last_interaction: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      }, { onConflict: 'tenant_id,phone_number' });
-    } catch (salesDbErr) {
-      console.error(`[WhatsApp ${providerMessageId}] Error actualizando sales/profile (no-crítico):`, salesDbErr instanceof Error ? salesDbErr.message : salesDbErr);
-      // No impedir el envío de la respuesta al cliente
-    }
+      }, { onConflict: 'tenant_id,phone_number' }),
+      (!skipAiCall && aiResponse && tenantId)
+        ? deductAiCredits(supabase, tenantId, 1, 'Consulta IA WhatsApp')
+        : Promise.resolve(),
+    ]);
 
-    // Guard: nunca enviar una respuesta vacía al cliente
-    if (!aiResponse || !aiResponse.trim()) {
-      console.warn(`[WhatsApp ${providerMessageId}] aiResponse vacío — usando fallback`);
-      aiResponse = '¡Hola! Recibí tu mensaje. ¿En qué puedo ayudarte? 😊';
-    }
-
-    // 7. Guardar respuesta de la IA
-    try {
-      await supabase.from('messages').insert({
-        conversation_id: conversation.id,
-        role: 'assistant',
-        content: aiResponse,
-      });
-    } catch (dbInsertErr) {
-      console.error(`[WhatsApp ${providerMessageId}] Error guardando respuesta en DB:`, dbInsertErr instanceof Error ? dbInsertErr.message : dbInsertErr);
-      // Continuamos para intentar enviar la respuesta al cliente
-    }
-
-    // 8. Enviar respuesta por WhatsApp
-    try {
-      await sendWhatsAppMessage(customerPhone, aiResponse, config, 'assistant_response');
-      console.log(`[WhatsApp ${providerMessageId}] Respuesta enviada`);
-    } catch (sendErr) {
-      console.error(`[WhatsApp ${providerMessageId}] Error enviando respuesta al cliente:`, sendErr instanceof Error ? sendErr.message : sendErr);
-      // La respuesta ya fue guardada en la DB, el cliente puede verla en el panel
-    }
+    await Promise.all([sendPromise, persistPromise]);
 
     await finalizeWebhookEvent('processed');
 
@@ -2248,6 +2307,70 @@ Transportadora: *${orderResult.carrier}*`;
       }
     }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+
+/**
+ * Drains pending messages from whatsapp_ingress directly in-process.
+ * Bypasses network round-trips to the cron endpoint so that messages
+ * are processed and answered in 1-2 seconds after Meta sends them.
+ */
+async function drainWhatsAppIngressDirectly() {
+  const supabase = createSupabaseAdmin();
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  if (!appSecret) return;
+
+  for (let index = 0; index < 10; index += 1) {
+    const ownerToken = randomUUID();
+    const { data, error } = await supabase.rpc('claim_whatsapp_ingress', {
+      p_processing_token: ownerToken,
+      p_lease_seconds: 120,
+    });
+    if (error || !data) break;
+
+    const claim = (Array.isArray(data) ? data[0] : data) as any;
+    if (!claim?.ingress_id) break;
+
+    const rawBody = JSON.stringify(claim.payload);
+    const signature = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
+    const destinationPhoneId = claim.destination_phone_id
+      || String(claim.payload?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id || '');
+
+    const syntheticReq = new NextRequest('http://localhost:3000/api/whatsapp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-hub-signature-256': signature,
+        'x-rifx-whatsapp-worker': '1',
+        'x-rifx-whatsapp-tenant-id': claim.tenant_id,
+        'x-rifx-whatsapp-provider-message-id': claim.provider_message_id,
+        'x-rifx-whatsapp-destination-phone-id': destinationPhoneId,
+      },
+      body: rawBody,
+    });
+
+    let succeeded = false;
+    let errorCode: string | null = null;
+    try {
+      const res = await processQueuedWhatsAppMessage(syntheticReq);
+      succeeded = res.ok;
+      if (!succeeded) {
+        errorCode = `processor_http_${res.status}`;
+      }
+    } catch (err: any) {
+      errorCode = 'processor_exception';
+      console.error('[WhatsApp Direct Drain] Exception processing claim:', err?.message);
+    }
+
+    const attempts = Math.max(1, Number(claim.attempt_count) || 1);
+    const retrySeconds = Math.min(3600, 15 * (2 ** Math.min(attempts - 1, 8)));
+    await supabase.rpc('complete_whatsapp_ingress', {
+      p_ingress_id: claim.ingress_id,
+      p_processing_token: ownerToken,
+      p_succeeded: succeeded,
+      p_error_code: errorCode,
+      p_retry_seconds: retrySeconds,
+    });
   }
 }
 
@@ -2337,6 +2460,7 @@ async function sendWhatsAppMessage(
   config: Record<string, string> | null,
   deliveryPurpose: string,
 ) {
+  text = formatForWhatsApp(text);
   const token = config?.whatsapp_token;
   const phoneId = config?.whatsapp_phone_id;
   const tenantId = config?.tenant_id;

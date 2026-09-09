@@ -3,7 +3,9 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
 import { createCalendarEvent, deleteCalendarEvent } from '@/lib/google-calendar';
 import { notifyNextInWaitlist } from '@/lib/waitlist-engine';
+import { sendNewAppointmentAlertEmail } from '@/lib/email';
 import { denyUnlessFeature } from '@/lib/feature-access';
+import { generateAppointmentBriefing } from '@/lib/calendar-booking';
 import {
   enforceTenantRateLimit,
   internalApiError,
@@ -241,6 +243,22 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Generar briefing de contexto automáticamente con IA si existe conversación vinculada
+      let autoBriefing: string | null = null;
+      if (finalConvId) {
+        try {
+          autoBriefing = await generateAppointmentBriefing({
+            tenantId: authorization.tenant.tenantId,
+            customerName: customer_name.trim(),
+            service: String(service || 'Asesoría'),
+            conversationId: finalConvId,
+            bookingDate: startDate.toISOString()
+          });
+        } catch (brErr) {
+          console.warn('[Appointments API] No se pudo generar briefing automático:', brErr);
+        }
+      }
+
       // 2. Preparar payload de cita
       const baseApptPayload: any = {
         tenant_id: authorization.tenant.tenantId,
@@ -251,6 +269,7 @@ export async function POST(req: NextRequest) {
         scheduled_time: startDate.toISOString(),
         service: String(service || 'Asesoría').slice(0, 200),
         status: 'confirmed',
+        confirmation_message: autoBriefing || null,
       };
 
       const fullApptPayload = {
@@ -287,12 +306,16 @@ export async function POST(req: NextRequest) {
 
       const newAppt = insertResult.data;
 
-      // Si viene de una conversación en el CRM, actualizar etapa a appointment_booked
-      if (validConvId) {
+      // Si viene de una conversación en el CRM, actualizar etapa a appointment_booked y notas con el briefing
+      if (finalConvId) {
         await supabase
           .from('conversations')
-          .update({ sales_stage: 'appointment_booked', updated_at: now })
-          .eq('id', validConvId)
+          .update({ 
+            sales_stage: 'appointment_booked', 
+            notes: autoBriefing || undefined,
+            updated_at: now 
+          })
+          .eq('id', finalConvId)
           .eq('tenant_id', authorization.tenant.tenantId);
       }
 
@@ -343,6 +366,44 @@ export async function POST(req: NextRequest) {
         }
       } catch (waErr) {
         console.warn('[Appointments API] Error al enviar confirmación por WhatsApp:', waErr);
+      }
+
+      // Enviar alerta por correo al administrador / negocio
+      try {
+        const { data: cfg } = await supabase
+          .from('config')
+          .select('alert_email')
+          .eq('tenant_id', authorization.tenant.tenantId)
+          .maybeSingle();
+
+        const targetAlertEmail = cfg?.alert_email || authorization.tenant.email || process.env.ADMIN_NOTIFICATION_EMAIL || process.env.GMAIL_USER || 'rifxmarketing@gmail.com';
+        if (targetAlertEmail) {
+          const apptDateObj = new Date(startDate);
+          const dateFormatted = new Intl.DateTimeFormat('es-EC', {
+            timeZone: 'America/Guayaquil',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }).format(apptDateObj);
+          const timeFormatted = new Intl.DateTimeFormat('es-EC', {
+            timeZone: 'America/Guayaquil',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }).format(apptDateObj);
+
+          sendNewAppointmentAlertEmail({
+            to: targetAlertEmail,
+            customerName: customer_name.trim(),
+            customerPhone: phone_number.trim(),
+            date: dateFormatted,
+            time: timeFormatted,
+            service: String(service || 'Asesoría'),
+            eventId
+          }).catch(mailErr => console.error('[Appointments API] Error enviando alerta de correo:', mailErr));
+        }
+      } catch (emailErr) {
+        console.warn('[Appointments API] Error preparando email de alerta:', emailErr);
       }
 
       return NextResponse.json({ success: true, appointment: newAppt }, { status: 201 });

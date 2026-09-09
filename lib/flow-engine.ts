@@ -1,5 +1,9 @@
 import { createSupabaseAdmin } from './supabase';
 import OpenAI from 'openai';
+import { formatForWhatsApp, sanitizeGreetings } from './whatsapp-formatting';
+import { getNowInTimezone, processAppointmentHandling } from './calendar-booking';
+import { getActiveKnowledgeContext } from './knowledge-base';
+import { deductAiCredits, hasAvailableCredits } from './ai-credits';
 
 interface FlowNode {
   id: string;
@@ -178,7 +182,7 @@ export async function processFlowEngineMessage(
   if (nextNode.type === 'message' || nextNode.type === 'start' || nextNode.type === 'question') {
     return {
       type: 'text',
-      content: interpolateText(nextNode.data?.text || '', variables)
+      content: formatForWhatsApp(interpolateText(nextNode.data?.text || '', variables))
     };
   }
   
@@ -221,7 +225,7 @@ export async function processFlowEngineMessage(
       const { data: platformSettings } = await supabase
         .from('platform_settings')
         .select('global_ai_config')
-        .eq('id', 1)
+        .limit(1)
         .maybeSingle();
 
       const { data: aiConfig } = await supabase
@@ -237,24 +241,24 @@ export async function processFlowEngineMessage(
 
       const globalAi = (platformSettings as any)?.global_ai_config;
       if (globalAi && globalAi.enabled && globalAi.apiKey) {
-        provider = globalAi.provider || 'openai';
-        model = globalAi.model || (provider === 'gemini' ? 'gemini-3.8-flash' : 'gpt-4o');
+        provider = globalAi.provider || 'gemini';
+        model = globalAi.model || (provider === 'gemini' ? 'gemini-2.5-flash' : 'gpt-4o');
         apiKey = globalAi.apiKey;
       } else if (tenantConfig?.openai_key) {
         try {
           const parsed = JSON.parse(tenantConfig.openai_key);
-          if (parsed.gemini_key) {
+          if (parsed.groq_key) {
+            provider = 'groq';
+            apiKey = parsed.groq_key;
+            model = 'qwen/qwen3.8-27b';
+          } else if (parsed.gemini_key) {
             provider = 'gemini';
             apiKey = parsed.gemini_key;
-            model = parsed.model_selection || 'gemini-3.8-flash';
+            model = parsed.model_selection || 'gemini-2.5-flash';
           } else if (parsed.openai_key) {
             provider = 'openai';
             apiKey = parsed.openai_key;
             model = parsed.model_selection || 'gpt-4o-mini';
-          } else if (parsed.groq_key) {
-            provider = 'groq';
-            apiKey = parsed.groq_key;
-            model = parsed.model_selection || 'llama-3.3-70b-versatile';
           }
         } catch {
           apiKey = tenantConfig.openai_key;
@@ -266,15 +270,27 @@ export async function processFlowEngineMessage(
       }
 
       if (!apiKey) {
-        if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+        if (process.env.GROQ_API_KEY) {
+          provider = 'groq';
+          model = 'qwen/qwen3.8-27b';
+          apiKey = process.env.GROQ_API_KEY;
+        } else if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
           provider = 'gemini';
-          model = 'gemini-3.8-flash';
+          model = 'gemini-2.5-flash';
           apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
         } else if (process.env.OPENAI_API_KEY) {
           provider = 'openai';
           model = 'gpt-4o-mini';
           apiKey = process.env.OPENAI_API_KEY;
         }
+      }
+
+      // Map deprecated models
+      if (model === 'gemini-1.5-flash' || model === 'gemini-2.0-flash' || model === 'gemini-2.5-pro') {
+        model = 'gemini-2.5-flash';
+      }
+      if (model.startsWith('llama') || model.startsWith('mixtral')) {
+        model = 'qwen/qwen3.8-27b';
       }
 
       const hasCredits = (tenant?.ai_credits_balance || 0) > 0 || !!globalAi?.enabled;
@@ -323,76 +339,173 @@ export async function processFlowEngineMessage(
         strictInstruction = 'REGLA ESTRICTA: Basa tus respuestas ÚNICAMENTE en el catálogo/memoria provista. Si te preguntan sobre un producto, precio o servicio que no está en el catálogo, DEBES responder amablemente que no tienes esa información o que no ofrecen ese producto. NUNCA inventes precios ni productos.';
       }
 
+      // Configuración extendida del bot (identidad, tono, temperatura)
+      let parsedExtConfig: any = {};
+      try {
+        if (tenantConfig?.openai_key) parsedExtConfig = JSON.parse(tenantConfig.openai_key);
+      } catch {}
+
       const globalPrompt = tenant?.ai_prompt || tenantConfig?.ai_prompt || 'Eres un asistente de ventas útil y profesional.';
       
       let finalSystemPrompt = `${globalPrompt}\n\n${toneInstruction}\n${strictInstruction}`;
+
+      if (parsedExtConfig.bot_name || parsedExtConfig.bot_role || parsedExtConfig.bot_tone) {
+        finalSystemPrompt += `\n\n[IDENTIDAD Y TONO DEL ASISTENTE]:
+- Tu nombre: ${parsedExtConfig.bot_name || 'Asistente'}
+- Tu rol: ${parsedExtConfig.bot_role || 'Especialista de Atención'}
+- Tono de comunicación: ${parsedExtConfig.bot_tone || 'Profesional'}`;
+      }
+
+      finalSystemPrompt += `\n\nREGLAS DE FORMATO WHATSAPP:
+- Usa formato nativo de WhatsApp. Para negrillas usa SIEMPRE UN SOLO asterisco: *texto*. NUNCA uses doble asterisco **texto** ni markdown estándar.
+- ${history.length > 1 ? 'Esta conversación ya está en curso. NO saludes (no digas Hola, Buenas tardes, ni Bienvenida). Ve directo al grano a responder la duda del cliente de manera servicial y natural.' : 'Saluda de forma natural una sola vez al inicio sin repetir saludos.'}`;
+
+      const nowInfo = getNowInTimezone();
+      finalSystemPrompt += `\n\n[SISTEMA DE AGENDAMIENTO Y CALENDARIO]:
+Tienes acceso directo al calendario para verificar disponibilidad y agendar citas.
+Hoy es ${nowInfo.dayName} ${nowInfo.dateStr} (hora local).
+Horario de atención: Lunes a Viernes de 09:00 a 18:00.
+1. Para consultar horarios disponibles usa el tag: [VERIFICAR_DISPONIBILIDAD:YYYY-MM-DD]
+2. Cuando el cliente confirme día y hora (ej. "hoy a las 3 pm", "mañana a las 10 am"), usa el tag:
+   [AGENDAR_CITA:Cliente:${customerPhone}:YYYY-MM-DD:HH:MM:Asesoría]
+   El sistema verificará la disponibilidad y guardará la cita automáticamente en el calendario.`;
       if (blockContext.trim()) {
         finalSystemPrompt += `\n\n--- MEMORIA / CATÁLOGO DEL NEGOCIO ---\n${blockContext}\n-----------------------------------\n`;
       }
 
-      // Integrar PDFs y documentos de la Base de Conocimiento si existen
-      const { data: activeKnowledge } = await supabase
-        .from('knowledge_documents')
-        .select('title, content')
-        .eq('tenant_id', tenantId)
-        .eq('status', 'indexed')
-        .limit(5);
-
-      if (activeKnowledge && activeKnowledge.length > 0) {
-        const docsSummary = activeKnowledge.map(k => `[CATÁLOGO/DOC: ${k.title}]\n${k.content}`).join('\n\n');
-        finalSystemPrompt += `\n\n--- BASE DE CONOCIMIENTO (DOCUMENTOS Y PDFS SUBIDOS) ---\n${docsSummary}\n----------------------------------------------------\n`;
-      }
-
-      // 4. Call AI Model (Gemini or OpenAI)
-      let replyText = '';
-      if (provider === 'gemini' || model.startsWith('gemini')) {
-        const geminiContents = history.map(h => ({
-          role: h.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: h.content }]
-        }));
-        if (geminiContents.length > 0 && geminiContents[0].role !== 'user') {
-          geminiContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
+      // Integrar PDFs y documentos activos de la Base de Conocimiento
+      try {
+        const kbContext = await getActiveKnowledgeContext(supabase, tenantId);
+        if (kbContext) {
+          finalSystemPrompt += `\n\n${kbContext}\n`;
         }
-        const geminiPayload: any = {
-          contents: geminiContents,
-          systemInstruction: { parts: [{ text: finalSystemPrompt }] },
-          generationConfig: { maxOutputTokens: 600, temperature: isStrict ? 0.2 : 0.7 }
-        };
-        const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(geminiPayload),
-          signal: AbortSignal.timeout(25_000),
-        });
-        const gemData = await gemRes.json();
-        replyText = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      } else {
-        const openai = new OpenAI({ apiKey });
-        const response = await openai.chat.completions.create({
-          model,
-          messages: [
-            { role: 'system', content: finalSystemPrompt },
-            ...history
-          ],
-          temperature: isStrict ? 0.2 : 0.7
-        });
-        replyText = response.choices[0]?.message?.content || '';
+      } catch (kbErr) {
+        console.warn('[FlowEngine] Error cargando base de conocimiento:', kbErr);
       }
+
+      // Integrar filtros de seguridad y guardrails
+      const botProfanityFilter = parsedExtConfig.bot_profanity_filter !== false;
+      const botTopicLocks = parsedExtConfig.bot_topic_locks === true;
+
+      if (botProfanityFilter) {
+        finalSystemPrompt += `\n\n[FILTRO DE LENGUAJE ACTIVO]: Si el usuario utiliza lenguaje ofensivo, vulgar o inapropiado, responde siempre con cortesía y profesionalismo, sin utilizar ni repetir insultos.`;
+      }
+      if (botTopicLocks) {
+        finalSystemPrompt += `\n\n[BLOQUEO DE TEMAS ACTIVO]: Restringe estrictamente tus respuestas exclusivamente al catálogo, productos, servicios y atención de este negocio. Si el usuario intenta salir del tema, declina cortésmente.`;
+      }
+
+      // Calcular temperatura efectiva
+      const configuredTemp = typeof parsedExtConfig.bot_temperature === 'number' ? parsedExtConfig.bot_temperature : 0.7;
+      const effectiveTemp = isStrict ? 0.2 : Math.max(0, Math.min(1.5, configuredTemp));
+
+      // Verificar créditos antes de llamar a la IA
+      if (tenantId) {
+        const { hasCredits, balance } = await hasAvailableCredits(supabase, tenantId);
+        if (!hasCredits) {
+          console.warn(`💳 [FlowEngine] Tenant ${tenantId} sin créditos de IA disponibles (saldo: ${balance})`);
+          return {
+            type: 'text',
+            content: 'Nuestro asistente inteligente se encuentra temporalmente en pausa. Un asesor humano se comunicará contigo pronto. 🙏',
+          };
+        }
+      }
+
+      // 4. Call AI Model (Gemini, Groq or OpenAI)
+      let replyText = '';
+      const isGroq = provider === 'groq' || model.startsWith('qwen') || model.startsWith('llama');
+      if (provider === 'gemini' || model.startsWith('gemini')) {
+        try {
+          const geminiContents = history.map(h => ({
+            role: h.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: h.content }]
+          }));
+          if (geminiContents.length > 0 && geminiContents[0].role !== 'user') {
+            geminiContents.unshift({ role: 'user', parts: [{ text: 'Hola' }] });
+          }
+          const geminiPayload: any = {
+            contents: geminiContents,
+            systemInstruction: { parts: [{ text: finalSystemPrompt }] },
+            generationConfig: { maxOutputTokens: 600, temperature: effectiveTemp }
+          };
+          const gemRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(geminiPayload),
+            signal: AbortSignal.timeout(15_000),
+          });
+          if (gemRes.ok) {
+            const gemData = await gemRes.json();
+            replyText = gemData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          }
+        } catch (gemErr) {
+          console.warn('[FlowEngine] Error llamando a Gemini:', gemErr);
+        }
+      }
+
+      // Si no es Gemini o si Gemini falló/devolvió vacío, probar con OpenAI / Groq
+      if (!replyText) {
+        try {
+          let groqKey = isGroq ? apiKey : '';
+          let actualBaseUrl: string | undefined = undefined;
+          let actualModel = model;
+          let actualKey = apiKey;
+
+          if (isGroq) {
+            actualBaseUrl = 'https://api.groq.com/openai/v1';
+            actualModel = model.startsWith('qwen') ? model : 'qwen/qwen3.8-27b';
+          } else if (!isGroq && provider === 'gemini') {
+            // Fallback desde Gemini: intentar con Groq si hay key guardada
+            try {
+              const parsed = JSON.parse(tenantConfig?.openai_key || '{}');
+              if (parsed.groq_key) {
+                actualKey = parsed.groq_key;
+                actualBaseUrl = 'https://api.groq.com/openai/v1';
+                actualModel = 'qwen/qwen3.8-27b';
+              }
+            } catch {}
+          }
+
+          if (actualKey) {
+            const openai = new OpenAI({ 
+              apiKey: actualKey,
+              baseURL: actualBaseUrl,
+              timeout: 12000,
+            });
+            const response = await openai.chat.completions.create({
+              model: actualModel,
+              messages: [
+                { role: 'system', content: finalSystemPrompt },
+                ...history
+              ],
+              temperature: effectiveTemp
+            });
+            replyText = response.choices[0]?.message?.content || '';
+          }
+        } catch (aiErr) {
+          console.warn('[FlowEngine] Error en llamada a OpenAI/Groq:', aiErr);
+        }
+      }
+      try {
+        if (tenantConfig?.openai_key) parsedExtConfig = JSON.parse(tenantConfig.openai_key);
+      } catch {}
+
+      replyText = await processAppointmentHandling({
+        rawResponse: replyText,
+        userMessage: messageData?.text?.body || userText,
+        tenantId,
+        customerName: 'Cliente',
+        customerPhone,
+        conversationId: conversation?.id || null,
+        extConfig: parsedExtConfig
+      });
+
+      // Format for WhatsApp (single asterisks) and prevent duplicate greetings
+      replyText = sanitizeGreetings(formatForWhatsApp(replyText), history.length > 1);
 
       // 4. Deduct Credits safely
-      const costPerMessage = 0.005; // Costo fijo por mensaje
-      await supabase.rpc('increment_ai_credits', {
-        p_tenant_id: tenantId,
-        p_amount: -costPerMessage
-      });
-
-      await supabase.from('ai_credit_ledger').insert({
-        tenant_id: tenantId,
-        type: 'usage',
-        amount: -costPerMessage,
-        balance_after: (tenant?.ai_credits_balance || 0) - costPerMessage,
-        reference: `Mensaje IA - Conversación ${conversation?.id}`
-      });
+      if (replyText && tenantId) {
+        await deductAiCredits(supabase, tenantId, 1, `Consulta IA FlowZap (Nodo ${nextNode?.id || 'AI'})`);
+      }
 
       // 5. If AI node has an outgoing edge to an interactive node (e.g. menu, buttons)
       const aiOutgoingEdges = config.edges.filter(e => e.source === nextNode!.id);

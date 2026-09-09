@@ -116,7 +116,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 3. Crear nuevo registro en lista de espera (Acción por defecto)
+    // 3. Eliminar registro de lista de espera
+    if (action === 'delete') {
+      const { waitlistId } = body;
+      if (!waitlistId || !UUID_PATTERN.test(waitlistId)) {
+        return NextResponse.json({ error: 'ID de lista de espera inválido' }, { status: 400 });
+      }
+
+      const { error: delErr } = await supabase
+        .from('appointment_waitlist')
+        .delete()
+        .eq('id', waitlistId)
+        .eq('tenant_id', tenant.tenantId);
+
+      if (delErr) {
+        console.error('[Waitlist API] Error al eliminar registro:', delErr);
+        return internalApiError();
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    // 4. Crear nuevo registro en lista de espera (Acción por defecto)
     const {
       customer_name,
       phone_number,
@@ -159,6 +180,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, item: inserted });
   } catch (err) {
     console.error('[Waitlist API] Excepción en POST:', err);
+    return internalApiError();
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const tenant = await getTenantFromRequest(req);
+    if (!tenant?.tenantId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const featureDenied = denyUnlessFeature(tenant, 'appointments');
+    if (featureDenied) return featureDenied;
+
+    const rateDenied = await enforceTenantRateLimit('waitlist-write', tenant.tenantId, 40, 60_000);
+    if (rateDenied) return rateDenied;
+
+    const urlId = req.nextUrl.searchParams.get('id') || req.nextUrl.searchParams.get('waitlistId');
+    let waitlistId = urlId;
+    if (!waitlistId) {
+      const body = await req.json().catch(() => ({}));
+      waitlistId = body.id || body.waitlistId;
+    }
+
+    if (!waitlistId || !UUID_PATTERN.test(waitlistId)) {
+      return NextResponse.json({ error: 'ID de lista de espera inválido' }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdmin();
+    const { error: delErr } = await supabase
+      .from('appointment_waitlist')
+      .delete()
+      .eq('id', waitlistId)
+      .eq('tenant_id', tenant.tenantId);
+
+    if (delErr) {
+      console.error('[Waitlist API] Error en DELETE:', delErr);
+      return internalApiError();
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[Waitlist API] Excepción en DELETE:', err);
     return internalApiError();
   }
 }

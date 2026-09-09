@@ -878,6 +878,21 @@ export default function PanelClient() {
   const [botHumanHandoff, setBotHumanHandoff] = useState(true);
   const [botProfanityFilter, setBotProfanityFilter] = useState(true);
   const [botTopicLocks, setBotTopicLocks] = useState(false);
+  const [aiUsageStats, setAiUsageStats] = useState<{
+    used_this_month: number;
+    ai_queries: number;
+    provider_cost: string;
+    balance: number;
+    ai_configured: boolean;
+    active_provider: string;
+  }>({
+    used_this_month: 0,
+    ai_queries: 0,
+    provider_cost: '$0.0000',
+    balance: 0,
+    ai_configured: false,
+    active_provider: 'none',
+  });
   const [botKnowledgeFiles, setBotKnowledgeFiles] = useState<{id?: string, name: string, type: string, size: string, active: boolean, content?: string}[]>([]);
   const [kbLoading, setKbLoading] = useState(false);
   const [kbUploading, setKbUploading] = useState(false);
@@ -1249,7 +1264,6 @@ export default function PanelClient() {
   const [apptSearchQuery, setApptSearchQuery] = useState('');
   const [isPerformingApptAction, setIsPerformingApptAction] = useState<string | null>(null);
   const [appointmentSubTab, setAppointmentSubTab] = useState<'schedule' | 'waitlist'>('schedule');
-  const [calendarDisplayMode, setCalendarDisplayMode] = useState<'timeline' | 'table'>('timeline');
 
   // Waitlist states (Lista de Espera & Overbooking)
   const [waitlistList, setWaitlistList] = useState<any[]>([]);
@@ -1775,6 +1789,9 @@ export default function PanelClient() {
   const [planExpiry, setPlanExpiry] = useState<string>('');
   const [subscriptionData, setSubscriptionData] = useState<any[]>([]);
   const [showPlanConfirm, setShowPlanConfirm] = useState<string | null>(null);
+  const [pendingPlanCheckoutUrl, setPendingPlanCheckoutUrl] = useState<string>('');
+  const [isPreparingPlanCheckout, setIsPreparingPlanCheckout] = useState<string | null>(null);
+  const [isDirectActivatingPlan, setIsDirectActivatingPlan] = useState(false);
   const [showCancelPlanConfirm, setShowCancelPlanConfirm] = useState(false);
   const [isCancellingPlan, setIsCancellingPlan] = useState(false);
   const [isReactivatingPlan, setIsReactivatingPlan] = useState(false);
@@ -3571,6 +3588,77 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setSendingMsg(false);
   };
 
+  const handleSelectPlan = async (plan: string) => {
+    if (currentPlan === plan && tenantData?.planStatus === 'active') {
+      setToast({
+        message: language === 'en' ? 'This plan is already active.' : 'Este plan ya está activo en tu cuenta.',
+        type: 'info',
+      });
+      return;
+    }
+    setIsPreparingPlanCheckout(plan);
+    try {
+      const res = await authFetch('/api/panel/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (res.ok && (data.checkoutUrl || data.url)) {
+        setPendingPlanCheckoutUrl(data.checkoutUrl || data.url);
+        setShowPlanConfirm(plan);
+      } else if (res.ok && data.alreadyActive) {
+        setToast({
+          message: language === 'en' ? 'This plan is already active.' : 'Este plan ya está activo.',
+          type: 'info',
+        });
+      } else {
+        setToast({
+          message: data.error || (language === 'en' ? 'Error preparing checkout' : 'Error al preparar la pasarela de pago'),
+          type: 'error',
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      setToast({
+        message: language === 'en' ? 'Error connecting to payment gateway' : 'Error al conectar con la pasarela de pagos',
+        type: 'error',
+      });
+    } finally {
+      setIsPreparingPlanCheckout(null);
+    }
+  };
+
+  const handleDirectActivatePlan = async (plan: string) => {
+    setIsDirectActivatingPlan(true);
+    try {
+      const res = await authFetch('/api/panel/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan, directActivate: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.directActivated) {
+        setCurrentPlan(plan as any);
+        setTenantData((prev: any) => ({ ...prev, plan, planStatus: 'active' }));
+        setShowPlanConfirm(null);
+        setToast({
+          message: language === 'en'
+            ? `✅ Plan upgraded to Chatea Pro ${plan.toUpperCase()}`
+            : `✅ ¡Plan actualizado exitosamente a Chatea Pro ${plan.charAt(0).toUpperCase() + plan.slice(1)}!`,
+          type: 'success',
+        });
+      } else {
+        setToast({ message: data.error || 'Error al activar plan', type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({ message: 'Error de conexión', type: 'error' });
+    } finally {
+      setIsDirectActivatingPlan(false);
+    }
+  };
+
   const handleUpgradePlan = async (plan: string) => {
     try {
       setShowPlanConfirm(null);
@@ -4790,13 +4878,46 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              business_days: Array.isArray(data.business_days) ? data.business_days : [1, 2, 3, 4, 5],
              business_start_hour: data.business_start_hour || '09:00',
              business_end_hour: data.business_end_hour || '18:00',
+             bot_name: data.bot_name || 'Asistente',
+             bot_role: data.bot_role || '',
+             bot_tone: data.bot_tone || 'Profesional',
+             bot_temperature: typeof data.bot_temperature === 'number' ? data.bot_temperature : 0.7,
             };
             setConfigData(parsed);
             originalConfigRef.current = { ...parsed };
+            if (data.bot_name !== undefined) setBotName(data.bot_name);
+            if (data.bot_role !== undefined) setBotRole(data.bot_role);
+            if (data.bot_tone !== undefined) setBotTone(data.bot_tone);
+            if (data.bot_temperature !== undefined) setBotTemperature(data.bot_temperature);
+            if (data.bot_human_handoff !== undefined) setBotHumanHandoff(data.bot_human_handoff);
+            if (data.bot_profanity_filter !== undefined) setBotProfanityFilter(data.bot_profanity_filter);
+            if (data.bot_topic_locks !== undefined) setBotTopicLocks(data.bot_topic_locks);
           }
           setConfigReady(true);
       })
       .catch((err) => { console.error(err); setConfigReady(true); });
+  }, []);
+
+  const fetchAiStats = React.useCallback(async () => {
+    try {
+      const res = await authFetch('/api/panel/ai-ledger');
+      const data = await res.json();
+      if (res.ok && data) {
+        setAiUsageStats({
+          used_this_month: data.stats?.used_this_month ?? 0,
+          ai_queries: data.stats?.ai_queries ?? 0,
+          provider_cost: data.stats?.provider_cost ?? '$0.0000',
+          balance: data.balance ?? 0,
+          ai_configured: data.ai_configured ?? false,
+          active_provider: data.active_provider ?? 'none',
+        });
+        if (data.balance !== undefined) {
+          setTenantData((prev: any) => prev ? { ...prev, ai_credits_balance: data.balance } : prev);
+        }
+      }
+    } catch (err) {
+      console.error('Error cargando estadísticas de IA:', err);
+    }
   }, []);
 
   const discardChanges = () => {
@@ -4863,6 +4984,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     service?: string;
     resource_name?: string;
     date?: string;
+    time?: string;
+    waitlist_id?: string;
   }) => {
     setDirectBookingInitialData(initialData || {});
     setShowDirectBookingModal(true);
@@ -4903,6 +5026,30 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }
     } catch (e: any) {
       setToast({ type: 'error', message: e.message || 'Error de conexión' });
+    }
+  };
+
+  const handleWaitlistDelete = async (waitlistId: string) => {
+    // Actualización optimista inmediata
+    setWaitlistList((prev: any[]) => prev.filter((item: any) => item.id !== waitlistId));
+    try {
+      const res = await authFetch(`/api/panel/appointments/waitlist?id=${waitlistId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToast({
+          type: 'success',
+          message: language === 'en' ? '✓ Removed from waitlist' : '✓ Eliminado de la lista de espera'
+        });
+        fetchWaitlist();
+      } else {
+        setToast({ type: 'error', message: data.error || 'Error al eliminar de lista de espera' });
+        fetchWaitlist();
+      }
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Error de conexión' });
+      fetchWaitlist();
     }
   };
 
@@ -4975,6 +5122,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
       // Cargar Config
       fetchConfig();
+      fetchAiStats();
 
       // Cargar Plantillas de Base de Datos
       loadDbTemplates();
@@ -6467,6 +6615,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const data = await res.json();
       if (data.response) {
         setTestMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
+        if (data.balance !== undefined) {
+          setTenantData((prev: any) => prev ? { ...prev, ai_credits_balance: data.balance } : prev);
+          setAiUsageStats((prev: any) => ({
+            ...prev,
+            balance: data.balance,
+            used_this_month: (prev.used_this_month || 0) + 1,
+            ai_queries: (prev.ai_queries || 0) + 1,
+            provider_cost: `${(((prev.used_this_month || 0) + 1) * 0.002).toFixed(4)}`
+          }));
+        }
         if (data.inference) {
           setLastInference(data.inference);
           setTestHistory(prev => [{
@@ -7093,6 +7251,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         business_days: configData.business_days,
         business_start_hour: configData.business_start_hour,
         business_end_hour: configData.business_end_hour,
+        bot_name: botName,
+        bot_role: botRole,
+        bot_tone: botTone,
+        bot_temperature: botTemperature,
+        bot_human_handoff: botHumanHandoff,
+        bot_profanity_filter: botProfanityFilter,
+        bot_topic_locks: botTopicLocks,
       };
       console.log('Enviando config payload:', Object.keys(payload));
       const res = await authFetch('/api/panel/config', {
@@ -7126,6 +7291,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setShowSuccess(true);
         // Recargar config
         fetchConfig();
+        fetchAiStats();
         setToast({ message: language === 'en' ? '✓ Configuration saved successfully!' : '✓ ¡Configuración guardada con éxito!', type: 'success' });
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
@@ -10653,6 +10819,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     conversationsData={conversationsData}
                     activeAccountId={activeAccountId}
                     onRefresh={() => fetchConversations(activeAccountId)}
+                    teamAgents={teamAgentsList}
                   />
                 )}
                 {botSection === 'constructor' && (() => {
@@ -10690,45 +10857,92 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {botSection === 'flowzap' && (
   <div className="w-full text-left font-inter text-slate-800 flex flex-col gap-4">
 
-      <div className="bg-gradient-to-br from-white to-purple-50 p-6 rounded-2xl border border-purple-200 mb-6 flex justify-between items-start">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-2xl font-bold text-slate-800">FlowZap AI</h2>
-            <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2 py-1 rounded-full tracking-wider">Premium</span>
+      {/* ─── BANNER FLOWZAP AI (ESTILO HERO CALENDARIO) ─── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1020] via-[#1a2342] to-[#0d1224] p-8 shadow-2xl shadow-indigo-900/10 mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br from-blue-500/15 to-indigo-500/5 rounded-full blur-3xl" />
+          <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-gradient-to-tr from-indigo-600/10 to-cyan-400/5 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10 space-y-3 max-w-2xl">
+          <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
+            <span className="material-symbols-outlined text-sm">smart_toy</span>
+            <span>FlowZap AI</span>
           </div>
-          <p className="text-sm text-slate-500 max-w-xl leading-relaxed">
-            IA generativa de alto rendimiento integrada en tu flujo. Puedes usar un bloque de Inteligencia Artificial para responder consultas complejas sin crear menús rígidos.
+          <h1 className="text-3xl font-black text-white tracking-tight leading-none">
+            {language === 'en' ? 'Conversational AI Engine' : 'Asistente FlowZap AI'}
+          </h1>
+          <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
+            {language === 'en' 
+              ? 'Generative AI integrated into your flow to answer inquiries, guide customers, and schedule appointments smoothly without rigid menus.'
+              : 'IA generativa integrada en tu flujo para responder consultas, guiar a tus clientes y coordinar citas de forma fluida sin menús rígidos.'}
           </p>
         </div>
-        <div className="text-right">
-          <strong className="text-4xl font-bold text-purple-700 block">
-            {tenantData?.ai_credits_balance ? tenantData.ai_credits_balance.toLocaleString() : '0'}
-          </strong>
-          <span className="text-xs text-slate-500">Créditos disponibles</span>
-          <div className="mt-2 inline-block bg-amber-100 text-amber-800 text-[10px] px-2 py-1 rounded-full font-bold">Sin IA configurada</div>
+
+        {/* Saldo y Estado Sutil (Sin cuadro contenedor, sencillo) */}
+        <div className="relative z-10 flex flex-col md:items-end shrink-0">
+          <div className="flex items-baseline gap-2 md:justify-end">
+            <strong className="text-4xl font-black text-white tracking-tight">
+              {tenantData?.ai_credits_balance !== undefined
+                ? tenantData.ai_credits_balance.toLocaleString()
+                : (aiUsageStats.balance !== undefined ? aiUsageStats.balance.toLocaleString() : '0')}
+            </strong>
+            <span className="text-xs font-semibold text-slate-300">
+              {language === 'en' ? 'credits' : 'créditos'}
+            </span>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mt-0.5">
+            {language === 'en' ? 'Available Balance' : 'Créditos disponibles'}
+          </span>
+
+          <div className="mt-3">
+            {aiUsageStats.ai_configured ? (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-slate-200/90 rounded-full shadow-xs text-xs font-bold text-slate-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/60"></span>
+                <span>{language === 'en' ? 'AI Active' : 'IA Activada'}</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white border border-slate-200/90 rounded-full shadow-xs text-xs font-bold text-slate-600">
+                <span className="w-2 h-2 rounded-full bg-amber-500 shadow-sm shadow-amber-500/60"></span>
+                <span>{language === 'en' ? 'No AI Configured' : 'Sin IA configurada'}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Tarjetas de Métricas alineadas al estilo CRM */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] flex items-center gap-4">
-          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl">💸</div>
+        <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center gap-4 hover:border-slate-300 transition-all">
+          <div className="w-12 h-12 bg-blue-50 text-primary-container rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-2xl">trending_down</span>
+          </div>
           <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wide">Utilizados este mes</span>
-            <strong className="text-xl font-bold text-slate-800 block">0</strong>
+            <span className="text-[10px] text-slate-400 block uppercase font-black tracking-widest">{language === 'en' ? 'Used this month' : 'Utilizados este mes'}</span>
+            <strong className="text-2xl font-black text-primary block font-headline mt-0.5">{aiUsageStats.used_this_month.toLocaleString()}</strong>
+            <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Accumulated usage' : 'Consumo acumulado'}</span>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] flex items-center gap-4">
-          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl">🧠</div>
+
+        <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center gap-4 hover:border-slate-300 transition-all">
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-2xl">psychology</span>
+          </div>
           <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wide">Consultas IA</span>
-            <strong className="text-xl font-bold text-slate-800 block">0</strong>
+            <span className="text-[10px] text-slate-400 block uppercase font-black tracking-widest">{language === 'en' ? 'AI Queries' : 'Consultas IA'}</span>
+            <strong className="text-2xl font-black text-primary block font-headline mt-0.5">{aiUsageStats.ai_queries.toLocaleString()}</strong>
+            <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Processed answers' : 'Respuestas generadas'}</span>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-[0_4px_16px_rgba(31,41,55,0.035)] flex items-center gap-4">
-          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl">📉</div>
+
+        <div className="bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm flex items-center gap-4 hover:border-slate-300 transition-all">
+          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-2xl">payments</span>
+          </div>
           <div>
-            <span className="text-[10px] text-slate-500 block uppercase font-bold tracking-wide">Costo proveedor</span>
-            <strong className="text-xl font-bold text-slate-800 block">$0.0000</strong>
+            <span className="text-[10px] text-slate-400 block uppercase font-black tracking-widest">{language === 'en' ? 'Provider Cost' : 'Costo proveedor'}</span>
+            <strong className="text-2xl font-black text-primary block font-headline mt-0.5">{aiUsageStats.provider_cost}</strong>
+            <span className="text-[10px] text-slate-400 font-medium">{language === 'en' ? 'Token cost estimate' : 'Estimado según consumo'}</span>
           </div>
         </div>
       </div>
@@ -10982,129 +11196,201 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </section>
 
                     {/* Identity & Tone */}
-                    <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6 flex items-center"><span className="material-symbols-outlined text-lg mr-2">psychology</span>{language === 'en' ? 'Identity & Tone' : 'Identidad y Tono'}</h3>
+                <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6 flex items-center">
+                    <span className="material-symbols-outlined text-lg mr-2">psychology</span>
+                    {language === 'en' ? 'Identity & Tone' : 'Identidad y Tono'}
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="md:col-span-2">
-                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">{language === 'en' ? 'Bot Name' : 'Nombre del Bot'}</label>
-                      <input className="w-full bg-slate-50 border-none rounded-xl p-3 text-primary font-bold focus:ring-2 focus:ring-primary-container/20 transition-all" type="text" value={botName} onChange={e => setBotName(e.target.value)} />
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">
+                        {language === 'en' ? 'Bot Name' : 'Nombre del Bot'}
+                      </label>
+                      <input
+                        className="w-full bg-slate-50 border-none rounded-xl p-3 text-primary font-bold focus:ring-2 focus:ring-primary-container/20 transition-all"
+                        type="text"
+                        value={botName}
+                        onChange={e => setBotName(e.target.value)}
+                      />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">{language === 'en' ? 'Role Description' : 'Descripci\u00F3n del Rol'}</label>
-                      <input className="w-full bg-slate-50 border-none rounded-xl p-3 text-slate-700 focus:ring-2 focus:ring-primary-container/20 transition-all" placeholder={language === 'en' ? 'e.g. Senior Support Specialist' : 'ej. Especialista Senior de Soporte'} type="text" value={botRole} onChange={e => setBotRole(e.target.value)} />
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">
+                        {language === 'en' ? 'Role Description' : 'Descripción del Rol'}
+                      </label>
+                      <input
+                        className="w-full bg-slate-50 border-none rounded-xl p-3 text-slate-700 focus:ring-2 focus:ring-primary-container/20 transition-all"
+                        placeholder={language === 'en' ? 'e.g. Senior Support Specialist' : 'ej. Especialista Senior de Soporte'}
+                        type="text"
+                        value={botRole}
+                        onChange={e => setBotRole(e.target.value)}
+                      />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">{language === 'en' ? 'Communication Tone' : 'Tono de Comunicaci\u00F3n'}</label>
-                      <select className="w-full bg-slate-50 border-none rounded-xl p-3 text-primary font-bold focus:ring-2 focus:ring-primary-container/20" value={botTone} onChange={e => setBotTone(e.target.value)}>
+                      <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">
+                        {language === 'en' ? 'Communication Tone' : 'Tono de Comunicación'}
+                      </label>
+                      <select
+                        className="w-full bg-slate-50 border-none rounded-xl p-3 text-primary font-bold focus:ring-2 focus:ring-primary-container/20"
+                        value={botTone}
+                        onChange={e => setBotTone(e.target.value)}
+                      >
                         <option value="Profesional">{language === 'en' ? 'Professional' : 'Profesional'}</option>
                         <option value="Amigable">{language === 'en' ? 'Friendly' : 'Amigable'}</option>
                         <option value="Directo">{language === 'en' ? 'Direct' : 'Directo'}</option>
                       </select>
                     </div>
+
+                    {/* Barra de Nivel de Creatividad / Temperatura (Preciso o Creativo) */}
+                    <div className="md:col-span-2 pt-4 border-t border-slate-100">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm text-primary-container">tune</span>
+                          {language === 'en' ? 'Creativity Level (Temperature)' : 'Nivel de Creatividad (Temperatura)'}
+                        </label>
+                        <span className="text-xs font-black text-primary bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                          {botTemperature.toFixed(1)}
+                        </span>
+                      </div>
+                      <input
+                        className="w-full accent-primary-container h-2 bg-slate-200 rounded-full appearance-none cursor-pointer"
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={botTemperature}
+                        onChange={e => setBotTemperature(parseFloat(e.target.value))}
+                      />
+                      <div className="flex justify-between mt-1.5">
+                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-xs text-slate-400">precision_manufacturing</span>
+                          {language === 'en' ? 'Precise (0.0)' : 'Preciso'}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                          {language === 'en' ? 'Creative (1.0)' : 'Creativo'}
+                          <span className="material-symbols-outlined text-xs text-primary-container">auto_awesome</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </section>
 
-                {/* Model Settings & Knowledge Base Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Model Settings */}
-                  <section className="bg-slate-50 p-8 rounded-3xl border border-slate-100">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6">{language === 'en' ? 'Model Configuration' : 'Configuraci\u00F3n del Modelo'}</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">{language === 'en' ? 'AI Provider' : 'Proveedor de IA'}</label>
-                        <select className="w-full bg-white border-none rounded-xl p-3 text-sm font-bold text-primary focus:ring-2 focus:ring-primary-container/20 shadow-sm" value={botModelSelected} onChange={e => setBotModelSelected(e.target.value)}>
-                          <optgroup label="OpenAI">
-                            {fetchedModels.length > 0 ? (
-                              fetchedModels.map(m => <option key={m} value={m}>{m}</option>)
-                            ) : (
-                              <>
-                                <option value="gpt-4o">GPT-4o</option>
-                                <option value="gpt-4o-mini">GPT-4o Mini</option>
-                                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                              </>
-                            )}
-                          </optgroup>
-                          <optgroup label="Google Gemini">
-                            <option value="gemini-3.8-flash">Gemini 3.8 Flash (Recomendado)</option>
-                            <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
-                            <option value="gemini-3.6-flash">Gemini 3.6 Flash</option>
-                            <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
-                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                          </optgroup>
-                          <optgroup label="Groq">
-                            <option value="llama-3.3-70b">Llama 3.3 70B (Groq)</option>
-                            <option value="llama-3.1-8b-instant">Llama 3.1 8B Â· Rápido (Groq)</option>
-                          </optgroup>
-                          <optgroup label="Anthropic">
-                            <option value="claude-sonnet-4">Claude Sonnet 4</option>
-                            <option value="claude-haiku">Claude Haiku</option>
-                          </optgroup>
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-white rounded-xl shadow-sm">
-                        <span className="material-symbols-outlined text-primary-container text-lg">bolt</span>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-xs font-black text-primary block truncate">{botModelSelected}</span>
-                          <span className="text-[10px] text-slate-400">{language === 'en' ? 'Active model' : 'Modelo activo'}</span>
-                        </div>
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{language === 'en' ? 'Temperature' : 'Temperatura'}</label>
-                          <span className="text-[10px] font-black text-primary">{botTemperature.toFixed(1)}</span>
-                        </div>
-                        <input className="w-full accent-primary-container h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer" type="range" min="0" max="1" step="0.1" value={botTemperature} onChange={e => setBotTemperature(parseFloat(e.target.value))} />
-                        <div className="flex justify-between mt-1"><span className="text-[9px] text-slate-400">{language === 'en' ? 'Precise' : 'Preciso'}</span><span className="text-[9px] text-slate-400">{language === 'en' ? 'Creative' : 'Creativo'}</span></div>
-                      </div>
+                {/* Knowledge Base (Base de Conocimiento 100% Funcional y a Ancho Completo) */}
+                <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg">menu_book</span>
+                        {language === 'en' ? 'Knowledge Base' : 'Base de Conocimiento'}
+                      </h3>
+                      <p className="text-xs text-slate-400 font-medium mt-1">
+                        {language === 'en' ? 'Upload PDF, CSV or TXT documents. The AI will consult this information to answer customer inquiries accurately.' : 'Sube archivos PDF, CSV o TXT. La IA consultará estos documentos para responder las consultas de los clientes con información exacta.'}
+                      </p>
                     </div>
-                  </section>
-
-                  {/* Knowledge Base */}
-                  <section className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-6 flex justify-between items-center">
-                      {language === 'en' ? 'Knowledge Base' : 'Base de Conocimiento'}
-                      {kbUploading ? (
-                        <span className="text-[9px] font-bold text-amber-500 animate-pulse">
-                          {language === 'en' ? 'Uploading...' : 'Subiendo...'}
-                        </span>
-                      ) : (
-                        <button onClick={() => botKbFileRef.current?.click()} className="text-primary-container hover:opacity-70 transition-opacity" title={language === 'en' ? 'Upload file' : 'Subir archivo'}><span className="material-symbols-outlined text-lg">upload_file</span></button>
-                      )}
-                    </h3>
-                    <input ref={botKbFileRef} type="file" accept=".pdf,.csv,.txt" multiple className="hidden" onChange={e => { const files = e.target.files; if (files) { Array.from(files).forEach(f => uploadKBFile(f)); e.target.value = ''; }}} />
-                    <div className="space-y-3 overflow-y-auto max-h-48 pr-1 flex-1">
-                      {kbLoading && <div className="text-center py-6"><span className="text-[10px] text-slate-400 animate-pulse">{language === 'en' ? 'Loading files...' : 'Cargando archivos...'}</span></div>}
-                      {!kbLoading && botKnowledgeFiles.length === 0 && (
-                        <div className="text-center py-6">
-                          <span className="material-symbols-outlined text-slate-300 text-3xl">folder_open</span>
-                          <p className="text-[10px] text-slate-400 mt-2">{language === 'en' ? 'No files uploaded yet' : 'Aún no hay archivos subidos'}</p>
-                        </div>
-                      )}
-                      {botKnowledgeFiles.map((file, idx) => (
-                        <div key={file.id || idx} className="p-3 bg-white rounded-xl flex items-center justify-between group shadow-sm border border-slate-50 hover:shadow-md transition-shadow">
-                          <div className="flex items-center space-x-3 overflow-hidden flex-1">
-                            <span className="material-symbols-outlined text-lg" style={{ color: file.type === 'pdf' ? '#dc2626' : file.type === 'csv' ? '#16a34a' : '#3b82f6' }}>{file.type === 'pdf' ? 'picture_as_pdf' : file.type === 'csv' ? 'table_chart' : 'description'}</span>
-                            <div className="min-w-0">
-                              <span className="text-xs font-bold text-slate-700 truncate block">{file.name}</span>
-                              <span className="text-[9px] text-slate-400">{file.size}</span>
+                    {kbUploading ? (
+                      <span className="text-xs font-bold text-amber-500 animate-pulse flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                        {language === 'en' ? 'Uploading...' : 'Subiendo archivo...'}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => botKbFileRef.current?.click()}
+                        className="px-4 py-2 bg-primary-container/10 hover:bg-primary-container/20 text-primary-container font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        title={language === 'en' ? 'Upload document' : 'Subir documento'}
+                      >
+                        <span className="material-symbols-outlined text-sm">upload_file</span>
+                        {language === 'en' ? 'Upload document' : 'Subir documento'}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={botKbFileRef}
+                    type="file"
+                    accept=".pdf,.csv,.txt"
+                    multiple
+                    className="hidden"
+                    onChange={e => {
+                      const files = e.target.files;
+                      if (files) {
+                        Array.from(files).forEach(f => uploadKBFile(f));
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <div className="space-y-3 overflow-y-auto max-h-64 pr-1 flex-1">
+                    {kbLoading && (
+                      <div className="text-center py-8">
+                        <span className="material-symbols-outlined text-primary-container text-2xl animate-spin">sync</span>
+                        <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Loading documents...' : 'Cargando documentos...'}</p>
+                      </div>
+                    )}
+                    {!kbLoading && botKnowledgeFiles.length === 0 && (
+                      <div className="text-center py-10 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                        <span className="material-symbols-outlined text-slate-300 text-4xl">folder_open</span>
+                        <p className="text-xs font-bold text-slate-600 mt-2">{language === 'en' ? 'No files uploaded yet' : 'Aún no hay archivos subidos'}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{language === 'en' ? 'Upload catalogs, pricing lists or FAQs for your bot' : 'Sube catálogos, listas de precios o preguntas frecuentes para tu bot'}</p>
+                      </div>
+                    )}
+                    {botKnowledgeFiles.map((file, idx) => (
+                      <div key={file.id || idx} className="p-4 bg-slate-50/70 hover:bg-white rounded-2xl flex items-center justify-between group shadow-sm border border-slate-100 hover:border-primary-container/20 hover:shadow-md transition-all">
+                        <div className="flex items-center space-x-3 overflow-hidden flex-1">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: file.type === 'pdf' ? '#fee2e2' : file.type === 'csv' ? '#dcfce7' : '#dbeafe' }}>
+                            <span className="material-symbols-outlined text-xl" style={{ color: file.type === 'pdf' ? '#dc2626' : file.type === 'csv' ? '#16a34a' : '#2563eb' }}>
+                              {file.type === 'pdf' ? 'picture_as_pdf' : file.type === 'csv' ? 'table_chart' : 'description'}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-black text-slate-800 truncate block">{file.name}</span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{file.type}</span>
+                              <span className="text-slate-300 text-[10px]">·</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{file.size}</span>
+                              {file.active ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  {language === 'en' ? 'Active in AI' : 'Activo en IA'}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                                  {language === 'en' ? 'Disabled' : 'Inactivo'}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => file.id && deleteKBFile(file.id)} className="opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600"><span className="material-symbols-outlined text-sm">delete</span></button>
-                            <button onClick={() => file.id && toggleKBFile(file.id, !file.active)} className={`w-8 h-4 rounded-full relative transition-colors ${file.active ? 'bg-emerald-500' : 'bg-slate-300'}`}><div className={`absolute top-[2px] w-3 h-3 bg-white rounded-full shadow-sm transition-all ${file.active ? 'right-[2px]' : 'left-[2px]'}`} /></button>
-                          </div>
                         </div>
-                      ))}
-                    </div>
-                    {/* Drop zone */}
-                    <button onClick={() => botKbFileRef.current?.click()} disabled={kbUploading} className={`mt-4 w-full border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-primary-container/40 hover:bg-primary-container/5 transition-all cursor-pointer group ${kbUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                      <span className="material-symbols-outlined text-slate-300 group-hover:text-primary-container text-2xl">{kbUploading ? 'hourglass_top' : 'cloud_upload'}</span>
-                      <p className="text-[10px] text-slate-400 font-bold mt-1">{kbUploading ? (language === 'en' ? 'Processing file...' : 'Procesando archivo...') : (language === 'en' ? 'Drop or click to upload PDF, CSV, TXT' : 'Arrastra o haz clic para subir PDF, CSV, TXT')}</p>
-                    </button>
-                  </section>
-                </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => file.id && toggleKBFile(file.id, !file.active)}
+                            title={file.active ? (language === 'en' ? 'Deactivate document' : 'Desactivar documento') : (language === 'en' ? 'Activate document' : 'Activar documento')}
+                            className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${file.active ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                          >
+                            <div className={`absolute top-[3px] w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all ${file.active ? 'right-[3px]' : 'left-[3px]'}`} />
+                          </button>
+                          <button
+                            onClick={() => file.id && deleteKBFile(file.id)}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            title={language === 'en' ? 'Delete document' : 'Eliminar documento'}
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Drop zone */}
+                  <button
+                    onClick={() => botKbFileRef.current?.click()}
+                    disabled={kbUploading}
+                    className={`mt-4 w-full border-2 border-dashed border-slate-200 hover:border-primary-container/40 hover:bg-primary-container/5 rounded-2xl p-5 text-center transition-all cursor-pointer group ${kbUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    <span className="material-symbols-outlined text-slate-400 group-hover:text-primary-container text-3xl transition-colors">
+                      {kbUploading ? 'hourglass_top' : 'cloud_upload'}
+                    </span>
+                    <p className="text-xs text-slate-600 font-bold mt-2">
+                      {kbUploading ? (language === 'en' ? 'Processing file...' : 'Procesando y extrayendo texto...') : (language === 'en' ? 'Click to upload or drag & drop files here' : 'Haz clic para subir o arrastra archivos aquí')}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Soporta PDF, CSV y TXT (hasta 10 MB)</p>
+                  </button>
+                </section>
 
                 {/* Prompt Architecture */}
                 <section className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
@@ -11203,7 +11489,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 {/* Safety & Guardrails */}
                 <section className="relative overflow-hidden p-8 rounded-3xl bg-primary-container/5 backdrop-blur-xl border border-primary-container/10 shadow-sm">
                   <div className="relative z-10">
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container mb-8 flex items-center gap-2"><span className="material-symbols-outlined text-lg">shield</span>{language === 'en' ? 'Safety & Guardrails' : 'Seguridad y Protecciones'}</h3>
+                    <div className="flex items-center justify-between mb-8">
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-primary-container flex items-center gap-2">
+                        <span className="material-symbols-outlined text-lg">shield</span>
+                        {language === 'en' ? 'Safety & Guardrails' : 'Seguridad y Protecciones'}
+                      </h3>
+                      <button 
+                        onClick={(e) => handleSaveSettings(e as any)} 
+                        disabled={isSaving} 
+                        className="px-3.5 py-1.5 bg-primary-container hover:bg-primary-container/90 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-xs">{isSaving ? 'sync' : 'save'}</span>
+                        {language === 'en' ? 'Save Protections' : 'Guardar Protecciones'}
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {[
                         { key: 'handoff', icon: 'support_agent', label: language === 'en' ? 'Human Handoff' : 'Derivar a Humano', desc: language === 'en' ? 'Triggers operator when bot confidence is < 40%' : 'Activa operador cuando la confianza del bot es menor al 40%', state: botHumanHandoff, setter: setBotHumanHandoff },
@@ -11369,54 +11668,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 </div>
 
-                {/* Probar IA */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">Probar IA</h3>
-                  <p className="text-xs text-slate-500 mb-5">Una prueba real consume créditos</p>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Mensaje de prueba</label>
-                      <textarea
-                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#10b981]/20 transition-all outline-none min-h-[100px] text-slate-800"
-                        placeholder="Hola, preséntate brevemente como asistente de FlowZap."
-                        value={botPreviewInput}
-                        onChange={(e) => setBotPreviewInput(e.target.value)}
-                      />
-                    </div>
-                    
-                    <button 
-                      onClick={() => alert('Simulador en construcción')}
-                      className="w-full py-3 bg-[#10b981] hover:bg-[#059669] text-white font-bold text-sm rounded-xl transition-all flex justify-center items-center gap-2 shadow-md shadow-emerald-500/20"
-                    >
-                      <span className="material-symbols-outlined text-sm">science</span> Ejecutar prueba
-                    </button>
-                  </div>
                 </div>
-
-                {/* Cómo se cobra */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">Cómo se cobra</h3>
-                  <p className="text-xs text-slate-500 mb-5">Separado de FlowZap base</p>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-xs text-slate-500">FlowZap base</span>
-                      <strong className="text-xs text-slate-800">Tu plan normal</strong>
-                    </div>
-                    <div className="text-center text-slate-400 text-lg">+</div>
-                    <div className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-xs text-slate-500">Módulo AI</span>
-                      <strong className="text-xs text-slate-800">$25.00 / mes</strong>
-                    </div>
-                    <div className="text-center text-slate-400 text-lg">+</div>
-                    <div className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-xs text-slate-500">Consumo</span>
-                      <strong className="text-xs text-slate-800">$10.00 / 1K créditos</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
 
             </div>{/* end grid grid-cols-12 */}
 
@@ -11430,18 +11682,20 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 </div>
               </div>
               <button
-                onClick={() => {
+                onClick={async (e) => {
                   try {
                     const playgroundConfig = { botName, botRole, botTone, botTemperature, botModelSelected, botHumanHandoff, botProfanityFilter, botTopicLocks };
                     localStorage.setItem('rifx_playground_config', JSON.stringify(playgroundConfig));
-                    setShowSuccess(true);
-                    setTimeout(() => setShowSuccess(false), 3000);
-                  } catch (e) { console.error(e); }
+                  } catch (err) { console.error(err); }
+                  await handleSaveSettings(e);
                 }}
-                className="px-8 py-3 bg-gradient-to-br from-primary-container to-primary text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-lg shadow-primary-container/20 hover:opacity-90 transition-all active:scale-95 flex items-center gap-2"
+                disabled={isSaving}
+                className="px-8 py-3 bg-gradient-to-br from-primary-container to-primary text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-lg shadow-primary-container/20 hover:opacity-90 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
-                {showSuccess ? (
-                  <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Saved!' : '\u00A1Guardado!'}</>
+                {isSaving ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {language === 'en' ? 'Saving...' : 'Guardando...'}</>
+                ) : showSuccess ? (
+                  <><span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span> {language === 'en' ? 'Saved!' : '¡Guardado!'}</>
                 ) : (
                   <><span className="material-symbols-outlined text-sm">save</span> {language === 'en' ? 'Save Changes' : 'Guardar Cambios'}</>
                 )}
@@ -14413,88 +14667,459 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             </div>
 
             {/* Plans Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
               {/* Trial */}
-              <div className={`relative bg-white rounded-2xl border-2 ${currentPlan === 'trial' ? 'border-primary-container shadow-lg shadow-primary-container/10' : 'border-slate-200'} p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-0.5`}>
-                {currentPlan === 'trial' && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-container text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{language === 'en' ? 'Current' : 'Actual'}</div>}
-                <div className="flex items-center gap-2 mb-4"><span className="material-symbols-outlined text-slate-400">star_outline</span><h3 className="text-sm font-extrabold text-primary">{language === 'en' ? 'Free Trial (14 days)' : 'Prueba Gratuita (14 d\u00EDas)'}</h3></div>
-                <div className="mb-5"><span className="text-4xl font-black text-primary">$0</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
-                <div className="space-y-2.5 mb-6 flex-1">
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1 Bot Inteligente</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">200 {language === 'en' ? 'Contacts' : 'Contactos'}</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1 {language === 'en' ? 'Member' : 'Miembro'}</span></div>
+              <div className={`relative bg-white rounded-3xl border-2 ${currentPlan === 'trial' ? 'border-primary-container shadow-xl shadow-primary-container/10' : 'border-slate-200'} p-6 flex flex-col transition-all hover:shadow-xl hover:-translate-y-1`}>
+                {currentPlan === 'trial' && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-container text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+                    {language === 'en' ? 'Current' : 'Actual'}
+                  </div>
+                )}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
+                    <span className="material-symbols-outlined text-xl">star_outline</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2.5 py-0.5 rounded-full">
+                    {language === 'en' ? 'Trial' : 'Prueba'}
+                  </span>
                 </div>
-                <button disabled className="w-full py-3 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed">{language === 'en' ? 'Free Plan' : 'Plan Gratuito'}</button>
+                <h3 className="text-base font-extrabold text-primary mb-1">{language === 'en' ? 'Free Trial (14 days)' : 'Prueba Gratuita (14 días)'}</h3>
+                <p className="text-[11px] text-slate-400 mb-4 min-h-[32px]">{language === 'en' ? 'Explore automation and test core features' : 'Explora la automatización y valida tu negocio'}</p>
+                <div className="mb-5 pb-4 border-b border-slate-100">
+                  <span className="text-4xl font-black text-primary">$0</span>
+                  <span className="text-xs text-slate-400 ml-1">USD / 14 {language === 'en' ? 'days' : 'días'}</span>
+                </div>
+                <div className="space-y-2.5 mb-6 flex-1 text-xs text-slate-600">
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>1 Bot IA estándar</strong> {language === 'en' ? '(basic FAQ & leads)' : '(FAQ y captación básica)'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>200 {language === 'en' ? 'Active Contacts' : 'Contactos activos'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>1 {language === 'en' ? 'Team Member' : 'Miembro de equipo'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'WhatsApp Web QR connection' : 'Conexión WhatsApp Web (QR)'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>1,000 {language === 'en' ? 'AI Credits' : 'Créditos IA incluidos'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Community support & guides' : 'Soporte comunitario y guías'}</span>
+                  </div>
+                </div>
+                <button disabled className="w-full py-3 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl cursor-not-allowed">
+                  {currentPlan === 'trial' ? (language === 'en' ? '✓ Current Plan' : '✓ Plan Activo') : (language === 'en' ? 'Free Plan' : 'Plan Gratuito')}
+                </button>
               </div>
 
               {/* Start */}
-              <div className={`relative bg-white rounded-2xl border-2 ${currentPlan === 'start' ? 'border-primary-container shadow-lg shadow-primary-container/10' : 'border-slate-200'} p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-0.5`}>
-                {currentPlan === 'start' && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-container text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{language === 'en' ? 'Current' : 'Actual'}</div>}
-                <div className="flex items-center gap-2 mb-4"><span className="material-symbols-outlined text-sky-500">star_half</span><h3 className="text-sm font-extrabold text-primary">Chatea Pro Start</h3></div>
-                <p className="text-[10px] text-slate-400 -mt-3 mb-3">{language === 'en' ? 'Starting from' : 'Empezando desde'}</p>
-                <div className="mb-5"><span className="text-4xl font-black text-primary">$15</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
-                <div className="space-y-2.5 mb-6 flex-1">
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1 Bot Inteligente</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1,000 {language === 'en' ? 'Contacts' : 'Contactos'}</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">5 {language === 'en' ? 'Members' : 'Miembros'}</span></div>
+              <div className={`relative bg-white rounded-3xl border-2 ${currentPlan === 'start' ? 'border-sky-500 shadow-xl shadow-sky-500/15' : 'border-slate-200'} p-6 flex flex-col transition-all hover:shadow-xl hover:-translate-y-1`}>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+                  {currentPlan === 'start' ? (language === 'en' ? 'CURRENT' : 'ACTUAL') : (language === 'en' ? 'POPULAR' : 'INICIO ÁGIL')}
                 </div>
-                <button onClick={() => setShowPlanConfirm('start')} className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] ${currentPlan === 'start' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:opacity-90'}`}>{currentPlan === 'start' ? (language === 'en' ? '\u2713 Active Plan' : '\u2713 Plan Activo') : (language === 'en' ? 'Choose Plan' : 'Cambiar plan')}</button>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center text-sky-500">
+                    <span className="material-symbols-outlined text-xl">rocket_launch</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-sky-600 uppercase tracking-wider bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
+                    Chatea Pro Start
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-primary mb-1">Chatea Pro Start</h3>
+                <p className="text-[11px] text-slate-400 mb-4 min-h-[32px]">{language === 'en' ? 'For entrepreneurs, independent pros and early stores' : 'Para emprendedores, profesionales y tiendas emergentes'}</p>
+                <div className="mb-5 pb-4 border-b border-slate-100">
+                  <span className="text-4xl font-black text-primary">$15</span>
+                  <span className="text-xs text-slate-400 ml-1">USD/{language === 'en' ? 'month' : 'mes'}</span>
+                </div>
+                <div className="space-y-2.5 mb-6 flex-1 text-xs text-slate-600">
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>2 {language === 'en' ? 'Smart AI Bots' : 'Bots Inteligentes con IA'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>1,500 {language === 'en' ? 'Active Contacts & CRM' : 'Contactos activos y CRM'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>3 {language === 'en' ? 'Team Members' : 'Miembros de equipo'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'WhatsApp Official Cloud API + Web' : 'WhatsApp Oficial Cloud API + Web'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>5,000 {language === 'en' ? 'AI Credits/month included' : 'Créditos IA mensuales incluidos'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Automated scheduling & reminders' : 'Agendamiento y recordatorios'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Basic Dropi & Bitrix24 sync' : 'Integración básica con Dropi y Bitrix24'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Standard email support (< 24h)' : 'Soporte estándar por email (< 24h)'}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleSelectPlan('start')}
+                  disabled={isPreparingPlanCheckout === 'start' || (currentPlan === 'start' && tenantData?.planStatus === 'active')}
+                  className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                    currentPlan === 'start' && tenantData?.planStatus === 'active'
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+                      : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:opacity-90'
+                  }`}
+                >
+                  {isPreparingPlanCheckout === 'start' ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                      {language === 'en' ? 'Preparing checkout...' : 'Preparando pago...'}
+                    </>
+                  ) : currentPlan === 'start' && tenantData?.planStatus === 'active' ? (
+                    language === 'en' ? '✓ Active Plan' : '✓ Plan Activo'
+                  ) : (
+                    language === 'en' ? 'Choose Plan' : 'Cambiar plan'
+                  )}
+                </button>
               </div>
 
               {/* Plus */}
-              <div className={`relative bg-white rounded-2xl border-2 ${currentPlan === 'plus' ? 'border-primary-container shadow-lg shadow-primary-container/10' : 'border-slate-200'} p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-0.5`}>
-                {currentPlan === 'plus' && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary-container text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{language === 'en' ? 'Current' : 'Actual'}</div>}
-                <div className="flex items-center gap-2 mb-4"><span className="material-symbols-outlined text-amber-500">workspace_premium</span><h3 className="text-sm font-extrabold text-primary">Chatea Pro Plus</h3></div>
-                <p className="text-[10px] text-slate-400 -mt-3 mb-3">{language === 'en' ? 'Starting from' : 'Empezando desde'}</p>
-                <div className="mb-5"><span className="text-4xl font-black text-primary">$189</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
-                <div className="space-y-2.5 mb-6 flex-1">
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">1 Bot Inteligente</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">20,000 {language === 'en' ? 'Contacts' : 'Contactos'}</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span><span className="text-xs text-slate-600">5 {language === 'en' ? 'Members' : 'Miembros'}</span></div>
+              <div className={`relative bg-white rounded-3xl border-2 ${currentPlan === 'plus' ? 'border-amber-500 shadow-xl shadow-amber-500/15' : 'border-amber-300/80 shadow-md'} p-6 flex flex-col transition-all hover:shadow-xl hover:-translate-y-1`}>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-600 text-white text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+                  {currentPlan === 'plus' ? (language === 'en' ? 'CURRENT' : 'ACTUAL') : (language === 'en' ? 'RECOMMENDED' : 'RECOMENDADO')}
                 </div>
-                <button onClick={() => setShowPlanConfirm('plus')} className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] ${currentPlan === 'plus' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:opacity-90'}`}>{currentPlan === 'plus' ? (language === 'en' ? '\u2713 Active Plan' : '\u2713 Plan Activo') : (language === 'en' ? 'Choose Plan' : 'Cambiar plan')}</button>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
+                    <span className="material-symbols-outlined text-xl">workspace_premium</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                    Chatea Pro Plus
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-primary mb-1">Chatea Pro Plus</h3>
+                <p className="text-[11px] text-slate-400 mb-4 min-h-[32px]">{language === 'en' ? 'For scaling e-commerce, agencies and growing teams' : 'Para e-commerce, agencias y negocios en expansión'}</p>
+                <div className="mb-5 pb-4 border-b border-slate-100">
+                  <span className="text-4xl font-black text-primary">$189</span>
+                  <span className="text-xs text-slate-400 ml-1">USD/{language === 'en' ? 'month' : 'mes'}</span>
+                </div>
+                <div className="space-y-2.5 mb-6 flex-1 text-xs text-slate-600">
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>5 {language === 'en' ? 'Specialized AI Bots' : 'Bots IA especializados'}</strong> {language === 'en' ? '(Sales, Support, Retargeting)' : '(Ventas, Soporte, Retención)'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>20,000 {language === 'en' ? 'Active Contacts & Segmentation' : 'Contactos activos y segmentación'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>10 {language === 'en' ? 'Team Members with Shared Inbox' : 'Miembros de equipo con buzón compartido'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>{language === 'en' ? 'Multichannel: WhatsApp + Instagram + FB' : 'Multicanal: WhatsApp + Instagram DM + FB'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span><strong>30,000 {language === 'en' ? 'AI Credits/month included' : 'Créditos IA mensuales incluidos'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Unlimited visual automation workflows' : 'Flujos visuales de automatización ilimitados'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Broadcasts & mass official campaigns' : 'Campañas masivas oficiales (Broadcasts)'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Shopify, WooCommerce, Dropi & Bitrix24' : 'Shopify, WooCommerce, Dropi y Bitrix24'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-emerald-500 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Priority WhatsApp support & onboarding' : 'Soporte prioritario por WhatsApp y onboarding'}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleSelectPlan('plus')}
+                  disabled={isPreparingPlanCheckout === 'plus' || (currentPlan === 'plus' && tenantData?.planStatus === 'active')}
+                  className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                    currentPlan === 'plus' && tenantData?.planStatus === 'active'
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 cursor-default'
+                      : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:opacity-95'
+                  }`}
+                >
+                  {isPreparingPlanCheckout === 'plus' ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                      {language === 'en' ? 'Preparing checkout...' : 'Preparando pago...'}
+                    </>
+                  ) : currentPlan === 'plus' && tenantData?.planStatus === 'active' ? (
+                    language === 'en' ? '✓ Active Plan' : '✓ Plan Activo'
+                  ) : (
+                    language === 'en' ? 'Choose Plan' : 'Cambiar plan'
+                  )}
+                </button>
               </div>
 
               {/* Master */}
-              <div className={`relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border-2 ${currentPlan === 'master' ? 'border-amber-400 shadow-lg shadow-amber-400/10' : 'border-slate-700'} p-6 flex flex-col transition-all hover:shadow-lg hover:-translate-y-0.5`}>
-                {currentPlan === 'master' && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-900 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full">{language === 'en' ? 'Current' : 'Actual'}</div>}
-                <div className="flex items-center gap-2 mb-4"><span className="material-symbols-outlined text-amber-400">diamond</span><h3 className="text-sm font-extrabold text-white">Chatea Pro Master</h3></div>
-                <p className="text-[10px] text-slate-400 -mt-3 mb-3">{language === 'en' ? 'Starting from' : 'Empezando desde'}</p>
-                <div className="mb-5"><span className="text-4xl font-black text-white">$399</span><span className="text-xs text-slate-400 ml-1">USD/mes</span></div>
-                <div className="space-y-2.5 mb-6 flex-1">
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-amber-400 text-sm">check_circle</span><span className="text-xs text-slate-300">5 Bots Inteligentes</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-amber-400 text-sm">check_circle</span><span className="text-xs text-slate-300">50,000 {language === 'en' ? 'Contacts' : 'Contactos'}</span></div>
-                  <div className="flex items-center gap-2"><span className="material-symbols-outlined text-amber-400 text-sm">check_circle</span><span className="text-xs text-slate-300">10 {language === 'en' ? 'Members' : 'Miembros'}</span></div>
+              <div className={`relative bg-gradient-to-br from-slate-900 via-[#0b1626] to-slate-950 rounded-3xl border-2 ${currentPlan === 'master' ? 'border-amber-400 shadow-2xl shadow-amber-400/20' : 'border-amber-500/40 shadow-xl'} p-6 flex flex-col transition-all hover:shadow-2xl hover:-translate-y-1 text-white`}>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 text-slate-950 text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-md">
+                  {currentPlan === 'master' ? (language === 'en' ? 'CURRENT' : 'ACTUAL') : (language === 'en' ? 'VIP ENTERPRISE' : 'EMPRESARIAL VIP')}
                 </div>
-                <button onClick={() => setShowPlanConfirm('master')} className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] ${currentPlan === 'master' ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30' : 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 shadow-lg shadow-amber-400/20 hover:opacity-90'}`}>{currentPlan === 'master' ? (language === 'en' ? '\u2713 Active Plan' : '\u2713 Plan Activo') : (language === 'en' ? 'Choose Plan' : 'Cambiar plan')}</button>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
+                    <span className="material-symbols-outlined text-xl">diamond</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wider bg-amber-400/10 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                    Chatea Pro Master
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-white mb-1">Chatea Pro Master</h3>
+                <p className="text-[11px] text-slate-300 mb-4 min-h-[32px]">{language === 'en' ? 'Full power for high-volume enterprises and elite operations' : 'Máxima potencia para empresas consolidadas y alto volumen'}</p>
+                <div className="mb-5 pb-4 border-b border-slate-800">
+                  <span className="text-4xl font-black text-amber-400">$399</span>
+                  <span className="text-xs text-slate-400 ml-1">USD/{language === 'en' ? 'month' : 'mes'}</span>
+                </div>
+                <div className="space-y-2.5 mb-6 flex-1 text-xs text-slate-300">
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span><strong>{language === 'en' ? 'Unlimited AI Bots' : 'Bots IA Ilimitados'}</strong> {language === 'en' ? '(GPT-4o, Claude 3.5, Gemini Pro)' : '(GPT-4o, Claude 3.5, Gemini Pro)'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span><strong>50,000+ {language === 'en' ? 'Contacts (Elastic Scaling)' : 'Contactos (Escalabilidad ilimitada)'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span><strong>{language === 'en' ? 'Unlimited Team Members & Agents' : 'Miembros y operadores ILIMITADOS'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span><strong>{language === 'en' ? 'Omnichannel: WhatsApp, IG, Messenger, TikTok' : 'Omnicanal: WhatsApp, IG, Messenger, TikTok'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span><strong>100,000 {language === 'en' ? 'AI Credits/month included' : 'Créditos IA mensuales incluidos'}</strong></span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Autonomous AI triggers & predictive routing' : 'Disparadores y enrutamiento predictivo por IA'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Full REST API & realtime custom webhooks' : 'API REST completa y Webhooks en tiempo real'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Custom domain & White-label available' : 'Marca blanca y dominio personalizado'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-amber-400 text-sm mt-0.5">check_circle</span>
+                    <span>{language === 'en' ? 'Dedicated Account Manager & 99.9% SLA' : 'Account Manager dedicado, SLA 99.9% y 24/7'}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleSelectPlan('master')}
+                  disabled={isPreparingPlanCheckout === 'master' || (currentPlan === 'master' && tenantData?.planStatus === 'active')}
+                  className={`w-full py-3 text-xs font-bold rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                    currentPlan === 'master' && tenantData?.planStatus === 'active'
+                      ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30 cursor-default'
+                      : 'bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 text-slate-950 shadow-lg shadow-amber-400/25 hover:brightness-105'
+                  }`}
+                >
+                  {isPreparingPlanCheckout === 'master' ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin text-slate-900">progress_activity</span>
+                      <span className="text-slate-900">{language === 'en' ? 'Preparing checkout...' : 'Preparando pago...'}</span>
+                    </>
+                  ) : currentPlan === 'master' && tenantData?.planStatus === 'active' ? (
+                    language === 'en' ? '✓ Active Plan' : '✓ Plan Activo'
+                  ) : (
+                    language === 'en' ? 'Choose Plan' : 'Cambiar plan'
+                  )}
+                </button>
               </div>
             </div>
 
             {/* Plan Comparison Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <h3 className="text-sm font-extrabold text-primary mb-4">{language === 'en' ? 'Plan Comparison' : 'Comparaci\u00F3n de Planes'}</h3>
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-base font-extrabold text-primary">{language === 'en' ? 'Detailed Plan Comparison' : 'Comparación Detallada de Planes'}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{language === 'en' ? 'Transparent features breakdown across all tiers' : 'Compara todas las características y elige la potencia exacta para tu negocio'}</p>
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead><tr className="border-b border-slate-100">
-                    <th className="text-left py-3 px-2 text-slate-400 font-bold uppercase tracking-wider">{language === 'en' ? 'Feature' : 'Caracter\u00EDstica'}</th>
-                    <th className="text-center py-3 px-2 text-slate-400 font-bold">Trial</th>
-                    <th className="text-center py-3 px-2 text-slate-400 font-bold">Start</th>
-                    <th className="text-center py-3 px-2 text-slate-400 font-bold">Plus</th>
-                    <th className="text-center py-3 px-2 text-amber-500 font-bold">Master</th>
-                  </tr></thead>
-                  <tbody className="divide-y divide-slate-50">
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Price' : 'Precio'}</td><td className="text-center font-bold text-slate-800">$0</td><td className="text-center font-bold text-slate-800">$15</td><td className="text-center font-bold text-slate-800">$189</td><td className="text-center font-bold text-amber-600">$399</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">Bots</td><td className="text-center">1</td><td className="text-center">1</td><td className="text-center">1</td><td className="text-center text-amber-600 font-bold">5</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Contacts' : 'Contactos'}</td><td className="text-center">200</td><td className="text-center">1K</td><td className="text-center">20K</td><td className="text-center text-amber-600 font-bold">50K</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Members' : 'Miembros'}</td><td className="text-center">1</td><td className="text-center">5</td><td className="text-center">5</td><td className="text-center text-amber-600 font-bold">10</td></tr>
-                    <tr><td className="py-3 px-2 font-semibold text-slate-600">{language === 'en' ? 'Duration' : 'Duraci\u00F3n'}</td><td className="text-center">14 {language === 'en' ? 'days' : 'd\u00EDas'}</td><td className="text-center">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center">{language === 'en' ? 'Monthly' : 'Mensual'}</td><td className="text-center text-amber-600">{language === 'en' ? 'Monthly' : 'Mensual'}</td></tr>
+                  <thead>
+                    <tr className="border-b-2 border-slate-100">
+                      <th className="text-left py-3.5 px-3 text-slate-400 font-bold uppercase tracking-wider text-[10px] w-1/3">{language === 'en' ? 'Feature / Capability' : 'Característica / Capacidad'}</th>
+                      <th className="text-center py-3.5 px-3 text-slate-500 font-extrabold">Trial</th>
+                      <th className="text-center py-3.5 px-3 text-sky-600 font-extrabold">Start</th>
+                      <th className="text-center py-3.5 px-3 text-amber-600 font-extrabold">Plus</th>
+                      <th className="text-center py-3.5 px-3 text-amber-500 font-extrabold bg-amber-50/50 rounded-t-xl">Master VIP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {/* Precios */}
+                    <tr className="bg-slate-50/60 font-black text-slate-500 text-[10px] uppercase tracking-wider">
+                      <td colSpan={5} className="py-2.5 px-3">{language === 'en' ? 'Pricing & Billing' : 'Precios y Facturación'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Price' : 'Precio'}</td>
+                      <td className="text-center font-bold text-slate-800">$0</td>
+                      <td className="text-center font-bold text-sky-600">$15 USD</td>
+                      <td className="text-center font-bold text-amber-600">$189 USD</td>
+                      <td className="text-center font-extrabold text-amber-600 bg-amber-50/30">$399 USD</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Cadence' : 'Periodicidad'}</td>
+                      <td className="text-center text-slate-500">14 {language === 'en' ? 'days' : 'días'}</td>
+                      <td className="text-center text-slate-700">{language === 'en' ? 'Monthly' : 'Mensual'}</td>
+                      <td className="text-center text-slate-700">{language === 'en' ? 'Monthly' : 'Mensual'}</td>
+                      <td className="text-center font-bold text-amber-600 bg-amber-50/30">{language === 'en' ? 'Monthly' : 'Mensual'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'No lock-in contract' : 'Sin permanencia mínima'}</td>
+                      <td className="text-center text-emerald-600 font-bold">✓</td>
+                      <td className="text-center text-emerald-600 font-bold">✓</td>
+                      <td className="text-center text-emerald-600 font-bold">✓</td>
+                      <td className="text-center text-emerald-600 font-bold bg-amber-50/30">✓</td>
+                    </tr>
+
+                    {/* Capacidades y Agentes */}
+                    <tr className="bg-slate-50/60 font-black text-slate-500 text-[10px] uppercase tracking-wider">
+                      <td colSpan={5} className="py-2.5 px-3">{language === 'en' ? 'Capacity & Team' : 'Capacidad y Equipo'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'AI Bots' : 'Bots Inteligentes'}</td>
+                      <td className="text-center">1</td>
+                      <td className="text-center font-semibold text-sky-600">2</td>
+                      <td className="text-center font-semibold text-amber-600">5</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">{language === 'en' ? 'Unlimited' : 'Ilimitados'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Active Contacts' : 'Contactos Activos'}</td>
+                      <td className="text-center text-slate-500">200</td>
+                      <td className="text-center font-semibold">1,500</td>
+                      <td className="text-center font-semibold text-amber-600">20,000</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">50,000+</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Team Members' : 'Miembros de Equipo'}</td>
+                      <td className="text-center">1</td>
+                      <td className="text-center">3</td>
+                      <td className="text-center font-semibold">10</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">{language === 'en' ? 'Unlimited' : 'Ilimitados'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Channels' : 'Canales Conectados'}</td>
+                      <td className="text-center text-slate-500">WhatsApp Web</td>
+                      <td className="text-center text-slate-700">WhatsApp Cloud API</td>
+                      <td className="text-center font-medium text-amber-700">WhatsApp + IG + Messenger</td>
+                      <td className="text-center font-bold text-amber-700 bg-amber-50/30">Omnicanal + TikTok</td>
+                    </tr>
+
+                    {/* Automatización e IA */}
+                    <tr className="bg-slate-50/60 font-black text-slate-500 text-[10px] uppercase tracking-wider">
+                      <td colSpan={5} className="py-2.5 px-3">{language === 'en' ? 'Automation & AI Intelligence' : 'Automatización e Inteligencia Artificial'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Monthly AI Credits' : 'Créditos IA Mensuales'}</td>
+                      <td className="text-center text-slate-500">1,000</td>
+                      <td className="text-center font-semibold text-sky-600">5,000</td>
+                      <td className="text-center font-semibold text-amber-600">30,000</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">100,000</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'AI Models' : 'Modelos de IA'}</td>
+                      <td className="text-center text-slate-500">Básico</td>
+                      <td className="text-center">GPT-4o mini</td>
+                      <td className="text-center font-medium text-amber-700">GPT-4o & Claude 3.5</td>
+                      <td className="text-center font-bold text-amber-700 bg-amber-50/30">Multi-LLM VIP</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Automation Workflows' : 'Flujos Automatizados'}</td>
+                      <td className="text-center text-slate-500">Básicos</td>
+                      <td className="text-center font-medium">10 Flujos</td>
+                      <td className="text-center font-bold text-amber-600">{language === 'en' ? 'Unlimited' : 'Ilimitados'}</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">{language === 'en' ? 'Unlimited + AI Triggers' : 'Ilimitados + IA Triggers'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Broadcast Campaigns' : 'Campañas Masivas (Broadcasts)'}</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-600">500 / {language === 'en' ? 'month' : 'mes'}</td>
+                      <td className="text-center font-bold text-amber-600">{language === 'en' ? 'Unlimited' : 'Ilimitadas'}</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">{language === 'en' ? 'Unlimited + High Priority' : 'Ilimitadas + Prioridad Alta'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Appointment Booking' : 'Agendamiento y Citas'}</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-emerald-600 font-bold">✓</td>
+                      <td className="text-center text-emerald-600 font-bold">✓</td>
+                      <td className="text-center text-emerald-600 font-bold bg-amber-50/30">✓</td>
+                    </tr>
+
+                    {/* Integraciones y Soporte */}
+                    <tr className="bg-slate-50/60 font-black text-slate-500 text-[10px] uppercase tracking-wider">
+                      <td colSpan={5} className="py-2.5 px-3">{language === 'en' ? 'Integrations & Support' : 'Integraciones y Soporte'}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">Dropi & Bitrix24 CRM</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-600">Básico</td>
+                      <td className="text-center font-bold text-amber-600">Completo</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">Avanzado + Webhooks</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">Shopify & WooCommerce</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-emerald-600 font-bold">✓</td>
+                      <td className="text-center text-emerald-600 font-bold bg-amber-50/30">✓</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">REST API & Webhooks</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-700">Webhooks</td>
+                      <td className="text-center font-black text-amber-600 bg-amber-50/30">API REST + Webhooks</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'White-label & Custom Domain' : 'Marca Blanca y Dominio Propio'}</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-slate-400">—</td>
+                      <td className="text-center text-emerald-600 font-bold bg-amber-50/30">✓</td>
+                    </tr>
+                    <tr>
+                      <td className="py-3 px-3 font-semibold text-slate-700">{language === 'en' ? 'Support Channel' : 'Canal de Soporte'}</td>
+                      <td className="text-center text-slate-500">Comunidad</td>
+                      <td className="text-center text-slate-700">Email &lt; 24h</td>
+                      <td className="text-center font-medium text-amber-700">WhatsApp VIP</td>
+                      <td className="text-center font-bold text-amber-700 bg-amber-50/30">Gerente Dedicado 24/7</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
             {/* Payment History */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
               <h3 className="text-sm font-extrabold text-primary mb-4">{language === 'en' ? 'Payment History' : 'Historial de Pagos'}</h3>
               {paymentHistoryLoading ? (
                 <div className="flex flex-col items-center justify-center py-8 text-slate-400">
@@ -14504,8 +15129,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               ) : paymentHistory.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                   <span className="material-symbols-outlined text-3xl mb-2">receipt_long</span>
-                  <p className="text-xs font-medium">{language === 'en' ? 'No payments yet' : 'A\u00FAn no hay pagos registrados'}</p>
-                  <p className="text-[10px] mt-1">{language === 'en' ? 'Payments will appear here once you subscribe to a plan' : 'Los pagos aparecer\u00E1n aqu\u00ED cuando te suscribas a un plan'}</p>
+                  <p className="text-xs font-medium">{language === 'en' ? 'No payments yet' : 'Aún no hay pagos registrados'}</p>
+                  <p className="text-[10px] mt-1">{language === 'en' ? 'Payments will appear here once you subscribe to a plan' : 'Los pagos aparecerán aquí cuando te suscribas a un plan'}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -14539,31 +15164,130 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </motion.div>
         )}
 
-        {/* Plan Confirmation Modal - via Portal so it escapes overflow/transform containers */}
+        {/* Plan Confirmation Modal with Transparent Blurred Backdrop & Slide-to-Pay Slider */}
         {showPlanConfirm && typeof window !== 'undefined' && createPortal(
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => setShowPlanConfirm(null)}>
-            <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined text-white text-2xl">payments</span></div>
-                <h3 className="text-lg font-extrabold text-[#0b1c30]">{language === 'en' ? 'Confirm Plan Change' : 'Confirmar Cambio de Plan'}</h3>
-                <p className="text-xs text-slate-400 mt-2">
-                  {language === 'en'
-                    ? `You are about to switch to Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`
-                    : `Estás a punto de cambiar a Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`}
-                </p>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-4 mb-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500">{language === 'en' ? 'Monthly charge' : 'Cobro mensual'}</span>
-                  <span className="text-lg font-black text-[#0b1c30]">${showPlanConfirm === 'start' ? '15' : showPlanConfirm === 'plus' ? '189' : '399'} USD</span>
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b1c30]/60 backdrop-blur-sm animate-fade-in"
+            onClick={() => setShowPlanConfirm(null)}
+          >
+            <div
+              className="bg-white rounded-3xl p-8 max-w-sm sm:max-w-md w-full mx-4 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] relative overflow-hidden transform transition-all border border-slate-100"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex flex-col items-center text-center">
+                {/* Themed Icon */}
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white mb-5 shadow-lg ${
+                  showPlanConfirm === 'start' ? 'bg-gradient-to-br from-sky-500 to-blue-600 shadow-sky-500/25' :
+                  showPlanConfirm === 'plus' ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/25' :
+                  'bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-600 shadow-amber-400/30'
+                }`}>
+                  <span className="material-symbols-outlined text-3xl">
+                    {showPlanConfirm === 'start' ? 'rocket_launch' : showPlanConfirm === 'plus' ? 'workspace_premium' : 'diamond'}
+                  </span>
                 </div>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowPlanConfirm(null)} className="flex-1 py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
-                <button onClick={() => { if (showPlanConfirm) handleUpgradePlan(showPlanConfirm); }} className="flex-1 py-3 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-sky-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                  <span className="material-symbols-outlined text-sm">credit_card</span>
-                  {language === 'en' ? 'Pay with Card' : 'Pagar con Tarjeta'}
-                </button>
+
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 ${
+                  showPlanConfirm === 'start' ? 'bg-sky-50 text-sky-600 border border-sky-200' :
+                  showPlanConfirm === 'plus' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                  'bg-amber-400/20 text-amber-800 border border-amber-300'
+                }`}>
+                  {showPlanConfirm === 'start' ? 'Chatea Pro Start' : showPlanConfirm === 'plus' ? 'Chatea Pro Plus' : 'Chatea Pro Master'}
+                </span>
+
+                <h3 className="text-xl font-black text-slate-800 mb-1">
+                  {language === 'en' ? 'Confirm Subscription' : 'Confirmar Suscripción'}
+                </h3>
+                <p className="text-xs font-medium text-slate-500 mb-5">
+                  {language === 'en'
+                    ? `Unlock full power with Chatea Pro ${showPlanConfirm.toUpperCase()}`
+                    : `Potencia tus ventas con Chatea Pro ${showPlanConfirm.charAt(0).toUpperCase() + showPlanConfirm.slice(1)}`}
+                </p>
+
+                {/* Pricing Summary Box */}
+                <div className="w-full bg-slate-50 rounded-2xl p-4 mb-5 border border-slate-100 text-left space-y-2.5">
+                  <div className="flex justify-between items-baseline border-b border-slate-200/60 pb-2.5">
+                    <span className="text-xs font-bold text-slate-500">{language === 'en' ? 'Monthly charge' : 'Cobro mensual'}</span>
+                    <span className="text-2xl font-black text-slate-900">
+                      ${showPlanConfirm === 'start' ? '15' : showPlanConfirm === 'plus' ? '189' : '399'} <span className="text-xs font-bold text-slate-400">USD/mes</span>
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 space-y-1.5 pt-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+                      <span>{showPlanConfirm === 'start' ? '2 Bots Inteligentes • 1,500 Contactos' : showPlanConfirm === 'plus' ? '5 Bots IA • 20,000 Contactos' : 'Bots Ilimitados • 50,000+ Contactos'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-500 text-sm">check_circle</span>
+                      <span>{showPlanConfirm === 'start' ? '5,000 Créditos IA incluidos / mes' : showPlanConfirm === 'plus' ? '30,000 Créditos IA • Multicanal' : '100,000 Créditos IA • SLA 99.9% VIP'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-400 text-[10px]">
+                      <span className="material-symbols-outlined text-slate-400 text-xs">verified_user</span>
+                      <span>{language === 'en' ? 'Cancel anytime. No lock-in contract.' : 'Facturación recurrente. Cancela cuando quieras sin penalización.'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Slider Action */}
+                <div className="w-full">
+                  <a
+                    id="ls-plan-hidden-checkout"
+                    href={pendingPlanCheckoutUrl}
+                    className="lemonsqueezy-button"
+                    style={{ display: 'none' }}
+                  >
+                    Checkout
+                  </a>
+
+                  <div className="relative w-full h-16 bg-gradient-to-r from-slate-100 to-slate-50 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-slate-200 group shadow-inner">
+                    <span className="text-xs sm:text-sm font-black text-slate-400 z-0 select-none group-hover:text-slate-500 transition-colors animate-pulse tracking-widest">
+                      {language === 'en' ? 'SWIPE TO PAY' : 'DESLIZA PARA PAGAR'}
+                    </span>
+
+                    <motion.div
+                      drag="x"
+                      dragConstraints={{ left: 0, right: 230 }}
+                      dragSnapToOrigin={true}
+                      dragElastic={0.05}
+                      onDragEnd={(e, info) => {
+                        if (info.offset.x > 180) {
+                          if (typeof window !== 'undefined' && (window as any).LemonSqueezy && pendingPlanCheckoutUrl) {
+                            (window as any).LemonSqueezy.Url.Open(pendingPlanCheckoutUrl);
+                          } else {
+                            document.getElementById('ls-plan-hidden-checkout')?.click();
+                          }
+                          setTimeout(() => setShowPlanConfirm(null), 500);
+                        }
+                      }}
+                      whileTap={{ scale: 0.95, cursor: "grabbing" }}
+                      className={`absolute left-1.5 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg z-10 cursor-grab border ${
+                        showPlanConfirm === 'start' ? 'bg-gradient-to-br from-sky-500 to-blue-600 border-sky-400 text-white shadow-sky-500/40' :
+                        showPlanConfirm === 'plus' ? 'bg-gradient-to-br from-amber-500 to-orange-600 border-amber-400 text-white shadow-amber-500/40' :
+                        'bg-gradient-to-br from-amber-400 to-yellow-500 border-yellow-300 text-slate-900 shadow-amber-400/50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-xl animate-bounce-x">double_arrow</span>
+                    </motion.div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 mt-4">
+                    {/* Direct Instant Activation option for testing/dev */}
+                    <button
+                      onClick={() => handleDirectActivatePlan(showPlanConfirm)}
+                      disabled={isDirectActivatingPlan}
+                      className="text-[11px] font-bold text-sky-600 hover:text-sky-700 hover:underline flex items-center justify-center gap-1 py-1"
+                    >
+                      <span className="material-symbols-outlined text-xs">bolt</span>
+                      {isDirectActivatingPlan ? 'Activando...' : '⚡ Activar plan instantáneamente (Modo Directo)'}
+                    </button>
+
+                    <button
+                      onClick={() => setShowPlanConfirm(null)}
+                      className="w-full py-2.5 text-slate-400 font-black hover:text-slate-600 transition-colors text-xs uppercase tracking-widest"
+                    >
+                      {language === 'en' ? 'Cancel' : 'Cancelar'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>,
@@ -15098,498 +15822,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             </div>
 
             {appointmentSubTab === 'schedule' ? (
-              <>
-                {calendarDisplayMode === 'timeline' ? (
-                  <BitrixCalendarView
-                    appointments={appointmentsList}
-                    waitlist={waitlistList}
-                    teamAgents={teamAgentsList}
-                    contacts={allContacts}
-                    language={language}
-                    onOpenBooking={handleOpenDirectBooking}
-                    onOpenAddWaitlist={() => setShowAddWaitlistModal(true)}
-                    onApptAction={handleApptAction}
-                    onWaitlistNotify={handleWaitlistNotify}
-                    onWaitlistStatus={handleWaitlistStatus}
-                    isPerformingAction={isPerformingApptAction}
-                    appointmentStats={statsData?.appointmentStats}
-                    configData={configData}
-                    setConfigData={setConfigData}
-                    onSaveSchedule={handleSaveSchedule}
-                    isSavingSchedule={isSavingSchedule}
-                    onSwitchToTable={() => setCalendarDisplayMode('table')}
-                    authFetch={authFetch}
-                  />
-                ) : (
-                  <div className="space-y-6">
-                    {/* View Switcher to toggle back */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black uppercase tracking-widest text-slate-400">
-                          {language === 'en' ? 'View' : 'Modo'}:
-                        </span>
-                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
-                          <button
-                            type="button"
-                            onClick={() => setCalendarDisplayMode('timeline')}
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                          >
-                            <span className="material-symbols-outlined text-sm">calendar_view_week</span>
-                            <span>{language === 'en' ? 'Timeline Scheduler' : 'Agenda Visual (Timeline)'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCalendarDisplayMode('table')}
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer bg-blue-600 text-white shadow-md shadow-blue-500/25"
-                          >
-                            <span className="material-symbols-outlined text-sm">table_rows</span>
-                            <span>{language === 'en' ? 'Data Table' : 'Tabla Detallada'}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setCalendarDisplayMode('timeline')}
-                        className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-sm">arrow_back</span>
-                        <span>{language === 'en' ? 'Back to Timeline' : 'Volver a Agenda Visual'}</span>
-                      </button>
-                    </div>
-
-                    {/* Bento Statistics Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
-              {[
-                { 
-                  title: language === 'en' ? 'Total' : 'Total',
-                  value: statsData?.appointmentStats?.total || 0,
-                  icon: 'event',
-                  color: 'text-blue-500',
-                  bg: 'bg-blue-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Pending' : 'Pendientes',
-                  value: statsData?.appointmentStats?.pending || 0,
-                  icon: 'schedule',
-                  color: 'text-slate-400',
-                  bg: 'bg-slate-400/10'
-                },
-                { 
-                  title: language === 'en' ? 'To Validate' : 'Por Validar',
-                  value: statsData?.appointmentStats?.pendingCompletion || 0,
-                  icon: 'rate_review',
-                  color: 'text-purple-500',
-                  bg: 'bg-purple-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Confirmed' : 'Confirmadas',
-                  value: statsData?.appointmentStats?.confirmed || 0,
-                  icon: 'check_circle',
-                  color: 'text-indigo-500',
-                  bg: 'bg-indigo-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Rescheduled' : 'Reagendadas',
-                  value: statsData?.appointmentStats?.rescheduled || 0,
-                  icon: 'sync',
-                  color: 'text-amber-500',
-                  bg: 'bg-amber-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Completed' : 'Asistidas',
-                  value: statsData?.appointmentStats?.completed || 0,
-                  icon: 'how_to_reg',
-                  color: 'text-emerald-500',
-                  bg: 'bg-emerald-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'No Shows' : 'No Asistió',
-                  value: statsData?.appointmentStats?.noShow || 0,
-                  icon: 'person_off',
-                  color: 'text-rose-500',
-                  bg: 'bg-rose-500/10'
-                },
-                { 
-                  title: language === 'en' ? 'Cancelled' : 'Canceladas',
-                  value: statsData?.appointmentStats?.cancelled || 0,
-                  icon: 'cancel',
-                  color: 'text-red-500',
-                  bg: 'bg-red-500/10'
-                }
-              ].map((card, idx) => (
-                <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col justify-between shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{card.title}</span>
-                    <div className={`w-8 h-8 rounded-lg ${card.bg} ${card.color} flex items-center justify-center`}>
-                      <span className="material-symbols-outlined text-base">{card.icon}</span>
-                    </div>
-                  </div>
-                  <span className="text-2xl font-black text-primary leading-none">{card.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Performance Rates Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                {
-                  label: language === 'en' ? 'Confirmation Rate' : 'Tasa de Confirmación',
-                  rate: statsData?.appointmentStats?.rates?.confirmationRate || 0,
-                  color: 'from-indigo-500 to-blue-600',
-                  shadow: 'shadow-indigo-500/20',
-                  desc: language === 'en' ? 'Confirmed bookings out of total' : 'Citas confirmadas del total agendado'
-                },
-                {
-                  label: language === 'en' ? 'Attendance Rate' : 'Tasa de Asistencia',
-                  rate: statsData?.appointmentStats?.rates?.attendanceRate || 0,
-                  color: 'from-emerald-500 to-teal-600',
-                  shadow: 'shadow-emerald-500/20',
-                  desc: language === 'en' ? 'Completed vs no-show bookings' : 'Citas asistidas frente a no-asistidas'
-                },
-                {
-                  label: language === 'en' ? 'Cancellation Rate' : 'Tasa de Cancelación',
-                  rate: statsData?.appointmentStats?.rates?.cancellationRate || 0,
-                  color: 'from-red-500 to-rose-600',
-                  shadow: 'shadow-red-500/20',
-                  desc: language === 'en' ? 'Cancelled bookings out of total' : 'Citas canceladas sobre el total'
-                },
-                {
-                  label: language === 'en' ? 'Rescheduling Rate' : 'Tasa de Reagendamiento',
-                  rate: statsData?.appointmentStats?.rates?.reschedulingRate || 0,
-                  color: 'from-amber-500 to-orange-600',
-                  shadow: 'shadow-amber-500/20',
-                  desc: language === 'en' ? 'Rescheduled bookings out of total' : 'Citas reagendadas sobre el total'
-                }
-              ].map((indicator, idx) => (
-                <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
-                  <div className="space-y-1">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">{indicator.label}</h3>
-                    <p className="text-[10px] text-slate-400 leading-normal">{indicator.desc}</p>
-                  </div>
-                  <div className="flex items-center gap-4 mt-6">
-                    <span className="text-3xl font-black text-primary leading-none">{indicator.rate.toFixed(1)}%</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full bg-gradient-to-r ${indicator.color} rounded-full ${indicator.shadow}`}
-                        style={{ width: `${Math.min(100, Math.max(0, indicator.rate))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Business Hours Settings */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="material-symbols-outlined text-slate-400">tune</span>
-                <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Business Hours & Days' : 'Días y Horarios de Atención'}</h2>
-              </div>
-              <p className="text-sm text-slate-500 mb-6">
-                {language === 'en' ? 'Configure the days and hours your business operates. The AI bot will use this to determine if an appointment slot is available.' : 'Configura los días y horas que opera tu negocio. El bot de IA usará esto para determinar si un horario está disponible para citas.'}
-              </p>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-3">{language === 'en' ? 'Working Days' : 'Días Laborables'}</label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: 1, label: language === 'en' ? 'Mon' : 'Lun' },
-                      { id: 2, label: language === 'en' ? 'Tue' : 'Mar' },
-                      { id: 3, label: language === 'en' ? 'Wed' : 'Mié' },
-                      { id: 4, label: language === 'en' ? 'Thu' : 'Jue' },
-                      { id: 5, label: language === 'en' ? 'Fri' : 'Vie' },
-                      { id: 6, label: language === 'en' ? 'Sat' : 'Sáb' },
-                      { id: 0, label: language === 'en' ? 'Sun' : 'Dom' }
-                    ].map(day => (
-                      <button
-                        key={day.id}
-                        onClick={() => {
-                          const days = configData.business_days || [];
-                          const newDays = days.includes(day.id) 
-                            ? days.filter((d: number) => d !== day.id) 
-                            : [...days, day.id].sort();
-                          setConfigData({ ...configData, business_days: newDays });
-                        }}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
-                          (configData.business_days || []).includes(day.id)
-                            ? 'bg-primary text-white'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                        }`}
-                      >
-                        {day.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-6 max-w-md">
-                  <div className="flex-1">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'Start Time' : 'Hora de Apertura'}</label>
-                    <input
-                      type="time"
-                      value={configData.business_start_hour || '09:00'}
-                      onChange={e => setConfigData({ ...configData, business_start_hour: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50 cursor-pointer"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-sm font-bold text-slate-700 mb-2">{language === 'en' ? 'End Time' : 'Hora de Cierre'}</label>
-                    <input
-                      type="time"
-                      value={configData.business_end_hour || '18:00'}
-                      onChange={e => setConfigData({ ...configData, business_end_hour: e.target.value })}
-                      className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-primary-container/50 cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={() => handleSaveSchedule()}
-                    disabled={isSavingSchedule}
-                    className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center gap-2"
-                  >
-                    {isSavingSchedule ? (
-                      <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
-                    ) : (
-                      <span className="material-symbols-outlined text-[18px]">save</span>
-                    )}
-                    {language === 'en' ? 'Save Schedule' : 'Guardar Horario'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-                    {/* Interactive Schedule Table */}
-                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              {/* Header and Controls */}
-              <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-slate-400">schedule</span>
-                  <h2 className="text-base font-extrabold text-primary">{language === 'en' ? 'Appointments Schedule' : 'Calendario de Citas'}</h2>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  {/* Status Filter */}
-                  <select
-                    value={apptStatusFilter}
-                    onChange={(e) => setApptStatusFilter(e.target.value)}
-                    className="w-full sm:w-auto bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-2xl border-none focus:ring-2 focus:ring-primary-container/20 cursor-pointer text-black"
-                  >
-                    <option value="all">{language === 'en' ? 'All Statuses' : 'Todos los Estados'}</option>
-                    <option value="pending">{language === 'en' ? 'Pending' : 'Pendientes'}</option>
-                    <option value="confirmed">{language === 'en' ? 'Confirmed' : 'Confirmadas'}</option>
-                    <option value="awaiting_reschedule">{language === 'en' ? 'Awaiting Reschedule' : 'Esperando Reagendar'}</option>
-                    <option value="rescheduled">{language === 'en' ? 'Rescheduled' : 'Reagendadas'}</option>
-                    <option value="cancelled">{language === 'en' ? 'Cancelled' : 'Canceladas'}</option>
-                    <option value="completed">{language === 'en' ? 'Completed' : 'Completadas'}</option>
-                    <option value="no_show">{language === 'en' ? 'No Show' : 'No Asistió'}</option>
-                    <option value="pending_completion">{language === 'en' ? 'Pending Completion' : 'Pendientes de Validar'}</option>
-                  </select>
-
-                  {/* Resource / Specialist Filter */}
-                  <select
-                    value={apptResourceFilter}
-                    onChange={(e) => setApptResourceFilter(e.target.value)}
-                    className="w-full sm:w-auto bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-2xl border-none focus:ring-2 focus:ring-primary-container/20 cursor-pointer text-black"
-                  >
-                    <option value="all">{language === 'en' ? 'All Specialists' : 'Todos los Especialistas'}</option>
-                    {Array.from(new Set(appointmentsList.map((a: any) => a.resource_name).filter(Boolean))).map((resName: any) => (
-                      <option key={resName} value={resName}>👨‍⚕️ {resName}</option>
-                    ))}
-                  </select>
-
-                  {/* Search Input */}
-                  <div className="relative w-full sm:w-64">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-                    <input
-                      type="text"
-                      placeholder={language === 'en' ? 'Search client or service...' : 'Buscar cliente o servicio...'}
-                      value={apptSearchQuery}
-                      onChange={(e) => setApptSearchQuery(e.target.value)}
-                      className="w-full bg-slate-50 border-none rounded-2xl py-2 pl-9 pr-4 text-xs text-black placeholder-slate-400 focus:ring-2 focus:ring-primary-container/20"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Table list */}
-              {appointmentsLoading ? (
-                <div className="py-20 flex flex-col justify-center items-center space-y-4">
-                  <div className="w-10 h-10 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-                  <p className="text-slate-400 text-xs tracking-wider uppercase">{language === 'en' ? 'Loading Schedule...' : 'Cargando Agenda...'}</p>
-                </div>
-              ) : appointmentsList.length === 0 ? (
-                <div className="py-20 text-center text-slate-400 space-y-2">
-                  <span className="material-symbols-outlined text-4xl">event_busy</span>
-                  <p className="text-xs font-bold uppercase tracking-wider">{language === 'en' ? 'No appointments found' : 'No se encontraron citas'}</p>
-                  <p className="text-[11px] text-slate-400">{language === 'en' ? 'Modify your filters or schedule new appointments via WhatsApp.' : 'Modifica tus filtros o agenda nuevas citas vía WhatsApp.'}</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-50">
-                        <th className="px-8 py-4">{language === 'en' ? 'Client' : 'Cliente'}</th>
-                        <th className="px-6 py-4">{language === 'en' ? 'Phone' : 'Teléfono'}</th>
-                        <th className="px-6 py-4">{language === 'en' ? 'Service' : 'Servicio / Motivo'}</th>
-                        <th className="px-6 py-4">{language === 'en' ? 'Scheduled Time' : 'Fecha y Hora'}</th>
-                        <th className="px-6 py-4 text-center">{language === 'en' ? 'Status' : 'Estado'}</th>
-                        <th className="px-8 py-4 text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {appointmentsList.map((appt) => {
-                        // Badge formatting for status
-                        const statusStyles: Record<string, { label: string; class: string }> = {
-                          pending: { 
-                            label: language === 'en' ? 'Pending' : 'Pendiente', 
-                            class: 'bg-yellow-50 text-yellow-600 border-yellow-100' 
-                          },
-                          confirmed: { 
-                            label: language === 'en' ? 'Confirmed' : 'Confirmada', 
-                            class: 'bg-indigo-50 text-indigo-600 border-indigo-100' 
-                          },
-                          awaiting_reschedule: { 
-                            label: language === 'en' ? 'Awaiting Reschedule' : 'Espera de Reagenda', 
-                            class: 'bg-amber-50 text-amber-600 border-amber-100' 
-                          },
-                          rescheduled: { 
-                            label: language === 'en' ? 'Rescheduled' : 'Reagendada', 
-                            class: 'bg-orange-50 text-orange-600 border-orange-100' 
-                          },
-                          cancelled: { 
-                            label: language === 'en' ? 'Cancelled' : 'Cancelada', 
-                            class: 'bg-red-50 text-red-600 border-red-100' 
-                          },
-                          completed: { 
-                            label: language === 'en' ? 'Completed' : 'Completada', 
-                            class: 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                          },
-                          no_show: { 
-                            label: language === 'en' ? 'No Show' : 'No Asistió', 
-                            class: 'bg-rose-50 text-rose-600 border-rose-100' 
-                          },
-                          pending_completion: { 
-                            label: language === 'en' ? 'Review Needed' : 'Por Validar', 
-                            class: 'bg-purple-50 text-purple-600 border-purple-100' 
-                          }
-                        };
-                        const badge = statusStyles[appt.status] || { label: appt.status, class: 'bg-slate-50 text-slate-600 border-slate-100' };
-                        
-                        // Time formatting
-                        const date = new Date(appt.scheduled_time);
-                        const formatOptions: Intl.DateTimeFormatOptions = {
-                          timeZone: 'America/Guayaquil',
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        };
-                        const formattedTime = new Intl.DateTimeFormat('es-EC', formatOptions).format(date);
-
-                        return (
-                          <tr key={appt.id} className="hover:bg-slate-50/30 transition-all">
-                            <td className="px-8 py-5">
-                              <span className="text-sm font-bold text-slate-800 block">{appt.customer_name || 'Cliente'}</span>
-                              {appt.confirmation_message && (
-                                <span className="text-[10px] text-slate-400 block max-w-xs truncate italic" title={appt.confirmation_message}>
-                                  "{appt.confirmation_message}"
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5">
-                              <span className="text-xs text-slate-500 font-mono">{appt.phone_number}</span>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex flex-col">
-                                <span className="text-xs text-slate-800 font-bold">{appt.service || 'Asesoría'}</span>
-                                {appt.resource_name && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md font-bold mt-1 w-fit border border-indigo-100 dark:border-indigo-900/30">
-                                    <span className="material-symbols-outlined text-[12px]">badge</span>
-                                    {appt.resource_name}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <span className="text-xs text-slate-500">{formattedTime}</span>
-                            </td>
-                            <td className="px-6 py-5 text-center">
-                              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badge.class}`}>
-                                {badge.label}
-                              </span>
-                            </td>
-                            <td className="px-8 py-5 text-right">
-                              {/* Action buttons */}
-                              <div className="flex items-center justify-end gap-1.5">
-                                {/* Complete Action */}
-                                {['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'].includes(appt.status) && (
-                                  <button
-                                    onClick={() => handleApptAction(appt.id, 'complete')}
-                                    disabled={!!isPerformingApptAction}
-                                    className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-emerald-100 hover:border-emerald-200"
-                                  >
-                                    <span className="material-symbols-outlined text-sm font-bold">check</span>
-                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Attended' : 'Asistió'}</span>
-                                  </button>
-                                )}
-
-                                {/* No-Show Action */}
-                                {['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'].includes(appt.status) && (
-                                  <button
-                                    onClick={() => handleApptAction(appt.id, 'no_show')}
-                                    disabled={!!isPerformingApptAction}
-                                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-rose-100 hover:border-rose-200"
-                                  >
-                                    <span className="material-symbols-outlined text-sm font-bold">close</span>
-                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'No Show' : 'No Asistió'}</span>
-                                  </button>
-                                )}
-
-                                {/* Reschedule Action */}
-                                {['pending', 'confirmed', 'rescheduled', 'pending_completion'].includes(appt.status) && (
-                                  <button
-                                    onClick={() => handleApptAction(appt.id, 'reschedule')}
-                                    disabled={!!isPerformingApptAction}
-                                    className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-amber-100 hover:border-amber-200"
-                                  >
-                                    <span className="material-symbols-outlined text-sm font-bold">sync</span>
-                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Reschedule' : 'Reagendar'}</span>
-                                  </button>
-                                )}
-
-                                {/* Cancel Action */}
-                                {['pending', 'confirmed', 'rescheduled', 'pending_completion', 'awaiting_reschedule'].includes(appt.status) && (
-                                  <button
-                                    onClick={() => handleApptAction(appt.id, 'cancel')}
-                                    disabled={!!isPerformingApptAction}
-                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center justify-center border border-red-100 hover:border-red-200"
-                                  >
-                                    <span className="material-symbols-outlined text-sm font-bold">delete</span>
-                                    <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Cancel' : 'Cancelar'}</span>
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-
-
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </>
-        ) : (
+              <BitrixCalendarView
+                appointments={appointmentsList}
+                waitlist={waitlistList}
+                teamAgents={teamAgentsList}
+                contacts={allContacts}
+                language={language}
+                onOpenBooking={handleOpenDirectBooking}
+                onOpenAddWaitlist={() => setShowAddWaitlistModal(true)}
+                onApptAction={handleApptAction}
+                onWaitlistNotify={handleWaitlistNotify}
+                onWaitlistStatus={handleWaitlistStatus}
+                onWaitlistDelete={handleWaitlistDelete}
+                isPerformingAction={isPerformingApptAction}
+                appointmentStats={statsData?.appointmentStats}
+                configData={configData}
+                setConfigData={setConfigData}
+                onSaveSchedule={handleSaveSchedule}
+                isSavingSchedule={isSavingSchedule}
+                authFetch={authFetch}
+              />
+            ) : (
           <div className="space-y-6">
             {/* Bento Statistics for Waitlist */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -15744,6 +15997,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     resource_name: item.resource_name,
                                     date: item.desired_date,
                                     conversation_id: item.conversation_id,
+                                    waitlist_id: item.id,
                                   })}
                                   className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center border border-emerald-100"
                                   title="Agendar Cita Directamente"
@@ -15751,16 +16005,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   <span className="material-symbols-outlined text-sm">calendar_month</span>
                                   <span className="text-[10px] font-bold ml-1">{language === 'en' ? 'Book' : 'Agendar'}</span>
                                 </button>
-                                {item.status !== 'cancelled' && item.status !== 'booked' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleWaitlistStatus(item.id, 'cancelled')}
-                                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors flex items-center"
-                                    title="Cancelar de lista"
-                                  >
-                                    <span className="material-symbols-outlined text-sm">close</span>
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(language === 'en' ? 'Delete this client from waitlist?' : '¿Eliminar este cliente de la lista de espera?')) {
+                                      handleWaitlistDelete(item.id);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors flex items-center"
+                                  title="Eliminar de lista"
+                                >
+                                  <span className="material-symbols-outlined text-sm">delete</span>
+                                </button>
                               </div>
                             </td>
                           </tr>

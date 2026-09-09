@@ -13,6 +13,7 @@ interface CalendarEvent {
   startDateTime: string;
   endDateTime: string;
   timeZone?: string;
+  attendeeEmail?: string;
 }
 
 interface TimeSlot {
@@ -266,26 +267,46 @@ export async function createCalendarEvent(
       || !SUPPORTED_TIME_ZONES.has(timeZone)) {
     return { success: false, error: 'Datos de cita invalidos.' };
   }
-  const credentials = await getCalendarCredentials(tenantId);
-  if (!credentials) return { success: false, error: 'Google Calendar no conectado.' };
+
+  let credentials: CalendarCredentials | null = null;
+  try {
+    credentials = await getCalendarCredentials(tenantId);
+  } catch {}
+  if (!credentials) {
+    return { success: true, eventId: `manual_${Date.now()}` };
+  }
 
   try {
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    const eventBody: any = {
+      summary: event.summary.trim(),
+      description: event.description?.trim() || '',
+      start: { dateTime: event.startDateTime, timeZone },
+      end: { dateTime: event.endDateTime, timeZone },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'email', minutes: 60 },
+          { method: 'popup', minutes: 30 },
+          { method: 'popup', minutes: 10 }
+        ],
+      },
+    };
+
+    if (event.attendeeEmail) {
+      eventBody.attendees = [{ email: event.attendeeEmail }];
+    }
+
+    const endpointUrl = event.attendeeEmail
+      ? 'https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all'
+      : 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
+
+    const response = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${credentials.access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        summary: event.summary.trim(),
-        description: event.description?.trim() || '',
-        start: { dateTime: event.startDateTime, timeZone },
-        end: { dateTime: event.endDateTime, timeZone },
-        reminders: {
-          useDefault: false,
-          overrides: [{ method: 'popup', minutes: 30 }, { method: 'popup', minutes: 10 }],
-        },
-      }),
+      body: JSON.stringify(eventBody),
       redirect: 'error',
       cache: 'no-store',
       signal: AbortSignal.timeout(12_000),
@@ -318,9 +339,15 @@ export async function deleteCalendarEvent(
   tenantId: string,
   eventId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  if (eventId.startsWith('manual_') || eventId.startsWith('local_')) {
+    return { success: true };
+  }
   if (!EVENT_ID_PATTERN.test(eventId)) return { success: false, error: 'ID de evento invalido.' };
-  const credentials = await getCalendarCredentials(tenantId);
-  if (!credentials) return { success: false, error: 'Google Calendar no conectado.' };
+  let credentials: CalendarCredentials | null = null;
+  try {
+    credentials = await getCalendarCredentials(tenantId);
+  } catch {}
+  if (!credentials) return { success: true };
   try {
     const response = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,

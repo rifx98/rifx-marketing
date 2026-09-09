@@ -6,6 +6,7 @@ import { denyUnlessFeature } from '@/lib/feature-access';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitKey } from '@/lib/security';
 import { internalApiError, readLimitedJsonObject } from '@/lib/request-guards';
+import { deductAiCredits, hasAvailableCredits } from '@/lib/ai-credits';
 
 // POST /api/panel/social/generate-metadata - Optimizar título y descripción sugerida usando Groq IA
 export async function POST(req: NextRequest) {
@@ -65,6 +66,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Clave de Groq no configurada en el sistema. Asegúrate de configurar la clave de Groq.' }, { status: 500 });
     }
 
+    const { hasCredits } = await hasAvailableCredits(supabase, tenant.tenantId);
+    if (!hasCredits) {
+      return NextResponse.json({ error: 'Sin créditos de IA suficientes para optimizar publicaciones.' }, { status: 402 });
+    }
+
     // 3. Inicializar cliente OpenAI para Groq
     const client = new OpenAI({
       apiKey: apiKey,
@@ -118,6 +124,15 @@ Mejora y optimiza esta información para redes sociales.`;
       if (!generatedTitle || generatedTitle.length > 160 || !generatedCaption || generatedCaption.length > 4_000) {
         throw new Error('invalid_provider_result');
       }
+
+      // Descontar 1 crédito de IA por optimización de copy
+      await deductAiCredits(
+        supabase,
+        tenant.tenantId,
+        1,
+        'Optimización IA de copy para redes sociales'
+      );
+
       return NextResponse.json({
         success: true,
         title: generatedTitle,

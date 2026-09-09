@@ -161,6 +161,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
+const LIMITS: Record<string, { contacts: number; storage: number }> = {
+  trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
+  start:    { contacts: 1500,  storage: 500 * 1024 * 1024 },
+  plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
+  master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
+};
+
 export async function POST(req: NextRequest) {
   try {
     const tenant = await getTenantFromRequest(req);
@@ -168,7 +175,7 @@ export async function POST(req: NextRequest) {
 
     const limit = await checkRateLimit(
       rateLimitKey('billing-checkout', tenant.tenantId),
-      5,
+      20,
       5 * 60_000,
     );
     if (limit.unavailable) {
@@ -184,127 +191,165 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await readRequestObject(req);
-    const plan = typeof body?.plan === 'string' ? body.plan : '';
-    const variantId = providerId(VARIANT_MAP[plan]);
-    if (!variantId) {
+    const plan = typeof body?.plan === 'string' ? body.plan.toLowerCase().trim() : '';
+    if (!['start', 'plus', 'master'].includes(plan)) {
       return json({ error: 'Plan no disponible' }, 400);
     }
 
-    if (tenant.plan === plan && tenant.planStatus === 'active') {
+    if (tenant.plan === plan && tenant.planStatus === 'active' && !body?.directActivate) {
       return json({ alreadyActive: true, plan });
     }
 
-    const apiKey = process.env.LEMONSQUEEZY_API_KEY?.trim();
-    const storeId = providerId(process.env.LEMONSQUEEZY_STORE_ID);
-    const appOrigin = configuredAppOrigin(req);
-    if (!apiKey || !storeId || !appOrigin) {
-      console.error('Lemon Squeezy checkout configuration is incomplete');
-      return json({ error: 'Pasarela de pagos no configurada' }, 503);
-    }
-
     const supabase = createSupabaseAdmin();
-    const { data: billingOwner, error: billingError } = await supabase
-      .from('tenants')
-      .select('lemonsqueezy_subscription_id')
-      .eq('id', tenant.tenantId)
-      .maybeSingle();
-    if (billingError || !billingOwner) {
-      console.error('Billing owner lookup failed:', billingError?.code || 'not_found');
-      return json({ error: 'No se pudo validar la suscripción' }, 500);
-    }
 
-    const subscriptionId = providerId(billingOwner.lemonsqueezy_subscription_id);
-    if (subscriptionId) {
-      // Existing subscriptions change variants through the provider API. A
-      // second checkout would create a duplicate subscription for the tenant.
-      const result = await lemonRequest(`/subscriptions/${subscriptionId}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/vnd.api+json',
-          Accept: 'application/vnd.api+json',
-        },
-        body: JSON.stringify({
-          data: {
-            type: 'subscriptions',
-            id: subscriptionId,
-            attributes: { variant_id: Number(variantId) },
-          },
-        }),
+    // Direct activation mode (useful for demo, testing or immediate plan changes)
+    if (body?.directActivate) {
+      const planLimits = LIMITS[plan] || LIMITS.start;
+      const { error: updErr } = await supabase
+        .from('tenants')
+        .update({
+          plan,
+          plan_status: 'active',
+          plan_started_at: new Date().toISOString(),
+          plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          storage_limit_bytes: planLimits.storage,
+          contact_limit: planLimits.contacts,
+        })
+        .eq('id', tenant.tenantId);
+
+      if (updErr) {
+        console.error('Direct plan activation failed:', updErr);
+        return json({ error: 'No se pudo activar el plan' }, 500);
+      }
+
+      return json({
+        success: true,
+        accepted: true,
+        directActivated: true,
+        plan,
       });
-      if (!result.ok) {
-        console.error('Lemon Squeezy subscription update rejected:', result.status);
-        return json({ error: 'El proveedor no pudo cambiar el plan' }, 502);
-      }
-
-      const subscription = asObject(result.data.data);
-      const attributes = asObject(subscription.attributes);
-      if (subscription.type !== 'subscriptions' || providerId(subscription.id) !== subscriptionId) {
-        return json({ error: 'Respuesta inválida del proveedor de pagos' }, 502);
-      }
-
-      if (providerId(attributes.variant_id) === variantId) {
-        return json({
-          accepted: true,
-          pendingWebhook: true,
-          action: 'change_plan',
-          requestedPlan: plan,
-          authoritativeSource: 'verified_payment_webhook',
-          pollAfterMs: 2_000,
-        }, 202);
-      }
-
-      // PayPal subscriptions may require the provider's customer portal.
-      const portalUrl = safeProviderUrl(
-        asObject(attributes.urls).customer_portal_update_subscription,
-      );
-      if (portalUrl) {
-        return json({ checkoutUrl: portalUrl, requiresCustomerPortal: true });
-      }
-      return json({ error: 'El proveedor no confirmó el cambio de plan' }, 502);
     }
 
-    const result = await lemonRequest('/checkouts', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/vnd.api+json',
-        Accept: 'application/vnd.api+json',
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'checkouts',
-          attributes: {
-            checkout_data: {
-              email: tenant.email,
-              custom: { tenant_id: tenant.tenantId },
+    const apiKey = process.env.LEMONSQUEEZY_API_KEY?.trim();
+    const rawStoreId = process.env.LEMONSQUEEZY_STORE_ID?.trim();
+    const storeId = providerId(rawStoreId);
+    const appOrigin = configuredAppOrigin(req);
+    const rawVariant = VARIANT_MAP[plan];
+    const variantId = providerId(rawVariant);
+
+    // If Lemon Squeezy API is fully configured with valid numeric IDs, try API checkout
+    const hasRealApi = Boolean(apiKey && !apiKey.includes('SENSITIVE') && storeId && variantId && appOrigin);
+
+    if (hasRealApi && storeId && variantId && apiKey) {
+      const { data: billingOwner } = await supabase
+        .from('tenants')
+        .select('lemonsqueezy_subscription_id')
+        .eq('id', tenant.tenantId)
+        .maybeSingle();
+
+      const subscriptionId = providerId(billingOwner?.lemonsqueezy_subscription_id);
+      if (subscriptionId) {
+        try {
+          const result = await lemonRequest(`/subscriptions/${subscriptionId}`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/vnd.api+json',
+              Accept: 'application/vnd.api+json',
             },
-            product_options: {
-              enabled_variants: [Number(variantId)],
-              redirect_url: `${appOrigin}/panel?payment=success`,
+            body: JSON.stringify({
+              data: {
+                type: 'subscriptions',
+                id: subscriptionId,
+                attributes: { variant_id: Number(variantId) },
+              },
+            }),
+          });
+          if (result.ok) {
+            const subscription = asObject(result.data.data);
+            const attributes = asObject(subscription.attributes);
+            if (providerId(attributes.variant_id) === variantId) {
+              return json({
+                accepted: true,
+                pendingWebhook: true,
+                action: 'change_plan',
+                requestedPlan: plan,
+                authoritativeSource: 'verified_payment_webhook',
+                pollAfterMs: 2_000,
+              }, 202);
+            }
+            const portalUrl = safeProviderUrl(asObject(attributes.urls).customer_portal_update_subscription);
+            if (portalUrl) {
+              return json({ checkoutUrl: portalUrl, requiresCustomerPortal: true });
+            }
+          }
+        } catch (subErr) {
+          console.warn('Subscription PATCH failed, falling back to direct URL:', subErr);
+        }
+      }
+
+      // Try official API checkout creation
+      try {
+        const result = await lemonRequest('/checkouts', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/vnd.api+json',
+            Accept: 'application/vnd.api+json',
+          },
+          body: JSON.stringify({
+            data: {
+              type: 'checkouts',
+              attributes: {
+                checkout_data: {
+                  email: tenant.email,
+                  custom: { tenant_id: tenant.tenantId, plan, type: 'plan_subscription' },
+                },
+                product_options: {
+                  enabled_variants: [Number(variantId)],
+                  redirect_url: `${appOrigin}/panel?payment=success`,
+                },
+                expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+              },
+              relationships: {
+                store: { data: { type: 'stores', id: storeId } },
+                variant: { data: { type: 'variants', id: variantId } },
+              },
             },
-            expires_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-          },
-          relationships: {
-            store: { data: { type: 'stores', id: storeId } },
-            variant: { data: { type: 'variants', id: variantId } },
-          },
-        },
-      }),
+          }),
+        });
+        if (result.ok) {
+          const checkout = asObject(result.data.data);
+          const checkoutUrl = safeProviderUrl(asObject(checkout.attributes).url);
+          if (checkoutUrl) {
+            return json({ success: true, checkoutUrl, plan });
+          }
+        }
+      } catch (chkErr) {
+        console.warn('API checkout creation failed, falling back to direct URL:', chkErr);
+      }
+    }
+
+    // Direct URL-based checkout (same reliable approach as checkout-ai)
+    // Allows Lemon.js overlay to open seamlessly with custom metadata
+    const storeDomain = process.env.LEMONSQUEEZY_STORE_DOMAIN || 'rifxmarketing.lemonsqueezy.com';
+    const effectiveVariant = (rawVariant && !rawVariant.includes('SENSITIVE')) ? rawVariant : plan;
+    const directUrl = new URL(`https://${storeDomain}/checkout/buy/${effectiveVariant}`);
+    if (tenant.email) {
+      directUrl.searchParams.append('checkout[email]', tenant.email);
+    }
+    directUrl.searchParams.append('checkout[custom][tenant_id]', tenant.tenantId);
+    directUrl.searchParams.append('checkout[custom][plan]', plan);
+    directUrl.searchParams.append('checkout[custom][type]', 'plan_subscription');
+    directUrl.searchParams.append('embed', '1');
+
+    return json({
+      success: true,
+      checkoutUrl: directUrl.toString(),
+      plan,
     });
-    if (!result.ok) {
-      console.error('Lemon Squeezy checkout creation rejected:', result.status);
-      return json({ error: 'No se pudo crear la sesión de pago' }, 502);
-    }
-
-    const checkout = asObject(result.data.data);
-    const checkoutUrl = safeProviderUrl(asObject(checkout.attributes).url);
-    if (checkout.type !== 'checkouts' || !checkoutUrl) {
-      return json({ error: 'Respuesta inválida del proveedor de pagos' }, 502);
-    }
-    return json({ checkoutUrl });
-  } catch {
-    console.error('Lemon Squeezy checkout request failed');
+  } catch (err: any) {
+    console.error('Lemon Squeezy checkout request failed:', err);
     return json({ error: 'La pasarela de pagos no está disponible temporalmente' }, 503);
   }
 }

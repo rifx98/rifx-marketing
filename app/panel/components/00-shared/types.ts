@@ -51,6 +51,17 @@ export type ConversationDetail = ConversationSummary & {
   contact?: Contact;
   assignedTo?: ID | null;
   messages: ChatMessage[];
+  lead_score?: number;
+  sales_stage?: string;
+  intent?: string;
+  urgency_level?: string;
+  budget_range?: string;
+  service_interest?: string;
+  last_objection?: string;
+  next_action?: string;
+  created_at?: string;
+  updated_at?: string;
+  rawConv?: any;
 };
 
 export type FlowNodeView = {

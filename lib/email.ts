@@ -557,3 +557,219 @@ function buildPasswordResetEmailHtml(resetLink: string): string {
 </body>
 </html>`;
 }
+
+export interface NewAppointmentAlertParams {
+  to: string;
+  customerName: string;
+  customerPhone: string;
+  date: string;
+  time: string;
+  service: string;
+  eventId?: string;
+  notes?: string;
+}
+
+/**
+ * Send an email notification to the admin/business owner when a new appointment is booked.
+ */
+export async function sendNewAppointmentAlertEmail(params: NewAppointmentAlertParams): Promise<boolean> {
+  const { to, customerName, customerPhone, date, time, service, eventId } = params;
+  const transporter = createTransporter();
+  const fromAddress = process.env.GMAIL_USER || 'noreply@rifx.online';
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`\n📧 [DEV] Appointment alert email to ${to} for ${customerName} on ${date} at ${time}\n`);
+  }
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === 'development') {
+      return true;
+    }
+    console.warn('[Email] Transporter not configured (GMAIL_USER or GMAIL_APP_PASSWORD missing). Appointment alert email skipped.');
+    return false;
+  }
+
+  let finalTo = to;
+  // Si se envía desde Gmail al mismo Gmail, Gmail lo archiva en "Enviados".
+  // Usamos el alias (+alerta) para forzar que llegue directamente a la bandeja de "Recibidos".
+  if (finalTo.toLowerCase() === fromAddress.toLowerCase() && fromAddress.includes('@gmail.com')) {
+    const [user, domain] = fromAddress.split('@');
+    finalTo = `${user}+alerta@${domain}`;
+  }
+
+  const cleanPhone = customerPhone.replace(/[^0-9]/g, '');
+  const waLink = cleanPhone ? `https://wa.me/${cleanPhone}` : '';
+  const panelUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://rifx-marketing.com'}/panel`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f172a;padding:40px 15px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:580px;background-color:#1e293b;border:1px solid #334155;border-radius:16px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);">
+          
+          <!-- Top Accent Line -->
+          <tr>
+            <td style="height:4px;background:linear-gradient(90deg, #10b981, #06b6d4, #3b82f6);"></td>
+          </tr>
+
+          <!-- Header Logo -->
+          <tr>
+            <td style="text-align:center;padding:35px 30px 15px;">
+              <a href="https://rifx-marketing.com" target="_blank" style="text-decoration:none;">
+                <img src="https://rifx-marketing.com/images/rifx-logo-particles-clean.png" alt="RIFX Marketing" height="42" style="display:block;margin:0 auto;border:0;">
+              </a>
+            </td>
+          </tr>
+
+          <!-- Status Badge -->
+          <tr>
+            <td style="text-align:center;padding:0 30px 15px;">
+              <div style="display:inline-block;background-color:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);border-radius:9999px;padding:6px 16px;">
+                <span style="color:#34d399;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+                  🟢 NUEVA CITA REGISTRADA
+                </span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Title -->
+          <tr>
+            <td style="padding:0 40px 25px;text-align:center;">
+              <h1 style="margin:0;color:#f8fafc;font-size:24px;font-weight:800;line-height:1.3;">
+                ¡Tienes una nueva cita en tu calendario!
+              </h1>
+              <p style="margin:8px 0 0;color:#94a3b8;font-size:14px;">
+                El asistente automático de RIFX Marketing acaba de confirmar un agendamiento.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Highlights Box (Date & Time) -->
+          <tr>
+            <td style="padding:0 30px 25px;">
+              <div style="background-color:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px;text-align:center;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td width="50%" style="text-align:center;border-right:1px solid #334155;padding:0 10px;">
+                      <span style="color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px;">📅 Fecha</span>
+                      <strong style="color:#ffffff;font-size:16px;font-weight:700;">${date}</strong>
+                    </td>
+                    <td width="50%" style="text-align:center;padding:0 10px;">
+                      <span style="color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;display:block;margin-bottom:4px;">⏰ Horario</span>
+                      <strong style="color:#34d399;font-size:16px;font-weight:700;">${time}</strong>
+                    </td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Details Table -->
+          <tr>
+            <td style="padding:0 30px 30px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;">
+                <tr>
+                  <td style="padding:14px 18px;border-bottom:1px solid #334155;color:#94a3b8;font-size:13px;width:120px;">
+                    <strong>👤 Cliente:</strong>
+                  </td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #334155;color:#f8fafc;font-size:14px;font-weight:600;">
+                    ${customerName}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 18px;border-bottom:1px solid #334155;color:#94a3b8;font-size:13px;">
+                    <strong>📱 Teléfono:</strong>
+                  </td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #334155;color:#f8fafc;font-size:14px;">
+                    +${customerPhone}
+                    ${waLink ? `&nbsp;&nbsp;<a href="${waLink}" target="_blank" style="display:inline-block;background-color:#25d366;color:#ffffff;font-size:11px;font-weight:bold;text-decoration:none;padding:3px 10px;border-radius:4px;">Chatear WhatsApp</a>` : ''}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 18px;border-bottom:1px solid #334155;color:#94a3b8;font-size:13px;">
+                    <strong>💼 Servicio:</strong>
+                  </td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #334155;color:#38bdf8;font-size:14px;font-weight:600;">
+                    ${service}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 18px;color:#94a3b8;font-size:13px;">
+                    <strong>📌 Estado:</strong>
+                  </td>
+                  <td style="padding:14px 18px;color:#34d399;font-size:14px;font-weight:600;">
+                    Confirmada y Guardada en Calendario ✅
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Action Buttons -->
+          <tr>
+            <td style="padding:0 30px 35px;text-align:center;">
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;">
+                <tr>
+                  <td style="padding:0 8px;">
+                    <a href="${panelUrl}" target="_blank" style="display:inline-block;background-color:#0058bc;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 24px;border-radius:8px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);">
+                      📅 Ver en Calendario CRM
+                    </a>
+                  </td>
+                  ${waLink ? `
+                  <td style="padding:0 8px;">
+                    <a href="${waLink}" target="_blank" style="display:inline-block;background-color:#1e293b;border:1px solid #475569;color:#f8fafc;text-decoration:none;font-weight:600;font-size:14px;padding:12px 20px;border-radius:8px;">
+                      💬 Contactar Cliente
+                    </a>
+                  </td>` : ''}
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer Divider -->
+          <tr>
+            <td style="padding:0 30px;">
+              <hr style="border:none;border-top:1px solid #334155;margin:0;">
+            </td>
+          </tr>
+
+          <!-- Security & Branding -->
+          <tr>
+            <td style="padding:25px 30px;text-align:center;">
+              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.5;">
+                Este correo es una notificación automática del sistema CRM de RIFX Marketing.<br>
+                © ${new Date().getFullYear()} RIFX Marketing. Todos los derechos reservados.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    await transporter.sendMail({
+      from: `"RIFX Calendario" <${fromAddress}>`,
+      to: finalTo,
+      subject: `📅 ¡Nueva Cita Agendada! — ${customerName} (${date} a las ${time})`,
+      html,
+    });
+    console.log(`[Email] Alerta de nueva cita enviada exitosamente a ${finalTo} para el cliente ${customerName}`);
+    return true;
+  } catch (error) {
+    console.error('[Email] Error enviando alerta de nueva cita por email:', error);
+    return false;
+  }
+}
+

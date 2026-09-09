@@ -11,7 +11,7 @@ import {
 
 const ALERT_EMAIL_PATTERN = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
 const PHONE_ID_PATTERN = /^\d{6,30}$/;
-const ALERT_PHONE_PATTERN = /^\d{7,20}$/;
+const ALERT_PHONE_PATTERN = /^\+?\d{7,20}$/;
 const META_AD_ACCOUNT_PATTERN = /^(?:act_)?\d{1,32}$/;
 const META_PAGE_PATTERN = /^\d{1,32}$/;
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:-]*$/;
@@ -69,6 +69,13 @@ interface ExtendedConfig {
   business_days: number[];
   business_start_hour: string;
   business_end_hour: string;
+  bot_name: string;
+  bot_role: string;
+  bot_tone: string;
+  bot_temperature: number;
+  bot_human_handoff: boolean;
+  bot_profanity_filter: boolean;
+  bot_topic_locks: boolean;
 }
 
 const EXTENDED_DEFAULTS: ExtendedConfig = {
@@ -98,6 +105,13 @@ const EXTENDED_DEFAULTS: ExtendedConfig = {
   business_days: [1, 2, 3, 4, 5],
   business_start_hour: '09:00',
   business_end_hour: '18:00',
+  bot_name: 'Asistente',
+  bot_role: '',
+  bot_tone: 'Profesional',
+  bot_temperature: 0.7,
+  bot_human_handoff: true,
+  bot_profanity_filter: true,
+  bot_topic_locks: false,
 };
 
 const EMPTY_CONFIG = {
@@ -128,6 +142,13 @@ const EMPTY_CONFIG = {
   business_days: [1, 2, 3, 4, 5],
   business_start_hour: '09:00',
   business_end_hour: '18:00',
+  bot_name: 'Asistente',
+  bot_role: '',
+  bot_tone: 'Profesional',
+  bot_temperature: 0.7,
+  bot_human_handoff: true,
+  bot_profanity_filter: true,
+  bot_topic_locks: false,
 };
 
 class ConfigInputError extends Error {}
@@ -188,6 +209,13 @@ function decodeExtendedConfig(stored: unknown): ExtendedConfig {
     business_days: Array.isArray(parsed.business_days) ? parsed.business_days : EXTENDED_DEFAULTS.business_days,
     business_start_hour: storedString(parsed.business_start_hour, 5, EXTENDED_DEFAULTS.business_start_hour),
     business_end_hour: storedString(parsed.business_end_hour, 5, EXTENDED_DEFAULTS.business_end_hour),
+    bot_name: storedString(parsed.bot_name, 100, EXTENDED_DEFAULTS.bot_name),
+    bot_role: storedString(parsed.bot_role, 200, EXTENDED_DEFAULTS.bot_role),
+    bot_tone: storedString(parsed.bot_tone, 50, EXTENDED_DEFAULTS.bot_tone),
+    bot_temperature: storedNumber(parsed.bot_temperature, 0, 1, EXTENDED_DEFAULTS.bot_temperature),
+    bot_human_handoff: typeof parsed.bot_human_handoff === 'boolean' ? parsed.bot_human_handoff : EXTENDED_DEFAULTS.bot_human_handoff,
+    bot_profanity_filter: typeof parsed.bot_profanity_filter === 'boolean' ? parsed.bot_profanity_filter : EXTENDED_DEFAULTS.bot_profanity_filter,
+    bot_topic_locks: typeof parsed.bot_topic_locks === 'boolean' ? parsed.bot_topic_locks : EXTENDED_DEFAULTS.bot_topic_locks,
   };
 }
 
@@ -314,6 +342,13 @@ export async function GET(req: NextRequest) {
       business_days: Array.isArray(extended.business_days) ? extended.business_days : EXTENDED_DEFAULTS.business_days,
       business_start_hour: extended.business_start_hour || EXTENDED_DEFAULTS.business_start_hour,
       business_end_hour: extended.business_end_hour || EXTENDED_DEFAULTS.business_end_hour,
+      bot_name: extended.bot_name,
+      bot_role: extended.bot_role,
+      bot_tone: extended.bot_tone,
+      bot_temperature: extended.bot_temperature,
+      bot_human_handoff: extended.bot_human_handoff,
+      bot_profanity_filter: extended.bot_profanity_filter,
+      bot_topic_locks: extended.bot_topic_locks,
     }, { headers: { 'Cache-Control': 'private, no-store, max-age=0, must-revalidate' } });
   } catch {
     console.error('Panel configuration request failed');
@@ -361,6 +396,8 @@ export async function POST(req: NextRequest) {
       'dropi_token', 'dropi_default_product_id', 'dropi_default_price', 'dropi_prompt',
       'sales_prompt', 'support_prompt', 'admin_notification_phone',
       'business_days', 'business_start_hour', 'business_end_hour',
+      'bot_name', 'bot_role', 'bot_tone', 'bot_temperature',
+      'bot_human_handoff', 'bot_profanity_filter', 'bot_topic_locks',
     ]);
     if (Object.keys(body).some((key) => extendedFields.has(key))) {
       const next: ExtendedConfig = {
@@ -391,6 +428,13 @@ export async function POST(req: NextRequest) {
         business_days: Array.isArray(body.business_days) ? body.business_days.filter(d => typeof d === 'number' && d >= 0 && d <= 6) : current.business_days || EXTENDED_DEFAULTS.business_days,
         business_start_hour: updatedString(body.business_start_hour, current.business_start_hour || EXTENDED_DEFAULTS.business_start_hour, 5),
         business_end_hour: updatedString(body.business_end_hour, current.business_end_hour || EXTENDED_DEFAULTS.business_end_hour, 5),
+        bot_name: updatedString(body.bot_name, current.bot_name, 100),
+        bot_role: updatedString(body.bot_role, current.bot_role, 200),
+        bot_tone: updatedString(body.bot_tone, current.bot_tone, 50),
+        bot_temperature: updatedNumber(body.bot_temperature, current.bot_temperature, 0, 1),
+        bot_human_handoff: updatedBoolean(body.bot_human_handoff, current.bot_human_handoff),
+        bot_profanity_filter: updatedBoolean(body.bot_profanity_filter, current.bot_profanity_filter),
+        bot_topic_locks: updatedBoolean(body.bot_topic_locks, current.bot_topic_locks),
       };
       assertPattern(next.bulk_wa_phone_id, PHONE_ID_PATTERN, 'Phone ID masivo');
       assertPattern(next.facebook_ad_account_id, META_AD_ACCOUNT_PATTERN, 'Cuenta publicitaria');

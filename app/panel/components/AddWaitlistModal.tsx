@@ -226,30 +226,32 @@ export default function AddWaitlistModal({
           transition={{ duration: 0.18 }}
           className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden my-8 max-h-[92vh] flex flex-col"
         >
-          {/* Header Corporativo Limpio */}
-          <div className="px-6 py-4.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30 flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/15 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-lg">hourglass_top</span>
+          {/* Header Bitrix24 Style con tipografía limpia */}
+          <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-6 py-4.5 text-white flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/25 shadow-xs shrink-0">
+                  <span className="material-symbols-outlined text-white text-xl">hourglass_top</span>
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-normal text-white leading-tight">
+                    {language === 'en' ? 'Add entry to waitlist' : 'Agregar entrada a lista de espera'}
+                  </h2>
+                  <p className="text-xs font-normal text-white/90 mt-0.5">
+                    {language === 'en'
+                      ? 'Online booking management and agile space reassignment'
+                      : 'Gestión de reserva online y asignación ágil de espacios cancelados'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-normal text-slate-800 dark:text-slate-100 leading-tight">
-                  {language === 'en' ? 'Add entry to waitlist' : 'Agregar entrada a lista de espera'}
-                </h2>
-                <p className="text-xs font-normal text-slate-400 dark:text-slate-500 mt-0.5">
-                  {language === 'en'
-                    ? 'Online booking management and agile space reassignment'
-                    : 'Gestión de reserva online y asignación ágil de espacios cancelados'}
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex items-center justify-center text-white cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
           </div>
 
           {/* Form Content */}
@@ -272,10 +274,10 @@ export default function AddWaitlistModal({
                         handleSelectContact(selectedCrmContact);
                       }
                     }}
-                    className={`px-3 py-1 text-xs font-normal rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 text-xs font-normal rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                       clientMode === 'select_crm'
-                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">group</span>
@@ -287,10 +289,10 @@ export default function AddWaitlistModal({
                       setClientMode('create_new');
                       handleClearSelectedContact();
                     }}
-                    className={`px-3 py-1 text-xs font-normal rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 text-xs font-normal rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                       clientMode === 'create_new'
-                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        ? 'bg-amber-500 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">person_add</span>
@@ -547,8 +549,8 @@ export default function AddWaitlistModal({
             </div>
 
             {/* 3. AGREGAR NOTA (PREFERENCIAS DE HORARIO DEL CLIENTE) */}
-            <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-xl p-3.5 border border-slate-200/80 dark:border-slate-700/60">
-              <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <div className="bg-amber-50/50 dark:bg-amber-950/20 rounded-xl p-3.5 border border-amber-200/70 dark:border-amber-800/40">
+              <label className="block text-xs font-normal text-amber-900 dark:text-amber-200 mb-1.5 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-sm text-amber-600 dark:text-amber-400">edit_note</span>
                 <span>{language === 'en' ? 'Schedule preferences and notes' : 'Notas y preferencias de horario'}</span>
               </label>
@@ -561,9 +563,9 @@ export default function AddWaitlistModal({
                     ? 'E.g., Client prefers appointments after 10:00 AM, or any cancellation on Friday afternoons...'
                     : 'Ej: El cliente prefiere mañanas a partir de las 10:00 AM, o cualquier turno cancelado los viernes...'
                 }
-                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-normal text-slate-800 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 outline-none transition-all"
+                className="w-full bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-800/60 rounded-xl px-3.5 py-2 text-xs font-normal text-slate-800 dark:text-slate-100 placeholder:text-slate-400 hover:border-amber-300 dark:hover:border-amber-700 focus:ring-2 focus:ring-amber-500/15 focus:border-amber-500 outline-none transition-all"
               />
-              <p className="text-[11px] font-normal text-slate-400 dark:text-slate-500 mt-1.5 flex items-center gap-1">
+              <p className="text-[11px] font-normal text-amber-800/80 dark:text-amber-400/80 mt-1.5 flex items-center gap-1">
                 <span className="material-symbols-outlined text-xs text-amber-500">lightbulb</span>
                 <span>
                   {language === 'en'

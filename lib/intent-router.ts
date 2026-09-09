@@ -60,7 +60,11 @@ const INTENT_KEYWORDS: Record<Intent, string[]> = {
     'contra entrega', 'producto', 'quiero uno', 'cuántos hay', 'cuantos hay',
     'talla', 'color', 'modelo', 'disponible', 'stock',
   ],
-  general_chat: [], // fallback — never matches by keyword
+  general_chat: [
+    'hola', 'buenas', 'buenos días', 'buenos dias', 'buenas tardes', 'buenas noches',
+    'saludos', 'que tal', 'qué tal', 'hey', 'gracias', 'muchas gracias', 'perfecto',
+    'ok', 'vale', 'listo', 'entendido', 'de acuerdo', 'genial', 'excelente'
+  ],
 };
 
 export function classifyByKeywords(message: string, isDropiEnabled: boolean): IntentResult | null {
@@ -74,6 +78,7 @@ export function classifyByKeywords(message: string, isDropiEnabled: boolean): In
     'support',
     isDropiEnabled ? 'sales_dropshipping' : 'sales_services',
     isDropiEnabled ? 'sales_services' : 'sales_dropshipping',
+    'general_chat',
   ];
 
   for (const intent of priorityOrder) {
@@ -125,6 +130,8 @@ Responde SOLO con el nombre de la intención, nada más.`,
       ],
       max_tokens: 20,
       temperature: 0,
+    }, {
+      signal: AbortSignal.timeout(1500),
     });
 
     const raw = (completion.choices[0]?.message?.content || '').trim().toLowerCase();

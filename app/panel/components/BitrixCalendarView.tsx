@@ -18,6 +18,7 @@ interface BitrixCalendarViewProps {
     resource_name?: string;
     date?: string;
     time?: string;
+    waitlist_id?: string;
   }) => void;
   onOpenAddWaitlist: () => void;
   onApptAction: (
@@ -27,6 +28,7 @@ interface BitrixCalendarViewProps {
   ) => Promise<void>;
   onWaitlistNotify: (waitlistId: string, time?: string) => Promise<void>;
   onWaitlistStatus: (waitlistId: string, status: string) => Promise<void>;
+  onWaitlistDelete?: (waitlistId: string) => Promise<void>;
   isPerformingAction?: string | null;
   // Stats and Metrics
   appointmentStats?: any;
@@ -39,7 +41,6 @@ interface BitrixCalendarViewProps {
     business_end_hour?: string;
   }) => Promise<boolean | void> | void;
   isSavingSchedule?: boolean;
-  onSwitchToTable?: () => void;
   authFetch?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
@@ -185,7 +186,7 @@ export function parseWaitlistNotes(notes?: string | null): {
   let email: string | undefined;
   let schedulePreference = notes;
 
-  const metaMatch = notes.match(/^\[(.*?)\]\s*(.*)$/s);
+  const metaMatch = notes.match(/^\[([\s\S]*?)\]\s*([\s\S]*)$/);
   if (metaMatch) {
     const metaString = metaMatch[1];
     schedulePreference = metaMatch[2]?.trim() || '';
@@ -245,13 +246,13 @@ export default function BitrixCalendarView({
   onApptAction,
   onWaitlistNotify,
   onWaitlistStatus,
+  onWaitlistDelete,
   isPerformingAction,
   appointmentStats,
   configData,
   setConfigData,
   onSaveSchedule,
   isSavingSchedule,
-  onSwitchToTable,
   authFetch,
 }: BitrixCalendarViewProps) {
   // Top Navigation Tab (Bitrix24 style navigation: Reservas, Métricas, Recursos, Espera)
@@ -261,7 +262,16 @@ export default function BitrixCalendarView({
   const [isWaitlistCollapsed, setIsWaitlistCollapsed] = useState(false);
   const [showWaitlistHelpModal, setShowWaitlistHelpModal] = useState(false);
   const [waitlistSeniorityFilter, setWaitlistSeniorityFilter] = useState<'all' | 'today' | 'this_week' | 'older'>('all');
+  const [waitlistFilter, setWaitlistFilter] = useState<'active' | 'all'>('active');
   const [waitlistDeletingId, setWaitlistDeletingId] = useState<string | null>(null);
+
+  // Filtered waitlist for the full waitlist view (default: active waiting and notified only)
+  const displayedWaitlist = useMemo(() => {
+    if (waitlistFilter === 'active') {
+      return waitlist.filter((w) => w.status === 'waiting' || w.status === 'notified');
+    }
+    return waitlist;
+  }, [waitlist, waitlistFilter]);
 
   // Group waitlist by seniority (Hoy, Semana actual, Semana anterior)
   const groupedWaitlist = useMemo(() => {
@@ -305,6 +315,45 @@ export default function BitrixCalendarView({
   const [rescheduleSlots, setRescheduleSlots] = useState<{ start: string; end: string; label: string }[]>([]);
   const [loadingRescheduleSlots, setLoadingRescheduleSlots] = useState(false);
   const [isSubmittingModalAction, setIsSubmittingModalAction] = useState(false);
+  const [isGeneratingBriefing, setIsGeneratingBriefing] = useState(false);
+  const [copiedBriefing, setCopiedBriefing] = useState(false);
+
+  // Auto-cargar análisis del servicio con IA si la cita aún no lo tiene (automático sin botón para evitar gasto de tokens)
+  useEffect(() => {
+    if (
+      selectedApptDetails?.id &&
+      !selectedApptDetails.confirmation_message &&
+      apptModalMode === 'details' &&
+      !isGeneratingBriefing
+    ) {
+      let isMounted = true;
+      setIsGeneratingBriefing(true);
+      const fetchFn = authFetch || fetch;
+      fetchFn('/api/panel/appointments/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: selectedApptDetails.id, force: false })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (isMounted && data.briefing) {
+            setSelectedApptDetails((prev: any) => prev ? { ...prev, confirmation_message: data.briefing } : prev);
+            if (Array.isArray(appointments)) {
+              const target = appointments.find((a: any) => a.id === selectedApptDetails.id);
+              if (target) target.confirmation_message = data.briefing;
+            }
+          }
+        })
+        .catch(err => console.warn('Auto-briefing load skipped:', err))
+        .finally(() => {
+          if (isMounted) setIsGeneratingBriefing(false);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [selectedApptDetails?.id, apptModalMode]);
 
   // Edit Schedule Modal state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -476,7 +525,7 @@ export default function BitrixCalendarView({
     return hours;
   }, [startHour, endHour]);
 
-  const hourRowHeight = Math.round(72 * zoomLevel);
+  const hourRowHeight = Math.round(96 * zoomLevel);
 
   // Resources List
   const resourcesList = useMemo(() => {
@@ -1050,7 +1099,11 @@ export default function BitrixCalendarView({
               <button
                 type="button"
                 onClick={async () => {
-                  await onWaitlistStatus(wItem.id, 'cancelled');
+                  if (onWaitlistDelete) {
+                    await onWaitlistDelete(wItem.id);
+                  } else {
+                    await onWaitlistStatus(wItem.id, 'cancelled');
+                  }
                   setWaitlistDeletingId(null);
                 }}
                 className="px-2 py-0.5 text-[9px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded cursor-pointer"
@@ -1087,6 +1140,7 @@ export default function BitrixCalendarView({
                     service: wItem.service,
                     resource_name: wItem.resource_name,
                     date: wItem.desired_date || selectedDateStr,
+                    waitlist_id: wItem.id,
                   })
                 }
                 className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black flex items-center gap-1 shadow-sm cursor-pointer"
@@ -1432,17 +1486,6 @@ export default function BitrixCalendarView({
                 >
                   {language === 'en' ? 'Week' : 'Semana'}
                 </button>
-                {onSwitchToTable && (
-                  <button
-                    type="button"
-                    onClick={onSwitchToTable}
-                    className="px-2.5 py-1 rounded-lg text-xs font-black text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1 cursor-pointer"
-                    title="Vista de Tabla detallada"
-                  >
-                    <span className="material-symbols-outlined text-sm">table_rows</span>
-                    <span className="hidden sm:inline">{language === 'en' ? 'Table' : 'Tabla'}</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -1543,7 +1586,7 @@ export default function BitrixCalendarView({
                             setSelectedDate(wDay.date);
                             setViewMode('day');
                           }}
-                          className={`flex-1 min-w-[130px] p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                          className={`flex-1 min-w-[180px] p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${
                             wDay.isSelected
                               ? 'bg-blue-50/70 dark:bg-blue-950/40'
                               : isDayNonWorking
@@ -1589,7 +1632,7 @@ export default function BitrixCalendarView({
               </div>
 
               {/* Timeline Rows Container */}
-              <div className="relative flex-1 overflow-y-auto max-h-[700px]">
+              <div className="relative flex-1 overflow-y-auto max-h-[780px]">
                 {/* Real-time Indicator Line */}
                 {currentTimeMinutes !== null && selectedDateStr === new Date().toISOString().split('T')[0] && (
                   <div
@@ -1673,8 +1716,9 @@ export default function BitrixCalendarView({
 
                               const durationMinutes = appt.duration_minutes || 60;
                               const top = (apptHour - startHour) * hourRowHeight;
-                              const height = Math.max(36, (durationMinutes / 60) * hourRowHeight - 4);
+                              const height = Math.max(54, (durationMinutes / 60) * hourRowHeight - 4);
                               const statusConf = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
+                              const bookingReason = appt.notes || appt.service || (language === 'en' ? 'General Consultation' : 'Asesoría');
 
                               const startDate = new Date(appt.scheduled_time);
                               const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
@@ -1694,7 +1738,7 @@ export default function BitrixCalendarView({
                                     }}
                                     className={`absolute left-2 right-2 rounded-2xl px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 border-l-[5px] ${statusConf.accentBorder} shadow-xs hover:shadow-lg transition-all cursor-pointer z-10 flex items-center justify-between gap-3 group ${statusConf.glow}`}
                                   >
-                                    {/* Left: Initials Avatar + Client & Service */}
+                                    {/* Left: Initials Avatar + Client & Service / Reason */}
                                     <div className="flex items-center gap-2.5 min-w-0">
                                       <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center font-black text-xs text-slate-700 dark:text-slate-200 shrink-0 group-hover:scale-105 transition-transform">
                                         {appt.customer_name ? appt.customer_name.slice(0, 2).toUpperCase() : 'CI'}
@@ -1706,9 +1750,12 @@ export default function BitrixCalendarView({
                                           </h4>
                                           <span className={`w-2 h-2 rounded-full ${statusConf.dot} shrink-0`} />
                                         </div>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold truncate">
-                                          {appt.service || 'Asesoría'}
-                                        </p>
+                                        <div className="flex items-center gap-1 mt-0.5" title={bookingReason}>
+                                          <span className="material-symbols-outlined text-xs text-indigo-500 shrink-0">bookmark</span>
+                                          <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-bold truncate">
+                                            {bookingReason}
+                                          </p>
+                                        </div>
                                       </div>
                                     </div>
 
@@ -1754,7 +1801,7 @@ export default function BitrixCalendarView({
                         const isColDayNonWorking = checkIsNonWorkingDay(wDay.date);
 
                         return (
-                          <div key={colIdx} className={`flex-1 min-w-[130px] relative ${
+                          <div key={colIdx} className={`flex-1 min-w-[180px] relative ${
                             isColDayNonWorking ? 'bg-white dark:bg-slate-900 select-none' : ''
                           }`}>
                             {hoursArray.map((hour) => {
@@ -1797,8 +1844,9 @@ export default function BitrixCalendarView({
 
                               const durationMinutes = appt.duration_minutes || 60;
                               const top = (apptHour - startHour) * hourRowHeight;
-                              const height = Math.max(30, (durationMinutes / 60) * hourRowHeight - 3);
+                              const height = Math.max(82, (durationMinutes / 60) * hourRowHeight - 4);
                               const statusConf = STATUS_CONFIG[appt.status] || STATUS_CONFIG.pending;
+                              const bookingReason = appt.notes || appt.service || (language === 'en' ? 'General Consultation' : 'Asesoría');
 
                               const startDate = new Date(appt.scheduled_time);
                               const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
@@ -1816,24 +1864,34 @@ export default function BitrixCalendarView({
                                     e.stopPropagation();
                                     setSelectedApptDetails(appt);
                                   }}
-                                  className={`absolute left-1 right-1 rounded-xl p-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 border-l-4 ${statusConf.accentBorder} shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 flex flex-col justify-between`}
+                                  className={`absolute left-1 right-1 rounded-xl p-2.5 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 border-l-4 ${statusConf.accentBorder} shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 flex flex-col justify-between group`}
                                 >
-                                  <div className="truncate">
-                                    <div className="flex items-center gap-1">
-                                      <span className={`w-1.5 h-1.5 rounded-full ${statusConf.dot} shrink-0`} />
-                                      <p className="text-[11px] font-black text-slate-900 dark:text-white truncate">
-                                        {appt.customer_name}
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className={`w-2 h-2 rounded-full ${statusConf.dot} shrink-0`} />
+                                      <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                        {appt.customer_name || 'Cliente'}
                                       </p>
                                     </div>
-                                    <p className="text-[9px] text-slate-500 dark:text-slate-400 font-semibold truncate pl-2.5">
-                                      {appt.service}
-                                    </p>
+                                    {/* Nota / Motivo de la Reserva visible y con estilo */}
+                                    <div
+                                      className="mt-1 flex items-center gap-1 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50/90 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-900/60 truncate"
+                                      title={bookingReason}
+                                    >
+                                      <span className="material-symbols-outlined text-xs text-indigo-500 shrink-0">bookmark</span>
+                                      <span className="truncate">{bookingReason}</span>
+                                    </div>
+                                    {appt.resource_name && height >= 115 && (
+                                      <p className="text-[9px] text-slate-400 font-semibold truncate pl-1 mt-0.5">
+                                        {appt.resource_name}
+                                      </p>
+                                    )}
                                   </div>
-                                  <div className="flex items-center justify-between text-[9px] mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                                    <span className="text-[9px] font-mono font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded border border-slate-200/50 dark:border-slate-700">
+                                  <div className="flex items-center justify-between gap-1 text-[9px] mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                                    <span className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-slate-700 truncate">
                                       {timeFormatted}
                                     </span>
-                                    <span className={`font-bold capitalize text-[9px] ${statusConf.text}`}>
+                                    <span className={`font-black text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${statusConf.badgeBg} shrink-0`}>
                                       {statusConf.label}
                                     </span>
                                   </div>
@@ -2379,7 +2437,7 @@ export default function BitrixCalendarView({
       {/* E. VISTA 5: LISTA DE ESPERA COMPLETA */}
       {activeSection === 'waitlist' && (
         <div className="p-8 space-y-6 bg-white dark:bg-slate-900">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-black text-slate-900 dark:text-white">
                 {language === 'en' ? 'Waitlist & Overbooking' : 'Cola de Lista de Espera y Overbooking'}
@@ -2390,20 +2448,57 @@ export default function BitrixCalendarView({
                   : 'Clientes esperando turnos. Si alguien cancela o no asiste, puedes notificarles por WhatsApp y agendarlos con 1 clic.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onOpenAddWaitlist}
-              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-sm">add</span>
-              <span>{language === 'en' ? 'Add Client' : 'Añadir Cliente a Espera'}</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setWaitlistFilter('active')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    waitlistFilter === 'active'
+                      ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>{language === 'en' ? 'Active Queue' : 'En Espera Activa'}</span>
+                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                    {waitlist.filter((w) => w.status === 'waiting' || w.status === 'notified').length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWaitlistFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    waitlistFilter === 'all'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <span>{language === 'en' ? 'All / History' : 'Historial / Todos'}</span>
+                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300">
+                    {waitlist.length}
+                  </span>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenAddWaitlist}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                <span>{language === 'en' ? 'Add Client' : 'Añadir Cliente a Espera'}</span>
+              </button>
+            </div>
           </div>
 
-          {waitlist.length === 0 ? (
+          {displayedWaitlist.length === 0 ? (
             <div className="py-20 text-center text-slate-400 space-y-2">
               <span className="material-symbols-outlined text-5xl text-slate-300">hourglass_disabled</span>
-              <p className="text-xs font-bold uppercase tracking-wider">{language === 'en' ? 'No clients on waitlist' : 'No hay clientes en lista de espera'}</p>
+              <p className="text-xs font-bold uppercase tracking-wider">
+                {waitlistFilter === 'active'
+                  ? (language === 'en' ? 'No active clients on waitlist' : 'No hay clientes en espera activa')
+                  : (language === 'en' ? 'No records found' : 'No hay registros en la lista')}
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-3xl border border-slate-100 dark:border-slate-800">
@@ -2421,7 +2516,7 @@ export default function BitrixCalendarView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {waitlist.map((item) => {
+                  {displayedWaitlist.map((item) => {
                     const parsed = parseWaitlistNotes(item.notes);
                     const seniority = getWaitlistSeniority(item.created_at, item.desired_date);
                     const matchedContact = contacts?.find(
@@ -2492,8 +2587,26 @@ export default function BitrixCalendarView({
                           )}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-600 border border-amber-200 capitalize">
-                            {item.status}
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border capitalize ${
+                              item.status === 'booked'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                : item.status === 'cancelled'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                : item.status === 'notified'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                                : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                            }`}
+                          >
+                            {item.status === 'waiting'
+                              ? (language === 'en' ? 'Waiting' : 'En espera')
+                              : item.status === 'notified'
+                              ? (language === 'en' ? 'Notified' : 'Notificado')
+                              : item.status === 'booked'
+                              ? (language === 'en' ? 'Booked' : 'Agendado')
+                              : item.status === 'cancelled'
+                              ? (language === 'en' ? 'Cancelled' : 'Cancelado')
+                              : item.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -2516,6 +2629,7 @@ export default function BitrixCalendarView({
                                   service: item.service,
                                   resource_name: item.resource_name,
                                   date: item.desired_date,
+                                  waitlist_id: item.id,
                                 });
                                 setActiveSection('timeline');
                               }}
@@ -2528,12 +2642,16 @@ export default function BitrixCalendarView({
                             <button
                               type="button"
                               onClick={async () => {
-                                if (window.confirm(language === 'en' ? 'Discard this waitlist entry?' : '¿Descartar esta solicitud de la lista de espera?')) {
-                                  await onWaitlistStatus(item.id, 'cancelled');
+                                if (window.confirm(language === 'en' ? 'Delete this client from the waitlist?' : '¿Eliminar este cliente de la lista de espera?')) {
+                                  if (onWaitlistDelete) {
+                                    await onWaitlistDelete(item.id);
+                                  } else {
+                                    await onWaitlistStatus(item.id, 'cancelled');
+                                  }
                                 }
                               }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center gap-1 cursor-pointer"
-                              title="Descartar / Eliminar"
+                              title="Eliminar de lista"
                             >
                               <span className="material-symbols-outlined text-xs">delete</span>
                             </button>
@@ -4002,10 +4120,10 @@ export default function BitrixCalendarView({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
-                          {language === 'en' ? 'Service' : 'Servicio'}
+                          {language === 'en' ? 'Service / Reason' : 'Servicio / Motivo'}
                         </span>
                         <span className="text-xs font-black text-slate-800 dark:text-white truncate block">
-                          {selectedApptDetails.service || 'Asesoría'}
+                          {selectedApptDetails.notes || selectedApptDetails.service || 'Asesoría'}
                         </span>
                       </div>
                       <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
@@ -4048,6 +4166,86 @@ export default function BitrixCalendarView({
                       <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${STATUS_CONFIG[selectedApptDetails.status]?.badgeBg || 'bg-slate-100'}`}>
                         {STATUS_CONFIG[selectedApptDetails.status]?.label || selectedApptDetails.status}
                       </span>
+                    </div>
+
+                    {/* ========================================================================= */}
+                    {/* Contexto del Chat y Motivo de Reserva (Briefing IA para el Asesor) */}
+                    {/* ========================================================================= */}
+                    <div className="bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 dark:from-indigo-950/40 dark:via-slate-900/60 dark:to-slate-900/90 rounded-2xl p-4 border border-indigo-100/90 dark:border-indigo-900/60 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                            <span className="material-symbols-outlined text-base">psychology</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
+                              {language === 'en' ? 'Client Request & Requested Service' : 'Resumen de la Solicitud y Servicio'}
+                            </span>
+                            <span className="text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-100/90 dark:bg-indigo-900/70 px-2 py-0.5 rounded-full border border-indigo-200/70 dark:border-indigo-800">
+                              {language === 'en' ? 'AI Analyst' : 'Analista IA'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isGeneratingBriefing ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 animate-pulse">
+                              <span className="material-symbols-outlined text-xs animate-spin">progress_activity</span>
+                              <span>{language === 'en' ? 'Analyzing...' : 'Analizando automáticamente...'}</span>
+                            </span>
+                          ) : selectedApptDetails.confirmation_message ? (
+                            <>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800">
+                                <span className="material-symbols-outlined text-[11px]">auto_awesome</span>
+                                <span>{language === 'en' ? 'Auto-analyzed' : 'Análisis automático'}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(selectedApptDetails.confirmation_message);
+                                  setCopiedBriefing(true);
+                                  setTimeout(() => setCopiedBriefing(false), 2000);
+                                }}
+                                className="text-[10px] font-bold text-slate-500 hover:text-indigo-600 dark:text-slate-400 flex items-center gap-1 cursor-pointer transition-colors px-2.5 py-1 rounded-lg hover:bg-white/60 dark:hover:bg-slate-800/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                                title="Copiar pauta para la llamada"
+                              >
+                                <span className="material-symbols-outlined text-xs">
+                                  {copiedBriefing ? 'check' : 'content_copy'}
+                                </span>
+                                <span>{copiedBriefing ? (language === 'en' ? 'Copied' : 'Copiado') : (language === 'en' ? 'Copy' : 'Copiar')}</span>
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="bg-white/95 dark:bg-slate-800/90 p-3.5 rounded-xl border border-indigo-100/70 dark:border-slate-700/60 text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
+                        {isGeneratingBriefing ? (
+                          <div className="flex items-center gap-3 py-3 px-2 text-indigo-700 dark:text-indigo-300">
+                            <span className="material-symbols-outlined text-2xl animate-spin text-indigo-600 dark:text-indigo-400">sync</span>
+                            <div>
+                              <p className="font-bold text-xs">
+                                {language === 'en' ? 'AI Analyst reading customer conversation...' : 'El Analista IA está revisando la conversación automáticamente...'}
+                              </p>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                {language === 'en' ? 'Extracting requested service and client requirements from booking day.' : 'Detectando el servicio solicitado y las necesidades del cliente del día de la reserva.'}
+                              </p>
+                            </div>
+                          </div>
+                        ) : selectedApptDetails.confirmation_message ? (
+                          <div className="whitespace-pre-line space-y-1">
+                            {selectedApptDetails.confirmation_message}
+                          </div>
+                        ) : (
+                          <div className="py-2 text-center sm:text-left">
+                            <p className="text-slate-500 dark:text-slate-400 text-xs italic">
+                              {language === 'en' 
+                                ? 'No conversation messages found for this reservation date.' 
+                                : 'No se encontraron mensajes de chat para la fecha de esta reserva.'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Actions Section */}
@@ -4168,17 +4366,17 @@ export default function BitrixCalendarView({
               className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-6 max-h-[92vh] flex flex-col text-slate-800 dark:text-slate-100"
             >
               {/* Header */}
-              <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-6 py-5 text-white flex-shrink-0">
+              <div className="relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-6 py-4.5 text-white flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-sm">
-                      <span className="material-symbols-outlined text-white text-2xl">help_outline</span>
+                    <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/25 shadow-xs">
+                      <span className="material-symbols-outlined text-white text-xl">help_outline</span>
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-white leading-tight">
+                      <h2 className="text-base sm:text-lg font-normal text-white leading-tight">
                         {language === 'en' ? 'How Does the Waitlist Work?' : '¿Cómo Funciona la Lista de Espera?'}
                       </h2>
-                      <p className="text-xs text-white/85 font-medium">
+                      <p className="text-xs text-white/90 font-normal mt-0.5">
                         {language === 'en'
                           ? 'Online booking, specialist assignment, and agile slot reassignment'
                           : 'Gestión de citas, asignación de especialistas y reasignación ágil de espacios'}
@@ -4188,7 +4386,7 @@ export default function BitrixCalendarView({
                   <button
                     type="button"
                     onClick={() => setShowWaitlistHelpModal(false)}
-                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/25 transition-colors flex items-center justify-center text-white cursor-pointer"
+                    className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 transition-colors flex items-center justify-center text-white cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-base">close</span>
                   </button>
@@ -4199,7 +4397,7 @@ export default function BitrixCalendarView({
               <div className="p-6 overflow-y-auto space-y-6 text-xs text-slate-600 dark:text-slate-300">
                 {/* Intro summary */}
                 <div className="p-4 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40 rounded-2xl">
-                  <p className="leading-relaxed font-medium text-slate-700 dark:text-slate-200">
+                  <p className="leading-relaxed font-normal text-slate-700 dark:text-slate-200">
                     {language === 'en'
                       ? 'Online booking allows you to manage appointments with specialists and team equipment allocation. When immediate availability is not present, clients can be placed on the waitlist with three critical benefits:'
                       : 'La reserva online te permite gestionar citas con especialistas y la asignación de equipos. Cuando no haya disponibilidad inmediata, puedes incluir clientes a la lista de espera, lo que brinda estos beneficios:'}
@@ -4208,15 +4406,15 @@ export default function BitrixCalendarView({
 
                 {/* 3 Beneficios Clave (Tarjetas) */}
                 <div>
-                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
+                  <h4 className="text-xs font-normal text-slate-500 dark:text-slate-400 mb-3">
                     {language === 'en' ? 'Core Waitlist Benefits' : 'Beneficios de la Lista de Espera'}
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
                         <span className="material-symbols-outlined text-base">contact_phone</span>
                       </div>
-                      <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                      <h5 className="font-normal text-slate-900 dark:text-white text-xs">
                         {language === 'en' ? 'Client data & preferences' : 'Guardar datos y preferencias'}
                       </h5>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
@@ -4227,10 +4425,10 @@ export default function BitrixCalendarView({
                     </div>
 
                     <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
-                      <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black">
+                      <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
                         <span className="material-symbols-outlined text-base">bolt</span>
                       </div>
-                      <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                      <h5 className="font-normal text-slate-900 dark:text-white text-xs">
                         {language === 'en' ? 'Agile slot reassignment' : 'Reasignar espacios con agilidad'}
                       </h5>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
@@ -4241,10 +4439,10 @@ export default function BitrixCalendarView({
                     </div>
 
                     <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 space-y-2">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                         <span className="material-symbols-outlined text-base">trending_up</span>
                       </div>
-                      <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                      <h5 className="font-normal text-slate-900 dark:text-white text-xs">
                         {language === 'en' ? 'Max occupancy & retention' : 'Maximizar ocupación'}
                       </h5>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
@@ -4258,17 +4456,17 @@ export default function BitrixCalendarView({
 
                 {/* Paso a paso */}
                 <div className="space-y-3">
-                  <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                  <h4 className="text-xs font-normal text-slate-500 dark:text-slate-400">
                     {language === 'en' ? 'Workflow & Features Guide' : 'Flujo Oficial de Gestión'}
                   </h4>
 
                   <div className="space-y-2.5">
                     <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
-                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-normal text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                         1
                       </div>
                       <div>
-                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                        <p className="font-normal text-slate-800 dark:text-slate-100 text-xs">
                           {language === 'en' ? 'Add or select client from CRM' : 'Agregar o seleccionar cliente'}
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
@@ -4280,11 +4478,11 @@ export default function BitrixCalendarView({
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
-                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-normal text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                         2
                       </div>
                       <div>
-                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                        <p className="font-normal text-slate-800 dark:text-slate-100 text-xs">
                           {language === 'en' ? 'Add note for schedule preferences' : 'Agregar nota de horario'}
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
@@ -4296,11 +4494,11 @@ export default function BitrixCalendarView({
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
-                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-normal text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                         3
                       </div>
                       <div>
-                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                        <p className="font-normal text-slate-800 dark:text-slate-100 text-xs">
                           {language === 'en' ? 'Automatic grouping by seniority' : 'Organización por antigüedad'}
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
@@ -4312,11 +4510,11 @@ export default function BitrixCalendarView({
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
-                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-normal text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                         4
                       </div>
                       <div>
-                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                        <p className="font-normal text-slate-800 dark:text-slate-100 text-xs">
                           {language === 'en' ? 'Transfer to calendar or discard' : 'Trasladar al calendario o descartar'}
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
@@ -4328,11 +4526,11 @@ export default function BitrixCalendarView({
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
-                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-white font-normal text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                         5
                       </div>
                       <div>
-                        <p className="font-black text-slate-800 dark:text-slate-100 text-xs">
+                        <p className="font-normal text-slate-800 dark:text-slate-100 text-xs">
                           {language === 'en' ? 'Collapse / Expand the block' : 'Ocultar / Mostrar lista de espera'}
                         </p>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
@@ -4351,7 +4549,7 @@ export default function BitrixCalendarView({
                 <button
                   type="button"
                   onClick={() => setShowWaitlistHelpModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+                  className="px-4 py-2 text-xs font-normal text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
                 >
                   {language === 'en' ? 'Close' : 'Cerrar'}
                 </button>
@@ -4361,7 +4559,7 @@ export default function BitrixCalendarView({
                     setShowWaitlistHelpModal(false);
                     onOpenAddWaitlist();
                   }}
-                  className="px-5 py-2 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-xl shadow-md shadow-amber-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
+                  className="px-5 py-2 text-xs font-normal text-white bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-xl shadow-sm shadow-amber-500/20 flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-sm">add</span>
                   <span>{language === 'en' ? 'Add Entry Now' : 'Agregar Entrada a Lista de Espera'}</span>

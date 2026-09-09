@@ -9,6 +9,7 @@ import {
   readLimitedJsonObject,
   readLimitedResponseJson,
 } from '@/lib/request-guards';
+import { deductAiCredits, hasAvailableCredits } from '@/lib/ai-credits';
 
 export async function POST(req: NextRequest) {
   try {
@@ -84,6 +85,11 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json({ error: 'No se configuró ninguna API Key de IA.' }, { status: 500 });
+    }
+
+    const { hasCredits } = await hasAvailableCredits(supabase, tenant.tenantId);
+    if (!hasCredits) {
+      return NextResponse.json({ error: 'Sin créditos de IA suficientes para generar prompts.' }, { status: 402 });
     }
 
     const systemPrompt = mode === 'dropshipping'
@@ -162,6 +168,14 @@ Responde únicamente con el prompt generado, listo para copiar y pegar en el sis
     if (!generatedPrompt || !generatedPrompt.trim()) {
       return NextResponse.json({ error: 'La IA devolvió una respuesta vacía' }, { status: 500 });
     }
+
+    // Descontar 1 crédito de IA por generación de prompt comercial
+    await deductAiCredits(
+      supabase,
+      tenant.tenantId,
+      1,
+      'Generación de prompt del sistema comercial IA'
+    );
 
     return NextResponse.json({ prompt: generatedPrompt.trim().slice(0, 16_000) });
   } catch (error: any) {

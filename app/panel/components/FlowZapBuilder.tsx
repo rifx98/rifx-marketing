@@ -24,6 +24,19 @@ import '@xyflow/react/dist/style.css';
 
 import { FlowBuilderChrome } from './FlowBuilderChrome';
 import { InspectorField, InspectorDivider, InspectorToggle } from './BuilderInspectorPrimitives';
+import { formatForWhatsApp, sanitizeGreetings } from '@/lib/whatsapp-formatting';
+
+function renderWhatsAppFormattedText(text: string) {
+  if (!text) return null;
+  // Splits text by *bold* tokens to render native bold in simulator
+  const parts = text.split(/(\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return <strong key={i} className="font-bold text-slate-900">{part.slice(1, -1)}</strong>;
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
 
 // --- CUSTOM EDGES ---
 const RemovableEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }: any) => {
@@ -270,6 +283,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
   const [simulatorVars, setSimulatorVars] = useState<Record<string, any>>({});
   const [simulatorCurrentNode, setSimulatorCurrentNode] = useState<string>('');
   const [simulatorBreadcrumbs, setSimulatorBreadcrumbs] = useState<string[]>([]);
+  const [isSimulatorThinking, setIsSimulatorThinking] = useState(false);
 
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge({ 
@@ -317,7 +331,13 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
     setSelectedNode(null);
   };
 
-  const processSimulatorTurn = (currentNodeId: string, currentVars: any, userMessage: string, currentBreadcrumbs: string[]) => {
+  const processSimulatorTurn = async (
+    currentNodeId: string, 
+    currentVars: any, 
+    userMessage: string, 
+    currentBreadcrumbs: string[],
+    historyMessages: { role: string; content: string }[] = simulatorMessages
+  ) => {
     let vars = { ...currentVars };
     let nextNodeId = currentNodeId;
     let node = nodes.find((n: any) => n.id === nextNodeId);
@@ -420,23 +440,63 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
 
         const context = (node.data as any)?.context || '';
         const tone = (node.data as any)?.tone || 'amigable';
-        const nodeTitle = (node.data as any)?.name || 'IA';
+        const isStrict = (node.data as any)?.strictMode === 'yes';
 
+        setIsSimulatorThinking(true);
         let aiReply = '';
-        if (context.trim()) {
-          aiReply = `🤖 [${nodeTitle}]: ¡Hola! He analizado tu consulta sobre "${userMessage}". Según nuestro catálogo y reglas: ${context.slice(0, 160)}${context.length > 160 ? '...' : ''}`;
-        } else {
-          aiReply = `🤖 [${nodeTitle}]: ¡Hola! Recibí tu consulta: "${userMessage}". Con gusto te asesoro de manera personalizada.`;
-        }
+        try {
+          const recentHistory = historyMessages
+            .filter(m => m.content && !m.content.startsWith('['))
+            .slice(-10)
+            .map(m => ({
+              role: m.role === 'bot' ? 'assistant' : 'user',
+              content: m.content
+            }));
 
-        botReplies.push(aiReply);
+          const res = await fetch('/api/panel/test-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              message: userMessage,
+              history: recentHistory,
+              context: context,
+              strictMode: isStrict,
+              botTone: tone === 'vendedor' ? 'Vendedor' : tone === 'profesional' ? 'Profesional' : 'Amigable',
+            })
+          });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.response) {
+            const rawReply = data.response.trim();
+            aiReply = sanitizeGreetings(formatForWhatsApp(rawReply), historyMessages.length > 0);
+          }
+        }
+      } catch (err) {
+        console.error('[FlowZapBuilder] Error calling test-ai:', err);
+      } finally {
+        setIsSimulatorThinking(false);
+      }
+
+      // Si la IA no devolvió texto o hubo error de red, responder de forma 100% natural, humana y profesional
+      if (!aiReply) {
+        if (context.trim()) {
+          aiReply = `¡Hola! Con mucho gusto te oriento. Con respecto a lo que nos consultas: ${context.slice(0, 220)}${context.length > 220 ? '...' : ''} ¿Te gustaría recibir más detalles?`;
+        } else if (historyMessages.length > 0) {
+          aiReply = 'Con gusto te oriento sobre nuestros servicios. ¿Me podrías comentar un poco más sobre el alcance o características que buscas para asesorarte de la mejor manera?';
+        } else {
+          aiReply = '¡Hola! Un gusto saludarte. ¿En qué te puedo asesorar el día de hoy con respecto a nuestros servicios?';
+        }
+      }
+
+      aiReply = formatForWhatsApp(sanitizeGreetings(aiReply, historyMessages.length > 0));
+      botReplies.push(aiReply);
 
         const outEdges = edges.filter(e => e.source === node!.id);
         if (outEdges.length > 0) {
-          // If followed by a post-AI menu or action, advance to it
           autoAdvance = true;
         } else {
-          // Free-standing AI node: remain here for continuous chat
           nextNodeId = node.id;
           break;
         }
@@ -478,15 +538,13 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
     }
 
     if (botReplies.length > 0) {
-      setTimeout(() => {
-        setSimulatorMessages(prev => [
-          ...prev, 
-          ...botReplies.map(r => ({role: 'bot', content: r}))
-        ]);
-        setSimulatorVars(vars);
-        setSimulatorCurrentNode(nextNodeId);
-        setSimulatorBreadcrumbs(breadcrumbs);
-      }, 300);
+      setSimulatorMessages(prev => [
+        ...prev, 
+        ...botReplies.map(r => ({role: 'bot', content: r}))
+      ]);
+      setSimulatorVars(vars);
+      setSimulatorCurrentNode(nextNodeId);
+      setSimulatorBreadcrumbs(breadcrumbs);
     } else {
       setSimulatorVars(vars);
       setSimulatorCurrentNode(nextNodeId);
@@ -499,6 +557,7 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
     setSimulatorMessages([]);
     setSimulatorVars({});
     setSimulatorBreadcrumbs([]);
+    setIsSimulatorThinking(false);
     const startNode = nodes.find((n: any) => n.type === 'start');
     if(startNode) {
       setSimulatorCurrentNode(startNode.id);
@@ -822,10 +881,18 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
                       ? 'bg-white border border-slate-200 text-slate-700 shadow-sm rounded-tl-none' 
                       : 'bg-emerald-600 text-white rounded-tr-none shadow-sm'
                   }`}>
-                    {msg.content}
+                    {renderWhatsAppFormattedText(msg.content)}
                   </div>
                 </div>
               ))}
+              {isSimulatorThinking && (
+                <div className="flex justify-start">
+                  <div className="bg-white border border-slate-200 text-slate-500 shadow-sm rounded-2xl rounded-tl-none px-4 py-2.5 text-xs flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="italic">Escribiendo...</span>
+                  </div>
+                </div>
+              )}
               {simulatorMessages.length === 0 && (
                 <div className="text-center text-slate-400 text-xs mt-10">Cargando simulador...</div>
               )}
@@ -837,36 +904,42 @@ export default function FlowZapBuilder({ initialNodes, initialEdges, initialFlow
                 <input 
                   type="text" 
                   value={simulatorInput}
+                  disabled={isSimulatorThinking}
                   onChange={(e) => setSimulatorInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && simulatorInput.trim()) {
+                    if (e.key === 'Enter' && simulatorInput.trim() && !isSimulatorThinking) {
                       const input = simulatorInput.trim();
-                      setSimulatorMessages(prev => [...prev, {role: 'user', content: input}]);
+                      const updated = [...simulatorMessages, {role: 'user', content: input}];
+                      setSimulatorMessages(updated);
                       setSimulatorInput('');
-                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input, simulatorBreadcrumbs);
+                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input, simulatorBreadcrumbs, simulatorMessages);
                     }
                   }}
-                  placeholder="Escribe una respuesta..."
-                  className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                  placeholder={isSimulatorThinking ? "El asistente está respondiendo..." : "Escribe una respuesta..."}
+                  className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all disabled:bg-slate-50 disabled:text-slate-400"
                 />
                 <button 
+                  disabled={isSimulatorThinking || !simulatorInput.trim()}
                   onClick={() => {
-                    if (simulatorInput.trim()) {
+                    if (simulatorInput.trim() && !isSimulatorThinking) {
                       const input = simulatorInput.trim();
-                      setSimulatorMessages(prev => [...prev, {role: 'user', content: input}]);
+                      const updated = [...simulatorMessages, {role: 'user', content: input}];
+                      setSimulatorMessages(updated);
                       setSimulatorInput('');
-                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input, simulatorBreadcrumbs);
+                      processSimulatorTurn(simulatorCurrentNode, simulatorVars, input, simulatorBreadcrumbs, simulatorMessages);
                     }
                   }}
-                  className="bg-[#10b981] hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-xl text-[13px] transition-colors shadow-sm"
+                  className="bg-[#10b981] hover:bg-emerald-600 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl text-[13px] transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
-                  Enviar
+                  {isSimulatorThinking && <span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></span>}
+                  <span>Enviar</span>
                 </button>
               </div>
               <div className="mt-3">
                 <button 
+                  disabled={isSimulatorThinking}
                   onClick={startSimulator}
-                  className="text-[11px] font-bold text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                  className="text-[11px] font-bold text-slate-500 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Reiniciar simulación
                 </button>

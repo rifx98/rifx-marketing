@@ -16,6 +16,7 @@ interface DirectAppointmentModalProps {
     resource_name?: string;
     date?: string;
     time?: string;
+    waitlist_id?: string;
   };
   language: string;
   authFetch: (url: string, init?: RequestInit) => Promise<Response>;
@@ -44,6 +45,7 @@ export default function DirectAppointmentModal({
   const [endTime, setEndTime] = useState('10:00');
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [conversationId, setConversationId] = useState('');
+  const [waitlistId, setWaitlistId] = useState<string | null>(null);
 
   const [availableSlots, setAvailableSlots] = useState<{ start: string; end: string; label: string }[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -78,6 +80,7 @@ export default function DirectAppointmentModal({
       setEndTime(minutesToTime24(Math.min(1439, startMins + 60)));
       setDurationMinutes(60);
       setConversationId(initialData?.conversation_id || '');
+      setWaitlistId(initialData?.waitlist_id || null);
     }
   }, [isOpen, initialData]);
 
@@ -158,6 +161,22 @@ export default function DirectAppointmentModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        // Si proviene de la lista de espera, actualizar su estado a 'booked' para que salga de la cola
+        if (waitlistId) {
+          try {
+            await authFetch('/api/panel/appointments/waitlist', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'update_status',
+                waitlistId,
+                status: 'booked',
+              }),
+            });
+          } catch (e) {
+            console.error('Error updating waitlist status:', e);
+          }
+        }
         setToast({
           type: 'success',
           message: language === 'en'
@@ -249,13 +268,13 @@ export default function DirectAppointmentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-normal text-slate-600 dark:text-slate-300 mb-1.5">
-                  {language === 'en' ? 'Service' : 'Servicio'}
+                  {language === 'en' ? 'Service / Reason for booking' : 'Servicio / Motivo de la reserva'}
                 </label>
                 <input
                   type="text"
                   value={service}
                   onChange={(e) => setService(e.target.value)}
-                  placeholder="Ej: Asesoría Comercial"
+                  placeholder="Ej: Asesoría Comercial, Consulta médica, Demo..."
                   className="w-full bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm font-normal text-slate-800 dark:text-slate-100 placeholder:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-all"
                 />
               </div>

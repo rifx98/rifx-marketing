@@ -4,6 +4,7 @@ import { getTenantFromRequest } from '@/lib/auth';
 import OpenAI from 'openai';
 import { denyUnlessFeature } from '@/lib/feature-access';
 import { enforceTenantRateLimit, internalApiError } from '@/lib/request-guards';
+import { deductAiCredits, hasAvailableCredits } from '@/lib/ai-credits';
 
 export async function POST(req: NextRequest) {
   try {
@@ -137,6 +138,11 @@ export async function POST(req: NextRequest) {
       `[${i + 1}] "${c.name}" (${c.phone}) | Status: ${c.status} | Última actividad: hace ${c.hoursSinceActivity}h | Msgs: ${c.messageCount}\nÚltimos mensajes:\n${c.lastMessages || '(sin mensajes)'}`
     ).join('\n\n');
 
+    const { hasCredits } = await hasAvailableCredits(supabase, tenant.tenantId);
+    if (!hasCredits) {
+      return NextResponse.json({ error: 'Sin créditos de IA disponibles para predicciones' }, { status: 402 });
+    }
+
     const completion = await groq.chat.completions.create({
       model: 'qwen/qwen3.8-27b',
       messages: [
@@ -165,6 +171,14 @@ El "index" corresponde al número del contacto en la lista. El "score" es de 0 a
     });
 
     const aiContent = completion.choices[0]?.message?.content || '[]';
+
+    // Descontar 1 crédito de IA por el análisis de predicciones CRM
+    await deductAiCredits(
+      supabase,
+      tenant.tenantId,
+      1,
+      'Predicción y análisis de conversión CRM con IA'
+    );
     
     // Parse AI response
     let aiPredictions: { index: number; score: number; reason: string }[] = [];

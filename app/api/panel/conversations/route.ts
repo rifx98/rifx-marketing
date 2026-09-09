@@ -165,7 +165,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Identificador inválido' }, { status: 400 });
     }
 
-    const updates: Record<string, string> = { updated_at: new Date().toISOString() };
+    const updates: Record<string, any> = { updated_at: new Date().toISOString() };
     
     if (status !== undefined) {
       const validStatuses = ['chatting', 'interested', 'bought'];
@@ -195,6 +195,26 @@ export async function PATCH(req: NextRequest) {
       }
       updates.phone_number = phoneNumber.replace(/[^0-9+]/g, '');
     }
+    if (body.notes !== undefined) {
+      if (body.notes === null || typeof body.notes === 'string') {
+        updates.notes = typeof body.notes === 'string' ? body.notes.slice(0, 3000) : null;
+      }
+    }
+    if (body.tags !== undefined) {
+      if (Array.isArray(body.tags)) {
+        updates.tags = body.tags.filter((t: unknown) => typeof t === 'string').slice(0, 30);
+      }
+    }
+    if (body.assigned_to !== undefined || body.assignedTo !== undefined) {
+      const targetAssigned = body.assigned_to !== undefined ? body.assigned_to : body.assignedTo;
+      if (targetAssigned === null || typeof targetAssigned === 'string') {
+        updates.assigned_to = targetAssigned;
+      }
+    }
+    if (body.custom_fields !== undefined && typeof body.custom_fields === 'object' && body.custom_fields !== null) {
+      updates.custom_fields = body.custom_fields;
+    }
+
     if (Object.keys(updates).length === 1) {
       return NextResponse.json({ error: 'No hay cambios válidos' }, { status: 400 });
     }

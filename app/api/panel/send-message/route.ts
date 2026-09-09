@@ -8,6 +8,7 @@ import {
   readLimitedJsonObject,
   readLimitedResponseJson,
 } from '@/lib/request-guards';
+import { formatForWhatsApp } from '@/lib/whatsapp-formatting';
 
 const MAX_MULTIPART_BYTES = 17 * 1024 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
       const fileValue = formData.get('file');
       const accountValue = formData.get('accountId');
       conversationId = typeof conversationValue === 'string' ? conversationValue.trim() : null;
-      message = typeof messageValue === 'string' ? messageValue.trim() : null;
+      message = typeof messageValue === 'string' ? formatForWhatsApp(messageValue.trim()) : null;
       accountId = typeof accountValue === 'string' ? accountValue.trim() : null;
       file = fileValue instanceof File ? fileValue : null;
 
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
       if (!bodyResult.ok) return bodyResult.response;
       const json = bodyResult.body;
       conversationId = typeof json.conversationId === 'string' ? json.conversationId.trim() : null;
-      message = typeof json.message === 'string' ? json.message.trim() : null;
+      message = typeof json.message === 'string' ? formatForWhatsApp(json.message.trim()) : null;
       accountId = typeof json.accountId === 'string' ? json.accountId.trim() : null;
       isBulkSend = json.bulk === true;
       directPhone = typeof json.phone === 'string' ? json.phone.trim().replace(/^\+/, '') : null;

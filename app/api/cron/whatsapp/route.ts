@@ -155,6 +155,9 @@ export async function POST(req: NextRequest) {
       const rawBody = JSON.stringify(claim.payload);
       const signature = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
 
+      const destinationPhoneId = claim.destination_phone_id
+        || String((claim.payload as any)?.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id || '');
+
       try {
         const response = await fetch(webhookUrl, {
           method: 'POST',
@@ -165,7 +168,7 @@ export async function POST(req: NextRequest) {
             'x-rifx-whatsapp-worker': '1',
             'x-rifx-whatsapp-tenant-id': claim.tenant_id,
             'x-rifx-whatsapp-provider-message-id': claim.provider_message_id,
-            'x-rifx-whatsapp-destination-phone-id': claim.destination_phone_id,
+            'x-rifx-whatsapp-destination-phone-id': destinationPhoneId,
           },
           body: rawBody,
           redirect: 'error',

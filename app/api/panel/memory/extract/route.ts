@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { getTenantFromRequest } from '@/lib/auth';
+import { deductAiCredits, hasAvailableCredits } from '@/lib/ai-credits';
 
 export async function POST(req: NextRequest) {
   try {
@@ -59,6 +60,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No se encontró la API Key de Gemini. Configúrala en el panel de IA.' }, { status: 400 });
     }
 
+    const { hasCredits } = await hasAvailableCredits(supabase, tenantId);
+    if (!hasCredits) {
+      return NextResponse.json({ error: 'Sin créditos de IA suficientes para analizar y extraer documentos.' }, { status: 402 });
+    }
+
     // Convert file to base64
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -106,6 +112,14 @@ export async function POST(req: NextRequest) {
     if (!extractedText.trim()) {
       return NextResponse.json({ error: 'La IA no pudo extraer ningún texto legible del archivo.' }, { status: 400 });
     }
+
+    // Descontar 1 crédito de IA por extracción y análisis del documento
+    await deductAiCredits(
+      supabase,
+      tenantId,
+      1,
+      'Extracción y análisis de documento IA (Base de conocimiento)'
+    );
 
     return NextResponse.json({ text: extractedText.trim() });
   } catch (error) {
