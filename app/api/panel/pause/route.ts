@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const supabase = createSupabaseAdmin();
     const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
-      .select('id,phone_number')
+      .select('id,phone_number,status')
       .eq('id', conversationId)
       .eq('tenant_id', authorization.tenant.tenantId)
       .maybeSingle();
@@ -60,6 +60,24 @@ export async function POST(req: NextRequest) {
     if (signalError) {
       console.error('Conversation pause signal failed:', signalError.code || 'database_error');
       return internalApiError();
+    }
+
+    // Persist conversation status in CRM
+    const convUpdate: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (paused) {
+      convUpdate.status = 'requires_attention';
+    } else if (conversation.status === 'requires_attention') {
+      convUpdate.status = 'chatting';
+    }
+    const { error: convUpdateError } = await supabase
+      .from('conversations')
+      .update(convUpdate)
+      .eq('id', conversationId)
+      .eq('tenant_id', authorization.tenant.tenantId);
+    if (convUpdateError) {
+      console.error('Conversation status update failed on pause/resume:', convUpdateError.message);
     }
 
     if (paused) return NextResponse.json({ success: true, paused: true });

@@ -118,7 +118,10 @@ export default function FlowZapInbox({
       const name = overrides.name || c.customer_name || c.phone_number || 'Desconocido';
       const phone = overrides.phone_number || c.phone_number || c.id;
       const effectiveStatus = overrides.status || c.status;
-      const isPaused = overrides.is_paused !== undefined ? overrides.is_paused : (c.is_paused || c.bot_paused);
+      const isPaused =
+        overrides.is_paused !== undefined
+          ? overrides.is_paused
+          : Boolean(c.is_paused || c.bot_paused || c.status === 'requires_attention');
       const assignedId = overrides.assigned_to !== undefined ? overrides.assigned_to : c.assigned_to;
       const advisor = advisors.find((a) => a.id === assignedId);
 
@@ -200,6 +203,25 @@ export default function FlowZapInbox({
         if (isMounted && data.messages) {
           messageCache.current[convId] = data.messages;
           setMessages(data.messages);
+
+          // Detect latest pause or resume signal from messages
+          const signals = (data.messages || []).filter(
+            (m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'
+          );
+          if (signals.length > 0) {
+            const lastSignal = signals[signals.length - 1].content;
+            const isPausedFromSignal = lastSignal === '__SYSTEM_PAUSE__';
+            setOptimisticOverrides((prev) => {
+              if (prev[convId]?.is_paused === isPausedFromSignal) return prev;
+              return {
+                ...prev,
+                [convId]: {
+                  ...(prev[convId] || {}),
+                  is_paused: isPausedFromSignal,
+                },
+              };
+            });
+          }
         }
       } catch (err) {
         console.error('Error fetching conversation messages:', err);
@@ -230,8 +252,18 @@ export default function FlowZapInbox({
     const effectiveAssigned =
       overrides.assigned_to !== undefined ? overrides.assigned_to : selectedConv.assigned_to || 'bot';
     const effectiveStatus = overrides.status || selectedConv.status || 'chatting';
+    // Extract latest pause/resume signal from current messages
+    const signalMessages = (messages || []).filter(
+      (m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'
+    );
+    const lastSignal = signalMessages.length > 0 ? signalMessages[signalMessages.length - 1].content : null;
+
     const isPaused =
-      overrides.is_paused !== undefined ? overrides.is_paused : selectedConv.is_paused || selectedConv.bot_paused;
+      overrides.is_paused !== undefined
+        ? overrides.is_paused
+        : lastSignal !== null
+        ? lastSignal === '__SYSTEM_PAUSE__'
+        : Boolean(selectedConv.is_paused || selectedConv.bot_paused || selectedConv.status === 'requires_attention');
 
     const leadScore = selectedConv.lead_score !== undefined && selectedConv.lead_score !== null ? selectedConv.lead_score : 16;
     const intent = selectedConv.intent || 'support';
@@ -355,10 +387,7 @@ export default function FlowZapInbox({
   // 9. Handle Toggle Bot Pause/Resume
   const toggleBot = async () => {
     if (!selectedConv) return;
-    const currentPaused =
-      optimisticOverrides[selectedConv.id]?.is_paused !== undefined
-        ? optimisticOverrides[selectedConv.id].is_paused
-        : selectedConv.is_paused || selectedConv.bot_paused;
+    const currentPaused = selectedDetail?.botPaused ?? false;
     const newPaused = !currentPaused;
 
     setOptimisticOverrides((prev) => ({
@@ -366,6 +395,7 @@ export default function FlowZapInbox({
       [selectedConv.id]: {
         ...(prev[selectedConv.id] || {}),
         is_paused: newPaused,
+        status: newPaused ? 'requires_attention' : 'chatting',
       },
     }));
 
@@ -384,6 +414,20 @@ export default function FlowZapInbox({
           paused: newPaused,
         }),
       });
+
+      // Refetch messages and parent conversations to sync immediately
+      const url = `/api/panel/conversations?id=${selectedConv.id}&_t=${Date.now()}`;
+      const res = await fetch(url, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (data.messages) {
+        messageCache.current[selectedConv.id] = data.messages;
+        setMessages(data.messages);
+      }
+
       onRefresh();
     } catch (err) {
       console.error('Error toggling bot status:', err);

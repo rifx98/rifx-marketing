@@ -84,8 +84,13 @@ export async function GET(req: NextRequest) {
 
       const messagePage = (messages || []).slice(0, 500).reverse();
 
+      const isPaused = conversation.status === 'requires_attention';
       return NextResponse.json(
-        { conversation, messages: messagePage, hasMoreMessages: (messages || []).length > 500 },
+        {
+          conversation: { ...conversation, is_paused: isPaused },
+          messages: messagePage,
+          hasMoreMessages: (messages || []).length > 500,
+        },
         { headers: { 'Cache-Control': 'no-store' } },
       );
     }
@@ -112,9 +117,16 @@ export async function GET(req: NextRequest) {
 
     const chatting = conversationPage
       .filter((c) => c.status === 'chatting' || c.status === 'requires_attention')
-      .map((c) => c.status === 'requires_attention' ? { ...c, status: 'chatting', is_paused: true } : c);
-    const interested = conversationPage.filter((c) => c.status === 'interested');
-    const bought = conversationPage.filter((c) => c.status === 'bought');
+      .map((c) => ({
+        ...c,
+        is_paused: c.status === 'requires_attention',
+      }));
+    const interested = conversationPage
+      .filter((c) => c.status === 'interested')
+      .map((c) => ({ ...c, is_paused: false }));
+    const bought = conversationPage
+      .filter((c) => c.status === 'bought')
+      .map((c) => ({ ...c, is_paused: false }));
 
     // Contar órdenes de Dropi válidas en la base de datos basándose en el prefijo __ORDER_DATA__
     const convIds = conversationPage.map((c) => c.id);
