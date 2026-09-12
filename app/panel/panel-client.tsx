@@ -859,6 +859,42 @@ const TABS_TO_MANAGE = SIDEBAR_ITEMS.map(item => ({ key: item.key, label: item.l
 
 const PLANS = ['trial', 'basic', 'start', 'plus', 'master'];
 
+const VALID_PANEL_TABS = [
+  'dashboard',
+  'crm',
+  'conversations',
+  'wa_campaigns',
+  'orders',
+  'team',
+  'basic_bot',
+  'appointments',
+  'banners',
+  'campaigns',
+  'social',
+  'segments',
+  'analytics',
+  'billing',
+  'settings',
+  'playground',
+  'admin',
+] as const;
+
+const VALID_SETTINGS_SECTIONS = [
+  'profile',
+  'ai',
+  'whatsapp',
+  'notifications',
+  'meta',
+  'memory',
+  'security',
+  'dropi',
+  'api_helper',
+  'appearance',
+] as const;
+
+const VALID_BOT_SECTIONS = ['inbox', 'constructor', 'flowzap', 'versions'] as const;
+const VALID_CAMPAIGN_SUBTABS = ['campaigns', 'creative', 'analytics'] as const;
+
 export default function PanelClient() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -1007,7 +1043,7 @@ export default function PanelClient() {
     };
   }, [language, isRegistering]);
 
-  // Handle OAuth Redirect Query Parameters
+  // Handle OAuth Redirect Query Parameters and Deep Linking
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -1015,50 +1051,61 @@ export default function PanelClient() {
     const calendarSuccess = params.get('calendar_success');
     const oauthError = params.get('error');
     const tabParam = params.get('tab');
-    const rToken = params.get('reset_token');
+    const sectionParam = params.get('section');
+    const botParam = params.get('bot') || params.get('bot_section');
+    const subParam = params.get('sub') || params.get('campaign_sub');
 
-    // We no longer use URL tokens for reset, we use OTP codes.
-    // If someone visits with a reset_token, we could redirect them to the panel clean URL
-    if (rToken) {
-      if (typeof window !== 'undefined') {
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, newUrl);
-      }
+    if (tabParam && (VALID_PANEL_TABS as readonly string[]).includes(tabParam)) {
+      setActiveTab(tabParam as any);
+    }
+    if (sectionParam && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(sectionParam)) {
+      setSettingsSection(sectionParam as any);
+    }
+    if (botParam && (VALID_BOT_SECTIONS as readonly string[]).includes(botParam)) {
+      setBotSection(botParam as any);
+    }
+    if (subParam && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(subParam)) {
+      setCampaignSubTab(subParam as any);
     }
 
-    if (tabParam) {
-      const validTabs = ['dashboard', 'crm', 'settings', 'playground', 'segments', 'analytics', 'billing', 'admin', 'campaigns', 'banners', 'social', 'appointments'];
-      if (validTabs.includes(tabParam)) {
-        setActiveTab(tabParam as any);
-      }
-    }
+    const cleanOAuthParams = () => {
+      try {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('oauth_success');
+        cleanUrl.searchParams.delete('calendar_success');
+        cleanUrl.searchParams.delete('error');
+        cleanUrl.searchParams.delete('reset_token');
+        cleanUrl.searchParams.delete('code');
+        cleanUrl.searchParams.delete('state');
+        const targetSearch = cleanUrl.search;
+        window.history.replaceState({}, document.title, cleanUrl.pathname + targetSearch);
+      } catch (_) {}
+    };
 
     if (oauthSuccess === 'true') {
       setToast({
         type: 'success',
         message: language === 'en' ? '✅ Meta account connected successfully!' : '✅ ¡Cuenta de Meta vinculada exitosamente!'
       });
-      // Clean query parameters from URL without reloading
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      cleanOAuthParams();
     } else if (calendarSuccess === 'true') {
       setToast({
         type: 'success',
         message: language === 'en' ? '✅ Google Calendar connected successfully!' : '✅ ¡Google Calendar vinculado exitosamente!'
       });
+      setActiveTab('settings');
       setSettingsSection('whatsapp');
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      cleanOAuthParams();
     } else if (oauthError) {
       setToast({
         type: 'error',
         message: language === 'en' ? `❌ OAuth Error: ${oauthError}` : `❌ Error de Vinculación: ${oauthError}`
       });
       if (oauthError.toLowerCase().includes('calendar')) {
+        setActiveTab('settings');
         setSettingsSection('whatsapp');
       }
-      const newUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, newUrl);
+      cleanOAuthParams();
     }
   }, [language]);
 
@@ -1330,10 +1377,74 @@ export default function PanelClient() {
   const isStateLoadedRef = React.useRef(false);
 
   // Save OmniPublish states to localStorage on change (only after loading has completed and user is logged in)
+  // Synchronize navigation state with localStorage and browser URL query string
   React.useEffect(() => {
-    if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
-    localStorage.setItem('rifx_active_tab', activeTab);
-  }, [activeTab, isCheckingAuth, isLoggedIn]);
+    if (!isStateLoadedRef.current || typeof window === 'undefined') return;
+
+    try {
+      localStorage.setItem('rifx_active_tab', activeTab);
+      if (activeTab === 'settings') {
+        localStorage.setItem('rifx_settings_section', settingsSection);
+      }
+      if (activeTab === 'playground') {
+        localStorage.setItem('rifx_bot_section', botSection);
+      }
+      if (activeTab === 'campaigns') {
+        localStorage.setItem('rifx_campaign_subtab', campaignSubTab);
+      }
+    } catch (_) {}
+
+    try {
+      const url = new URL(window.location.href);
+      if (activeTab === 'dashboard') {
+        url.searchParams.delete('tab');
+        url.searchParams.delete('section');
+        url.searchParams.delete('bot');
+        url.searchParams.delete('bot_section');
+        url.searchParams.delete('sub');
+        url.searchParams.delete('campaign_sub');
+      } else {
+        url.searchParams.set('tab', activeTab);
+
+        if (activeTab === 'settings') {
+          if (settingsSection && settingsSection !== 'profile') {
+            url.searchParams.set('section', settingsSection);
+          } else {
+            url.searchParams.delete('section');
+          }
+        } else {
+          url.searchParams.delete('section');
+        }
+
+        if (activeTab === 'playground') {
+          if (botSection && botSection !== 'constructor') {
+            url.searchParams.set('bot', botSection);
+          } else {
+            url.searchParams.delete('bot');
+          }
+        } else {
+          url.searchParams.delete('bot');
+          url.searchParams.delete('bot_section');
+        }
+
+        if (activeTab === 'campaigns') {
+          if (campaignSubTab && campaignSubTab !== 'creative') {
+            url.searchParams.set('sub', campaignSubTab);
+          } else {
+            url.searchParams.delete('sub');
+          }
+        } else {
+          url.searchParams.delete('sub');
+          url.searchParams.delete('campaign_sub');
+        }
+      }
+
+      const targetSearch = url.search;
+      if (window.location.search !== targetSearch) {
+        window.history.replaceState({}, document.title, url.pathname + targetSearch);
+      }
+    } catch (_) {}
+  }, [activeTab, settingsSection, botSection, campaignSubTab]);
 
   React.useEffect(() => {
     if (!isStateLoadedRef.current || isCheckingAuth || !isLoggedIn) return;
@@ -3559,6 +3670,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Guarded setActiveTab -- blocks navigation when plan is expired or tab is not allowed
   const safeSetActiveTab = (tab: typeof activeTab) => {
     setActiveTab(tab);
+    try {
+      localStorage.setItem('rifx_active_tab', tab);
+    } catch (_) {}
   };
   const [selectedChat, setSelectedChat] = useState<{id: string, name: string, customer_name?: string, status: string, phone_number?: string, created_at?: string} | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
@@ -5551,10 +5665,47 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Auto-login from stored token and restore active states
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
-      // 1. Restore OmniPublish states first
-      const savedTab = localStorage.getItem('rifx_active_tab');
-      if (savedTab) setActiveTab(savedTab as any);
+      // 1. Restore navigation states from URL first, fallback to localStorage
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab');
+        const savedTab = localStorage.getItem('rifx_active_tab');
+        const resolvedTab = (urlTab && (VALID_PANEL_TABS as readonly string[]).includes(urlTab))
+          ? urlTab
+          : (savedTab && (VALID_PANEL_TABS as readonly string[]).includes(savedTab))
+            ? savedTab
+            : 'dashboard';
+        if (resolvedTab) setActiveTab(resolvedTab as any);
 
+        const urlSection = params.get('section');
+        const savedSection = localStorage.getItem('rifx_settings_section');
+        const resolvedSection = (urlSection && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(urlSection))
+          ? urlSection
+          : (savedSection && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(savedSection))
+            ? savedSection
+            : 'profile';
+        if (resolvedSection) setSettingsSection(resolvedSection as any);
+
+        const urlBotSec = params.get('bot') || params.get('bot_section');
+        const savedBotSec = localStorage.getItem('rifx_bot_section');
+        const resolvedBotSec = (urlBotSec && (VALID_BOT_SECTIONS as readonly string[]).includes(urlBotSec))
+          ? urlBotSec
+          : (savedBotSec && (VALID_BOT_SECTIONS as readonly string[]).includes(savedBotSec))
+            ? savedBotSec
+            : 'constructor';
+        if (resolvedBotSec) setBotSection(resolvedBotSec as any);
+
+        const urlCampSub = params.get('sub') || params.get('campaign_sub');
+        const savedCampSub = localStorage.getItem('rifx_campaign_subtab');
+        const resolvedCampSub = (urlCampSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(urlCampSub))
+          ? urlCampSub
+          : (savedCampSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(savedCampSub))
+            ? savedCampSub
+            : 'creative';
+        if (resolvedCampSub) setCampaignSubTab(resolvedCampSub as any);
+      } catch (_) {}
+
+      // 2. Restore OmniPublish states
       const savedUploadMode = localStorage.getItem('rifx_upload_mode');
       if (savedUploadMode) setUploadMode(savedUploadMode as any);
 
@@ -5627,6 +5778,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setLoginUser('');
     setLoginPass('');
     setActiveTab('dashboard');
+    setSettingsSection('profile');
+    try {
+      localStorage.removeItem('rifx_active_tab');
+      localStorage.removeItem('rifx_settings_section');
+      localStorage.removeItem('rifx_bot_section');
+      localStorage.removeItem('rifx_campaign_subtab');
+      window.history.replaceState({}, document.title, '/panel');
+    } catch (_) {}
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => undefined);
   };
 
