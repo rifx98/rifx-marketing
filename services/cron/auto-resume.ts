@@ -12,7 +12,7 @@ interface AutoResumeResult {
 }
 
 /**
- * Searches for conversations that have been waiting for human attention for too long (> 2 hours)
+ * Searches for conversations that have been waiting for human attention for too long (> 30 minutes)
  * and automatically resumes the bot.
  */
 export async function runAutoResume(options: { startTime: number }): Promise<AutoResumeResult> {
@@ -32,14 +32,14 @@ export async function runAutoResume(options: { startTime: number }): Promise<Aut
   );
 
   try {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const timeLimit = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
     const { data: conversations, error: fetchErr } = await supabase
       .from('conversations')
       .select('id, tenant_id, phone_number, is_paused, status, updated_at')
       .eq('status', 'requires_attention')
       .eq('is_paused', true)
-      .lt('updated_at', twoHoursAgo)
+      .lt('updated_at', timeLimit)
       .limit(50); // Process up to 50 per run
 
     if (fetchErr) throw fetchErr;

@@ -40,7 +40,7 @@ const MODELS = new Set([
   'claude-sonnet-4',
   'claude-haiku',
 ]);
-const VISUAL_PROVIDERS = new Set(['openai', 'flux']);
+const VISUAL_PROVIDERS = new Set(['openai', 'flux', 'sharp']);
 
 interface ExtendedConfig {
   openai_key: string;

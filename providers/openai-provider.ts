@@ -79,10 +79,12 @@ Return OBLIGATORILY this JSON:
     userInstructions: string,
     adTextsOverrides: any,
     templateBenefitsLength: number,
-    templateHasTestimonial: boolean
+    templateHasTestimonial: boolean,
+    textLanguage: 'es' | 'en' = 'es'
   ): Promise<Copywriting> {
-    console.log('[OPENAI][STAGE 2] Generando copy con GPT-4o...');
+    console.log(`[OPENAI][STAGE 2] Generando copy con GPT-4o (idioma: ${textLanguage})...`);
     const openai = getOpenAIClient();
+    const isEn = textLanguage === 'en';
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -99,6 +101,8 @@ RULES:
 2. Write copy that a specialist copywriter would create for THIS specific product
 3. Use vocabulary, metaphors, and claims that belong EXCLUSIVELY to THIS product's category
 4. Do NOT reference, imagine, or infer any other product category
+5. LANGUAGE REQUIREMENT: All copy MUST be written in ${isEn ? 'FLUENT, PERSUASIVE ENGLISH' : 'ESPAÑOL NATURAL Y PERSUASIVO'}.
+6. ZERO PLACEHOLDERS: NEVER output literal placeholder words like "Hook", "Desc", "CTA", "Benefit", "Title", "Hoect", "Descs".
 
 CATEGORY-SPECIFIC LANGUAGE GUIDE:
 - 👟 Sneakers/Fashion → urban, comfort, style, design, versatile, premium materials, everyday wear
@@ -130,34 +134,51 @@ ${JSON.stringify(productAnalysis, null, 2)}
 CAMPAIGN INFO:
 - Title: "${campaignTitle || ''}"
 - User Instructions: "${userInstructions || ''}"
+- Language: "${isEn ? 'English' : 'Español'}"
 - Text Overrides (respect if provided): ${JSON.stringify(adTextsOverrides || {})}
 
 TEMPLATE STRUCTURE INFO (for number of text slots only):
 - Number of benefit slots: ${templateBenefitsLength || 3}
 - Has testimonial slot: ${!!templateHasTestimonial}
 
-Generate copy that makes the ad feel like it was designed SPECIFICALLY for this ${productAnalysis.category || 'product'}.
+Generate copy in ${isEn ? 'ENGLISH' : 'ESPAÑOL'} that makes the ad feel like it was designed SPECIFICALLY for this ${productAnalysis.category || 'product'}.
 Do NOT reference any other product category. The product analysis above is your ONLY semantic source.`
         }
       ],
-      temperature: 0.4
+      temperature: 0.4,
+      max_tokens: 500
     });
 
     const text = response.choices[0]?.message?.content || '{}';
     const parsedCopy = JSON.parse(text);
 
+    // Sanitize any accidental placeholder strings
+    const sanitize = (val: string | undefined, fallback: string) => {
+      if (!val || typeof val !== 'string') return fallback;
+      const t = val.trim().toLowerCase();
+      if (['hook', 'hoect', 'desc', 'descs', 'cta', 'title', 'placeholder'].includes(t)) return fallback;
+      return val.trim();
+    };
+
+    const defaultHook = isEn ? 'Unmatched Luxury & Performance' : 'Elegancia y Distinción Única';
+    const defaultDesc = isEn ? 'Crafted with passion for lasting excellence.' : 'Creado con pasión para una excelencia duradera.';
+    const defaultBenefits = isEn
+      ? ['Premium Quality', 'Exclusive Design', 'Certified Authentic']
+      : ['Calidad Premium', 'Diseño Exclusivo', '100% Auténtico'];
+    const defaultCta = isEn ? 'SHOP NOW' : 'COMPRAR AHORA';
+
     return {
-      badge: adTextsOverrides?.badge || parsedCopy.badge || '✨ PREMIUM',
-      hook: adTextsOverrides?.hook || parsedCopy.hook || 'Descubre lo Mejor',
-      desc: adTextsOverrides?.desc || parsedCopy.desc || 'Calidad que se siente.',
+      badge: sanitize(adTextsOverrides?.badge || parsedCopy.badge, isEn ? '✨ PREMIUM' : '✨ EXCLUSIVO'),
+      hook: sanitize(adTextsOverrides?.hook || parsedCopy.hook, defaultHook),
+      desc: sanitize(adTextsOverrides?.desc || parsedCopy.desc, defaultDesc),
       benefits: [
-        adTextsOverrides?.benefits?.[0] || parsedCopy.benefits?.[0] || 'Calidad premium',
-        adTextsOverrides?.benefits?.[1] || parsedCopy.benefits?.[1] || 'Diseño exclusivo',
-        adTextsOverrides?.benefits?.[2] || parsedCopy.benefits?.[2] || 'Garantía oficial',
+        sanitize(adTextsOverrides?.benefits?.[0] || parsedCopy.benefits?.[0], defaultBenefits[0]),
+        sanitize(adTextsOverrides?.benefits?.[1] || parsedCopy.benefits?.[1], defaultBenefits[1]),
+        sanitize(adTextsOverrides?.benefits?.[2] || parsedCopy.benefits?.[2], defaultBenefits[2]),
         parsedCopy.benefits?.[3] || '',
         parsedCopy.benefits?.[4] || '',
       ].filter(Boolean),
-      cta: adTextsOverrides?.cta || parsedCopy.cta || 'COMPRAR AHORA',
+      cta: sanitize(adTextsOverrides?.cta || parsedCopy.cta, defaultCta),
       testimonial: adTextsOverrides?.testimonial || parsedCopy.testimonial || '',
       lifestyle_phrase: parsedCopy.lifestyle_phrase || '',
       premium_descriptor: parsedCopy.premium_descriptor || ''
@@ -735,5 +756,40 @@ REMEMBER: The template DNA is the AUTHORITY. Product colors can ONLY influence p
 
     const text = response.choices[0]?.message?.content || '{}';
     return JSON.parse(text) as AdaptedColorsResult;
+  },
+
+  /**
+   * Generates a complete, cohesive AI advertising poster using OpenAI DALL-E 3
+   */
+  async generateAdaptiveAd(
+    promptText: string,
+    aspectRatio: string = '4:5'
+  ): Promise<{ base64: string; provider: string }> {
+    const openai = getOpenAIClient();
+    const normRatio = aspectRatio.toLowerCase().replace(/\s/g, '');
+    const isPortrait = !normRatio.includes('1:1') && !normRatio.includes('square') && !normRatio.includes('16:9');
+    const size = isPortrait ? '1024x1792' : '1024x1024';
+
+    console.log(`\n${'═'.repeat(70)}`);
+    console.log(`  [OPENAI ADAPTIVE AI] Generating Full Ad with DALL-E 3 (${size})`);
+    console.log(`  Prompt Length: ${promptText.length} chars`);
+    console.log(`${'═'.repeat(70)}\n`);
+
+    const response = await openai.images.generate({
+      model: 'dall-e-3',
+      prompt: promptText,
+      n: 1,
+      size: size as any,
+      quality: 'hd',
+      response_format: 'b64_json'
+    });
+
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) throw new Error('OpenAI no devolvió datos de imagen para DALL-E 3.');
+    
+    return {
+      base64: `data:image/png;base64,${b64}`,
+      provider: 'openai/dall-e-3'
+    };
   }
 };

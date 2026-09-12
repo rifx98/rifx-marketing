@@ -18,9 +18,22 @@ function shouldUseGroq(): boolean {
 export const aiRouter = {
   async analyzeProduct(productImage: string): Promise<ProductAnalysis> {
     if (shouldUseGroq()) {
-      return groqProvider.analyzeProduct(productImage);
+      try {
+        return await groqProvider.analyzeProduct(productImage);
+      } catch (err: any) {
+        console.warn(`[AI-ROUTER] ⚠️ Groq analyzeProduct failed (${err.message}) — falling back to OpenAI`);
+        try {
+          return await openaiProvider.analyzeProduct(productImage);
+        } catch {
+          throw err;
+        }
+      }
     }
     return openaiProvider.analyzeProduct(productImage);
+  },
+
+  async analyzeProductVisuals(productImage: string): Promise<string> {
+    return fluxProvider.analyzeProductVisuals(productImage);
   },
 
   async generateCopy(
@@ -29,7 +42,8 @@ export const aiRouter = {
     userInstructions: string,
     adTextsOverrides: any,
     templateBenefitsLength: number,
-    templateHasTestimonial: boolean
+    templateHasTestimonial: boolean,
+    textLanguage: 'es' | 'en' = 'es'
   ): Promise<Copywriting> {
     if (shouldUseGroq()) {
       return groqProvider.generateCopy(
@@ -38,7 +52,8 @@ export const aiRouter = {
         userInstructions,
         adTextsOverrides,
         templateBenefitsLength,
-        templateHasTestimonial
+        templateHasTestimonial,
+        textLanguage
       );
     }
     return openaiProvider.generateCopy(
@@ -47,7 +62,8 @@ export const aiRouter = {
       userInstructions,
       adTextsOverrides,
       templateBenefitsLength,
-      templateHasTestimonial
+      templateHasTestimonial,
+      textLanguage
     );
   },
 
@@ -122,14 +138,18 @@ export const aiRouter = {
       pureSharpMode?: boolean;
     }
   ): Promise<{ base64: string; provider: string }> {
+    const falKey = getAiCredential('fal');
+    const hasFalKey = !!(falKey && falKey.length >= 20 && !falKey.includes('[SENSITIVE]'));
+
     const usePureSharp =
       extraOptions?.pureSharpMode === true ||
       extraOptions?.visualProvider === 'sharp' ||
-      process.env.PURE_SHARP_MODE === 'true';
+      (process.env.PURE_SHARP_MODE === 'true' && extraOptions?.visualProvider !== 'flux' && !hasFalKey);
 
     const useFlux =
       !usePureSharp &&
       (extraOptions?.visualProvider === 'flux' ||
+      (hasFalKey && extraOptions?.visualProvider !== 'openai') ||
       (!extraOptions?.visualProvider && process.env.USE_FLUX === 'true'));
 
     const providerName = usePureSharp
@@ -147,97 +167,136 @@ export const aiRouter = {
     console.log('═'.repeat(60) + '\n');
 
     // ═══════════════════════════════════════════════════════════════
-    // VISUAL RENDER ROUTING — NEVER call OpenAI unless explicitly requested
+    // VISUAL RENDER ROUTING — Safe fallback to Pure Sharp
     // ═══════════════════════════════════════════════════════════════
+    const effectiveSlot = (extraOptions?.productSlot && typeof extraOptions.productSlot.x === 'number')
+      ? extraOptions.productSlot
+      : { x: 0.5, y: 0.52, width: 0.58, height: 0.52, shape: 'rectangle' as const, padding: 0.05 };
 
-    // CASE 1: PURE SHARP MODE — Deterministic compositing
+    // CASE 1: PURE SHARP MODE — Deterministic compositing ($0 cost, fast, reliable)
     if (usePureSharp) {
-      if (extraOptions?.productSlot) {
-        console.log(`[AI-ROUTER] 📸 Visual provider: Pure Sharp — Deterministic product placement (no AI cost)`);
-        try {
-          const result = await compositePureSharp(
-            imageSource,
-            productRefImage,
-            gptImageSize,
-            extraOptions.productSlot,
-            extraOptions.cleanedTemplateBase64,
-          );
-          console.log(`[AI COST AUDIT] ✅ Pure Sharp composite SUCCESS — $0 AI cost`);
-          return result;
-        } catch (err: any) {
-          console.error(`[AI-ROUTER] ❌ Pure Sharp failed: ${err.message}`);
-          // Fallback: try FLUX if FAL_KEY is available
-          if (getAiCredential('fal')) {
-            console.log(`[AI-ROUTER] 🔄 Falling back to FLUX after Pure Sharp failure...`);
-            try {
-              const fluxResult = await fluxProvider.renderVisual(
-                promptText, imageSource, productRefImage,
-                maskFile, gptImageSize, useCompositingMode, extraOptions
-              );
-              console.log(`[AI COST AUDIT] ✅ FLUX fallback after Sharp SUCCESS`);
-              return fluxResult;
-            } catch (fluxErr: any) {
-              console.error(`[AI-ROUTER] ❌ FLUX fallback also failed: ${fluxErr.message}`);
-            }
-          }
-          throw new Error(`Banner generation failed: Sharp compositing error (${err.message}). Ensure product_slot is defined in template JSON.`);
-        }
-      } else {
-        // No product_slot — Sharp can't composite. Try FLUX, then return template as-is.
-        console.warn(`[AI-ROUTER] ⚠️ PURE_SHARP_MODE active but template has NO product_slot — cannot composite product`);
-        if (getAiCredential('fal')) {
-          console.log(`[AI-ROUTER] 🔄 Falling back to FLUX (template has no product_slot for Sharp)...`);
+      console.log(`[AI-ROUTER] 📸 Visual provider: Pure Sharp — Deterministic product placement ($0 costo)`);
+      try {
+        const result = await compositePureSharp(
+          imageSource,
+          productRefImage,
+          gptImageSize,
+          effectiveSlot,
+          extraOptions?.cleanedTemplateBase64,
+        );
+        console.log(`[AI COST AUDIT] ✅ Pure Sharp composite SUCCESS — $0 AI cost`);
+        return result;
+      } catch (err: any) {
+        console.error(`[AI-ROUTER] ❌ Pure Sharp failed: ${err.message}`);
+        // Fallback: try FLUX if FAL_KEY is available
+        const falKey = getAiCredential('fal');
+        if (falKey && falKey.length >= 20 && !falKey.includes('[SENSITIVE]')) {
+          console.log(`[AI-ROUTER] 🔄 Falling back to FLUX after Pure Sharp failure...`);
           try {
             const fluxResult = await fluxProvider.renderVisual(
               promptText, imageSource, productRefImage,
               maskFile, gptImageSize, useCompositingMode, extraOptions
             );
-            console.log(`[AI COST AUDIT] ✅ FLUX render SUCCESS (no product_slot)`);
+            console.log(`[AI COST AUDIT] ✅ FLUX fallback after Sharp SUCCESS`);
             return fluxResult;
           } catch (fluxErr: any) {
-            console.error(`[AI-ROUTER] ❌ FLUX also failed: ${fluxErr.message}`);
+            console.error(`[AI-ROUTER] ❌ FLUX fallback also failed: ${fluxErr.message}`);
           }
         }
-        // Last resort: return template image as-is (no product to insert)
-        console.warn(`[AI-ROUTER] ⚠️ Returning template as-is — no product_slot defined and no FLUX available`);
-        // Convert template to base64 and return
-        try {
-          const templateResponse = await fetch(imageSource);
-          if (templateResponse.ok) {
-            const buf = Buffer.from(await templateResponse.arrayBuffer());
-            return { base64: buf.toString('base64'), provider: 'template-passthrough-no-slot' };
-          }
-        } catch {}
-        throw new Error('Template has no product_slot. Define product_slot in the template JSON to enable Sharp compositing.');
+        throw new Error(`Banner generation failed: Sharp compositing error (${err.message}).`);
       }
     }
 
     // CASE 2: FLUX MODE
     if (useFlux) {
-      console.log(`[AI-ROUTER] 🎨 Visual provider: FLUX (fal.ai) — OpenAI fallback BLOCKED`);
-      try {
-        const result = await fluxProvider.renderVisual(
-          promptText, imageSource, productRefImage,
-          maskFile, gptImageSize, useCompositingMode, extraOptions
-        );
-        console.log(`[AI COST AUDIT] ✅ FLUX render SUCCESS — $0 OpenAI cost`);
-        return result;
-      } catch (err: any) {
-        console.error(`[AI-ROUTER] ❌ FLUX FAILED: ${err.message} — OpenAI fallback BLOCKED`);
-        throw new Error(`FLUX render failed: ${err.message}. OpenAI fallback is BLOCKED. Fix FLUX or switch provider in admin.`);
+      const falKey = getAiCredential('fal');
+      if (falKey && falKey.length >= 20 && !falKey.includes('[SENSITIVE]')) {
+        console.log(`[AI-ROUTER] 🎨 Visual provider: FLUX (fal.ai)`);
+        try {
+          const result = await fluxProvider.renderVisual(
+            promptText, imageSource, productRefImage,
+            maskFile, gptImageSize, useCompositingMode, extraOptions
+          );
+          console.log(`[AI COST AUDIT] ✅ FLUX render SUCCESS`);
+          return result;
+        } catch (err: any) {
+          console.warn(`[AI-ROUTER] ⚠️ FLUX falló (${err.message}) — fallback automático a Pure Sharp`);
+        }
+      } else {
+        console.warn(`[AI-ROUTER] ⚠️ FLUX solicitado pero FAL_KEY no está configurado — fallback automático a Pure Sharp`);
       }
+
+      return compositePureSharp(
+        imageSource,
+        productRefImage,
+        gptImageSize,
+        effectiveSlot,
+        extraOptions?.cleanedTemplateBase64,
+      );
     }
 
-    // CASE 3: OpenAI — ONLY if explicitly selected AND key is valid
+    // CASE 3: OpenAI — ONLY if key is valid, otherwise fallback to Pure Sharp
     const openaiKey = getAiCredential('openai');
-    if (!openaiKey || !openaiKey.startsWith('sk-') || openaiKey.length < 20) {
-      throw new Error('No visual provider available. Configure product_slot in template for Sharp mode, or set FAL_KEY for FLUX mode. OpenAI is not configured.');
+    if (openaiKey && openaiKey.startsWith('sk-') && openaiKey.length > 20 && !openaiKey.includes('[SENSITIVE]')) {
+      console.log(`[AI-ROUTER] 🎨 Visual provider: OpenAI gpt-image-1`);
+      try {
+        return await openaiProvider.renderVisual(
+          promptText, imageSource, productRefImage,
+          maskFile, gptImageSize, useCompositingMode
+        );
+      } catch (err: any) {
+        console.warn(`[AI-ROUTER] ⚠️ OpenAI falló (${err.message}) — fallback automático a Pure Sharp`);
+      }
+    } else {
+      console.warn(`[AI-ROUTER] ⚠️ OpenAI solicitado pero OPENAI_API_KEY no está configurada — fallback automático a Pure Sharp`);
     }
-    console.log(`[AI-ROUTER] 🎨 Visual provider: OpenAI gpt-image-1 (explicitly selected)`);
-    return openaiProvider.renderVisual(
-      promptText, imageSource, productRefImage,
-      maskFile, gptImageSize, useCompositingMode
+
+    // Ultimate fallback: Pure Sharp
+    return compositePureSharp(
+      imageSource,
+      productRefImage,
+      gptImageSize,
+      effectiveSlot,
+      extraOptions?.cleanedTemplateBase64,
     );
+  },
+
+  /**
+   * Generates a complete creative ad with AI (matching ChatGPT quality)
+   * Routing: fal-ai/ideogram/v2 or fal-ai/flux/dev or OpenAI DALL-E 3
+   */
+  async generateAdaptiveAd(
+    promptText: string,
+    aspectRatio: string = '4:5',
+    options?: {
+      visualProvider?: 'openai' | 'flux' | 'sharp';
+      preferredModel?: 'ideogram' | 'flux';
+      referenceImageUrl?: string;
+      imageWeight?: number;
+    }
+  ): Promise<{ base64: string; provider: string }> {
+    const falKey = getAiCredential('fal');
+    const hasFalKey = !!(falKey && falKey.length >= 20 && !falKey.includes('[SENSITIVE]'));
+    const openaiKey = getAiCredential('openai');
+    const hasOpenaiKey = !!(openaiKey && openaiKey.startsWith('sk-') && openaiKey.length > 20 && !openaiKey.includes('[SENSITIVE]'));
+
+    if (options?.visualProvider === 'openai' && hasOpenaiKey) {
+      return openaiProvider.generateAdaptiveAd(promptText, aspectRatio);
+    }
+
+    if (hasFalKey && options?.visualProvider !== 'openai') {
+      return fluxProvider.generateAdaptiveAd(promptText, aspectRatio, options);
+    }
+
+    if (hasOpenaiKey) {
+      return openaiProvider.generateAdaptiveAd(promptText, aspectRatio);
+    }
+
+    if (hasFalKey) {
+      return fluxProvider.generateAdaptiveAd(promptText, aspectRatio, options);
+    }
+
+    throw new Error('No hay claves API configuradas para generación con IA (fal.ai o OpenAI). Configura tu clave en el panel de configuración.');
   },
 
   async runQA(
@@ -275,5 +334,9 @@ export const aiRouter = {
       textSlotContent,
       productAnalysis
     );
-  }
+  },
+
+  async removeBackgroundBiRefNet(productImage: string): Promise<Buffer> {
+    return fluxProvider.removeBackgroundBiRefNet(productImage);
+  },
 };

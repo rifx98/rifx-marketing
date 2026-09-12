@@ -12,6 +12,73 @@ function getGroqClient(): OpenAI {
   });
 }
 
+// ── Robust Groq Chat with Retry & Model Fallback ──
+// Groq free-tier has strict OTPM (output tokens per minute) limits.
+// This helper retries on rate_limit_exceeded errors, falling back through
+// alternative models if the primary model is throttled.
+const GROQ_MODELS_PRIORITY = ['qwen/qwen3.8-27b', 'qwen/qwen3.6-27b', 'openai/gpt-oss-20b'];
+
+async function groqChatWithRetry(
+  params: Parameters<OpenAI['chat']['completions']['create']>[0],
+  maxRetries = 3
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const groq = getGroqClient();
+  const requestedModel = params.model || GROQ_MODELS_PRIORITY[0];
+  const modelsToTry = [
+    requestedModel,
+    ...GROQ_MODELS_PRIORITY.filter(m => m !== requestedModel)
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const response: any = await groq.chat.completions.create({
+          ...params,
+          model,
+          // Cap max_tokens to stay within free-tier OTPM
+          max_tokens: Math.min((params as any).max_tokens || 800, 800),
+        });
+
+        // Validate the response has content
+        const content = response.choices?.[0]?.message?.content;
+        if (!content || content.trim() === '') {
+          console.warn(`[GROQ RETRY] Model ${model} returned empty content (attempt ${attempt + 1})`);
+          if (attempt < maxRetries - 1) {
+            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+            continue;
+          }
+          // Move to next model
+          break;
+        }
+
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        const msg = err?.message || err?.error?.message || '';
+        const isRateLimit = msg.includes('rate_limit') || msg.includes('Rate limit') ||
+                            msg.includes('tokens per minute') || err?.status === 429;
+        const isEmptyOutput = msg.includes('model output') || msg.includes('empty');
+
+        if (isRateLimit || isEmptyOutput) {
+          const waitMs = isRateLimit ? 5000 * (attempt + 1) : 2000 * (attempt + 1);
+          console.warn(`[GROQ RETRY] ${isRateLimit ? 'Rate limit' : 'Empty output'} on ${model} (attempt ${attempt + 1}/${maxRetries}). Waiting ${waitMs}ms...`);
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
+
+        // Non-retryable error
+        throw err;
+      }
+    }
+    console.warn(`[GROQ RETRY] All attempts exhausted for model ${model}. Trying next model...`);
+  }
+
+  // If all models failed, throw with context
+  throw new Error(`All Groq models exhausted after retries. Last error: ${lastError?.message || 'Unknown'}`);
+}
+
 // Auxiliar para truncar payloads grandes de base64 en logs
 function truncateBase64(base64: string): string {
   if (!base64) return 'undefined';
@@ -24,18 +91,27 @@ function truncateBase64(base64: string): string {
 export const groqProvider = {
   async analyzeProduct(productImage: string): Promise<ProductAnalysis> {
     console.log('\n======================================================================');
-    console.log('[GROQ][STAGE 1] Iniciando PRODUCT-AWARE CONTEXT ANALYZER');
+    console.log('[GROQ][STAGE 1] Iniciando PRODUCT-AWARE CONTEXT ANALYZER (VLM + LLM)');
     console.log(`[GROQ][STAGE 1] Imagen Recibida: ${truncateBase64(productImage)}`);
     console.log('======================================================================');
 
-    const groq = getGroqClient();
+    // 1. Extract physical shape, materials, silhouette, and details using fast VLM (Moondream2)
+    let visualDescription = '';
+    try {
+      const { fluxProvider } = await import('./flux-provider');
+      visualDescription = await fluxProvider.analyzeProductVisuals(productImage);
+    } catch (vlmErr: any) {
+      console.warn(`[GROQ][STAGE 1] VLM pre-analysis note: ${vlmErr.message}`);
+    }
+
     const systemPrompt = `You are a PRODUCT-AWARE CREATIVE INTELLIGENCE ANALYZER.
-You analyze product images to extract DEEP CREATIVE CONTEXT for an advertising engine.
+You analyze product descriptions to extract DEEP CREATIVE CONTEXT and PHYSICAL SHAPE IDENTITY for an advertising engine.
 
 You must extract TWO layers of information:
 
-1. PHYSICAL IDENTITY (for visual preservation):
-   - Exact colors, materials, textures, shapes, details, logos, stitching, etc.
+1. PHYSICAL IDENTITY (for visual preservation — CRITICAL: preserve exact 3D shape):
+   - Exact physical 3D shape and silhouette (e.g. square box, rectangular presentation box, faceted glass tumbler, sleek cylinder, pouch, sneaker)
+   - Materials, textures, colors, borders, plaques, labels, and caps
 
 2. CREATIVE CONTEXT (for copy, mood, and storytelling adaptation):
    - What category is this product? What audience buys it?
@@ -45,48 +121,48 @@ You must extract TWO layers of information:
 
 Return OBLIGATORILY this JSON:
 {
-  "category": "product category (e.g.: sneakers, supplements, skincare, tech, fashion)",
-  "subcategory": "specific subcategory (e.g.: urban sneakers, testosterone booster, anti-aging serum)",
-  "product_name": "short descriptive name",
-  "main_colors": ["dominant colors in English (e.g.: black, dark brown, white)"],
-  "materials": ["visible materials (e.g.: leather, rubber, glass, matte plastic)"],
-  "visible_details": ["all visible small details: logos, stitching, textures, patterns"],
-  "shape": "silhouette and proportions description",
-  "style": "visual style (e.g.: casual urban, luxury minimal, sporty, clinical)",
-  "must_preserve": ["specific details the image engine MUST NOT change"],
-  "visual_style": "overall visual aesthetic for ads (e.g.: modern premium streetwear, clean clinical, bold sporty)",
-  "audience": "target audience (e.g.: young urban adults, health-conscious men, professional women)",
-  "aesthetic": "brand aesthetic vibe (e.g.: luxury urban, natural wellness, tech minimal)",
-  "commercial_tone": "ad tone (e.g.: premium masculine, elegant feminine, bold youthful, clinical trust)",
-  "luxury_level": "one of: budget, mid-range, mid-premium, premium, ultra-luxury",
-  "mood_keywords": ["5-8 mood/emotion keywords (e.g.: urban, confident, comfortable, bold, modern)"],
-  "marketing_angles": ["4-6 marketing angles (e.g.: all-day comfort, urban style, durability, modern design)"],
-  "lifestyle_context": "lifestyle description (e.g.: city streets, gym lifestyle, morning skincare routine)",
-  "premium_features": ["3-5 premium selling points (e.g.: genuine leather, cushioned insole, waterproof)"],
-  "visual_energy": "one of: calm, balanced, dynamic, high-energy, explosive"
+  "category": "product category (e.g.: perfume, sneakers, supplements, skincare, tech, fashion)",
+  "subcategory": "specific subcategory (e.g.: luxury oriental perfume, urban sneakers, anti-aging serum)",
+  "product_name": "exact brand and product name (e.g. Khamrah Qahwa de Lattafa)",
+  "main_colors": ["dominant colors in English (e.g.: dark chocolate brown, radiant gold, obsidian black)"],
+  "materials": ["visible materials (e.g.: heavy glass, ribbed packaging, gold foil plaque)"],
+  "visible_details": ["all visible details: gold frame border, Arabic calligraphy, ribbed spine, textured facets"],
+  "shape": "exact physical 3D geometry and silhouette (e.g. square box packaging standing upright with gold frame and ribbed side)",
+  "style": "visual style (e.g.: luxury oriental, casual urban, modern minimal)",
+  "must_preserve": ["exact 3D square box shape, gold frame, ribbed spine, brand plaque"],
+  "visual_style": "overall visual aesthetic for ads (e.g.: luxury dark cinematic with gold halo and stone pedestal)",
+  "audience": "target audience (e.g.: perfume connoisseurs, luxury fragrance lovers)",
+  "aesthetic": "brand aesthetic vibe (e.g.: warm oriental luxury, regal amber sophistication)",
+  "commercial_tone": "ad tone (e.g.: prestigious, seductive, ultra-premium)",
+  "luxury_level": "one of: mid-premium, premium, ultra-luxury",
+  "mood_keywords": ["5-8 mood/emotion keywords (e.g.: warmth, intensity, distinction, sophistication)"],
+  "marketing_angles": ["4-6 marketing angles (e.g.: long-lasting aroma, unforgettable presence, artisanal blend)"],
+  "lifestyle_context": "lifestyle description (e.g.: gala evenings, luxury signature scent)",
+  "premium_features": ["3-5 premium selling points (e.g.: warm amber notes, intense sillage, collector packaging)"],
+  "visual_energy": "one of: calm, balanced, dynamic, high-energy"
 }`;
 
-    console.log(`[GROQ][STAGE 1] Prompt Enviado:\n${systemPrompt.substring(0, 300)}...`);
+    const userPrompt = visualDescription
+      ? `Detailed physical visual inspection of the uploaded product by vision AI:
+"""${visualDescription}"""
 
-    const response = await groq.chat.completions.create({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+Extract the complete structured ProductAnalysis JSON according to the instructions. Ensure the exact physical shape and category are preserved.`
+      : `Analyze this product for commercial advertising context extraction: category, exact physical shape, materials, colors, and premium appeal.`;
+
+    const response = await groqChatWithRetry({
+      model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Analyze this product image for deep creative context extraction:' },
-            { type: 'image_url', image_url: { url: productImage } }
-          ]
-        }
+        { role: 'user', content: userPrompt }
       ],
       temperature: 0.15
     });
 
     const text = response.choices[0]?.message?.content || '{}';
-    console.log(`[GROQ][STAGE 1] Respuesta Recibida:\n${text}`);
-    return JSON.parse(text) as ProductAnalysis;
+    console.log(`[GROQ][STAGE 1] Contexto de Producto extraido con éxito:\n${text.substring(0, 300)}...`);
+    const parsed = JSON.parse(text) as ProductAnalysis;
+    return parsed;
   },
 
   async generateCopy(
@@ -95,13 +171,14 @@ Return OBLIGATORILY this JSON:
     userInstructions: string,
     adTextsOverrides: any,
     templateBenefitsLength: number,
-    templateHasTestimonial: boolean
+    templateHasTestimonial: boolean,
+    textLanguage: 'es' | 'en' = 'es'
   ): Promise<Copywriting> {
     console.log('\n======================================================================');
-    console.log('[GROQ][STAGE 2] Iniciando PRODUCT-AWARE COPY GENERATOR');
+    console.log(`[GROQ][STAGE 2] Iniciando PRODUCT-AWARE COPY GENERATOR (idioma: ${textLanguage})`);
     console.log('======================================================================');
 
-    const groq = getGroqClient();
+    const isEn = textLanguage === 'en';
     const systemPrompt = `You are a PRODUCT-AWARE CREATIVE COPYWRITER for premium ecommerce ads.
 
 You will receive a detailed product analysis. This analysis is your ONLY source of truth for all copy decisions.
@@ -111,14 +188,16 @@ RULES:
 2. Write copy that a specialist copywriter would create for THIS specific product
 3. Use vocabulary, metaphors, and claims that belong EXCLUSIVELY to THIS product's category
 4. Do NOT reference, imagine, or infer any other product category
+5. LANGUAGE REQUIREMENT: All copy MUST be written in ${isEn ? 'FLUENT, PERSUASIVE ENGLISH' : 'ESPAÑOL NATURAL Y PERSUASIVO'}.
+6. ZERO PLACEHOLDERS: NEVER output literal placeholder words like "Hook", "Desc", "CTA", "Benefit", "Title", "Hoect", "Descs".
 
 CATEGORY-SPECIFIC LANGUAGE GUIDE:
+- 🌸 Perfume/Fragrance → irresistible scent, warm intensity, lasting signature, magnetic allure, elegance, unforgettable impression
 - 👟 Sneakers/Fashion → urban, comfort, style, design, versatile, premium materials, everyday wear
 - 💊 Supplements → energy, performance, natural, potency, results, wellness, vitality
 - 🧴 Skincare → glow, hydration, radiance, healthy skin, clinical, rejuvenation, luminosity
 - 📱 Tech → innovation, speed, power, intelligence, connectivity, performance, cutting-edge
 - 🏋️ Fitness → strength, endurance, performance, sweat-proof, training, results
-- 🍽️ Food/Beverage → flavor, artisanal, natural, fresh, indulgence, authentic, gourmet
 
 If the user provides "ad_texts_overrides", respect those values and complete the rest.
 
@@ -140,43 +219,60 @@ ${JSON.stringify(productAnalysis, null, 2)}
 CAMPAIGN INFO:
 - Title: "${campaignTitle || ''}"
 - User Instructions: "${userInstructions || ''}"
+- Language: "${isEn ? 'English' : 'Español'}"
 - Text Overrides (respect if provided): ${JSON.stringify(adTextsOverrides || {})}
 
 TEMPLATE STRUCTURE INFO (for number of text slots only):
 - Number of benefit slots: ${templateBenefitsLength || 3}
 - Has testimonial slot: ${!!templateHasTestimonial}
 
-Generate copy that makes the ad feel like it was designed SPECIFICALLY for this ${productAnalysis.category || 'product'}.
+Generate copy in ${isEn ? 'ENGLISH' : 'ESPAÑOL'} that makes the ad feel like it was designed SPECIFICALLY for this ${productAnalysis.category || 'product'}.
 Do NOT reference any other product category. The product analysis above is your ONLY semantic source.`;
 
     console.log(`[GROQ][STAGE 2] Prompt Enviado:\n${userPrompt.substring(0, 400)}...`);
 
-    const response = await groq.chat.completions.create({
+    const response = await groqChatWithRetry({
       model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.4
+      temperature: 0.4,
+      max_tokens: 500
     });
 
     const text = response.choices[0]?.message?.content || '{}';
     console.log(`[GROQ][STAGE 2] Respuesta Recibida:\n${text}`);
     const parsedCopy = JSON.parse(text);
 
+    // Sanitize any accidental placeholder strings
+    const sanitize = (val: string | undefined, fallback: string) => {
+      if (!val || typeof val !== 'string') return fallback;
+      const t = val.trim().toLowerCase();
+      if (['hook', 'hoect', 'desc', 'descs', 'cta', 'title', 'placeholder'].includes(t)) return fallback;
+      return val.trim();
+    };
+
+    const defaultHook = isEn ? 'Unmatched Luxury & Distinction' : 'Elegancia y Distinción Única';
+    const defaultDesc = isEn ? 'Crafted with passion for lasting excellence.' : 'Creado con pasión para una huella inolvidable.';
+    const defaultBenefits = isEn
+      ? ['Premium Quality', 'Exclusive Design', '100% Authentic']
+      : ['Calidad Premium', 'Diseño Exclusivo', '100% Original'];
+    const defaultCta = isEn ? 'SHOP NOW' : 'COMPRAR AHORA';
+
     return {
-      badge: adTextsOverrides?.badge || parsedCopy.badge || '✨ PREMIUM',
-      hook: adTextsOverrides?.hook || parsedCopy.hook || 'Descubre lo Mejor',
-      desc: adTextsOverrides?.desc || parsedCopy.desc || 'Calidad que se siente.',
+      badge: sanitize(adTextsOverrides?.badge || parsedCopy.badge, isEn ? '✨ PREMIUM' : '✨ EXCLUSIVO'),
+      hook: sanitize(adTextsOverrides?.hook || parsedCopy.hook, defaultHook),
+      desc: sanitize(adTextsOverrides?.desc || parsedCopy.desc, defaultDesc),
       benefits: [
-        adTextsOverrides?.benefits?.[0] || parsedCopy.benefits?.[0] || 'Calidad premium',
-        adTextsOverrides?.benefits?.[1] || parsedCopy.benefits?.[1] || 'Diseño exclusivo',
-        adTextsOverrides?.benefits?.[2] || parsedCopy.benefits?.[2] || 'Garantía oficial',
+        sanitize(adTextsOverrides?.benefits?.[0] || parsedCopy.benefits?.[0], defaultBenefits[0]),
+        sanitize(adTextsOverrides?.benefits?.[1] || parsedCopy.benefits?.[1], defaultBenefits[1]),
+        sanitize(adTextsOverrides?.benefits?.[2] || parsedCopy.benefits?.[2], defaultBenefits[2]),
         parsedCopy.benefits?.[3] || '',
         parsedCopy.benefits?.[4] || '',
       ].filter(Boolean),
-      cta: adTextsOverrides?.cta || parsedCopy.cta || 'COMPRAR AHORA',
+      cta: sanitize(adTextsOverrides?.cta || parsedCopy.cta, defaultCta),
       testimonial: adTextsOverrides?.testimonial || parsedCopy.testimonial || '',
       lifestyle_phrase: parsedCopy.lifestyle_phrase || '',
       premium_descriptor: parsedCopy.premium_descriptor || ''
@@ -192,7 +288,6 @@ Do NOT reference any other product category. The product analysis above is your 
     console.log(`[GROQ][STAGE 3] Imagen Template Recibida: ${truncateBase64(templatePreviewImage)}`);
     console.log('======================================================================');
 
-    const groq = getGroqClient();
     const systemPrompt = `You are a VISUAL COMPOSITION ANALYZER.
 You analyze images to extract PURE VISUAL PROPERTIES — layout, colors, lighting, shadows, geometry, spacing.
 
@@ -237,25 +332,59 @@ Return OBLIGATORILY this JSON:
 
     console.log(`[GROQ][STAGE 3] Prompt Enviado:\n${systemPrompt.substring(0, 300)}...`);
 
-    const response = await groq.chat.completions.create({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Analyze this VISUAL COMPOSITION. Extract ONLY visual properties: colors, lighting, shadows, gradients, geometry, spacing, glow effects, reflections. Do NOT identify or describe what product is shown. Do NOT read any text in the image. Treat it as an abstract visual structure:' },
-            { type: 'image_url', image_url: { url: templatePreviewImage } }
-          ]
-        }
-      ],
-      temperature: 0.1
-    });
+    try {
+      const promptContent = `Analyze the visual styling of this template based on its primary palette (${JSON.stringify(colors || {})}).
+Extract pure visual composition properties: lighting, shadows, gradients, geometry, glow effects, reflections.
 
-    const text = response.choices[0]?.message?.content || '{}';
-    console.log(`[GROQ][STAGE 3] Respuesta Recibida:\n${text}`);
-    return JSON.parse(text) as TemplateDNA;
+Return ONLY this JSON:
+{
+  "dominant_palette": ["${colors?.primary || '#111111'}", "${colors?.accent || '#FFD700'}", "${colors?.badgeBg || '#6D28D9'}"],
+  "secondary_palette": ["${colors?.text || '#FFFFFF'}", "#222222"],
+  "lighting_style": "warm directional key light with gold rim, soft diffused top light",
+  "cinematic_mood": "dark luxurious warmth, modern clean commercial elegance",
+  "contrast_profile": "balanced",
+  "glow_style": "warm gold rim glow with soft diffused ambient light",
+  "visual_temperature": "warm",
+  "luxury_style": "ultra-premium commercial design",
+  "shadow_behavior": "soft realistic contact shadows with directional diffuse",
+  "gradient_behavior": "smooth vertical gradient with subtle atmospheric vignette",
+  "environment_style": "commercial luxury studio environment with dark background and vibrant accents",
+  "reflection_style": "subtle glossy reflections on polished pedestal",
+  "premium_render_style": "luxury dark cinematic 8k commercial quality"
+}`;
+
+      const response = await groqChatWithRetry({
+        model: 'qwen/qwen3.8-27b',
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: 'You are a visual design expert analyzing template color and lighting DNA.' },
+          { role: 'user', content: promptContent }
+        ],
+        temperature: 0.1,
+        max_tokens: 400
+      });
+
+      const text = response.choices[0]?.message?.content || '{}';
+      console.log(`[GROQ][STAGE 3] Respuesta Recibida:\n${text}`);
+      return JSON.parse(text) as TemplateDNA;
+    } catch (err: any) {
+      console.warn(`[GROQ][STAGE 3] Error in analyzeTemplateDNA (${err.message}). Using derived fallback.`);
+      return {
+        dominant_palette: [colors?.primary || '#111111', colors?.accent || '#FFD700', colors?.badgeBg || '#6D28D9'],
+        secondary_palette: [colors?.text || '#FFFFFF', '#222222'],
+        lighting_style: 'commercial studio lighting with crisp rim reflections',
+        cinematic_mood: 'premium commercial elegance',
+        contrast_profile: 'balanced',
+        glow_style: 'soft ambient glow',
+        visual_temperature: 'warm',
+        luxury_style: 'premium commercial',
+        shadow_behavior: 'soft realistic contact shadows',
+        gradient_behavior: 'smooth linear gradient',
+        environment_style: 'modern clean commercial environment',
+        reflection_style: 'subtle glossy reflections',
+        premium_render_style: 'ultra realistic 8k commercial quality'
+      };
+    }
   },
 
   async runQA(
@@ -274,7 +403,6 @@ Return OBLIGATORILY this JSON:
     console.log(`[QA][STAGE 6] Analizando Copys, Categorías y Fugas con Groq...`);
     console.log('======================================================================');
 
-    const groq = getGroqClient();
     const systemPrompt = `You are a semantic and text-leakage validation engine for premium ecommerce ads.
 Your job is to audit the generated advertisement metadata to guarantee perfect semantic isolation and textual correctness.
 
@@ -316,14 +444,15 @@ PROMPT SENT TO FLUX:
 
     console.log(`[QA][STAGE 6] Prompt Enviado:\n${userPrompt}`);
 
-    const response = await groq.chat.completions.create({
+    const response = await groqChatWithRetry({
       model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.1
+      temperature: 0.1,
+      max_tokens: 500
     });
 
     const text = response.choices[0]?.message?.content || '{}';
@@ -380,8 +509,7 @@ PROMPT SENT TO FLUX:
     console.log('[GROQ][STAGE 3] Ejecutando ART DIRECTOR (llama-3.3-70b) — con semantic stripping...');
     console.log('======================================================================');
 
-    const groq = getGroqClient();
-    const response = await groq.chat.completions.create({
+    const response = await groqChatWithRetry({
       model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
@@ -427,7 +555,8 @@ UPLOADED PRODUCT CONTEXT (use as SOLE semantic authority):
 Generate art direction that uses the template's VISUAL STRUCTURE but the product's SEMANTIC CONTEXT.`
         }
       ],
-      temperature: 0.2
+      temperature: 0.2,
+      max_tokens: 500
     });
 
     const text = response.choices[0]?.message?.content || '{}';
@@ -445,8 +574,7 @@ Generate art direction that uses the template's VISUAL STRUCTURE but the product
     console.log('[GROQ][STAGE 4] Ejecutando ADAPT COLORS (llama-3.3-70b)...');
     console.log('======================================================================');
 
-    const groq = getGroqClient();
-    const response = await groq.chat.completions.create({
+    const response = await groqChatWithRetry({
       model: 'qwen/qwen3.8-27b',
       response_format: { type: 'json_object' },
       messages: [
@@ -518,7 +646,8 @@ Template style: ${strippedStyleIdentity || 'premium'}
 REMEMBER: The template DNA is the AUTHORITY. Product colors can ONLY influence pedestal_tint, shadow_tint, and neutral_shadow at MAX 20%.`
         }
       ],
-      temperature: 0.1
+      temperature: 0.1,
+      max_tokens: 500
     });
 
     const text = response.choices[0]?.message?.content || '{}';
