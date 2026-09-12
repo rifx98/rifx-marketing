@@ -86,13 +86,7 @@ export async function checkRateLimit(
     }
   }
 
-  // Memory is not shared between serverless instances. Authentication fails
-  // closed in production only when distributed limiter was intended and configured.
-  // Locally or when unconfigured, fall back safely to in-memory store.
-  const isVercelCloud = !!process.env.VERCEL_URL && !process.env.VERCEL_URL.includes('localhost');
-  if (process.env.NODE_ENV === 'production' && isVercelCloud && isUpstashConfigured) {
-    return { allowed: false, remaining: 0, retryAfterMs: 5000, unavailable: true };
-  }
+  // If Upstash Redis is unreachable, fall back safely to in-memory store.
 
   const now = Date.now();
   const record = localStore.get(key);
