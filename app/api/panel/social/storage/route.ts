@@ -39,6 +39,13 @@ export async function GET(req: NextRequest) {
     const action = searchParams.get('action');
 
     if (action === 'upload') {
+      const r2Account = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
+      if (!r2Account || r2Account.includes('SENSITIVE')) {
+        return NextResponse.json({
+          error: 'Credenciales de Cloudflare R2 no configuradas en el entorno local (tienen valor [SENSITIVE]). Prueba en la web en producción (rifx-marketing.com) o coloca tus credenciales en .env.local.'
+        }, { status: 500 });
+      }
+
       const filename = searchParams.get('filename');
       const contentType = searchParams.get('contentType');
       const size = Number(searchParams.get('size'));
