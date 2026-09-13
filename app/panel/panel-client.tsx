@@ -896,6 +896,10 @@ const VALID_BOT_SECTIONS = ['inbox', 'constructor', 'flowzap', 'versions'] as co
 const VALID_CAMPAIGN_SUBTABS = ['campaigns', 'creative', 'analytics'] as const;
 
 export default function PanelClient() {
+  const [activeTab, setActiveTab] = useState<any>('dashboard');
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
+  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions'>('constructor');
+  const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isExportingDropi, setIsExportingDropi] = useState(false);
@@ -1321,9 +1325,7 @@ export default function PanelClient() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<any>('dashboard');
   const [hoveredTab, setHoveredTab] = useState<{ label: string; top: number; isLocked: boolean } | null>(null);
-  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions'>('constructor');
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
 
   // Appointments states
@@ -1978,8 +1980,7 @@ export default function PanelClient() {
     }
   };
 
-  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
-  
+
 
 
   // API Setup Assistant State
@@ -2398,7 +2399,6 @@ export default function PanelClient() {
   const [campaignResult, setCampaignResult] = useState<any>(null);
   const campaignFileRef = React.useRef<HTMLInputElement>(null);
   const productFileRef = React.useRef<HTMLInputElement>(null);
-  const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
 
   // Ecom Magic AI states
   const [selectedTemplate, setSelectedTemplate] = useState<CreativeTemplate | null>(null);
