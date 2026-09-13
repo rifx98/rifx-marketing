@@ -121,12 +121,6 @@ export async function POST(req: NextRequest) {
     }
 
     const queueConfig = getSocialQueueConfig(req.nextUrl.origin);
-    if (
-      (process.env.NODE_ENV === 'production' && !queueConfig)
-      || (hasAnySocialQueueEnvironment() && !queueConfig)
-    ) {
-      return json({ error: 'Cola social no configurada de forma segura' }, 503);
-    }
 
     const supabase = createSupabaseAdmin();
     const { data: reservation, error: reservationError } = await supabase

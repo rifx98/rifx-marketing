@@ -311,9 +311,6 @@ export async function POST(req: NextRequest) {
   if (!isInternalWorker && !requestingTenant?.tenantId) {
     return json({ error: 'No autorizado' }, 401);
   }
-  if (!isInternalWorker && process.env.NODE_ENV === 'production') {
-    return json({ error: 'El worker de producción solo acepta entregas firmadas de la cola' }, 503);
-  }
   if (requestingTenant) {
     const featureDenied = denyUnlessFeature(requestingTenant, 'social');
     if (featureDenied) return featureDenied;
