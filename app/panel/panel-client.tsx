@@ -895,11 +895,79 @@ const VALID_SETTINGS_SECTIONS = [
 const VALID_BOT_SECTIONS = ['inbox', 'constructor', 'flowzap', 'versions'] as const;
 const VALID_CAMPAIGN_SUBTABS = ['campaigns', 'creative', 'analytics'] as const;
 
+function getInitialActiveTab(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      if (urlTab && (VALID_PANEL_TABS as readonly string[]).includes(urlTab)) {
+        return urlTab;
+      }
+      const savedTab = localStorage.getItem('rifx_active_tab');
+      if (savedTab && (VALID_PANEL_TABS as readonly string[]).includes(savedTab)) {
+        return savedTab;
+      }
+    } catch (_) {}
+  }
+  return 'dashboard';
+}
+
+function getInitialSettingsSection(): 'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance' {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlSec = params.get('section');
+      if (urlSec && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(urlSec)) {
+        return urlSec as any;
+      }
+      const savedSec = localStorage.getItem('rifx_settings_section');
+      if (savedSec && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(savedSec)) {
+        return savedSec as any;
+      }
+    } catch (_) {}
+  }
+  return 'profile';
+}
+
+function getInitialBotSection(): 'inbox' | 'constructor' | 'flowzap' | 'versions' {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlBot = params.get('bot') || params.get('bot_section');
+      if (urlBot && (VALID_BOT_SECTIONS as readonly string[]).includes(urlBot)) {
+        return urlBot as any;
+      }
+      const savedBot = localStorage.getItem('rifx_bot_section');
+      if (savedBot && (VALID_BOT_SECTIONS as readonly string[]).includes(savedBot)) {
+        return savedBot as any;
+      }
+    } catch (_) {}
+  }
+  return 'constructor';
+}
+
+function getInitialCampaignSubTab(): 'campaigns' | 'creative' | 'analytics' {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlSub = params.get('sub') || params.get('campaign_sub');
+      if (urlSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(urlSub)) {
+        return urlSub as any;
+      }
+      const savedSub = localStorage.getItem('rifx_campaign_subtab');
+      if (savedSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(savedSub)) {
+        return savedSub as any;
+      }
+    } catch (_) {}
+  }
+  return 'creative';
+}
+
 export default function PanelClient() {
-  const [activeTab, setActiveTab] = useState<any>('dashboard');
-  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>('profile');
-  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions'>('constructor');
-  const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>('creative');
+  const [activeTab, setActiveTab] = useState<any>(getInitialActiveTab);
+  const [settingsSection, setSettingsSection] = useState<'profile' | 'ai' | 'whatsapp' | 'notifications' | 'meta' | 'memory' | 'security' | 'dropi' | 'api_helper' | 'appearance'>(getInitialSettingsSection);
+  const [botSection, setBotSection] = useState<'inbox' | 'constructor' | 'flowzap' | 'versions'>(getInitialBotSection);
+  const [campaignSubTab, setCampaignSubTab] = useState<'campaigns' | 'creative' | 'analytics'>(getInitialCampaignSubTab);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isExportingDropi, setIsExportingDropi] = useState(false);
@@ -1398,47 +1466,26 @@ export default function PanelClient() {
 
     try {
       const url = new URL(window.location.href);
-      if (activeTab === 'dashboard') {
-        url.searchParams.delete('tab');
+      url.searchParams.set('tab', activeTab);
+
+      if (activeTab === 'settings') {
+        url.searchParams.set('section', settingsSection);
+      } else {
         url.searchParams.delete('section');
+      }
+
+      if (activeTab === 'playground') {
+        url.searchParams.set('bot', botSection);
+      } else {
         url.searchParams.delete('bot');
         url.searchParams.delete('bot_section');
+      }
+
+      if (activeTab === 'campaigns') {
+        url.searchParams.set('sub', campaignSubTab);
+      } else {
         url.searchParams.delete('sub');
         url.searchParams.delete('campaign_sub');
-      } else {
-        url.searchParams.set('tab', activeTab);
-
-        if (activeTab === 'settings') {
-          if (settingsSection && settingsSection !== 'profile') {
-            url.searchParams.set('section', settingsSection);
-          } else {
-            url.searchParams.delete('section');
-          }
-        } else {
-          url.searchParams.delete('section');
-        }
-
-        if (activeTab === 'playground') {
-          if (botSection && botSection !== 'constructor') {
-            url.searchParams.set('bot', botSection);
-          } else {
-            url.searchParams.delete('bot');
-          }
-        } else {
-          url.searchParams.delete('bot');
-          url.searchParams.delete('bot_section');
-        }
-
-        if (activeTab === 'campaigns') {
-          if (campaignSubTab && campaignSubTab !== 'creative') {
-            url.searchParams.set('sub', campaignSubTab);
-          } else {
-            url.searchParams.delete('sub');
-          }
-        } else {
-          url.searchParams.delete('sub');
-          url.searchParams.delete('campaign_sub');
-        }
       }
 
       const targetSearch = url.search;
@@ -3672,6 +3719,42 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setActiveTab(tab);
     try {
       localStorage.setItem('rifx_active_tab', tab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    } catch (_) {}
+  };
+
+  const safeSetSettingsSection = (sec: typeof settingsSection) => {
+    setSettingsSection(sec);
+    try {
+      localStorage.setItem('rifx_settings_section', sec);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'settings');
+      url.searchParams.set('section', sec);
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    } catch (_) {}
+  };
+
+  const safeSetBotSection = (sec: typeof botSection) => {
+    setBotSection(sec);
+    try {
+      localStorage.setItem('rifx_bot_section', sec);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'playground');
+      url.searchParams.set('bot', sec);
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    } catch (_) {}
+  };
+
+  const safeSetCampaignSubTab = (sub: typeof campaignSubTab) => {
+    setCampaignSubTab(sub);
+    try {
+      localStorage.setItem('rifx_campaign_subtab', sub);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', 'campaigns');
+      url.searchParams.set('sub', sub);
+      window.history.replaceState({}, document.title, url.pathname + url.search);
     } catch (_) {}
   };
   const [selectedChat, setSelectedChat] = useState<{id: string, name: string, customer_name?: string, status: string, phone_number?: string, created_at?: string} | null>(null);
@@ -8161,7 +8244,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           setGlobalSearch('');
                           if (res.key.startsWith('settings-')) {
                             safeSetActiveTab('settings');
-                            setSettingsSection(res.key.split('-')[1] as any);
+                            safeSetSettingsSection(res.key.split('-')[1] as any);
                           } else {
                             safeSetActiveTab(res.key as any);
                           }
@@ -8261,7 +8344,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </button>
 
           <button 
-            onClick={() => { safeSetActiveTab('settings'); setSettingsSection('profile'); }}
+            onClick={() => { safeSetActiveTab('settings'); safeSetSettingsSection('profile'); }}
             className="flex items-center gap-3 group cursor-pointer hover:opacity-80 transition-opacity"
             title={language === 'en' ? 'Go to Profile Settings' : 'Ir a Configuración de Perfil'}
           >
@@ -8335,7 +8418,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
             {/* Upgrade/Change plan Button */}
             <button
-              onClick={() => setActiveTab('billing')}
+              onClick={() => safeSetActiveTab('billing')}
               className="group inline-flex items-center gap-2.5 bg-[#000080] text-white font-bold text-sm px-8 py-3.5 rounded-2xl shadow-lg shadow-[#000080]/20 hover:shadow-[#000080]/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
             >
               <span className="material-symbols-outlined text-lg">credit_card</span>
@@ -8524,8 +8607,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="flex items-center justify-between mt-1.5">
                           <p className="text-[10px] text-white/70">
                             {isExpired 
-                              ? <><span className="text-white font-bold">Tu plan ha expirado.</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Renovar ahora</span></>
-                              : <>Tu plan {plan === 'trial' ? 'de prueba' : ''} expira el {expiresStr} · <span className="font-bold text-white">{daysLeft} {daysLeft === 1 ? 'd\u00eda' : 'd\u00edas'} restantes</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => setActiveTab('billing')}>Ver planes</span></>
+                              ? <><span className="text-white font-bold">Tu plan ha expirado.</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => safeSetActiveTab('billing')}>Renovar ahora</span></>
+                              : <>Tu plan {plan === 'trial' ? 'de prueba' : ''} expira el {expiresStr} · <span className="font-bold text-white">{daysLeft} {daysLeft === 1 ? 'día' : 'días'} restantes</span> · <span className="underline cursor-pointer hover:text-white" onClick={() => safeSetActiveTab('billing')}>Ver planes</span></>
                             }
                           </p>
                           <div className="flex gap-2">
@@ -8545,25 +8628,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         name: 'Experta en ventas por WhatsApp',
                         icon: 'forum',
                         active: !!(configData.whatsapp_token && configData.whatsapp_phone_id),
-                        onClick: () => { setActiveTab('settings'); setSettingsSection('whatsapp'); },
+                        onClick: () => { safeSetActiveTab('settings'); safeSetSettingsSection('whatsapp'); },
                       },
                       {
                         name: 'Experto en logística',
                         icon: 'local_shipping',
                         active: !!configData.dropi_enabled,
-                        onClick: () => { setActiveTab('settings'); setSettingsSection('dropi'); },
+                        onClick: () => { safeSetActiveTab('settings'); safeSetSettingsSection('dropi'); },
                       },
                       {
                         name: 'Experto en Pautas Publicitarias',
                         icon: 'campaign',
                         active: !!(configData.facebook_access_token && configData.facebook_ad_account_id),
-                        onClick: () => { setActiveTab('settings'); setSettingsSection('meta'); },
+                        onClick: () => { safeSetActiveTab('settings'); safeSetSettingsSection('meta'); },
                       },
                       {
                         name: 'Experto en crear pancartas',
                         icon: 'auto_awesome',
                         active: true,
-                        onClick: () => { setActiveTab('campaigns'); },
+                        onClick: () => { safeSetActiveTab('campaigns'); },
                       },
                     ];
                     const missingCount = experts.filter(e => !e.active).length;
@@ -8599,7 +8682,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </>
                             )}
                           </div>
-                          <button onClick={() => firstMissing ? firstMissing.onClick() : setActiveTab('billing')} className="bg-primary-container text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-primary-container/90 shadow-sm transition-all flex items-center gap-2">
+                          <button onClick={() => firstMissing ? firstMissing.onClick() : safeSetActiveTab('billing')} className="bg-primary-container text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-primary-container/90 shadow-sm transition-all flex items-center gap-2">
                             Completar
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path></svg>
                           </button>
@@ -9837,7 +9920,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 ].map(item => (
                   <button
                     key={item.key}
-                    onClick={() => setSettingsSection(item.key as any)}
+                    onClick={() => safeSetSettingsSection(item.key as any)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
                       settingsSection === item.key
                         ? 'bg-[#0058bc]/8 text-[#0058bc] font-bold'
@@ -12277,8 +12360,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             setCampaignImagePreview(generatedBanner);
                           }
                           setChatgptFlowStep(1);
-                          setCampaignSubTab('creative');
-                          setActiveTab('campaigns');
+                          safeSetCampaignSubTab('creative');
+                          safeSetActiveTab('campaigns');
                           setToast({
                             message: language === 'en' 
                               ? '🚀 Starting Ad Strategy & Questions...' 
@@ -12351,7 +12434,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </p>
                 </div>
                 {campaignSubTab === 'campaigns' && (
-                  <button onClick={() => setCampaignSubTab('creative')} className="px-5 py-2.5 text-white font-semibold rounded-lg shadow-lg text-sm flex items-center gap-2 hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                  <button onClick={() => safeSetCampaignSubTab('creative')} className="px-5 py-2.5 text-white font-semibold rounded-lg shadow-lg text-sm flex items-center gap-2 hover:opacity-90 transition-all" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
                     <span className="material-symbols-outlined text-sm">add</span>
                     {language === 'en' ? 'New Campaign' : 'Nueva Campaña'}
                   </button>
@@ -12365,7 +12448,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 ]).map(tab => (
                   <button
                     key={tab.key}
-                    onClick={() => setCampaignSubTab(tab.key)}
+                    onClick={() => safeSetCampaignSubTab(tab.key)}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold transition-all ${
                       campaignSubTab === tab.key
                         ? 'bg-white text-[#0b1c30] shadow-sm border border-[#c1c6d6]'
@@ -12609,7 +12692,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <td className="px-6 py-4"><p className="text-sm">{row.date}</p></td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <button className="p-2 text-[#414754] hover:text-[#0058bc] hover:bg-[#0058bc]/10 rounded transition-colors" onClick={() => setCampaignSubTab('creative')}><span className="material-symbols-outlined text-lg">edit</span></button>
+                              <button className="p-2 text-[#414754] hover:text-[#0058bc] hover:bg-[#0058bc]/10 rounded transition-colors" onClick={() => safeSetCampaignSubTab('creative')}><span className="material-symbols-outlined text-lg">edit</span></button>
                               <button className="p-2 text-[#414754] hover:text-[#006947] hover:bg-[#006947]/10 rounded transition-colors" onClick={() => row.id && toggleFbCampaign(row.id, row.rawStatus || 'PAUSED')}><span className="material-symbols-outlined text-lg">{row.status === 'active' ? 'pause' : 'play_arrow'}</span></button>
                               <button className="p-2 text-[#414754] hover:text-[#ba1a1a] hover:bg-[#ba1a1a]/10 rounded transition-colors" onClick={() => row.id && deleteFbCampaign(row.id)}><span className="material-symbols-outlined text-lg">delete</span></button>
                             </div>
@@ -13874,7 +13957,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <button
                                         onClick={() => {
                                           setShowMetaNoApiModal(false);
-                                          setActiveTab('settings');
+                                          safeSetActiveTab('settings');
+                                          safeSetSettingsSection('meta');
                                         }}
                                         className="flex-1 py-3 text-center text-white bg-gradient-to-r from-blue-600 to-indigo-600 font-bold text-xs rounded-xl hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                                       >
@@ -15848,7 +15932,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               <div className="px-10 py-8 flex justify-between items-center border-b border-slate-50">
                 <h4 className="text-xl font-black text-primary">{language === 'en' ? 'Top Performance Segments' : 'Segmentos de Mayor Rendimiento'}</h4>
                 <button 
-                  onClick={() => setActiveTab('segments')}
+                  onClick={() => safeSetActiveTab('segments')}
                   className="text-[10px] font-black text-primary-container uppercase tracking-widest flex items-center gap-2 hover:underline"
                 >
                   {language === 'en' ? 'View All Segments' : 'Ver Todos los Segmentos'}
@@ -19179,7 +19263,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   <p className="font-semibold text-sm mb-2">{language === 'en' ? 'Dropi is not enabled' : 'Dropi no está habilitado'}</p>
                   <p className="text-xs text-center max-w-sm">{language === 'en' ? 'Enable Dropi integration in Settings → AI Bot → Dropi to start receiving orders.' : 'Habilita la integración con Dropi en Configuraciones → Bot IA → Dropi para comenzar a recibir pedidos.'}</p>
                   <button
-                    onClick={() => setActiveTab('settings')}
+                    onClick={() => { safeSetActiveTab('settings'); safeSetSettingsSection('dropi'); }}
                     className="mt-4 px-5 py-2.5 rounded-xl bg-primary-container text-white font-bold text-sm hover:opacity-90 transition-all flex items-center gap-2"
                   >
                     <span className="material-symbols-outlined text-lg">settings</span>
