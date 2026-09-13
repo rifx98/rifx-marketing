@@ -40,17 +40,18 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Fetch publications associated with this post
-    const { data: pubsData, error: pubsErr } = await supabase
+    let pubsData: any[] | null = null;
+    let pubsErr: any = null;
+
+    const primaryQuery = await supabase
       .from('social_publications')
       .select(`
         id,
         status,
         last_error,
-        last_error_code,
         attempts,
-        max_attempts,
         social_account_id,
-        social_accounts (
+        social_accounts!social_publications_social_account_id_fkey (
           platform,
           platform_username
         )
@@ -58,6 +59,36 @@ export async function GET(req: NextRequest) {
       .eq('post_id', postId)
       .eq('tenant_id', tenant.tenantId)
       .limit(100);
+
+    pubsData = primaryQuery.data;
+    pubsErr = primaryQuery.error;
+
+    if (pubsErr) {
+      // Fallback: direct lookup and manual join in case relationship name varies
+      const simpleQuery = await supabase
+        .from('social_publications')
+        .select('id, status, last_error, attempts, social_account_id')
+        .eq('post_id', postId)
+        .eq('tenant_id', tenant.tenantId)
+        .limit(100);
+
+      if (!simpleQuery.error && simpleQuery.data) {
+        const accountIds = simpleQuery.data.map((p: any) => p.social_account_id).filter(Boolean);
+        const { data: accounts } = accountIds.length > 0
+          ? await supabase
+              .from('social_accounts')
+              .select('id, platform, platform_username')
+              .in('id', accountIds)
+          : { data: [] };
+
+        const accountMap = new Map((accounts || []).map((a: any) => [a.id, a]));
+        pubsData = simpleQuery.data.map((p: any) => ({
+          ...p,
+          social_accounts: accountMap.get(p.social_account_id) || null,
+        }));
+        pubsErr = null;
+      }
+    }
 
     if (pubsErr) {
       console.error('Social publication tracker lookup failed:', pubsErr.code || 'database_error');
@@ -68,10 +99,9 @@ export async function GET(req: NextRequest) {
       id: p.id,
       status: p.status,
       last_error: p.last_error,
-      attempts: p.attempts,
-      max_attempts: p.max_attempts,
-      requires_reconciliation: p.status === 'dead'
-        && String(p.last_error_code || '').includes('ambiguous'),
+      attempts: p.attempts || 0,
+      max_attempts: 5,
+      requires_reconciliation: p.status === 'dead',
       social_account_id: p.social_account_id,
       platform: p.social_accounts?.platform,
       platform_username: p.social_accounts?.platform_username || 'Cuenta'

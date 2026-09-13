@@ -16663,14 +16663,22 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="space-y-5">
                   {trackingPostIds.length > 0 ? (
                     /* Monitor de publicación en vivo */
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
-                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/20">
-                            <span className="material-symbols-outlined text-white text-[16px] animate-spin" style={{ animationDuration: '2s' }}>sync</span>
+                    /* Monitor de publicación en vivo */
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-fuchsia-600 flex items-center justify-center shadow-md shadow-indigo-500/25">
+                            <span className="material-symbols-outlined text-white text-[18px] animate-spin" style={{ animationDuration: '2.5s' }}>satellite_alt</span>
                           </div>
-                          Publicando...
-                        </h3>
+                          <div>
+                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
+                              Centro de Difusión OmniPublish
+                            </h3>
+                            <p className="text-[11px] text-slate-400 font-medium">
+                              Telemetría y distribución concurrente en tiempo real
+                            </p>
+                          </div>
+                        </div>
                         <button
                           onClick={() => {
                             setTrackingPostIds([]);
@@ -16678,22 +16686,28 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             setUploadedVideos([]);
                             setIsPublishing(false);
                           }}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 bg-slate-900 hover:bg-indigo-600 text-white text-[11px] font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
                         >
-                          <span className="material-symbols-outlined text-[12px]">add</span>
+                          <span className="material-symbols-outlined text-[14px]">add</span>
                           Nuevo Envío
                         </button>
                       </div>
-                      <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
+                      <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1 custom-scrollbar">
                         {trackingPostIds.map((postId, idx) => (
-                          <div key={postId} className="border-b border-slate-50 pb-5 last:border-b-0 last:pb-0">
-                            <h4 className="text-xs font-bold text-slate-700 mb-3 flex items-center justify-between">
+                          <div key={postId} className="border-b border-slate-100 pb-5 last:border-b-0 last:pb-0">
+                            <div className="flex items-center justify-between mb-3.5">
                               <span className="flex items-center gap-2">
-                                <span className="w-5 h-5 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center text-[10px] font-black">{idx + 1}</span>
-                                Video #{idx + 1}
+                                <span className="w-5 h-5 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black shadow-sm">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-xs font-bold text-slate-800">
+                                  Video #{idx + 1}
+                                </span>
                               </span>
-                              <span className="text-[9px] text-slate-300 font-mono bg-slate-50 px-2 py-0.5 rounded">{postId.substring(0, 8)}</span>
-                            </h4>
+                              <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/60">
+                                ID: {postId.substring(0, 8)}
+                              </span>
+                            </div>
                             <PublicationTracker
                               postId={postId}
                               onFinished={() => {
