@@ -36,9 +36,8 @@ export async function runAutoResume(options: { startTime: number }): Promise<Aut
 
     const { data: conversations, error: fetchErr } = await supabase
       .from('conversations')
-      .select('id, tenant_id, phone_number, is_paused, status, updated_at')
+      .select('id, tenant_id, phone_number, status, updated_at')
       .eq('status', 'requires_attention')
-      .eq('is_paused', true)
       .lt('updated_at', timeLimit)
       .limit(50); // Process up to 50 per run
 
@@ -51,75 +50,78 @@ export async function runAutoResume(options: { startTime: number }): Promise<Aut
 
     const processOne = async (conv: any) => {
       try {
-        const { data: tenantConfig, error: configErr } = await supabase
+        const { data: tenantConfig } = await supabase
           .from('config')
           .select('whatsapp_token, whatsapp_phone_id')
           .eq('tenant_id', conv.tenant_id)
           .limit(1)
           .maybeSingle();
 
-        if (configErr || !tenantConfig) {
-          throw new Error(`Configuración de WhatsApp no encontrada para el tenant: ${conv.tenant_id}`);
-        }
-
-        const token = tenantConfig.whatsapp_token;
-        const phoneId = tenantConfig.whatsapp_phone_id;
-
-        if (!token || !phoneId) {
-          throw new Error(`Credenciales de WhatsApp incompletas para el tenant: ${conv.tenant_id}`);
-        }
-
+        const token = tenantConfig?.whatsapp_token;
+        const phoneId = tenantConfig?.whatsapp_phone_id;
         const resumeMessage = `Por el momento no hay una persona disponible para atenderte. He reactivado nuestro asistente automático para seguir ayudándote en lo que pueda. 🤖`;
 
-        // Send WhatsApp message
-        await retryWithBackoff(async () => {
-          const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              to: conv.phone_number,
-              type: 'text',
-              text: { body: resumeMessage },
-            }),
-          });
+        let waSentSuccess = false;
+        if (token && phoneId && conv.phone_number) {
+          try {
+            // Send WhatsApp message if credentials present
+            await retryWithBackoff(async () => {
+              const response = await fetch(`https://graph.facebook.com/v19.0/${phoneId}/messages`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  messaging_product: 'whatsapp',
+                  to: conv.phone_number,
+                  type: 'text',
+                  text: { body: resumeMessage },
+                }),
+              });
 
-          const resData = await response.json();
-          // Ignorar errores de 24h window para reactivar de todos modos en la DB
-          if (!response.ok && !is24hWindowError(resData)) {
-            throw new Error(`Meta API error: ${JSON.stringify(resData)}`);
+              const resData = await response.json();
+              if (response.ok) {
+                waSentSuccess = true;
+              } else {
+                console.warn(`[Auto-Resume Service] WhatsApp notification skipped: ${JSON.stringify(resData?.error?.message || resData)}`);
+              }
+              return resData;
+            }, 2);
+          } catch (waErr: any) {
+            console.warn(`[Auto-Resume Service] Could not send WA message for conv ${conv.id}:`, waErr.message);
           }
-          return resData;
-        }, 3);
+        }
 
-        console.log(`[Auto-Resume Service] Reactivando conversación ${conv.id}`);
+        console.log(`[Auto-Resume Service] Reactivando conversación ${conv.id} en CRM`);
 
         // Update database (resume bot)
         await supabase
           .from('conversations')
           .update({
             status: 'chatting',
-            is_paused: false,
             updated_at: new Date().toISOString()
           })
           .eq('id', conv.id);
 
         // Record automated reply and internal resume signal
-        await supabase.from('messages').insert([
+        const messagesToInsert: any[] = [
           {
             conversation_id: conv.id,
+            tenant_id: conv.tenant_id,
             role: 'assistant',
             content: '__SYSTEM_RESUME__',
-          },
-          {
+          }
+        ];
+        if (waSentSuccess) {
+          messagesToInsert.push({
             conversation_id: conv.id,
+            tenant_id: conv.tenant_id,
             role: 'assistant',
             content: resumeMessage,
-          }
-        ]);
+          });
+        }
+        await supabase.from('messages').insert(messagesToInsert);
 
         result.processed++;
         result.processedIds.push(conv.id);

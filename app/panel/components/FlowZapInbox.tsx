@@ -86,6 +86,13 @@ export default function FlowZapInbox({
   const [messages, setMessages] = useState<any[]>([]);
   const messageCache = useRef<Record<string, any[]>>({});
 
+  const getAuthHeaders = () => {
+    const token = typeof window !== 'undefined'
+      ? (localStorage.getItem('rifx_session_token') || localStorage.getItem('token'))
+      : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   // 4. Filter Conversations by Search & Status
   const filteredConvs = useMemo(() => {
     return rawConvs.filter((c: any) => {
@@ -196,11 +203,10 @@ export default function FlowZapInbox({
     }
 
     const fetchMsgs = async () => {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       try {
         const url = `/api/panel/conversations?id=${convId}&_t=${Date.now()}`;
         const res = await fetch(url, {
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          headers: { ...getAuthHeaders() },
           credentials: 'same-origin',
           cache: 'no-store',
         });
@@ -360,10 +366,9 @@ export default function FlowZapInbox({
     formData.append('message', text);
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       await fetch('/api/panel/send-message', {
         method: 'POST',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { ...getAuthHeaders() },
         credentials: 'same-origin',
         body: formData,
       });
@@ -371,7 +376,7 @@ export default function FlowZapInbox({
       // Refetch messages
       const url = `/api/panel/conversations?id=${selectedConv.id}&_t=${Date.now()}`;
       const res = await fetch(url, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { ...getAuthHeaders() },
         credentials: 'same-origin',
         cache: 'no-store',
       });
@@ -407,23 +412,27 @@ export default function FlowZapInbox({
     if (selectedConv.id === 'demo-rifx-marketing') return;
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      await fetch('/api/panel/pause', {
+      const pauseRes = await fetch('/api/panel/pause', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...getAuthHeaders(),
         },
+        credentials: 'same-origin',
         body: JSON.stringify({
           conversationId: selectedConv.id,
           paused: newPaused,
         }),
       });
 
+      if (!pauseRes.ok) {
+        console.error('Error toggling bot status HTTP:', pauseRes.status);
+      }
+
       // Refetch messages and parent conversations to sync immediately
       const url = `/api/panel/conversations?id=${selectedConv.id}&_t=${Date.now()}`;
       const res = await fetch(url, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: { ...getAuthHeaders() },
         credentials: 'same-origin',
         cache: 'no-store',
       });
@@ -456,13 +465,13 @@ export default function FlowZapInbox({
     if (selectedConv.id === 'demo-rifx-marketing') return;
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       await fetch('/api/panel/conversations', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...getAuthHeaders(),
         },
+        credentials: 'same-origin',
         body: JSON.stringify({
           id: selectedConv.id,
           status: newStatus,
@@ -490,13 +499,13 @@ export default function FlowZapInbox({
     if (selectedConv.id === 'demo-rifx-marketing') return;
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       await fetch('/api/panel/conversations', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...getAuthHeaders(),
         },
+        credentials: 'same-origin',
         body: JSON.stringify({
           id: selectedConv.id,
           assigned_to: targetAdvisor,
@@ -530,13 +539,13 @@ export default function FlowZapInbox({
     if (selectedConv.id === 'demo-rifx-marketing') return;
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch('/api/panel/conversations', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...getAuthHeaders(),
         },
+        credentials: 'same-origin',
         body: JSON.stringify({
           id: selectedConv.id,
           ...updates,

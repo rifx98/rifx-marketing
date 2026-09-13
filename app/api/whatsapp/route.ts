@@ -752,11 +752,10 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     const lastSignal = signalMessages && signalMessages.length > 0 ? signalMessages[0] : null;
     const isPausedSignal = lastSignal?.content === '__SYSTEM_PAUSE__';
 
-    // Auto-reactivación: si nadie (humano) atendió la conversación pausada en 24h,
+    // Auto-reactivación: si nadie (humano) atendió la conversación pausada en más de 2 horas,
     // la IA se reactiva sola en vez de dejar al cliente sin respuesta indefinidamente.
-    // Esto es lo que causaba que "el bot deje de funcionar" tras varios días de pausa
-    // (manual o por escalamiento de 3 intentos) sin que un humano la reanudara.
-    const PAUSE_AUTO_RESUME_MS = 24 * 60 * 60 * 1000;
+    // Esto evita que el cliente se quede días en espera de un asesor que ya no está en el chat.
+    const PAUSE_AUTO_RESUME_MS = 2 * 60 * 60 * 1000;
     const pausedSinceMs = isPausedSignal ? Date.now() - new Date(lastSignal!.created_at).getTime() : 0;
     const isStalePause = isPausedSignal && pausedSinceMs > PAUSE_AUTO_RESUME_MS;
 
@@ -764,9 +763,10 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     console.log(`[WhatsApp ${providerMessageId}] Modo humano: ${isHumanMode}`);
 
     if (isStalePause) {
-      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +24h (${Math.round(pausedSinceMs / 3600000)}h) sin respuesta humana — reactivando IA automáticamente`);
+      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +2h (${(pausedSinceMs / 3600000).toFixed(1)}h) sin respuesta humana — reactivando IA automáticamente`);
       await supabase.from('messages').insert({
         conversation_id: conversation.id,
+        tenant_id: tenantId,
         role: 'assistant',
         content: '__SYSTEM_RESUME__',
       });
