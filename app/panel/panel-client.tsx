@@ -16663,7 +16663,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="space-y-5">
                   {trackingPostIds.length > 0 ? (
                     /* Monitor de publicación en vivo */
-                    /* Monitor de publicación en vivo */
                     <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
                       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
                         <div className="flex items-center gap-3">
@@ -16692,7 +16691,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           Nuevo Envío
                         </button>
                       </div>
-                      <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1 custom-scrollbar">
+                      <div className="space-y-5">
                         {trackingPostIds.map((postId, idx) => (
                           <div key={postId} className="border-b border-slate-100 pb-5 last:border-b-0 last:pb-0">
                             <div className="flex items-center justify-between mb-3.5">
