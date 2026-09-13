@@ -164,7 +164,10 @@ export async function POST(req: NextRequest) {
       return json({ error: 'No se pudo crear la publicación social' }, 500);
     }
 
-    const { data: publications, error: publicationsError } = await supabase
+    let publications = null;
+    let publicationsError = null;
+
+    const initialInsert = await supabase
       .from('social_publications')
       .insert(accountIds.map((accountId) => ({
         post_id: post.id,
@@ -176,6 +179,26 @@ export async function POST(req: NextRequest) {
         dispatch_after: normalizedSchedule,
       })))
       .select('id');
+
+    publications = initialInsert.data;
+    publicationsError = initialInsert.error;
+
+    if (publicationsError && publicationsError.code === 'PGRST204') {
+      const fallbackInsert = await supabase
+        .from('social_publications')
+        .insert(accountIds.map((accountId) => ({
+          post_id: post.id,
+          social_account_id: accountId,
+          status: 'pending',
+          attempts: 0,
+          scheduled_at: normalizedSchedule,
+        })))
+        .select('id');
+
+      publications = fallbackInsert.data;
+      publicationsError = fallbackInsert.error;
+    }
+
     const publicationIds = publications?.map((publication) => publication.id) || [];
     if (publicationsError || publicationIds.length !== accountIds.length) {
       await rollbackPost(supabase, tenant.tenantId, post.id, publicationIds);

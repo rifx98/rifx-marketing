@@ -88,7 +88,8 @@ async function readWorkerBody(req: NextRequest): Promise<{ raw: string; body: Re
 function workerFailure(error: unknown, providerStarted: boolean): PublicationFailure {
   if (error instanceof PublicationFailure) return error;
   if (error instanceof SocialProviderError) {
-    return new PublicationFailure(error.code, error.disposition);
+    const providerErr = error as SocialProviderError;
+    return new PublicationFailure(providerErr.code, providerErr.disposition);
   }
   if (providerStarted) {
     return new PublicationFailure('provider_outcome_ambiguous', 'ambiguous');
@@ -362,18 +363,49 @@ export async function POST(req: NextRequest) {
   }
 
   const leaseToken = randomUUID();
+  let claimState = '';
+  let currentAttempts = 0;
+
   const { data: claimData, error: claimError } = await supabase.rpc('claim_social_publication', {
     p_publication_id: publicationId,
     p_lease_token: leaseToken,
     p_lease_seconds: WORKER_LEASE_SECONDS,
   });
-  if (claimError) {
+
+  if (!claimError) {
+    const claim = Array.isArray(claimData) ? claimData[0] : claimData;
+    claimState = typeof claim?.claim_state === 'string' ? claim.claim_state : '';
+    currentAttempts = Number(claim?.attempt_count || 0);
+  } else if (claimError.code === 'PGRST202') {
+    // Atomic conditional claim fallback: exactly 1 worker can claim a pending/retry row
+    const { data: fallbackClaim, error: fallbackError } = await supabase
+      .from('social_publications')
+      .update({
+        status: 'processing',
+        attempts: (publication.attempts || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', publicationId)
+      .in('status', ['pending', 'retry'])
+      .select('id, attempts, status')
+      .maybeSingle();
+
+    if (fallbackError) {
+      console.error('[Social Worker] Atomic claim fallback unavailable');
+      return json({ error: 'Cola social temporalmente no disponible' }, 503, { 'Retry-After': '5' });
+    }
+
+    if (fallbackClaim) {
+      claimState = 'claimed';
+      currentAttempts = Number(fallbackClaim.attempts || 1);
+    } else {
+      claimState = 'busy';
+    }
+  } else {
     console.error('[Social Worker] Atomic claim unavailable');
     return json({ error: 'Cola social temporalmente no disponible' }, 503, { 'Retry-After': '5' });
   }
-  const claim = Array.isArray(claimData) ? claimData[0] : claimData;
-  const claimState = typeof claim?.claim_state === 'string' ? claim.claim_state : '';
-  const currentAttempts = Number(claim?.attempt_count || 0);
+
   if (claimState !== 'claimed') {
     const terminal = ['published', 'failed', 'dead', 'dead_ambiguous'].includes(claimState);
     return json({
@@ -459,7 +491,10 @@ export async function POST(req: NextRequest) {
         p_lease_token: leaseToken,
       },
     );
-    if (providerMarkError || providerMarked !== true) {
+    if (providerMarkError && providerMarkError.code !== 'PGRST202') {
+      throw new PublicationFailure('social_worker_lease_lost', 'retry');
+    }
+    if (!providerMarkError && providerMarked !== true) {
       throw new PublicationFailure('social_worker_lease_lost', 'retry');
     }
     providerStarted = true;
@@ -487,7 +522,21 @@ export async function POST(req: NextRequest) {
         p_retry_seconds: 30,
       },
     );
-    if (completionError || completedState !== 'published') {
+    if (completionError && completionError.code === 'PGRST202') {
+      const { error: directUpdateError } = await supabase
+        .from('social_publications')
+        .update({
+          status: 'published',
+          external_media_id: externalMediaId,
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', publicationId);
+      if (directUpdateError) {
+        console.error('[Social Worker] Provider succeeded but durable update failed');
+        return json({ error: 'No se pudo confirmar el resultado del proveedor' }, 503, { 'Retry-After': '5' });
+      }
+    } else if (completionError || completedState !== 'published') {
       console.error('[Social Worker] Provider succeeded but durable completion failed');
       return json({ error: 'No se pudo confirmar el resultado del proveedor' }, 503, { 'Retry-After': '5' });
     }
@@ -521,7 +570,16 @@ export async function POST(req: NextRequest) {
         p_retry_seconds: retrySeconds,
       },
     );
-    if (completionError || completedState === 'lease_lost') {
+    if (completionError && completionError.code === 'PGRST202') {
+      await supabase
+        .from('social_publications')
+        .update({
+          status: outcome === 'retry' ? 'pending' : 'failed',
+          last_error: failure.code,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', publicationId);
+    } else if (completionError || completedState === 'lease_lost') {
       console.error('[Social Worker] Durable failure completion failed');
       return json({ error: 'No se pudo confirmar el estado del worker' }, 503, { 'Retry-After': '5' });
     }
