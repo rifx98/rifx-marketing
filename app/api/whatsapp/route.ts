@@ -751,29 +751,45 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 
     const lastSignal = signalMessages && signalMessages.length > 0 ? signalMessages[0] : null;
     const isPausedSignal = lastSignal?.content === '__SYSTEM_PAUSE__';
+    const isHumanStatus = conversation.status === 'requires_attention';
+    const isPausedState = isPausedSignal || isHumanStatus;
 
     // Auto-reactivación universal: si nadie (humano) atendió la conversación pausada en más de 30 minutos,
-    // la IA se reactiva sola en vez de dejar al cliente sin respuesta indefinidamente.
+    // o si el cliente solicita volver al bot, la IA se reactiva sola en vez de dejar al cliente sin respuesta.
     // Esto aplica a todos los chats, viejos y nuevos, garantizando que el bot siempre atienda.
     const PAUSE_AUTO_RESUME_MS = 30 * 60 * 1000; // 30 minutos
-    const pausedSinceMs = isPausedSignal ? Date.now() - new Date(lastSignal!.created_at).getTime() : 0;
-    const isStalePause = isPausedSignal && pausedSinceMs > PAUSE_AUTO_RESUME_MS;
+    const pauseTimestamp = lastSignal?.created_at
+      ? new Date(lastSignal.created_at).getTime()
+      : (conversation.updated_at ? new Date(conversation.updated_at).getTime() : new Date(conversation.created_at || 0).getTime());
+    const pausedSinceMs = pauseTimestamp > 0 ? Date.now() - pauseTimestamp : 0;
 
-    let isHumanMode = isPausedSignal && !isStalePause;
-    console.log(`[WhatsApp ${providerMessageId}] Modo humano: ${isHumanMode}`);
+    // Detectar si el cliente solicita explícitamente que regrese el bot
+    const botRequestKeywords = ['volver al bot', 'activar bot', 'quiero el bot', 'reactivar bot', 'hablar con el bot', 'atención bot', 'atencion bot'];
+    const msgTrimmedLower = customerMessage.trim().toLowerCase();
+    const wantsBotBack = botRequestKeywords.some(kw => msgTrimmedLower === kw || msgTrimmedLower.includes(kw));
+
+    const isStalePause = isPausedState && (pausedSinceMs > PAUSE_AUTO_RESUME_MS || wantsBotBack);
+    let isHumanMode = isPausedState && !isStalePause;
+    console.log(`[WhatsApp ${providerMessageId}] Modo humano: ${isHumanMode} (pausedSinceMs=${Math.round(pausedSinceMs / 1000)}s, isStalePause=${isStalePause})`);
 
     if (isStalePause) {
-      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +30m (${Math.round(pausedSinceMs / 60000)}m) sin respuesta humana — reactivando IA automáticamente`);
+      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} (${customerPhone}) reactivando IA automáticamente (inactiva ${Math.round(pausedSinceMs / 60000)}m)`);
       await supabase.from('messages').insert({
         conversation_id: conversation.id,
         tenant_id: tenantId,
         role: 'assistant',
         content: '__SYSTEM_RESUME__',
       });
+      const convCustomFields = (conversation.custom_fields as Record<string, any>) || {};
       await supabase
         .from('conversations')
-        .update({ status: 'chatting', updated_at: new Date().toISOString() })
+        .update({
+          status: 'chatting',
+          custom_fields: { ...convCustomFields, is_human_mode: false },
+          updated_at: new Date().toISOString()
+        })
         .eq('id', conversation.id);
+      conversation.status = 'chatting';
       isHumanMode = false;
     }
 

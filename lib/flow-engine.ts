@@ -75,7 +75,7 @@ export async function processFlowEngineMessage(
     .maybeSingle();
 
   const customFields = (conversation?.custom_fields as Record<string, any>) || {};
-  const isHuman = conversation?.status === 'requires_attention' || conversation?.status === 'waiting_human' || customFields.is_human_mode === true;
+  const isHuman = (conversation?.status === 'requires_attention' || conversation?.status === 'waiting_human') && customFields.is_human_mode !== false;
   if (isHuman) {
     return { type: 'text', content: '__SYSTEM_PAUSE__' }; // Don't reply if human mode
   }

@@ -215,20 +215,22 @@ export default function FlowZapInbox({
           messageCache.current[convId] = data.messages;
           setMessages(data.messages);
 
-          // Detect latest pause or resume signal from messages
-          const signals = (data.messages || []).filter(
-            (m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'
-          );
-          if (signals.length > 0) {
-            const lastSignal = signals[signals.length - 1].content;
-            const isPausedFromSignal = lastSignal === '__SYSTEM_PAUSE__';
+          // Sincronizar estado de pausa autoritativo desde el servidor
+          if (data.conversation) {
+            const serverPaused = data.conversation.is_paused !== undefined
+              ? Boolean(data.conversation.is_paused)
+              : data.conversation.status === 'requires_attention';
+
             setOptimisticOverrides((prev) => {
-              if (prev[convId]?.is_paused === isPausedFromSignal) return prev;
+              if (prev[convId]?.is_paused === serverPaused && prev[convId]?.status === data.conversation.status) {
+                return prev;
+              }
               return {
                 ...prev,
                 [convId]: {
                   ...(prev[convId] || {}),
-                  is_paused: isPausedFromSignal,
+                  is_paused: serverPaused,
+                  status: data.conversation.status,
                 },
               };
             });
@@ -263,18 +265,13 @@ export default function FlowZapInbox({
     const effectiveAssigned =
       overrides.assigned_to !== undefined ? overrides.assigned_to : selectedConv.assigned_to || 'bot';
     const effectiveStatus = overrides.status || selectedConv.status || 'chatting';
-    // Extract latest pause/resume signal from current messages
-    const signalMessages = (messages || []).filter(
-      (m: any) => m.content === '__SYSTEM_PAUSE__' || m.content === '__SYSTEM_RESUME__'
-    );
-    const lastSignal = signalMessages.length > 0 ? signalMessages[signalMessages.length - 1].content : null;
 
     const isPaused =
       overrides.is_paused !== undefined
         ? overrides.is_paused
-        : lastSignal !== null
-        ? lastSignal === '__SYSTEM_PAUSE__'
-        : Boolean(selectedConv.is_paused || selectedConv.bot_paused || selectedConv.status === 'requires_attention');
+        : selectedConv.is_paused !== undefined
+        ? Boolean(selectedConv.is_paused)
+        : selectedConv.status === 'requires_attention';
 
     const leadScore = selectedConv.lead_score !== undefined && selectedConv.lead_score !== null ? selectedConv.lead_score : 16;
     const intent = selectedConv.intent || 'support';

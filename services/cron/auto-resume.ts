@@ -38,7 +38,7 @@ export async function runAutoResume(options: { startTime: number }): Promise<Aut
       .from('conversations')
       .select('id, tenant_id, phone_number, status, updated_at')
       .eq('status', 'requires_attention')
-      .lt('updated_at', timeLimit)
+      .or(`updated_at.lt.${timeLimit},updated_at.is.null`)
       .limit(50); // Process up to 50 per run
 
     if (fetchErr) throw fetchErr;

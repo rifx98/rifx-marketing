@@ -86,16 +86,22 @@ export async function GET(req: NextRequest) {
 
       let isPaused = conversation.status === 'requires_attention';
       const staleTimeLimit = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const lastActive = conversation.updated_at || conversation.created_at || '1970-01-01T00:00:00Z';
 
       // Auto-reactivar conversación si lleva más de 30 minutos sin intervención humana
-      if (isPaused && conversation.updated_at && conversation.updated_at < staleTimeLimit) {
+      if (isPaused && lastActive < staleTimeLimit) {
         isPaused = false;
         conversation.status = 'chatting';
         void (async () => {
           try {
+            const currentFields = (conversation.custom_fields as Record<string, any>) || {};
             await supabase
               .from('conversations')
-              .update({ status: 'chatting', updated_at: new Date().toISOString() })
+              .update({
+                status: 'chatting',
+                custom_fields: { ...currentFields, is_human_mode: false },
+                updated_at: new Date().toISOString()
+              })
               .eq('id', conversationId)
               .eq('tenant_id', tenant.tenantId);
             await supabase.from('messages').insert({
@@ -143,7 +149,7 @@ export async function GET(req: NextRequest) {
     // Auto-reanudar en lote todas las conversaciones que lleven más de 30 minutos sin atención humana
     const staleTimeLimit = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const staleConvs = conversationPage.filter(
-      (c) => c.status === 'requires_attention' && c.updated_at && c.updated_at < staleTimeLimit
+      (c) => c.status === 'requires_attention' && (c.updated_at || c.created_at || '1970-01-01T00:00:00Z') < staleTimeLimit
     );
 
     if (staleConvs.length > 0) {
