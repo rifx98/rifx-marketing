@@ -399,7 +399,19 @@ export async function POST(req: NextRequest) {
         oauthAction: SOCIAL_OAUTH_ACTION,
       });
       const authUrl = buildProviderAuthorizationUrl(platform, appOrigin, state);
-      if (!authUrl) return jsonResponse({ error: 'OAuth no disponible' }, 503);
+      if (!authUrl) {
+        if (platform === 'tiktok') {
+          return jsonResponse({
+            error: 'OAuth de TikTok no disponible: Aún no se han configurado TIKTOK_CLIENT_KEY y TIKTOK_CLIENT_SECRET de tu app en TikTok Developers. Puedes vincular tu cuenta con el botón "Manual" ingresando tu token.',
+          }, 503);
+        }
+        if (platform === 'youtube') {
+          return jsonResponse({
+            error: 'OAuth de YouTube no disponible: Falta configurar las credenciales de Google API. Puedes vincular tu canal usando el botón "Manual".',
+          }, 503);
+        }
+        return jsonResponse({ error: 'OAuth no disponible' }, 503);
+      }
       return jsonResponse({ authUrl: authUrl.toString() });
     }
 
