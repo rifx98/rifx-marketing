@@ -138,6 +138,61 @@ export async function runCleanupMedia(options: {
     }
   }
 
+  // Clean up social post videos whose publications have all finished
+  const { data: activePosts, error: activePostsError } = await supabase
+    .from('social_posts')
+    .select('id, tenant_id, video_storage_path')
+    .not('video_storage_path', 'is', null)
+    .limit(20);
+
+  if (!activePostsError && activePosts && activePosts.length > 0) {
+    for (const post of activePosts) {
+      if ((Date.now() - options.startTime) / 1000 > 8) {
+        result.remaining += 1;
+        break;
+      }
+      if (!post.video_storage_path || !isTenantOwnedR2Key(post.video_storage_path, post.tenant_id)) {
+        continue;
+      }
+      const { data: publications } = await supabase
+        .from('social_publications')
+        .select('status, last_error_code')
+        .eq('post_id', post.id);
+
+      const allFinished = Boolean(publications?.length) && publications?.every((item) => (
+        item.status === 'published'
+        || item.status === 'failed'
+        || (item.status === 'dead' && !String(item.last_error_code || '').includes('ambiguous'))
+      ));
+
+      if (allFinished) {
+        try {
+          await deleteFile(post.video_storage_path);
+          await supabase.rpc('release_tenant_storage_object', {
+            p_tenant_id: post.tenant_id,
+            p_object_key: post.video_storage_path,
+          });
+          const { error: postClearErr } = await supabase
+            .from('social_posts')
+            .update({ video_storage_path: null })
+            .eq('id', post.id)
+            .eq('tenant_id', post.tenant_id);
+          if (postClearErr) {
+            await supabase
+              .from('social_posts')
+              .update({ video_storage_path: '' })
+              .eq('id', post.id)
+              .eq('tenant_id', post.tenant_id);
+          }
+          result.processed += 1;
+        } catch {
+          result.errors += 1;
+          result.errorDetails.push({ tenantId: post.tenant_id, error: 'Finished post video cleanup failed' });
+        }
+      }
+    }
+  }
+
   let query = supabase.from('config').select('tenant_id, media_retention_days').not('tenant_id', 'is', null);
   if (options.tenantId) query = query.eq('tenant_id', options.tenantId);
   const { data: configurations, error } = await query.order('tenant_id').limit(1000);

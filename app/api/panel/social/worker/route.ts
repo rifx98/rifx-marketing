@@ -119,32 +119,89 @@ async function writeLog(
 async function checkAndCleanupVideo(
   supabase: ReturnType<typeof createSupabaseAdmin>,
   postId: string,
-  videoStoragePath: string,
+  videoStoragePath: string | null | undefined,
   tenantId: string,
+  publicationId?: string,
 ) {
+  if (!videoStoragePath || typeof videoStoragePath !== 'string') {
+    return;
+  }
   if (!isTenantOwnedR2Key(videoStoragePath, tenantId)) {
-    console.error('[Social Worker] Refusing cross-tenant storage deletion');
+    console.error('[Social Worker] Refusing cross-tenant storage deletion for key:', videoStoragePath);
     return;
   }
   const { data: publications, error } = await supabase
     .from('social_publications')
-    .select('status, last_error_code')
+    .select('id, status, last_error_code')
     .eq('post_id', postId);
-  if (error) throw error;
+  if (error) {
+    console.error('[Social Worker] Error querying publications for video cleanup:', error);
+    throw error;
+  }
   const allFinished = Boolean(publications?.length) && publications?.every((item) => (
     item.status === 'published'
     || item.status === 'failed'
     || (item.status === 'dead' && !String(item.last_error_code || '').includes('ambiguous'))
   ));
-  if (!allFinished) return;
+  if (!allFinished) {
+    console.log(`[Social Worker] Post ${postId} still has active publications pending; retaining video in R2: ${videoStoragePath}`);
+    return;
+  }
 
-  await deleteFile(videoStoragePath);
-  const { data: released, error: releaseError } = await supabase.rpc('release_tenant_storage_object', {
-    p_tenant_id: tenantId,
-    p_object_key: videoStoragePath,
-  });
-  if (releaseError || released !== true) {
-    console.error('[Social Worker] Storage usage reconciliation is pending');
+  console.log(`[Social Worker] All publications finished for post ${postId}. Deleting video from Cloudflare R2 and Supabase: ${videoStoragePath}`);
+
+  // 1. Delete video from Cloudflare R2
+  try {
+    await deleteFile(videoStoragePath);
+    console.log(`[Social Worker] Successfully deleted ${videoStoragePath} from Cloudflare R2`);
+  } catch (err) {
+    console.error(`[Social Worker] Error deleting file from R2 (${videoStoragePath}):`, err);
+  }
+
+  // 2. Release storage reservation in Supabase
+  try {
+    const { data: released, error: releaseError } = await supabase.rpc('release_tenant_storage_object', {
+      p_tenant_id: tenantId,
+      p_object_key: videoStoragePath,
+    });
+    if (releaseError || released !== true) {
+      console.error('[Social Worker] Storage usage reconciliation is pending for key:', videoStoragePath, releaseError);
+    } else {
+      console.log(`[Social Worker] Successfully released tenant storage for key: ${videoStoragePath}`);
+    }
+  } catch (err) {
+    console.error('[Social Worker] Exception releasing storage object in Supabase:', err);
+  }
+
+  // 3. Clear video_storage_path in social_posts
+  try {
+    const { error: postUpdateError } = await supabase
+      .from('social_posts')
+      .update({ video_storage_path: null })
+      .eq('id', postId)
+      .eq('tenant_id', tenantId);
+    if (postUpdateError) {
+      // Fallback to empty string if database column still has NOT NULL constraint
+      await supabase
+        .from('social_posts')
+        .update({ video_storage_path: '' })
+        .eq('id', postId)
+        .eq('tenant_id', tenantId);
+    }
+    console.log(`[Social Worker] video_storage_path cleared in social_posts for post ${postId}`);
+  } catch (err) {
+    console.error('[Social Worker] Exception updating social_posts:', err);
+  }
+
+  // 4. Log confirmation message to social_logs so the user sees it in the dashboard monitor
+  const logPubId = publicationId || publications?.[0]?.id;
+  if (logPubId) {
+    await writeLog(
+      supabase,
+      logPubId,
+      'Video eliminado de Cloudflare R2 y memoria liberada automáticamente.',
+      'info'
+    ).catch(() => undefined);
   }
 }
 
@@ -439,7 +496,8 @@ export async function POST(req: NextRequest) {
     }
 
     await writeLog(supabase, publicationId, `Publicación exitosa en ${account.platform}`);
-    await checkAndCleanupVideo(supabase, post.id, post.video_storage_path, post.tenant_id).catch(() => undefined);
+    await checkAndCleanupVideo(supabase, post.id, post.video_storage_path, post.tenant_id, publicationId)
+      .catch((err) => console.error('[Social Worker] Error cleaning up video after publish:', err));
     return json({ success: true, status: 'published', mediaId: externalMediaId });
   } catch (error) {
     const failure = workerFailure(error, providerStarted);
@@ -480,7 +538,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (failure.disposition !== 'ambiguous') {
-      await checkAndCleanupVideo(supabase, post.id, post.video_storage_path, post.tenant_id).catch(() => undefined);
+      await checkAndCleanupVideo(supabase, post.id, post.video_storage_path, post.tenant_id, publicationId)
+        .catch((err) => console.error('[Social Worker] Error cleaning up video after failure:', err));
     }
     return json({ success: false, status: 'dead', requiresReconciliation: failure.disposition === 'ambiguous' });
   }

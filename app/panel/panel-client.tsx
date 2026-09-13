@@ -1758,6 +1758,7 @@ export default function PanelClient() {
         setToast({ type: 'success', message: 'Publicación encolada con éxito. Siguiendo el progreso...' });
         setCurrentPostId(data.postId);
         setTrackingPostIds([data.postId]);
+        setUploadedVideoPath(null);
 
         // Si no hay QStash configurado en backend, disparamos los workers desde el frontend
         // para asegurar que Vercel no congele la tarea en segundo plano.

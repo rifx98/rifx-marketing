@@ -139,8 +139,19 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
     );
   }
 
+  const isAllFinished = publications.length > 0 && publications.every(
+    p => p.status === 'published' || p.status === 'failed' || p.status === 'dead'
+  );
+
   return (
     <div className="space-y-4">
+      {isAllFinished && (
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium animate-fadeIn">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Almacenamiento liberado: el video se borró de Cloudflare R2 automáticamente tras finalizar el envío.</span>
+        </div>
+      )}
+
       {/* Estado por Canal */}
       <div className="bg-[#111318]/40 border border-[#2d3139] rounded-2xl p-4 space-y-3">
         <p className="text-xs font-semibold text-[#727785] uppercase tracking-wider">
