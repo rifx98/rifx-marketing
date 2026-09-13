@@ -1767,7 +1767,13 @@ export default function PanelClient() {
             fetch('/api/panel/social/worker', {
               method: 'POST',
               headers,
+              credentials: 'same-origin',
               body: JSON.stringify({ publicationId: pubId })
+            }).then(async (res) => {
+              if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                console.error('[Social Worker Trigger Error]', pubId, res.status, errData);
+              }
             }).catch(err => console.error('Error triggering worker for', pubId, err));
           });
         }
@@ -1859,7 +1865,13 @@ export default function PanelClient() {
               fetch('/api/panel/social/worker', {
                 method: 'POST',
                 headers,
+                credentials: 'same-origin',
                 body: JSON.stringify({ publicationId: pubId })
+              }).then(async (res) => {
+                if (!res.ok) {
+                  const errData = await res.json().catch(() => ({}));
+                  console.error('[Social Worker Trigger Error]', pubId, res.status, errData);
+                }
               }).catch(err => console.error('Error triggering worker local:', pubId, err));
             });
           }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabase';
-import { decryptToken } from '@/lib/encryption';
+import { decryptToken, encryptToken } from '@/lib/encryption';
 import { triggerCriticalAlert } from '@/lib/alerts';
 import { MetaPublishingService } from '@/services/social/meta';
 import { YouTubePublishingService } from '@/services/social/youtube';
@@ -133,7 +133,7 @@ async function checkAndCleanupVideo(
   }
   const { data: publications, error } = await supabase
     .from('social_publications')
-    .select('id, status, last_error_code')
+    .select('id, status, last_error')
     .eq('post_id', postId);
   if (error) {
     console.error('[Social Worker] Error querying publications for video cleanup:', error);
@@ -142,7 +142,7 @@ async function checkAndCleanupVideo(
   const allFinished = Boolean(publications?.length) && publications?.every((item) => (
     item.status === 'published'
     || item.status === 'failed'
-    || (item.status === 'dead' && !String(item.last_error_code || '').includes('ambiguous'))
+    || (item.status === 'dead' && !String(item.last_error || '').includes('ambiguous'))
   ));
   if (!allFinished) {
     console.log(`[Social Worker] Post ${postId} still has active publications pending; retaining video in R2: ${videoStoragePath}`);
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
       return json({ error: 'Firma de cola no autorizada' }, 401);
     }
     isInternalWorker = true;
-  } else if (process.env.NODE_ENV !== 'production' && forwardedSecretValid) {
+  } else if (forwardedSecretValid) {
     isInternalWorker = true;
   }
 
@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
   const supabase = createSupabaseAdmin();
   const { data: publication, error: publicationError } = await supabase
     .from('social_publications')
-    .select('id, tenant_id, post_id, social_account_id, status, attempts, max_attempts, scheduled_at')
+    .select('id, tenant_id, post_id, social_account_id, status, attempts, scheduled_at')
     .eq('id', publicationId)
     .maybeSingle();
   if (publicationError) return json({ error: 'Cola social temporalmente no disponible' }, 503, { 'Retry-After': '5' });
@@ -460,6 +460,76 @@ export async function POST(req: NextRequest) {
         url: '/panel',
       }).catch(() => undefined);
       throw new PublicationFailure('social_token_decryption_failed', 'dead');
+    }
+
+    if (account.platform === 'youtube') {
+      try {
+        if (accessToken.startsWith('{')) {
+          const parsed = JSON.parse(accessToken);
+          let currentToken = parsed.access_token || '';
+          const refreshToken = parsed.refresh_token || '';
+
+          if (refreshToken) {
+            const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+            const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+            if (clientId && clientSecret) {
+              try {
+                const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    refresh_token: refreshToken,
+                    grant_type: 'refresh_token',
+                  }),
+                  signal: AbortSignal.timeout(10_000),
+                });
+                if (refreshRes.ok) {
+                  const refreshData = await refreshRes.json();
+                  if (refreshData.access_token) {
+                    currentToken = refreshData.access_token;
+                    const updatedPayload = JSON.stringify({
+                      access_token: currentToken,
+                      refresh_token: refreshToken,
+                    });
+                    const enc = encryptToken(updatedPayload);
+                    const expiry = refreshData.expires_in
+                      ? new Date(Date.now() + refreshData.expires_in * 1000).toISOString()
+                      : null;
+                    await supabase
+                      .from('social_accounts')
+                      .update({
+                        encrypted_access_token: enc.ciphertext,
+                        encryption_iv: enc.iv,
+                        encryption_tag: enc.tag,
+                        token_expires_at: expiry,
+                        updated_at: new Date().toISOString(),
+                      })
+                      .eq('id', account.id);
+                  }
+                }
+              } catch (refreshErr) {
+                console.warn('[Social Worker] Google token refresh failed, proceeding with current token:', refreshErr);
+              }
+            }
+          }
+          accessToken = currentToken;
+        }
+      } catch (e) {
+        console.warn('[Social Worker] Error parsing YouTube token payload:', e);
+      }
+    } else if (account.platform === 'tiktok') {
+      try {
+        if (accessToken.startsWith('{')) {
+          const parsed = JSON.parse(accessToken);
+          if (parsed.access_token) {
+            accessToken = parsed.access_token;
+          }
+        }
+      } catch (e) {
+        console.warn('[Social Worker] Error parsing TikTok token payload:', e);
+      }
     }
 
     let mediaMetadata;
