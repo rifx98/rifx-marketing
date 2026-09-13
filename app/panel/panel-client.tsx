@@ -8557,7 +8557,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     const planContacts: Record<string, number> = { trial: 200, start: 1000, plus: 20000, master: 50000 };
                     const planBots: Record<string, number> = { trial: 1, start: 1, plus: 1, master: 5 };
                     const planMembers: Record<string, number> = { trial: 1, start: 5, plus: 5, master: 10 };
-                    const planStorage: Record<string, string> = { trial: '100 MB', start: '250 MB', plus: '1.0 GB', master: '2.0 GB' };
+                    const planStorage: Record<string, string> = { trial: '500 MB', start: '1.0 GB', plus: '2.0 GB', master: '5.0 GB' };
 
                     // Calculate days remaining
                     const expiresAt = tenantData?.planExpiresAt ? new Date(tenantData.planExpiresAt) : null;
@@ -16544,7 +16544,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </h3>
                       <span className="text-[10px] bg-slate-50 text-slate-500 px-3 py-1 rounded-lg font-bold border border-slate-100 flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-[12px]">storage</span>
-                        Máx: {videoType === 'long' ? '500 MB' : '100 MB'}
+                        Máx: 500 MB
                       </span>
                     </div>
                     
@@ -16555,7 +16555,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           onUploadStart={() => setIsPublishing(true)}
                           onUploadComplete={handleUploadComplete}
                           mode="single"
-                          maxSize={videoType === 'long' ? 500 * 1024 * 1024 : 100 * 1024 * 1024}
+                          maxSize={500 * 1024 * 1024}
                         />
                       ) : (
                         <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200/40 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-4">
@@ -16589,7 +16589,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           onUploadStart={() => setIsPublishing(true)}
                           onUploadComplete={handleUploadComplete}
                           mode="batch"
-                          maxSize={videoType === 'long' ? 500 * 1024 * 1024 : 100 * 1024 * 1024}
+                          maxSize={500 * 1024 * 1024}
                         />
 
 

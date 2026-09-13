@@ -35,13 +35,13 @@ export async function GET(req: NextRequest) {
           plan_status: 'expired',
           plan_expires_at: null,
           contact_limit: 200,
-          storage_limit_bytes: 100 * 1024 * 1024,
+          storage_limit_bytes: 500 * 1024 * 1024,
         }).eq('id', data.id);
         data.plan = 'trial';
         data.plan_status = 'expired';
         data.plan_expires_at = null;
         data.contact_limit = 200;
-        data.storage_limit_bytes = 100 * 1024 * 1024;
+        data.storage_limit_bytes = 500 * 1024 * 1024;
       }
     }
 

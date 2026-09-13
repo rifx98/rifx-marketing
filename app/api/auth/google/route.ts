@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
             plan_status: 'expired',
             plan_expires_at: null,
             contact_limit: 200,
-            storage_limit_bytes: 100 * 1024 * 1024,
+            storage_limit_bytes: 500 * 1024 * 1024,
             pending_plan: null,
           }).eq('id', tenant.id).select().single();
           if (updatedTenant) {

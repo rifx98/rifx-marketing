@@ -90,13 +90,13 @@ export async function POST(req: NextRequest) {
           plan_status: 'expired',
           plan_expires_at: null,
           contact_limit: 200,
-          storage_limit_bytes: 100 * 1024 * 1024,
+          storage_limit_bytes: 500 * 1024 * 1024,
         }).eq('id', tenant.id);
         tenant.plan = 'trial';
         tenant.plan_status = 'expired';
         tenant.plan_expires_at = null;
         tenant.contact_limit = 200;
-        tenant.storage_limit_bytes = 100 * 1024 * 1024;
+        tenant.storage_limit_bytes = 500 * 1024 * 1024;
       }
     }
 

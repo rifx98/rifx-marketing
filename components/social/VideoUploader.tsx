@@ -8,7 +8,7 @@ interface VideoUploaderProps {
   maxSize?: number;
 }
 
-export default function VideoUploader({ tenantId, onUploadComplete, onUploadStart, mode = 'single', maxSize = 100 * 1024 * 1024 }: VideoUploaderProps) {
+export default function VideoUploader({ tenantId, onUploadComplete, onUploadStart, mode = 'single', maxSize = 500 * 1024 * 1024 }: VideoUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadQueue, setUploadQueue] = useState<{ id: string, name: string, progress: number | null, error: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);

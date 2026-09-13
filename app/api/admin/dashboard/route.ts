@@ -452,10 +452,10 @@ export async function POST(req: NextRequest) {
       }
 
       const LIMITS: Record<string, { contacts: number; storage: number }> = {
-        trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
-        start:    { contacts: 1000,  storage: 250 * 1024 * 1024 },
-        plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
-        master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
+        trial:    { contacts: 200,   storage: 500 * 1024 * 1024 },
+        start:    { contacts: 1000,  storage: 1024 * 1024 * 1024 },
+        plus:     { contacts: 20000, storage: 2048 * 1024 * 1024 },
+        master:   { contacts: 50000, storage: 5120 * 1024 * 1024 },
       };
 
       const limits = LIMITS[plan as string];

@@ -168,9 +168,10 @@ export function attachSessionCookie(response: NextResponse, token: string): Next
 
 // Plan limits
 export const PLAN_LIMITS: Record<string, { contacts: number; storage: number; members: number; bots: number }> = {
-  trial:    { contacts: 200,    storage: 100 * 1024 * 1024,  members: 1,  bots: 1 },  // 100MB
-  start:    { contacts: 1000,   storage: 250 * 1024 * 1024,  members: 5,  bots: 1 },  // 250MB
-  advanced: { contacts: 20000,  storage: 1024 * 1024 * 1024, members: 5,  bots: 1 },  // 1GB (alias for plus)
-  plus:     { contacts: 20000,  storage: 1024 * 1024 * 1024, members: 5,  bots: 1 },  // 1GB
-  master:   { contacts: 50000,  storage: 2048 * 1024 * 1024, members: 10, bots: 5 },  // 2GB
+  trial:    { contacts: 200,    storage: 500 * 1024 * 1024,  members: 1,  bots: 1 },  // 500MB
+  basic:    { contacts: 500,    storage: 500 * 1024 * 1024,  members: 2,  bots: 1 },  // 500MB
+  start:    { contacts: 1000,   storage: 1024 * 1024 * 1024, members: 5,  bots: 1 },  // 1GB
+  advanced: { contacts: 20000,  storage: 2048 * 1024 * 1024, members: 5,  bots: 1 },  // 2GB
+  plus:     { contacts: 20000,  storage: 2048 * 1024 * 1024, members: 5,  bots: 1 },  // 2GB
+  master:   { contacts: 50000,  storage: 5120 * 1024 * 1024, members: 10, bots: 5 },  // 5GB
 };

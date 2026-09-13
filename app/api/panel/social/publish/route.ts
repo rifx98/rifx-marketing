@@ -10,7 +10,7 @@ import {
 } from '@/lib/social-queue';
 
 const MAX_REQUEST_BYTES = 32 * 1024;
-const MAX_SOCIAL_VIDEO_BYTES = 100 * 1024 * 1024;
+const MAX_SOCIAL_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_ACCOUNTS_PER_POST = 10;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska']);

@@ -6,7 +6,7 @@ import { denyUnlessFeature } from '@/lib/feature-access';
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { enforceTenantRateLimit, readLimitedJsonObject } from '@/lib/request-guards';
 
-const MAX_SOCIAL_UPLOAD_BYTES = 100 * 1024 * 1024;
+const MAX_SOCIAL_UPLOAD_BYTES = 500 * 1024 * 1024;
 const ALLOWED_SOCIAL_MIMES = new Set([
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/mpeg', 'video/avi', 'video/x-msvideo',
   'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/jpg',
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Faltan parámetros válidos: filename, contentType y size' }, { status: 400 });
       }
       if (size > MAX_SOCIAL_UPLOAD_BYTES) {
-        return NextResponse.json({ error: 'El archivo supera el límite de 100 MB' }, { status: 413 });
+        return NextResponse.json({ error: 'El archivo supera el límite de 500 MB' }, { status: 413 });
       }
       if (!Number.isSafeInteger(tenant.storageLimitBytes) || !Number.isSafeInteger(tenant.storageUsedBytes)
           || tenant.storageLimitBytes! <= 0 || tenant.storageUsedBytes! + size > tenant.storageLimitBytes!) {
@@ -88,12 +88,13 @@ export async function GET(req: NextRequest) {
       let uploadUrl: string;
       try {
         uploadUrl = await getUploadPresignedUrl(key, normalizedContentType, size);
-      } catch {
+      } catch (signingErr) {
+        console.error('[R2 Storage Presigned URL signing failed]:', signingErr);
         await supabase.rpc('release_tenant_storage_object', {
           p_tenant_id: tenant.tenantId,
           p_object_key: key,
         });
-        throw new Error('upload_signing_failed');
+        throw signingErr;
       }
 
       return NextResponse.json({ uploadUrl, key, maxBytes: MAX_SOCIAL_UPLOAD_BYTES });
@@ -124,9 +125,9 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 });
-  } catch {
-    console.error('[R2 Storage API] GET failed');
-    return NextResponse.json({ error: 'No se pudo procesar la solicitud de almacenamiento' }, { status: 500 });
+  } catch (err: any) {
+    console.error('[R2 Storage API] GET failed:', err);
+    return NextResponse.json({ error: err?.message || 'No se pudo procesar la solicitud de almacenamiento' }, { status: 500 });
   }
 }
 

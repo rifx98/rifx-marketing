@@ -162,10 +162,10 @@ export async function GET(req: NextRequest) {
 }
 
 const LIMITS: Record<string, { contacts: number; storage: number }> = {
-  trial:    { contacts: 200,   storage: 100 * 1024 * 1024 },
-  start:    { contacts: 1500,  storage: 500 * 1024 * 1024 },
-  plus:     { contacts: 20000, storage: 1024 * 1024 * 1024 },
-  master:   { contacts: 50000, storage: 2048 * 1024 * 1024 },
+  trial:    { contacts: 200,   storage: 500 * 1024 * 1024 },
+  start:    { contacts: 1500,  storage: 1024 * 1024 * 1024 },
+  plus:     { contacts: 20000, storage: 2048 * 1024 * 1024 },
+  master:   { contacts: 50000, storage: 5120 * 1024 * 1024 },
 };
 
 export async function POST(req: NextRequest) {
