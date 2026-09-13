@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
     const accessToken = boundedProviderToken(tokenResult.data.access_token);
     const refreshToken = boundedProviderToken(tokenResult.data.refresh_token, true);
     if (!tokenResult.ok || tokenResult.data.error || !accessToken) {
+      console.error('[YouTube OAuth] Token exchange failed:', tokenResult.status, tokenResult.data?.error || 'no_token');
       throw new Error('provider_exchange_failed');
     }
 
@@ -98,6 +99,7 @@ export async function GET(req: NextRequest) {
     const channel = channelResult.data.items?.[0];
     const channelId = boundedProviderId(channel?.id);
     if (!channelResult.ok || channelResult.data.error || !channelId) {
+      console.error('[YouTube OAuth] Channel fetch failed:', channelResult.status, channelResult.data?.error || 'no_channel');
       throw new Error('provider_profile_failed');
     }
 
@@ -126,8 +128,8 @@ export async function GET(req: NextRequest) {
     if (dbError) throw new Error('persistence_failed');
 
     return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { success: 'oauth_success' }));
-  } catch {
-    console.error('[YouTube OAuth] Callback failed');
+  } catch (err) {
+    console.error('[YouTube OAuth] Callback failed:', err instanceof Error ? err.message : err);
     return NextResponse.redirect(buildPanelRedirect(appOrigin, 'social', { error: 'oauth_failed' }));
   }
 }
