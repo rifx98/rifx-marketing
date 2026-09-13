@@ -16273,42 +16273,37 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             className="space-y-6 text-on-surface"
           >
             {/* Hero Header */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a1145] via-[#2d1b69] to-[#0f0a2e] p-8 shadow-2xl shadow-indigo-900/20">
-              {/* Animated background elements */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0c1020] via-[#1a2342] to-[#0d1224] p-8 shadow-2xl shadow-indigo-900/10">
+              {/* Background ambient lighting */}
               <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br from-indigo-500/20 to-violet-500/10 rounded-full blur-3xl animate-pulse" />
-                <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-gradient-to-tr from-blue-600/10 to-cyan-400/5 rounded-full blur-3xl" />
-                <div className="absolute top-10 right-1/3 w-2 h-2 bg-indigo-400/60 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-                <div className="absolute bottom-8 right-1/4 w-1.5 h-1.5 bg-violet-300/50 rounded-full animate-ping" style={{ animationDuration: '2.5s', animationDelay: '1s' }} />
-                <div className="absolute top-1/2 left-1/4 w-1 h-1 bg-cyan-300/40 rounded-full animate-ping" style={{ animationDuration: '4s', animationDelay: '0.5s' }} />
+                <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-to-br from-blue-500/15 to-indigo-500/5 rounded-full blur-3xl" />
+                <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-gradient-to-tr from-indigo-600/10 to-cyan-400/5 rounded-full blur-3xl" />
               </div>
 
               <div className="relative z-10 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                      <span className="material-symbols-outlined text-white text-2xl">rocket_launch</span>
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
-                        OmniPublish
-                        <span className="text-[9px] bg-white/10 text-indigo-300 px-3 py-1 rounded-full uppercase tracking-[0.15em] font-extrabold border border-white/10 backdrop-blur-sm">Multi-Redes</span>
-                      </h2>
-                      <p className="text-[13px] text-indigo-200/60 font-medium mt-0.5">
-                        Publica y distribuye tus videos automáticamente en todas tus redes
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
+                    <span className="material-symbols-outlined text-sm">rocket_launch</span>
+                    <span>{language === 'en' ? 'Multi-Network Distribution' : 'Distribución Multi-Redes'}</span>
                   </div>
+                  <h1 className="text-3xl font-black text-white tracking-tight leading-none">
+                    OmniPublish
+                  </h1>
+                  <p className="text-slate-400 text-sm max-w-2xl leading-relaxed">
+                    {language === 'en'
+                      ? 'Publish and distribute your videos automatically across all your social networks from a single unified AI-powered panel.'
+                      : 'Publica y distribuye tus videos automáticamente en todas tus redes sociales desde un panel único con IA integrada.'}
+                  </p>
 
                   {/* Quick Stats Pills */}
-                  <div className="flex flex-wrap items-center gap-2 ml-[60px]">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 backdrop-blur-sm">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-[10px] font-bold text-emerald-300/90 uppercase tracking-wider">{socialAccounts.length} Canales</span>
+                      <span className="text-[10px] font-bold text-emerald-300/90 uppercase tracking-wider">{socialAccounts.length} {language === 'en' ? 'Channels' : 'Canales'}</span>
                     </div>
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10 backdrop-blur-sm">
-                      <span className="material-symbols-outlined text-[12px] text-indigo-300">bolt</span>
-                      <span className="text-[10px] font-bold text-indigo-300/90 uppercase tracking-wider">IA Integrada</span>
+                      <span className="material-symbols-outlined text-[12px] text-indigo-400">bolt</span>
+                      <span className="text-[10px] font-bold text-indigo-300/90 uppercase tracking-wider">{language === 'en' ? 'AI Integrated' : 'IA Integrada'}</span>
                     </div>
                   </div>
                 </div>
@@ -16317,21 +16312,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
                     onClick={handleConnectMetaOAuth}
-                    className="group px-4 py-2.5 bg-white/10 hover:bg-[#1877F2]/90 border border-white/10 hover:border-[#1877F2] text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                    className="group px-4 py-2.5 bg-white/5 hover:bg-[#1877F2]/90 border border-white/10 hover:border-[#1877F2] text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                     Meta
                   </button>
                   <button
                     onClick={handleConnectTikTokOAuth}
-                    className="group px-4 py-2.5 bg-white/10 hover:bg-white/95 hover:text-black border border-white/10 text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                    className="group px-4 py-2.5 bg-white/5 hover:bg-white hover:text-black border border-white/10 text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
                     TikTok
                   </button>
                   <button
                     onClick={handleConnectYouTubeOAuth}
-                    className="group px-4 py-2.5 bg-white/10 hover:bg-[#FF0000]/90 border border-white/10 hover:border-[#FF0000] text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
+                    className="group px-4 py-2.5 bg-white/5 hover:bg-[#FF0000]/90 border border-white/10 hover:border-[#FF0000] text-white rounded-xl text-xs font-bold shadow-lg shadow-black/10 flex items-center gap-2 transition-all duration-300 backdrop-blur-sm"
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                     YouTube
