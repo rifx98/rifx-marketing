@@ -69,18 +69,20 @@ export async function processFlowEngineMessage(
   // 1. Get or create conversation
   let { data: conversation } = await supabase
     .from('conversations')
-    .select('id, current_node_id, is_human_mode, status, flow_variables')
+    .select('id, status, custom_fields')
     .eq('tenant_id', tenantId)
     .eq('phone_number', customerPhone)
     .maybeSingle();
-    
-  if (conversation?.is_human_mode) {
+
+  const customFields = (conversation?.custom_fields as Record<string, any>) || {};
+  const isHuman = conversation?.status === 'requires_attention' || conversation?.status === 'waiting_human' || customFields.is_human_mode === true;
+  if (isHuman) {
     return { type: 'text', content: '__SYSTEM_PAUSE__' }; // Don't reply if human mode
   }
 
   const config = botMenuConfig as FlowConfig;
-  let currentNodeId = conversation?.current_node_id;
-  let variables = conversation?.flow_variables || {};
+  let currentNodeId = customFields.current_node_id;
+  let variables = customFields.flow_variables || {};
   let variablesUpdated = false;
 
   const userText = messageData?.text?.body?.toLowerCase().trim() || '';
@@ -170,11 +172,13 @@ export async function processFlowEngineMessage(
 
   // Update conversation with new state
   if (conversation) {
-    const updatePayload: any = { current_node_id: currentNodeId };
-    if (variablesUpdated) updatePayload.flow_variables = variables;
-    
+    const updatedFields = {
+      ...(conversation.custom_fields || {}),
+      current_node_id: currentNodeId,
+      ...(variablesUpdated ? { flow_variables: variables } : {}),
+    };
     await supabase.from('conversations')
-      .update(updatePayload)
+      .update({ custom_fields: updatedFields, updated_at: new Date().toISOString() })
       .eq('id', conversation.id);
   }
 
@@ -300,7 +304,8 @@ export async function processFlowEngineMessage(
         const aiEdges = config.edges.filter(e => e.source === nextNode!.id);
         if (aiEdges.length > 0) {
           if (conversation) {
-            await supabase.from('conversations').update({ current_node_id: aiEdges[0].target }).eq('id', conversation.id);
+            const updatedFields = { ...(conversation.custom_fields || {}), current_node_id: aiEdges[0].target };
+            await supabase.from('conversations').update({ custom_fields: updatedFields, updated_at: new Date().toISOString() }).eq('id', conversation.id);
           }
           return { type: 'text', content: '__SYSTEM_PAUSE__' }; 
         }
@@ -513,7 +518,8 @@ Horario de atención: Lunes a Viernes de 09:00 a 18:00.
         const postAiNode = config.nodes.find(n => n.id === aiOutgoingEdges[0].target);
         if (postAiNode) {
           if (conversation) {
-            await supabase.from('conversations').update({ current_node_id: postAiNode.id }).eq('id', conversation.id);
+            const updatedFields = { ...(conversation.custom_fields || {}), current_node_id: postAiNode.id };
+            await supabase.from('conversations').update({ custom_fields: updatedFields, updated_at: new Date().toISOString() }).eq('id', conversation.id);
           }
           if (postAiNode.type === 'buttons' || postAiNode.type === 'menu') {
             const buttons = Array.isArray(postAiNode.data?.buttons) ? postAiNode.data.buttons : [];
@@ -537,7 +543,8 @@ Horario de atención: Lunes a Viernes de 09:00 a 18:00.
       // Fallback on error
       const aiEdges = config.edges.filter(e => e.source === nextNode!.id);
       if (aiEdges.length > 0 && conversation) {
-        await supabase.from('conversations').update({ current_node_id: aiEdges[0].target }).eq('id', conversation.id);
+        const updatedFields = { ...(conversation.custom_fields || {}), current_node_id: aiEdges[0].target };
+        await supabase.from('conversations').update({ custom_fields: updatedFields, updated_at: new Date().toISOString() }).eq('id', conversation.id);
       }
       return null;
     }
@@ -557,9 +564,16 @@ Horario de atención: Lunes a Viernes de 09:00 a 18:00.
 
   if (nextNode.type === 'human') {
     if (conversation) {
+      const updatedFields = { ...(conversation.custom_fields || {}), is_human_mode: true };
       await supabase.from('conversations')
-        .update({ is_human_mode: true, status: 'waiting_human' })
+        .update({ status: 'requires_attention', custom_fields: updatedFields, updated_at: new Date().toISOString() })
         .eq('id', conversation.id);
+      await supabase.from('messages').insert({
+        conversation_id: conversation.id,
+        tenant_id: tenantId,
+        role: 'assistant',
+        content: '__SYSTEM_PAUSE__',
+      });
     }
     return {
       type: 'text',

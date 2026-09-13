@@ -84,7 +84,32 @@ export async function GET(req: NextRequest) {
 
       const messagePage = (messages || []).slice(0, 500).reverse();
 
-      const isPaused = conversation.status === 'requires_attention';
+      let isPaused = conversation.status === 'requires_attention';
+      const staleTimeLimit = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+      // Auto-reactivar conversación si lleva más de 30 minutos sin intervención humana
+      if (isPaused && conversation.updated_at && conversation.updated_at < staleTimeLimit) {
+        isPaused = false;
+        conversation.status = 'chatting';
+        void (async () => {
+          try {
+            await supabase
+              .from('conversations')
+              .update({ status: 'chatting', updated_at: new Date().toISOString() })
+              .eq('id', conversationId)
+              .eq('tenant_id', tenant.tenantId);
+            await supabase.from('messages').insert({
+              conversation_id: conversationId,
+              tenant_id: tenant.tenantId,
+              role: 'assistant',
+              content: '__SYSTEM_RESUME__',
+            });
+          } catch (err) {
+            console.error('Error auto-resuming single conversation:', err);
+          }
+        })();
+      }
+
       return NextResponse.json(
         {
           conversation: { ...conversation, is_paused: isPaused },
@@ -114,6 +139,38 @@ export async function GET(req: NextRequest) {
     }
 
     const conversationPage = (conversations || []).slice(0, 500);
+
+    // Auto-reanudar en lote todas las conversaciones que lleven más de 30 minutos sin atención humana
+    const staleTimeLimit = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const staleConvs = conversationPage.filter(
+      (c) => c.status === 'requires_attention' && c.updated_at && c.updated_at < staleTimeLimit
+    );
+
+    if (staleConvs.length > 0) {
+      const staleIds = staleConvs.map((c) => c.id);
+      for (const sc of staleConvs) {
+        sc.status = 'chatting';
+      }
+      void (async () => {
+        try {
+          await supabase
+            .from('conversations')
+            .update({ status: 'chatting', updated_at: new Date().toISOString() })
+            .in('id', staleIds)
+            .eq('tenant_id', tenant.tenantId);
+
+          const signalInserts = staleIds.map((id) => ({
+            conversation_id: id,
+            tenant_id: tenant.tenantId,
+            role: 'assistant',
+            content: '__SYSTEM_RESUME__',
+          }));
+          await supabase.from('messages').insert(signalInserts);
+        } catch (batchResumeErr) {
+          console.error('Error in batch auto-resume:', batchResumeErr);
+        }
+      })();
+    }
 
     const chatting = conversationPage
       .filter((c) => c.status === 'chatting' || c.status === 'requires_attention')

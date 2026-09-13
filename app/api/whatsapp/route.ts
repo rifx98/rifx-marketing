@@ -752,10 +752,10 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     const lastSignal = signalMessages && signalMessages.length > 0 ? signalMessages[0] : null;
     const isPausedSignal = lastSignal?.content === '__SYSTEM_PAUSE__';
 
-    // Auto-reactivación: si nadie (humano) atendió la conversación pausada en más de 2 horas,
+    // Auto-reactivación universal: si nadie (humano) atendió la conversación pausada en más de 30 minutos,
     // la IA se reactiva sola en vez de dejar al cliente sin respuesta indefinidamente.
-    // Esto evita que el cliente se quede días en espera de un asesor que ya no está en el chat.
-    const PAUSE_AUTO_RESUME_MS = 2 * 60 * 60 * 1000;
+    // Esto aplica a todos los chats, viejos y nuevos, garantizando que el bot siempre atienda.
+    const PAUSE_AUTO_RESUME_MS = 30 * 60 * 1000; // 30 minutos
     const pausedSinceMs = isPausedSignal ? Date.now() - new Date(lastSignal!.created_at).getTime() : 0;
     const isStalePause = isPausedSignal && pausedSinceMs > PAUSE_AUTO_RESUME_MS;
 
@@ -763,7 +763,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     console.log(`[WhatsApp ${providerMessageId}] Modo humano: ${isHumanMode}`);
 
     if (isStalePause) {
-      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +2h (${(pausedSinceMs / 3600000).toFixed(1)}h) sin respuesta humana — reactivando IA automáticamente`);
+      console.log(`⏰ [AUTO-REANUDACIÓN] Conversación ${conversation.id} llevaba pausada +30m (${Math.round(pausedSinceMs / 60000)}m) sin respuesta humana — reactivando IA automáticamente`);
       await supabase.from('messages').insert({
         conversation_id: conversation.id,
         tenant_id: tenantId,
