@@ -98,6 +98,7 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
   const [logs, setLogs] = useState<SocialLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [showTechLogs, setShowTechLogs] = useState(false);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const confettiTriggeredRef = useRef(false);
 
@@ -212,6 +213,100 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
     const s = secs % 60;
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
+
+  const getProgressState = () => {
+    if (isAllFinished) {
+      const hasFailures = publications.some(p => p.status === 'failed' || p.status === 'dead');
+      if (hasFailures) {
+        return {
+          title: 'Publicación finalizada con observaciones',
+          subtitle: 'Uno o más canales presentaron un aviso en la entrega. Revisa el estado arriba.',
+          stepBadge: 'Atención requerida',
+          stepNumber: 4,
+          icon: 'warning',
+          iconColor: 'text-amber-500',
+          ringBg: 'border-amber-200 bg-amber-50/50',
+          estimate: null,
+          isSpinning: false,
+        };
+      }
+      return {
+        title: '¡Publicación completada con éxito!',
+        subtitle: `Tu video ya está publicado y disponible en tus ${publications.length} canales seleccionados.`,
+        stepBadge: '✓ 100% Completado',
+        stepNumber: 4,
+        icon: 'verified',
+        iconColor: 'text-emerald-500',
+        ringBg: 'border-emerald-200 bg-emerald-50/50',
+        estimate: null,
+        isSpinning: false,
+      };
+    }
+
+    const processingPub = publications.find(p => p.status === 'processing');
+    const latestLog = logs.length > 0 ? logs[logs.length - 1] : null;
+
+    if (processingPub) {
+      const platformName = platformStyles[processingPub.platform]?.name || processingPub.platform;
+      const accountName = processingPub.platform_username || 'tu cuenta';
+
+      let stageTitle = `Publicando en ${platformName}...`;
+      let detail = `Transmitiendo contenido a ${accountName}.`;
+
+      if (latestLog?.message) {
+        if (latestLog.message.includes('Preparando')) {
+          stageTitle = 'Optimizando formato de video...';
+          detail = `Ajustando codificación y metadatos para ${platformName}.`;
+        } else if (latestLog.message.includes('Subiendo')) {
+          stageTitle = `Subiendo video a ${platformName}...`;
+          detail = `Enviando paquetes de alta definición a los servidores oficiales.`;
+        } else if (latestLog.message.includes('confirmó')) {
+          stageTitle = `Confirmando con ${platformName}...`;
+          detail = 'Verificando procesamiento y disponibilidad en el canal.';
+        }
+      }
+
+      return {
+        title: stageTitle,
+        subtitle: detail,
+        stepBadge: `Paso 3 de 4: Difusión activa (${publishedCount + 1}/${publications.length} canales)`,
+        stepNumber: 3,
+        icon: 'smart_display',
+        iconColor: 'text-indigo-600',
+        ringBg: 'border-indigo-100 bg-indigo-50/60',
+        estimate: 'Esto suele tomar entre 10 y 25 segundos',
+        isSpinning: true,
+      };
+    }
+
+    if (isAnyProcessing) {
+      return {
+        title: 'Transmitiendo tu video...',
+        subtitle: 'Enviando contenido a tus redes sociales seleccionadas.',
+        stepBadge: `Paso 3 de 4: Difusión activa (${publishedCount + 1}/${publications.length})`,
+        stepNumber: 3,
+        icon: 'satellite_alt',
+        iconColor: 'text-indigo-600',
+        ringBg: 'border-indigo-100 bg-indigo-50/60',
+        estimate: 'Esto suele tomar entre 15 y 30 segundos',
+        isSpinning: true,
+      };
+    }
+
+    return {
+      title: 'Iniciando publicación...',
+      subtitle: 'Conectando con servidores de transmisión y preparando canales...',
+      stepBadge: 'Paso 2 de 4: Validación y cola de salida',
+      stepNumber: 2,
+      icon: 'hourglass_top',
+      iconColor: 'text-indigo-600',
+      ringBg: 'border-indigo-100 bg-indigo-50/60',
+      estimate: 'Esto tomará solo unos instantes',
+      isSpinning: true,
+    };
+  };
+
+  const currentStep = getProgressState();
 
   if (loading && publications.length === 0) {
     return (
@@ -446,63 +541,141 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
         </div>
       </div>
 
-      {/* 4. CONSOLA DE TELEMETRÍA (COMPACTA, ESTILO CRM, SIN JUMPS DE SCROLL) */}
-      <div className="rounded-xl border border-slate-200/90 bg-slate-900 text-slate-200 shadow-sm overflow-hidden">
-        {/* Barra superior de terminal estilo ventana limpia */}
-        <div className="flex items-center justify-between px-3.5 py-2 bg-slate-950/70 border-b border-slate-800 text-xs">
-          <div className="flex items-center space-x-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-400" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-            <span className="text-[10px] text-slate-400 font-mono font-medium ml-2">omnipublish-worker.log</span>
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono">
-            <span className="text-emerald-400 font-semibold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE
-            </span>
+      {/* 4. PANTALLA CARGANDO PROFESIONAL ADAPTADA AL CRM (Reemplaza la consola negra) */}
+      <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-white via-slate-50/40 to-indigo-50/20 p-8 sm:p-10 shadow-xs flex flex-col items-center justify-center text-center space-y-6 transition-all duration-300">
+        {/* Anillo de carga circular con halo y diseño del CRM */}
+        <div className="relative flex items-center justify-center">
+          {/* Resplandor animado durante carga */}
+          {currentStep.isSpinning && (
+            <div className="absolute -inset-2.5 rounded-full bg-gradient-to-tr from-indigo-500/20 via-violet-500/30 to-indigo-400/20 animate-pulse blur-sm" />
+          )}
+
+          {/* Anillo circular principal */}
+          <div className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center bg-white shadow-sm border ${currentStep.ringBg}`}>
+            {currentStep.isSpinning ? (
+              <svg className="w-16 h-16 sm:w-20 sm:h-20 animate-spin" viewBox="0 0 50 50">
+                <circle
+                  className="text-slate-100"
+                  strokeWidth="3.5"
+                  stroke="currentColor"
+                  fill="transparent"
+                  r="20"
+                  cx="25"
+                  cy="25"
+                />
+                <circle
+                  className="text-indigo-600"
+                  strokeWidth="3.5"
+                  strokeDasharray="90"
+                  strokeDashoffset="60"
+                  strokeLinecap="round"
+                  stroke="currentColor"
+                  fill="transparent"
+                  r="20"
+                  cx="25"
+                  cy="25"
+                />
+              </svg>
+            ) : null}
+
+            {/* Ícono central */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center ${currentStep.iconBg || ''}`}>
+                <span className={`material-symbols-outlined text-[26px] sm:text-[30px] ${currentStep.iconColor} ${currentStep.isSpinning ? 'animate-pulse' : ''}`}>
+                  {currentStep.icon}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Ventana de logs acotada y contenida (NUNCA hace scroll en window ni parent) */}
-        <div
-          ref={terminalContainerRef}
-          className="p-3.5 h-44 overflow-y-auto font-mono text-[11px] space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
-        >
-          {logs.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-2 py-4">
-              <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-              <p className="text-[11px] text-slate-400 font-sans">
-                Esperando que inicie el procesamiento del video en los canales seleccionados...
-              </p>
+        {/* Título y estado descriptivo en lenguaje amigable */}
+        <div className="space-y-2.5 max-w-md mx-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-2xs">
+            {currentStep.isSpinning && <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />}
+            {currentStep.stepBadge}
+          </div>
+
+          <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            {currentStep.title}
+          </h3>
+
+          <p className="text-xs sm:text-[13px] text-slate-500 font-medium leading-relaxed">
+            {currentStep.subtitle}
+          </p>
+
+          {currentStep.estimate && (
+            <p className="text-[11px] text-slate-400 font-normal pt-1 flex items-center justify-center gap-1.5">
+              <span className="material-symbols-outlined text-[14px] text-slate-400">schedule</span>
+              {currentStep.estimate}
+            </p>
+          )}
+        </div>
+
+        {/* Línea de etapas minimalista */}
+        <div className="w-full max-w-md pt-2">
+          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-2 pb-1.5">
+            <span className="text-emerald-600 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px]">check</span> Ingesta
+            </span>
+            <span className="text-emerald-600 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px]">check</span> Optimización
+            </span>
+            <span className={currentStep.stepNumber >= 3 ? (isAllFinished ? 'text-emerald-600' : 'text-indigo-600 font-extrabold') : 'text-slate-400'}>
+              {isAllFinished ? '✓' : '●'} Difusión
+            </span>
+            <span className={isAllFinished ? 'text-emerald-600 font-extrabold' : 'text-slate-400'}>
+              {isAllFinished ? '✓' : '○'} Limpieza
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-700 ${
+                isAllFinished
+                  ? 'w-full bg-emerald-500'
+                  : currentStep.stepNumber === 3
+                    ? 'w-3/4 bg-gradient-to-r from-indigo-500 to-indigo-600 animate-pulse'
+                    : 'w-1/2 bg-indigo-500'
+              }`}
+            />
+          </div>
+        </div>
+
+        {/* Registro técnico opcional y colapsable en modo claro */}
+        <div className="w-full pt-3 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setShowTechLogs(!showTechLogs)}
+            className="text-[11px] font-medium text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1 mx-auto transition-colors py-1 cursor-pointer"
+          >
+            <span>{showTechLogs ? 'Ocultar registro técnico' : 'Ver registro técnico de transmisión'}</span>
+            <span className="material-symbols-outlined text-[14px]">
+              {showTechLogs ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+
+          {showTechLogs && (
+            <div
+              ref={terminalContainerRef}
+              className="mt-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-left font-mono text-[10px] sm:text-[11px] max-h-40 overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-300"
+            >
+              {logs.length === 0 ? (
+                <p className="text-slate-400 text-center py-2 font-sans text-xs">Sin registros de worker aún...</p>
+              ) : (
+                logs.map((log) => {
+                  const dateStr = new Date(log.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  return (
+                    <div key={log.id} className="flex items-start space-x-2 leading-relaxed text-slate-600">
+                      <span className="text-slate-400 flex-shrink-0 select-none">[{dateStr}]</span>
+                      <span className="font-bold text-indigo-600 uppercase flex-shrink-0">[{log.platform || 'RIFX'}]</span>
+                      <span className={log.log_level === 'error' ? 'text-red-500 font-bold' : log.message.includes('exitosa') ? 'text-emerald-600 font-bold' : 'text-slate-700'}>
+                        {log.message}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          ) : (
-            logs.map((log) => {
-              const dateStr = new Date(log.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-              const platform = log.platform ? log.platform.toLowerCase() : 'rifx';
-              let badgeClass = 'text-indigo-300 bg-indigo-950/80 border-indigo-800';
-              if (platform === 'youtube') badgeClass = 'text-red-300 bg-red-950/80 border-red-800';
-              if (platform === 'instagram') badgeClass = 'text-pink-300 bg-pink-950/80 border-pink-800';
-              if (platform === 'facebook') badgeClass = 'text-blue-300 bg-blue-950/80 border-blue-800';
-              if (platform === 'tiktok') badgeClass = 'text-cyan-300 bg-cyan-950/80 border-cyan-800';
-
-              let msgClass = 'text-slate-300';
-              if (log.log_level === 'error') msgClass = 'text-red-400 font-bold';
-              if (log.log_level === 'warning') msgClass = 'text-amber-300';
-              if (log.message.includes('Publicación exitosa') || log.message.includes('Almacenamiento liberado')) {
-                msgClass = 'text-emerald-300 font-bold';
-              }
-
-              return (
-                <div key={log.id} className="flex items-start space-x-2 leading-relaxed">
-                  <span className="text-slate-500 flex-shrink-0 select-none">[{dateStr}]</span>
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded border font-bold flex-shrink-0 uppercase ${badgeClass}`}>
-                    {log.platform || 'RIFX'}
-                  </span>
-                  <span className={msgClass}>{log.message}</span>
-                </div>
-              );
-            })
           )}
         </div>
       </div>
