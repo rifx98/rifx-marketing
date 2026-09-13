@@ -383,11 +383,24 @@ export default function PublishForm({ accounts, onSubmit, isPublishing, videoSto
               Selecciona Plataformas de Destino
             </label>
           </div>
-          {selectedAccountIds.length > 0 && (
-            <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
-              {selectedAccountIds.length} seleccionadas
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {selectedAccountIds.length > 0 && (
+              <>
+                <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  {selectedAccountIds.length} {selectedAccountIds.length === 1 ? 'cuenta seleccionada' : 'cuentas seleccionadas'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAccountIds([])}
+                  className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors px-2 py-1 rounded-lg hover:bg-rose-50 flex items-center gap-1"
+                  title="Deseleccionar todas las cuentas"
+                >
+                  <span className="material-symbols-outlined text-[13px]">clear_all</span>
+                  Deseleccionar todas
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {accounts.length === 0 ? (
@@ -553,7 +566,7 @@ export default function PublishForm({ accounts, onSubmit, isPublishing, videoSto
         ) : (
           <>
             <span className="material-symbols-outlined text-lg">send</span>
-            <span>{isScheduled ? 'Programar Envío' : `Publicar en ${selectedAccountIds.length || '0'} canales`}</span>
+            <span>{isScheduled ? 'Programar Envío' : `Publicar en ${selectedAccountIds.length === 1 ? '1 canal' : `${selectedAccountIds.length} canales`}`}</span>
           </>
         )}
       </button>
