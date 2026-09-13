@@ -1833,6 +1833,7 @@ export default function PanelClient() {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
     const createdPostIds: string[] = [];
+    let lastErrorMessage = '';
 
     try {
       for (const video of uploadedVideos) {
@@ -1863,6 +1864,7 @@ export default function PanelClient() {
             });
           }
         } else {
+          lastErrorMessage = data.error || `Error (${res.status})`;
           console.error(`Error al publicar video ${video.name}:`, data.error);
         }
       }
@@ -1874,7 +1876,7 @@ export default function PanelClient() {
         setCurrentPostId(createdPostIds[0]);
         setUploadedVideos([]);
       } else {
-        setToast({ type: 'error', message: 'No se pudo registrar ninguna publicación.' });
+        setToast({ type: 'error', message: lastErrorMessage || 'No se pudo registrar ninguna publicación.' });
         setIsPublishing(false);
       }
     } catch (err: any) {

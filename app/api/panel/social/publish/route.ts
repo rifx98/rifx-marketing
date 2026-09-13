@@ -11,7 +11,7 @@ import {
 
 const MAX_REQUEST_BYTES = 32 * 1024;
 const MAX_SOCIAL_VIDEO_BYTES = 500 * 1024 * 1024;
-const MAX_ACCOUNTS_PER_POST = 10;
+const MAX_ACCOUNTS_PER_POST = 50;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska']);
 
@@ -70,13 +70,14 @@ export async function POST(req: NextRequest) {
       videoType,
     } = bodyResult.body;
 
-    if (
-      typeof caption !== 'string'
-      || !Array.isArray(platformAccountIds)
-      || platformAccountIds.length === 0
-      || platformAccountIds.length > MAX_ACCOUNTS_PER_POST
-    ) {
-      return json({ error: 'Faltan parámetros requeridos' }, 400);
+    if (typeof caption !== 'string' || !caption.trim()) {
+      return json({ error: 'La descripción del video es requerida' }, 400);
+    }
+    if (!Array.isArray(platformAccountIds) || platformAccountIds.length === 0) {
+      return json({ error: 'Debes seleccionar al menos una cuenta para publicar' }, 400);
+    }
+    if (platformAccountIds.length > MAX_ACCOUNTS_PER_POST) {
+      return json({ error: `Has seleccionado demasiadas cuentas (máximo ${MAX_ACCOUNTS_PER_POST})` }, 400);
     }
     const accountIds = Array.from(new Set(platformAccountIds.filter(
       (id: unknown): id is string => typeof id === 'string' && UUID_RE.test(id),
