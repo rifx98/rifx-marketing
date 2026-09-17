@@ -743,15 +743,14 @@ function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummar
   );
 }
 
-// ADDITIONAL PREMIUM FEATURE: IA AD COPY GENERATOR & SELECTOR
 interface AdCopysSelectorProps {
   answers: Record<string, any>;
   language: string;
-  onSelect: (copyText: string) => void;
+  onSelect: (copyText: string, hookText?: string) => void;
 }
 
 function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) {
-  const [activeTab, setActiveTab] = useState<'aida' | 'storytelling' | 'direct'>('aida');
+  const [activeTab, setActiveTab] = useState<'aida' | 'pas' | 'storytelling' | 'direct'>('aida');
   
   const prod = answers.productName || (language === 'en' ? 'our premium product' : 'nuestro producto estrella');
   const price = answers.price || (language === 'en' ? 'special promotion' : 'promoción especial');
@@ -760,27 +759,53 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
   const address = answers.address || '';
   const web = answers.webUrl || '';
   
+  const formattedWeb = web ? (web.startsWith('http') ? web : `https://${web}`) : '';
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  
   const ctaText = phone 
-    ? (language === 'en' ? `Contact us on WhatsApp: https://wa.me/${phone.replace(/[^0-9]/g, '')}` : `Escríbenos directamente por WhatsApp haciendo clic aquí: https://wa.me/${phone.replace(/[^0-9]/g, '')}`)
+    ? (language === 'en' ? `Contact us on WhatsApp: https://wa.me/${cleanPhone}` : `Escríbenos directamente por WhatsApp haciendo clic aquí: https://wa.me/${cleanPhone}`)
     : web 
-    ? (language === 'en' ? `Order directly on our website: ${web}` : `Ordena directamente en nuestra tienda online aquí: ${web}`)
-    : (language === 'en' ? `Visit us at: ${address}` : `Visítanos directamente en: ${address}`);
+    ? (language === 'en' ? `Order directly on our website: ${formattedWeb}` : `Ordena directamente en nuestra tienda online aquí: ${formattedWeb}`)
+    : (language === 'en' ? `Visit us directly at: ${address}` : `Visítanos directamente en: ${address}`);
 
-  const copies = {
-    aida: language === 'en' 
-      ? `🚨 ATTENTION! Looking for the best ${prod}? 🚨\n\nIf you want top-tier quality and premium customer service, this is for you! At ${name}, we have exactly what you need.\n\n✨ Why choose us?\n✅ Guaranteed Premium Quality\n✅ Elite Support & Service\n✅ Exclusive limited-time promotion\n\n💰 SPECIAL PRICE: ${price}!\n\n👉 Do not miss this opportunity! ${ctaText}\n\n#${prod.replace(/\s+/g, '')} #BestOffer #PremiumService #MetaAds`
-      : `🚨 ¡ATENCIÓN! ¿Buscando el mejor ${prod}? 🚨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\n✨ ¿Por qué elegirnos?\n✅ Calidad Premium 100% Garantizada\n✅ Atención de primera\n✅ Oferta exclusiva por tiempo limitado\n\n💰 PROMOCIÓN ESPECIAL: ¡${price}!\n\n👉 ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prod.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')} #OfertaUnica #ServicioPremium #MetaAds`,
-      
+  const prodTag = (prod || 'Oferta').replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+  const nameTag = (name || 'Negocio').replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+
+  const hooks: Record<'aida' | 'pas' | 'storytelling' | 'direct', string> = {
+    aida: language === 'en'
+      ? `🚨 ATTENTION! Looking for the best ${prod}?`
+      : `🚨 ¡ATENCIÓN! ¿Buscando el mejor ${prod}?`,
+    pas: language === 'en'
+      ? `Tired of wasting money on ${prod} that disappoints?`
+      : `¿Cansado de gastar en ${prod} que no cumple lo que promete?`,
     storytelling: language === 'en'
-      ? `I had tried everything to find a ${prod} that actually delivered on its promise, but I always ended up disappointed... 😔\n\nUntil I discovered ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! 🌟\n\nIf you are also tired of the same old options, you need to check this out. And best of all, they have a massive promotion running:\n\n🔥 Limited Offer: ${price}!\n\n📲 Click below to experience it yourself! ${ctaText}\n\n#SuccessStory #TrueQuality #GameChanger #MetaAds`
-      : `Había intentado de todo para encontrar un ${prod} que realmente cumpliera con su promesa, pero siempre terminaba decepcionado... 😔\n\nHasta que descubrí a los expertos de ${name}. Desde el primer día, la diferencia fue como el día y la noche. ¡La calidad, el trato y los resultados superaron mis expectativas! 🌟\n\nSi tú también estás cansado de lo mismo de siempre, tienes que probar esto. Y lo mejor de todo es que tienen una súper promoción:\n\n🔥 Oferta por tiempo limitado: ¡${price}!\n\n📲 Haz clic abajo y compruébalo tú mismo. ${ctaText}\n\n#CasoDeExito #CalidadReal #PremiumExperience #MetaAds`,
+      ? `“I tried everything to find a quality ${prod}, until I found ${name}...”`
+      : `“Probé de todo para conseguir un buen ${prod}, hasta que descubrí ${name}...”`,
+    direct: language === 'en'
+      ? `⚡ FLASH DEAL! Get your ${prod} at ${name} today!`
+      : `⚡ ¡OFERTA RELÁMPAGO! Consigue tu ${prod} en ${name} hoy mismo!`,
+  };
+
+  const copies: Record<'aida' | 'pas' | 'storytelling' | 'direct', string> = {
+    aida: language === 'en' 
+      ? `🚨 ATTENTION! Looking for the best ${prod}? 🚨\n\nIf you want top-tier quality and exceptional customer service, this is for you! At ${name}, we have exactly what you need.\n\n✨ Why choose us?\n✅ 100% Guaranteed Premium Quality\n✅ Fast and personalized attention\n✅ The best value for your investment\n\n💰 SPECIAL PRICE: ${price}!\n\n👉 Do not miss this opportunity! ${ctaText}\n\n#${prodTag} #BestOffer #PremiumService #${nameTag} #MetaAds`
+      : `🚨 ¡ATENCIÓN! ¿Buscando el mejor ${prod}? 🚨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\n✨ ¿Por qué elegirnos?\n✅ Calidad Premium 100% Garantizada\n✅ Atención rápida y personalizada\n✅ La mejor relación calidad-precio del mercado\n\n💰 PROMOCIÓN ESPECIAL: ¡${price}!\n\n👉 ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prodTag} #OfertaUnica #ServicioPremium #${nameTag} #MetaAds`,
+      
+    pas: language === 'en'
+      ? `¿Tired of wasting time and money on ${prod} that does not deliver? 🤦‍♂️\n\nWe know how frustrating it is when quality falls short of promises. You deserve a real solution without headaches.\n\nThat is why at ${name} we created the ultimate experience: top quality, certified guarantee, and proven satisfaction.\n\n⚡ Active promotion: Only ${price} for a limited time!\n\n📲 Order yours now before stock runs out: ${ctaText}\n\n#${prodTag} #ProvenResults #QualityGuaranteed #${nameTag} #MetaAds`
+      : `¿Cansado de perder tiempo y dinero en ${prod} que no cumple lo que promete? 🤦‍♂️\n\nSabemos lo frustrante que es pagar y terminar decepcionado. Te mereces una solución real, duradera y sin dolores de cabeza.\n\nPor eso en ${name} te ofrecemos la alternativa definitiva: máxima calidad certificada, garantía de satisfacción y el mejor respaldo.\n\n⚡ Promoción activa: ¡Aprovecha ${price} por tiempo limitado!\n\n📲 Haz tu pedido o consulta ahora mismo antes de que se agote: ${ctaText}\n\n#${prodTag} #SolucionDefinitiva #CalidadReal #${nameTag} #MetaAds`,
+
+    storytelling: language === 'en'
+      ? `“I had tried everything to find a ${prod} that actually worked, but I always ended up frustrated... 😔\n\nUntil a friend recommended ${name}. From day one, the difference was night and day. The quality, attention, and results completely blew me away! 🌟”\n\nIf you are also looking for something you can truly trust, you need to experience this. And right now they have a massive promotion running:\n\n🔥 Limited Offer: ${price}!\n\n📲 Click below to experience it yourself! ${ctaText}\n\n#${prodTag} #SuccessStory #TrueQuality #${nameTag} #MetaAds`
+      : `“Había probado de todo para encontrar un ${prod} que realmente valiera la pena, pero siempre terminaba decepcionado... 😔\n\nHasta que me recomendaron ${name}. Desde el primer día, la diferencia fue del cielo a la tierra: calidad superior, trato impecable y resultados reales. 🌟”\n\nSi tú también quieres dejar de arriesgar tu dinero y elegir algo seguro, tienes que probarlo. Y lo mejor de todo es que tienen una súper promoción activa:\n\n🔥 Oferta por tiempo limitado: ¡${price}!\n\n📲 Haz clic abajo y compruébalo tú mismo hoy: ${ctaText}\n\n#${prodTag} #CasoDeExito #CalidadReal #${nameTag} #MetaAds`,
       
     direct: language === 'en'
-      ? `⚡ SUPER OFFER! Get your ${prod} at ${name} for the best price. ⚡\n\nNo hassle, straightforward quality, and 100% satisfaction guarantee.\n\n💵 Promo Price: ${price}!\n\n🚀 Extremely limited stock! Click and order yours now:\n👉 ${ctaText}\n\n#DirectResponse #ExpressShipping #LimitedStock #MetaAds`
-      : `⚡ ¡SÚPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. ⚡\n\nSin rodeos, directo a lo que necesitas y con garantía de satisfacción total.\n\n💵 Precio Especial: ¡${price}!\n\n🚀 ¡Stock limitado! Haz clic y ordena el tuyo ahora mismo:\n👉 ${ctaText}\n\n#CompraDirecta #EnvioExpress #DescuentoEspecial #MetaAds`
+      ? `⚡ SUPER DIRECT OFFER! Get your ${prod} at ${name} for the best price. ⚡\n\nNo middlemen, straightforward top quality, and 100% satisfaction guarantee.\n\n💵 Promo Price: ${price}!\n⏳ Extremely limited stock at this special price!\n\n🚀 Click and secure yours right now:\n👉 ${ctaText}\n\n#${prodTag} #DirectResponse #LimitedStock #${nameTag} #MetaAds`
+      : `⚡ ¡SÚPER OFERTA DIRECTA! Adquiere tu ${prod} en ${name} al mejor precio. ⚡\n\nSin intermediarios, directo a lo que necesitas y con garantía de satisfacción total.\n\n💵 Precio Especial: ¡${price}!\n⏳ ¡Quedan pocas unidades disponibles a este valor promocional!\n\n🚀 ¡Asegura el tuyo ahora mismo antes de que se termine!\n👉 ${ctaText}\n\n#${prodTag} #CompraDirecta #StockLimitado #DescuentoEspecial #${nameTag} #MetaAds`
   };
 
   const activeCopy = copies[activeTab];
+  const activeHook = hooks[activeTab];
 
   return (
     <div className="mt-4 p-4 bg-[#f8fafc] border border-slate-200 rounded-xl space-y-3 text-left">
@@ -790,22 +815,23 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
           {language === 'en' ? 'AI Dynamic Ad Copywriter' : 'Redactor Publicitario IA Premium'}
         </span>
         <span className="bg-blue-100 text-[#0058bc] text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded font-extrabold">
-          {language === 'en' ? 'Conversion Copy' : 'Fórmulas Persuasivas'}
+          {language === 'en' ? 'High Conversion Formulas' : 'Fórmulas de Alta Conversión'}
         </span>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-200/60 p-1 rounded-lg">
+      <div className="grid grid-cols-4 gap-1 bg-slate-200/60 p-1 rounded-lg">
         {[
           { key: 'aida' as const, label: 'AIDA' },
-          { key: 'storytelling' as const, label: language === 'en' ? 'Storytelling' : 'Historias' },
-          { key: 'direct' as const, label: language === 'en' ? 'Direct' : 'Directo' }
+          { key: 'pas' as const, label: 'P.A.S.' },
+          { key: 'storytelling' as const, label: language === 'en' ? 'Story' : 'Historia' },
+          { key: 'direct' as const, label: language === 'en' ? 'Direct' : 'Directa' }
         ].map(tab => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 py-1 rounded text-[10px] font-extrabold transition-all uppercase tracking-wider ${
+            className={`py-1 rounded text-[10px] font-extrabold transition-all uppercase tracking-wider ${
               activeTab === tab.key
                 ? 'bg-white text-[#0b1c30] shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'
@@ -825,8 +851,8 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
 
       <button
         type="button"
-        onClick={() => onSelect(activeCopy)}
-        className="w-full py-2 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-98 font-sans"
+        onClick={() => onSelect(activeCopy, activeHook)}
+        className="w-full py-2 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-98 font-sans cursor-pointer"
       >
         <span className="material-symbols-outlined text-xs">assignment_turned_in</span>
         {language === 'en' ? 'Use This Text for Campaign' : '📋 Aplicar este Texto de Anuncio'}
@@ -2622,32 +2648,106 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     
     const allTpls = [...CREATIVE_TEMPLATES, ...dbTemplates];
     
+    const prod = finalAnswers.productName || (language === 'en' ? 'our premium product' : 'nuestro producto estrella');
+    const price = finalAnswers.price || (language === 'en' ? 'special promotion' : 'promoción especial');
+    const name = finalAnswers.businessName || (language === 'en' ? 'our store' : 'nuestro negocio');
+    const phone = finalAnswers.phone || '';
+    const address = finalAnswers.address || '';
+    const web = finalAnswers.webUrl || '';
+    
+    const formattedWeb = web ? (web.startsWith('http') ? web : `https://${web}`) : '';
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+
+    const ctaText = phone 
+      ? (language === 'en' ? `Contact us on WhatsApp: https://wa.me/${cleanPhone}` : `Escríbenos directamente por WhatsApp haciendo clic aquí: https://wa.me/${cleanPhone}`)
+      : web 
+      ? (language === 'en' ? `Order directly on our website: ${formattedWeb}` : `Ordena directamente en nuestra tienda online aquí: ${formattedWeb}`)
+      : (language === 'en' ? `Visit us directly at: ${address}` : `Visítanos directamente en: ${address}`);
+
+    const prodTag = (prod || 'Oferta').replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+    const nameTag = (name || 'Negocio').replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+
+    // Master High-Converting AIDA copy (Senior Conversion Copywriter)
+    const masterCopy = language === 'en'
+      ? `🚨 ATTENTION! Looking for the best ${prod}? 🚨\n\nIf you want top-tier quality and exceptional customer service, this is for you! At ${name}, we have exactly what you need.\n\n✨ Why choose us?\n✅ 100% Guaranteed Premium Quality\n✅ Fast & dedicated customer support\n✅ The best value for your investment\n\n💰 SPECIAL PRICE: ${price}!\n\n👉 Do not miss this opportunity! ${ctaText}\n\n#${prodTag} #BestOffer #PremiumService #${nameTag} #MetaAds`
+      : `🚨 ¡ATENCIÓN! ¿Buscando el mejor ${prod}? 🚨\n\nSi buscas la máxima calidad y un servicio inigualable, ¡esto es para ti! En ${name} tenemos exactamente lo que necesitas.\n\n✨ ¿Por qué elegirnos?\n✅ Calidad Premium 100% Garantizada\n✅ Atención rápida y personalizada\n✅ La mejor relación calidad-precio del mercado\n\n💰 PROMOCIÓN ESPECIAL: ¡${price}!\n\n👉 ¡No dejes pasar esta gran oportunidad! ${ctaText}\n\n#${prodTag} #OfertaUnica #ServicioPremium #${nameTag} #MetaAds`;
+
+    // 6 distinct hooks for Meta Algorithmic A/B Testing (1 for each of the 6 ads in the ad set)
+    const hookVariants = language === 'en'
+      ? [
+          `🚨 Looking for the best ${prod}? This is for you!`,
+          `⚡ SPECIAL OFFER: Get ${prod} for only ${price}!`,
+          `⭐ 100% Guaranteed Premium Quality at ${name}`,
+          `👀 What nobody told you about finding the best ${prod}...`,
+          `🔥 Limited-time deal: Upgrade to ${prod} today!`,
+          `📲 Order your ${prod} now before stock runs out!`,
+        ]
+      : [
+          `🚨 ¿Buscando el mejor ${prod}? ¡Esto es para ti!`,
+          `⚡ ¡SÚPER OFERTA! Llévate tu ${prod} por solo ${price}`,
+          `⭐ Calidad 100% Garantizada en ${name}`,
+          `👀 Lo que nadie te contó sobre cómo elegir el mejor ${prod}...`,
+          `🔥 Promoción exclusiva por tiempo limitado: ¡No te quedes sin el tuyo!`,
+          `📲 Ordena tu ${prod} hoy mismo antes de que se agote`,
+        ];
+
     // 2. Pre-fill states based on goal
     if (agentGoal === 'local') {
       setAdAddress(finalAnswers.address || '');
       setAdPhone('');
-      setAdDescription(`¡Visítanos en ${finalAnswers.businessName}! 📍 ${finalAnswers.address}\n\nTenemos el mejor ${finalAnswers.productName} con una promoción especial: ¡${finalAnswers.price}! 🍕🎉\n\nNo te lo pierdas, ¡esperamos verte pronto!`);
     } else if (agentGoal === 'whatsapp') {
       setAdPhone(finalAnswers.phone || '');
       setAdAddress('');
-      setAdDescription(`🔥 ¡Consigue tu ${finalAnswers.productName} hoy mismo!\n\n💰 Precio especial: ¡Solo ${finalAnswers.price}!\n\n📱 Escríbenos directamente por WhatsApp haciendo clic en el anuncio o al ${finalAnswers.phone} para hacer tu pedido ahora.`);
     } else if (agentGoal === 'web') {
       setAdAddress('');
       setAdPhone('');
-      setAdDescription(`🚀 ¡Ya disponible en nuestra tienda en línea!\n\nCompra hoy tu ${finalAnswers.productName} por tan solo ${finalAnswers.price}.\n\n🌐 Haz clic en 'Comprar' y consíguelo directamente aquí: ${finalAnswers.webUrl}`);
     }
 
-    // 3. Map locations configuration
+    setAdDescription(masterCopy);
+    setCampaignDesc(masterCopy);
+
+    // 3. Configure campaignResult with the 6 hooks and optimal Meta config
+    const targetCta = agentGoal === 'whatsapp' 
+      ? 'WHATSAPP_MESSAGE' 
+      : agentGoal === 'web' 
+      ? 'SHOP_NOW' 
+      : 'LEARN_MORE';
+      
+    const targetObj = agentGoal === 'local' 
+      ? 'OUTCOME_ENGAGEMENT' 
+      : 'OUTCOME_SALES';
+
+    setCampaignResult({
+      hook: hookVariants[0],
+      hook_variants: hookVariants.slice(1),
+      caption: masterCopy,
+      hashtags: `#${prodTag} #MetaAds #${nameTag} #Promocion`,
+      target_audience: {
+        age_min: 18,
+        age_max: 65,
+        gender: 'all',
+      },
+      campaign_config: {
+        objective: targetObj,
+        daily_budget_usd: finalAnswers.budget || 5,
+        call_to_action: targetCta,
+        ad_format: 'carousel',
+        placement_recommendation: 'feed + stories + reels',
+      },
+      copy_framework: 'AIDA + Multi-Hook Testing',
+    });
+
+    // 4. Map locations configuration
     if (finalAnswers.locations && finalAnswers.locations.length > 0) {
       setAdLocations(finalAnswers.locations);
       setAdLocationRadius(finalAnswers.radius || 25);
     }
     
-    // 4. Select appropriate general template
+    // 5. Select appropriate general template
     const defaultTpl = allTpls.find(t => t.category === 'general' || t.category === 'belleza') || allTpls[0] || null;
     setSelectedTemplate(defaultTpl);
     
-    // 5. Generate copywriting instructions prompt
+    // 6. Generate copywriting instructions prompt
     const prompt = generateCopywritingPrompt(finalAnswers);
     setAgentGeneratedPrompt(prompt);
   };
@@ -3227,42 +3327,65 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const cfg = campaignResult?.campaign_config || {};
       const aud = campaignResult?.target_audience || {};
 
-      // Variantes de texto para poder publicar minimo 6 anuncios por conjunto
-      // (A/B testing de copy) — usa el hook principal + variantes generadas
-      // por IA. El backend rellena hasta 6 si vienen menos.
-      const hooks = [campaignResult?.hook, ...(campaignResult?.hook_variants || [])].filter(Boolean);
+      // Variantes de texto para poder publicar mínimo 6 anuncios por conjunto
+      // (A/B testing de copy con 6 ángulos psicológicos distintos) — usa el hook
+      // principal + variantes generadas por el Agente Experto o la IA.
+      let hooks = [campaignResult?.hook, ...(campaignResult?.hook_variants || [])].filter(Boolean);
+      if (hooks.length === 0) {
+        hooks = language === 'en'
+          ? [
+              `🚨 ATTENTION! Don't miss this opportunity`,
+              `⚡ Special promotion available for a limited time`,
+              `⭐ 100% Guaranteed Premium Quality and Service`,
+              `👀 Discover why everyone is choosing this option`,
+              `🔥 The best solution for you at an unbeatable price`,
+              `📲 Order yours right now before stock runs out`,
+            ]
+          : [
+              `🚨 ¡Atención! No dejes pasar esta gran oportunidad`,
+              `⚡ Promoción especial disponible por tiempo limitado`,
+              `⭐ Calidad y satisfacción 100% garantizada`,
+              `👀 Descubre por qué todos están eligiendo esta opción`,
+              `🔥 La mejor alternativa para ti al mejor precio`,
+              `📲 Haz tu pedido ahora antes de que se agote`,
+            ];
+      }
+
       const trimmedCaption = caption.trim();
-      const messageVariants = (hooks.length > 0 ? hooks : [caption]).map((hook: string) => {
+      const messageVariants = hooks.map((hook: string) => {
         const trimmedHook = (hook || '').trim();
-        // Evita texto duplicado cuando el hook generado por la IA ya es
-        // igual al caption o ya viene incluido al inicio del caption.
         if (!trimmedHook || trimmedHook === trimmedCaption || trimmedCaption.startsWith(trimmedHook)) {
           return `${trimmedCaption}${hashtagsBlock}`.trim();
         }
         return `${trimmedHook}\n\n${trimmedCaption}${hashtagsBlock}`.trim();
       });
 
-      // Validate objective — cada objetivo de negocio usa el objetivo de
-      // campaña de Meta que mejor le sirve, en vez de dejarlo a lo que
-      // sugiera la IA:
-      //  - "Atraer clientes a mi Local Físico" -> Interacción (ENGAGEMENT):
-      //    maximiza likes/comentarios/seguidores de la Página, que es la
-      //    señal que alimenta el público personalizado de remarketing.
-      //  - "Recibir mensajes y vender por WhatsApp" -> Ventas (SALES): el
-      //    objetivo apunta directo a la conversión (venta) por chat, ya que
-      //    el paso anterior recolecta el numero de WhatsApp del negocio.
-      //  - "Vender desde mi Página Web o tienda online" -> Ventas (SALES):
-      //    igual, apunta a conversión, esta vez con destino la página/tienda
-      //    web que se pidió en el paso anterior.
-      // El público de remarketing de la fase 2 (page_engaged,
-      // page_post_interaction, page_liked, page_cta_clicked) se arma igual
-      // para los 3 objetivos — no depende del objetivo elegido.
+      // Validar objetivo según la meta del negocio:
+      //  - Local: ENGAGEMENT (interacción con la página/anuncio)
+      //  - WhatsApp: SALES (conversión a mensajes de WhatsApp)
+      //  - Web: SALES (conversión a compra en tienda online)
       const validObjectives = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
       const objective = agentGoal === 'local'
         ? 'OUTCOME_ENGAGEMENT'
         : (agentGoal === 'whatsapp' || agentGoal === 'web')
         ? 'OUTCOME_SALES'
         : (validObjectives.includes(cfg.objective) ? cfg.objective : 'OUTCOME_TRAFFIC');
+
+      const webDestination = agentAnswers.webUrl || '';
+      const phoneDestination = agentAnswers.phone || adPhone || '';
+      const resolvedLinkUrl = agentGoal === 'web' && webDestination
+        ? (webDestination.startsWith('http') ? webDestination : `https://${webDestination}`)
+        : agentGoal === 'whatsapp' && phoneDestination
+        ? `https://wa.me/${phoneDestination.replace(/[^0-9]/g, '')}`
+        : (adAddress && adAddress.startsWith('http'))
+        ? adAddress
+        : 'https://rifx.online';
+
+      const resolvedCta = agentGoal === 'whatsapp'
+        ? 'WHATSAPP_MESSAGE'
+        : agentGoal === 'web'
+        ? 'SHOP_NOW'
+        : (cfg.call_to_action || 'LEARN_MORE');
 
       const r = await authFetch('/api/panel/facebook/publish', {
         method: 'POST',
@@ -3281,10 +3404,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           custom_locations: adLocations.map(l => ({ lat: l.lat, lng: l.lng, radius: l.radius })),
           age_min: aud.age_min || 18,
           age_max: aud.age_max || 65,
-          link_url: 'https://rifx.online',
+          link_url: resolvedLinkUrl,
           image_url: imageUrl,
           creative_assets: creativeAssets,
-          call_to_action: cfg.call_to_action || 'LEARN_MORE',
+          call_to_action: resolvedCta,
           status: 'PAUSED'
         })
       });
@@ -12897,10 +13020,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                       <AdCopysSelector
                                         answers={agentAnswers}
                                         language={language}
-                                        onSelect={(selectedCopyText) => {
+                                        onSelect={(selectedCopyText, selectedHook) => {
                                           setAdDescription(selectedCopyText);
                                           setCampaignDesc(selectedCopyText);
-                                          setToast({ message: language === 'en' ? '✍️ Copy applied to campaign!' : '✍️ ¡Texto persuasivo aplicado a tu campaña!', type: 'success' });
+                                          setCampaignResult((prev: any) => ({
+                                            ...(prev || {}),
+                                            caption: selectedCopyText,
+                                            hook: selectedHook || prev?.hook,
+                                          }));
+                                          setToast({ message: language === 'en' ? '✍️ High-converting copy applied!' : '✍️ ¡Texto persuasivo de alta conversión aplicado!', type: 'success' });
                                         }}
                                       />
                                     </div>

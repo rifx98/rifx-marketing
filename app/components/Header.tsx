@@ -48,13 +48,12 @@ export default function Header() {
             
             {/* Dropdown Servicios */}
             <div className="relative group">
-              <Link 
-                className="text-slate-200 hover:text-rocket-orange transition font-medium text-sm uppercase tracking-wider flex items-center gap-1 py-1" 
-                href="/servicios"
+              <button 
+                className="text-slate-200 hover:text-rocket-orange transition font-medium text-sm uppercase tracking-wider flex items-center gap-1 py-1 cursor-default" 
               >
                 Servicios
                 <span className="material-symbols-outlined text-[18px] group-hover:rotate-180 transition-transform duration-300">expand_more</span>
-              </Link>
+              </button>
               
               {/* Dropdown Menu */}
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-72 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl py-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform translate-y-4 group-hover:translate-y-0 z-[60]">
@@ -104,7 +103,7 @@ export default function Header() {
               </div>
             </div>
 
-            <Link className="text-slate-200 hover:text-rocket-orange transition font-medium text-sm uppercase tracking-wider" href="/sobre-nosotros">Sobre Nosotros</Link>
+
             <Link className="text-slate-200 hover:text-rocket-orange transition font-medium text-sm uppercase tracking-wider" href="/contacto">Contacto</Link>
             
             <Link href="/contacto" className="bg-rocket-orange text-white px-6 py-2 rounded-lg font-bold hover:shadow-[0_0_20px_rgba(242,113,33,0.4)] transition-all text-sm uppercase">
@@ -194,13 +193,7 @@ export default function Header() {
             </div>
           </div>
 
-          <Link 
-            href="/sobre-nosotros" 
-            onClick={() => setMobileOpen(false)} 
-            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold uppercase tracking-wider transition-all ${pathname === '/sobre-nosotros' ? 'bg-rocket-orange/15 text-rocket-orange' : 'text-slate-200 hover:bg-white/5'}`}
-          >
-            👥 Sobre Nosotros
-          </Link>
+
 
           <Link 
             href="/contacto" 

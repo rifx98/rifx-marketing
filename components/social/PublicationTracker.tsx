@@ -102,13 +102,34 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const confettiTriggeredRef = useRef(false);
 
-  // Timer de duración
+  const isAllFinished = publications.length > 0 && publications.every(
+    p => p.status === 'published' || p.status === 'failed' || p.status === 'dead'
+  );
+  const publishedCount = publications.filter(p => p.status === 'published').length;
+  const isAnyProcessing = publications.some(p => p.status === 'processing');
+
+  // Timer de duración (se detiene automáticamente al completar la transmisión)
   useEffect(() => {
+    if (isAllFinished || (loading && publications.length === 0)) return;
+
     const timer = setInterval(() => {
       setElapsedSeconds(prev => prev + 1);
     }, 1000);
+
     return () => clearInterval(timer);
-  }, []);
+  }, [isAllFinished, loading, publications.length]);
+
+  // Si ya cargó finalizado desde el inicio, calcular la duración total según los registros
+  useEffect(() => {
+    if (isAllFinished && elapsedSeconds === 0 && logs.length >= 2) {
+      const start = new Date(logs[0].created_at).getTime();
+      const end = new Date(logs[logs.length - 1].created_at).getTime();
+      const duration = Math.max(1, Math.round((end - start) / 1000));
+      if (!isNaN(duration) && duration > 0) {
+        setElapsedSeconds(duration);
+      }
+    }
+  }, [isAllFinished, logs, elapsedSeconds]);
 
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
@@ -178,35 +199,23 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
 
   // Verificar si todas las publicaciones han finalizado
   useEffect(() => {
-    if (publications.length > 0) {
-      const allFinished = publications.every(
-        p => p.status === 'published' || p.status === 'failed' || p.status === 'dead',
-      );
-      if (allFinished) {
-        if (!confettiTriggeredRef.current) {
-          confettiTriggeredRef.current = true;
-          try {
-            confetti({
-              particleCount: 80,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: ['#10B981', '#6366F1', '#EC4899', '#3B82F6'],
-            });
-          } catch {
-            // ignore
-          }
+    if (isAllFinished) {
+      if (!confettiTriggeredRef.current) {
+        confettiTriggeredRef.current = true;
+        try {
+          confetti({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#10B981', '#6366F1', '#EC4899', '#3B82F6'],
+          });
+        } catch {
+          // ignore
         }
-        onFinished();
       }
+      onFinished();
     }
-  }, [publications, onFinished]);
-
-  const isAllFinished = publications.length > 0 && publications.every(
-    p => p.status === 'published' || p.status === 'failed' || p.status === 'dead'
-  );
-
-  const publishedCount = publications.filter(p => p.status === 'published').length;
-  const isAnyProcessing = publications.some(p => p.status === 'processing');
+  }, [isAllFinished, onFinished]);
 
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -324,8 +333,8 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
     <div className="space-y-4">
       {/* 1. HERO TELEMETRY CARD (ADAPTADO AL ESTILO CRM) */}
       <div className="rounded-2xl bg-gradient-to-br from-indigo-50/40 via-white to-slate-50/70 border border-slate-200/80 p-4 sm:p-5 shadow-sm">
-        {/* Cabecera superior con estado, ecualizador y cronómetro */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        {/* Cabecera con estado, ecualizador y cronómetro */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <span className={`w-2.5 h-2.5 rounded-full ${isAllFinished ? 'bg-emerald-500' : 'bg-indigo-600 animate-pulse'}`} />
             <div>
@@ -368,80 +377,6 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
               <span className="material-symbols-outlined text-[14px] text-slate-400">timer</span>
               <span>{formatTimer(elapsedSeconds)}</span>
             </div>
-          </div>
-        </div>
-
-        {/* 4-Stage Transmission Pipeline (Limpio y armónico con CRM) */}
-        <div className="pt-4">
-          <div className="grid grid-cols-4 gap-2 text-center">
-            {/* Stage 1: Ingesta */}
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-[13px]">check</span>
-              </div>
-              <span className="text-[11px] font-bold text-slate-800">1. Ingesta R2</span>
-              <span className="text-[10px] text-slate-400 font-medium">Verificado</span>
-            </div>
-
-            {/* Stage 2: Optimización */}
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-[13px]">check</span>
-              </div>
-              <span className="text-[11px] font-bold text-slate-800">2. Optimización</span>
-              <span className="text-[10px] text-slate-400 font-medium">1080p Short/Reel</span>
-            </div>
-
-            {/* Stage 3: Difusión */}
-            <div className="flex flex-col items-center gap-1">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                isAllFinished
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 animate-pulse'
-              }`}>
-                <span className="material-symbols-outlined text-[13px]">
-                  {isAllFinished ? 'check' : 'satellite_alt'}
-                </span>
-              </div>
-              <span className={`text-[11px] font-bold ${isAllFinished ? 'text-slate-800' : 'text-indigo-600'}`}>
-                3. Difusión
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {isAllFinished ? 'Completado' : 'Transmitiendo'}
-              </span>
-            </div>
-
-            {/* Stage 4: Confirmación */}
-            <div className="flex flex-col items-center gap-1">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                isAllFinished
-                  ? 'bg-emerald-600 text-white font-black shadow-sm shadow-emerald-600/20'
-                  : 'bg-slate-100 text-slate-400 border border-slate-200'
-              }`}>
-                <span className="material-symbols-outlined text-[13px]">
-                  {isAllFinished ? 'done_all' : 'cleaning_services'}
-                </span>
-              </div>
-              <span className={`text-[11px] font-bold ${isAllFinished ? 'text-slate-800' : 'text-slate-400'}`}>
-                4. Confirmación
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {isAllFinished ? '0 MB Utilizados' : 'Pendiente'}
-              </span>
-            </div>
-          </div>
-
-          {/* Barra conectora limpia */}
-          <div className="relative mt-3 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-700 ${
-                isAllFinished
-                  ? 'w-full bg-emerald-500'
-                  : isAnyProcessing
-                    ? 'w-3/4 bg-gradient-to-r from-indigo-500 to-indigo-600 animate-pulse'
-                    : 'w-1/2 bg-indigo-500'
-              }`}
-            />
           </div>
         </div>
       </div>
@@ -580,7 +515,7 @@ export default function PublicationTracker({ postId, onFinished }: PublicationTr
 
             {/* Ícono central */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center ${currentStep.iconBg || ''}`}>
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center">
                 <span className={`material-symbols-outlined text-[26px] sm:text-[30px] ${currentStep.iconColor} ${currentStep.isSpinning ? 'animate-pulse' : ''}`}>
                   {currentStep.icon}
                 </span>

@@ -68,7 +68,7 @@ REGLAS ESTRICTAS:
 Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta:
 {
   "hook": "El mejor hook principal (máx 50 chars)",
-  "hook_variants": ["Hook alternativo 1", "Hook alternativo 2", "Hook alternativo 3", "Hook alternativo 4"],
+  "hook_variants": ["Hook alternativo 1", "Hook alternativo 2", "Hook alternativo 3", "Hook alternativo 4", "Hook alternativo 5"],
   "caption": "Caption completo con emojis, storytelling, beneficios bullet points y CTA final. Mínimo 150 palabras. Debe ser una obra maestra de copywriting.",
   "carousel_slides": [
     "Slide 1: Hook visual + dato impactante",

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import OpenAI from 'openai';
 
 // ============================================
 // INTENT ROUTER — Clasificación de intención

@@ -28,8 +28,7 @@ export default function Footer() {
           <h4 className="text-[#0b1229] font-bold mb-6 text-sm uppercase tracking-widest">Enlaces rápidos</h4>
           <ul className="space-y-3">
             <li><Link className="text-slate-500 hover:text-[#F27121] transition-colors text-sm" href="/">Inicio</Link></li>
-            <li><Link className="text-slate-500 hover:text-[#F27121] transition-colors text-sm" href="/servicios">Servicios</Link></li>
-            <li><Link className="text-slate-500 hover:text-[#F27121] transition-colors text-sm" href="/sobre-nosotros">Sobre Nosotros</Link></li>
+
             <li><Link className="text-slate-500 hover:text-[#F27121] transition-colors text-sm" href="/contacto">Contacto</Link></li>
           </ul>
         </div>
