@@ -12717,7 +12717,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </button>
                   </div>
                 ) : (
-                  <button onClick={handleMetaFacebookLogin} className="text-xs font-bold text-white px-4 py-2 rounded-lg shrink-0 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
+                  <button onClick={() => { safeSetActiveTab('settings'); safeSetSettingsSection('meta'); }} className="text-xs font-bold text-white px-4 py-2 rounded-lg shrink-0 hover:opacity-90 transition-opacity" style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}>
                     {language === 'en' ? 'Connect Facebook' : 'Conectar Facebook'}
                   </button>
                 )}
