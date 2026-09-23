@@ -656,11 +656,10 @@ function ChatMapComponent({ radius, setRadius, onConfirm, language }: ChatMapPro
 interface ChatSummaryProps {
   goal: string;
   answers: Record<string, any>;
-  onConfirm: () => void;
   language: string;
 }
 
-function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummaryProps) {
+function ChatSummaryDiagnosis({ goal, answers, language }: ChatSummaryProps) {
   const budget = answers.budget || 5;
   const radius = answers.radius || 25;
   
@@ -731,14 +730,7 @@ function ChatSummaryDiagnosis({ goal, answers, onConfirm, language }: ChatSummar
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={onConfirm}
-        className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg hover:opacity-95 transition-opacity active:scale-98"
-      >
-        <span className="material-symbols-outlined text-sm">bolt</span>
-        {language === 'en' ? 'Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar'}
-      </button>
+      
     </div>
   );
 }
@@ -830,7 +822,10 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
           <button
             key={tab.key}
             type="button"
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => {
+              setActiveTab(tab.key);
+              onSelect(copies[tab.key], hooks[tab.key]);
+            }}
             className={`py-1 rounded text-[10px] font-extrabold transition-all uppercase tracking-wider ${
               activeTab === tab.key
                 ? 'bg-white text-[#0b1c30] shadow-sm'
@@ -849,14 +844,7 @@ function AdCopysSelector({ answers, language, onSelect }: AdCopysSelectorProps) 
         </pre>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onSelect(activeCopy, activeHook)}
-        className="w-full py-2 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-[10px] rounded-lg flex items-center justify-center gap-1.5 shadow transition-all active:scale-98 font-sans cursor-pointer"
-      >
-        <span className="material-symbols-outlined text-xs">assignment_turned_in</span>
-        {language === 'en' ? 'Use This Text for Campaign' : '📋 Aplicar este Texto de Anuncio'}
-      </button>
+      
     </div>
   );
 }
@@ -2583,23 +2571,34 @@ export default function PanelClient() {
       };
     }
     if (goal === 'whatsapp') {
-      const connectedWaPhone = configData.whatsapp_phone_id && configData.wa_display_phone ? configData.wa_display_phone : '';
-      if (connectedWaPhone) {
+      const selectedPage = metaPages.find((p: any) => p.id === configData.facebook_page_id);
+      const pageWaPhone = selectedPage?.whatsapp_number;
+      const rawAdminPhone = configData.admin_notification_phone ? (configData.admin_notification_phone.startsWith('+') ? configData.admin_notification_phone : '+' + configData.admin_notification_phone) : '';
+      const detectedNumber = configData.wa_display_phone || rawAdminPhone || pageWaPhone || '';
+      const isWaConfigured = !!(detectedNumber || configData.whatsapp_phone_id || configData.whatsapp_token_configured || configData.whatsapp_token);
+      const displayPhone = detectedNumber || (configData.whatsapp_phone_id ? 'vinculado a tu cuenta' : '');
+
+      if (isWaConfigured) {
         return {
           text: language === 'en'
-            ? `Great! WhatsApp sales have extremely high conversion rates. I see you already have WhatsApp connected (${connectedWaPhone}) — want to use it for this ad, or a different number?`
-            : `¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. Veo que ya tenés WhatsApp conectado (${connectedWaPhone}) — ¿querés usar ese número para este anuncio, o preferís escribir otro?`,
-          options: [{ label: `✅ ${connectedWaPhone}`, value: connectedWaPhone }],
+            ? `Your WhatsApp number is already configured${displayPhone ? ` (${displayPhone})` : ''}. Let's continue to the next step!`
+            : `¡Genial! Ya está configurado tu número de WhatsApp${displayPhone ? ` (${displayPhone})` : ''}. Continuemos al siguiente paso.`,
+          options: [
+            { label: language === 'en' ? "➡️ Continue to next step" : "➡️ Continuar al siguiente paso", value: '__continue_wa_configured__' }
+          ],
         };
       }
       return {
         text: language === 'en'
-          ? "Great! WhatsApp sales have extremely high conversion rates. What is your WhatsApp phone number? (e.g. +593987654321)\n\n💡 You can also connect your WhatsApp Business number below so it's ready automatically next time."
-          : "¡Estupendo! Las campañas de WhatsApp tienen tasas de cierre altísimas. ¿Cuál es tu número de WhatsApp de atención al cliente? (Por favor inclúyelo con código de país, ej: +593987654321).\n\n💡 También podés conectar tu WhatsApp Business abajo para tenerlo listo automáticamente la próxima vez.",
-        options: [{ label: language === 'en' ? '🔗 Connect my WhatsApp Business' : '🔗 Conectar mi WhatsApp Business', value: '__connect_whatsapp__' }],
+          ? "I see that you haven't configured your WhatsApp number yet. Please configure it and return here to continue."
+          : "Veo que no tienes configurado tu número de WhatsApp. Por favor configúralo y vuelve aquí.",
+        options: [
+          { label: language === 'en' ? "⚙️ Configure WhatsApp" : "⚙️ Configurar mi WhatsApp", value: '__connect_whatsapp__' },
+          { label: language === 'en' ? "✅ I already configured it, continue" : "✅ Ya lo configuré, continuar", value: '__wa_now_configured__' }
+        ],
       };
     }
-    return {
+      return {
       text: language === 'en'
         ? "Perfect! Automating website sales is the best way to scale. What is the URL of your website or online store? (e.g., https://mystore.com)"
         : "¡Excelente! Vender de manera automatizada a través de tu sitio web te permitirá escalar tus ventas. ¿Cuál es la URL de tu página o tienda online? (Ej: https://mitienda.com)",
@@ -2762,65 +2761,214 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       return;
     }
 
+    if (value === '__continue_wa_configured__' || value === '__wa_now_configured__') {
+      const selectedPage = metaPages.find((p: any) => p.id === configData.facebook_page_id);
+      const rawAdminPhone = configData.admin_notification_phone ? (configData.admin_notification_phone.startsWith('+') ? configData.admin_notification_phone : '+' + configData.admin_notification_phone) : '';
+      const phoneVal = configData.wa_display_phone || rawAdminPhone || selectedPage?.whatsapp_number || configData.whatsapp_phone_id || 'WhatsApp Business';
+      setAgentAnswers(prev => ({
+        ...prev,
+        phone: prev.phone || phoneVal,
+        businessName: prev.businessName || 'Mi WhatsApp Business',
+      }));
+      setAgentChatStep(2);
+
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (value === '__continue_wa_configured__' 
+          ? (language === 'en' ? '➡️ Continue to next step' : '➡️ Continuar al siguiente paso') 
+          : (language === 'en' ? '✅ Already configured, continue' : '✅ Ya lo configuré, continuar')),
+      }]);
+      setAgentIsTyping(true);
+
+      setTimeout(() => {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? "Excellent! Continuing...\n\nWhat star product or service do you want to promote today in your ad?"
+            : "¡Excelente! Continuamos.\n\n¿Cuál es el producto o servicio estrella que deseas promocionar y vender en esta campaña?",
+        }]);
+        setAgentIsTyping(false);
+      }, 500);
+      return;
+    }
+
     if (value === '__connect_meta__') {
       handleMetaFacebookLogin();
       setToast({ message: language === 'en' ? 'Connect your Meta Ads account in the popup, then come back here.' : 'Conectá tu cuenta de Meta Ads en la ventana emergente y después volvé acá.', type: 'info' });
       return;
     }
 
-    if (value.startsWith('__select_meta_account__:')) {
-      const accountId = value.replace('__select_meta_account__:', '');
-      const account = metaAdAccounts.find((a: any) => a.id === accountId);
-      if (account) {
-        setAgentMessages(prev => [...prev, {
-          id: Math.random().toString(),
-          sender: 'user' as const,
-          text: optionLabel || account.name,
-        }]);
-        handleSelectMetaAccount(account, metaPages[0]).then(() => {
-          setAgentMessages(prev => [...prev, {
-            id: Math.random().toString(),
-            sender: 'agent' as const,
-            text: language === 'en'
-              ? `Done! We'll publish using "${account.name}"${metaPages[0]?.name ? ` on Page "${metaPages[0].name}"` : ''}. Continuing with your campaign...`
-              : `¡Listo! Vamos a publicar usando "${account.name}"${metaPages[0]?.name ? ` en la página "${metaPages[0].name}"` : ''}. Seguimos con tu campaña...`,
-          }]);
-        });
-      }
-      return;
-    }
+    if (value === '__start_campaign__') {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (language === 'en' ? '🚀 Start' : '🚀 Comenzar'),
+      }]);
+      setAgentIsTyping(true);
 
-    // Justo despues de elegir el objetivo (paso 0): la cuenta/pagina a usar
-    // ya se elige en los selectores de arriba (barra de Meta Ads), asi que
-    // acá solo confirmamos con cual se va a publicar y seguimos derecho,
-    // sin volver a preguntarlo en el chat.
-    if (agentChatStep === 0 && ['local', 'whatsapp', 'web'].includes(value)) {
-      const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
-      if (isMetaConnected) {
-        const goal = value as 'local' | 'whatsapp' | 'web';
-        setAgentGoal(goal);
-        setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || value }]);
-        setAgentInputText('');
-        setAgentIsTyping(true);
-        const accountName = configData.meta_ad_account_name || configData.facebook_ad_account_id;
-        const pageName = configData.meta_page_name || configData.facebook_page_id;
+      const renderAccounts = (accounts: any[]) => {
+        const availableAccounts = accounts && accounts.length > 0
+          ? accounts
+          : (configData.facebook_ad_account_id ? [{ id: configData.facebook_ad_account_id, name: configData.meta_ad_account_name || configData.facebook_ad_account_id }] : []);
+
         setTimeout(() => {
           setAgentMessages(prev => [...prev, {
             id: Math.random().toString(),
             sender: 'agent' as const,
-            text: pageName
-              ? (language === 'en'
-                  ? `We'll publish using ad account "${accountName}" on Page "${pageName}".`
-                  : `Vamos a publicitar con la cuenta "${accountName}" en la página "${pageName}".`)
-              : (language === 'en'
-                  ? `We'll publish using ad account "${accountName}".`
-                  : `Vamos a publicitar con la cuenta "${accountName}".`),
+            text: language === 'en'
+              ? "¿Which Meta Ad Account would you like to use for this campaign?"
+              : "¿Qué cuenta publicitaria deseas utilizar para este anuncio?",
+            options: availableAccounts.length > 0
+              ? availableAccounts.map((acc: any) => ({
+                  label: `💼 ${acc.name || acc.id}`,
+                  value: `__select_meta_ad_account__:${acc.id}`
+                }))
+              : [
+                  { label: language === 'en' ? '🔗 Connect Meta Ads' : '🔗 Conectar Meta Ads', value: '__connect_meta__' },
+                  { label: language === 'en' ? '➡️ Continue without account' : '➡️ Continuar sin cuenta', value: '__continue_after_meta_check__' }
+                ]
           }]);
-          advanceToStep1(goal);
+          setAgentIsTyping(false);
         }, 500);
-        return;
+      };
+
+      if (metaAdAccounts.length === 0 && configData.facebook_access_token) {
+        fetchMetaAccountsLive().then(data => {
+          renderAccounts(data?.adAccounts || []);
+        }).catch(() => {
+          renderAccounts([]);
+        });
+      } else {
+        renderAccounts(metaAdAccounts);
       }
-      // No conectado: seguimos con el flujo normal de abajo (pregunta de negocio).
+      return;
+    }
+
+    if (value.startsWith('__select_meta_ad_account__:')) {
+      const accountId = value.replace('__select_meta_ad_account__:', '');
+      const account = metaAdAccounts.find((a: any) => a.id === accountId) || {
+        id: accountId,
+        name: optionLabel ? optionLabel.replace(/^💼\s*/, '') : accountId
+      };
+
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || `💼 ${account.name}`,
+      }]);
+      setAgentIsTyping(true);
+
+      setConfigData((prev: any) => ({
+        ...prev,
+        facebook_ad_account_id: account.id,
+        meta_ad_account_name: account.name || prev.meta_ad_account_name,
+      }));
+
+      const renderPages = (pages: any[]) => {
+        const availablePages = pages && pages.length > 0
+          ? pages
+          : (configData.facebook_page_id ? [{ id: configData.facebook_page_id, name: configData.meta_page_name || configData.facebook_page_id }] : []);
+
+        setTimeout(() => {
+          setAgentMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            sender: 'agent' as const,
+            text: language === 'en'
+              ? `Account selected: "${account.name}".\n\nNow, which Facebook Page will run the advertising?`
+              : `Cuenta seleccionada: "${account.name}".\n\nAhora, ¿a qué página de Facebook se va a realizar la publicidad?`,
+            options: availablePages.length > 0
+              ? availablePages.map((page: any) => ({
+                  label: `📄 ${page.name || page.id}`,
+                  value: `__select_meta_page__:${page.id}`
+                }))
+              : [
+                  { label: language === 'en' ? '➡️ Continue with current Page' : '➡️ Continuar con la página actual', value: `__select_meta_page__:${configData.facebook_page_id || 'default'}` }
+                ]
+          }]);
+          setAgentIsTyping(false);
+        }, 500);
+      };
+
+      if (metaPages.length === 0 && configData.facebook_access_token) {
+        fetchMetaAccountsLive().then(data => {
+          renderPages(data?.pages || []);
+        }).catch(() => {
+          renderPages([]);
+        });
+      } else {
+        renderPages(metaPages);
+      }
+      return;
+    }
+
+    if (value.startsWith('__select_meta_page__:')) {
+      const pageId = value.replace('__select_meta_page__:', '');
+      const page = metaPages.find((p: any) => p.id === pageId) || {
+        id: pageId,
+        name: optionLabel ? optionLabel.replace(/^📄\s*/, '') : pageId
+      };
+
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || `📄 ${page.name}`,
+      }]);
+      setAgentIsTyping(true);
+
+      const currentAccount = metaAdAccounts.find((a: any) => a.id === configData.facebook_ad_account_id) || {
+        id: configData.facebook_ad_account_id,
+        name: configData.meta_ad_account_name || configData.facebook_ad_account_id
+      };
+
+      if (currentAccount.id) {
+        handleSelectMetaAccount(currentAccount, page).catch(console.error);
+      } else {
+        setConfigData((prev: any) => ({
+          ...prev,
+          facebook_page_id: page.id,
+          meta_page_name: page.name,
+        }));
+      }
+
+      setTimeout(() => {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? `Excellent! Configured account "${currentAccount.name || 'Account'}" and page "${page.name || 'Page'}".\n\nWhat campaign would you like to run? Select your primary goal:`
+            : `¡Excelente! Publicaremos con la cuenta "${currentAccount.name || 'Tu cuenta'}" en la página "${page.name || 'Tu página'}".\n\n¿Qué campaña deseas realizar? Selecciona tu objetivo principal:`,
+          options: [
+            { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
+            { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+            { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+          ]
+        }]);
+        setAgentIsTyping(false);
+      }, 500);
+      return;
+    }
+
+    if (value === '__change_meta__') {
+      setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || value }]);
+      setShowPageDropdown(true);
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'agent' as const,
+        text: language === 'en' ? 'Please use the dropdown menu at the top of the screen to select your preferred account and page, then click "Continue" below.' : 'Por favor usa el menú en la barra superior para seleccionar tu cuenta y página, y luego haz clic en "Continuar" aquí abajo.',
+        options: [{ label: language === 'en' ? 'Continue' : 'Continuar', value: '__confirm_meta__' }]
+      }]);
+      return;
+    }
+
+    if (value === '__confirm_meta__') {
+      setAgentMessages(prev => [...prev, { id: Math.random().toString(), sender: 'user' as const, text: optionLabel || value }]);
+      setAgentIsTyping(true);
+      setTimeout(() => {
+        advanceToStep1(agentGoal || 'local');
+      }, 500);
+      return;
     }
 
     if (value === '__continue_after_meta_check__') {
@@ -2889,8 +3037,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           newAnswers.businessName = "Mi Tienda Online";
         }
         nextMsgText = language === 'en'
-          ? "Perfect. What star product or service do you want to promote today in your ad?"
-          : "Perfecto. ¿Cuál es el producto o servicio estrella que deseas promocionar y vender en esta campaña?";
+          ? "Excellent! Continuing...\n\nWhat star product or service do you want to promote today in your ad?"
+          : "¡Excelente! Continuamos.\n\n¿Cuál es el producto o servicio estrella que deseas promocionar y vender en esta campaña?";
       } else if (currentStep === 2) {
         newAnswers.productName = value;
         nextMsgText = language === 'en'
@@ -2926,7 +3074,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           { label: "$50 USD / día", value: "50" },
         ];
       } else if (currentStep === 5) {
-        newAnswers.budget = Number(value) || 5;
+        const b = Number(value) || 5;
+        if (b < 3) {
+          setAgentMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            sender: 'agent',
+            text: language === 'en' ? '⚠️ The minimum daily budget is $3 USD. Please select a higher budget.' : '⚠️ El presupuesto diario mínimo es de $3 USD. Por favor elige un presupuesto mayor.',
+            options
+          }]);
+          setAgentIsTyping(false);
+          return;
+        }
+        newAnswers.budget = b;
         nextMsgText = language === 'en'
           ? "Great! Last thing: how many days do you want this campaign to run? 📅\n\nIf you pick 14 days or more, I'll automatically split it into two phases for you: the first half to reach and learn from new people, and the second half as a dedicated remarketing campaign targeting the people who engaged during the first phase."
           : "¡Perfecto! Última pregunta: ¿por cuántos días querés que corra esta campaña? 📅\n\nSi elegís 14 días o más, la voy a dividir automáticamente en dos fases: la primera mitad para llegar a gente nueva y aprender, y la segunda mitad como campaña de remarketing dedicada a las personas que interactuaron durante la primera fase.";
@@ -2937,6 +3096,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           { label: "60 días", value: "60" },
         ];
       } else if (currentStep === 6) {
+        const d = Number(value) || 30;
+        if (d < 14) {
+          setAgentMessages(prev => [...prev, {
+            id: Math.random().toString(),
+            sender: 'agent',
+            text: language === 'en' ? '⚠️ The campaign must run for at least 14 days to be effective and exit the learning phase. Please choose 14 days or more.' : '⚠️ La campaña debe durar un mínimo de 14 días para ser efectiva y salir de la fase de aprendizaje. Por favor elige 14 días o más.',
+            options
+          }]);
+          setAgentIsTyping(false);
+          return;
+        }
         newAnswers.duration_days = Math.max(1, Math.min(90, Number(value) || 30));
         const willSplit = newAnswers.duration_days >= 14;
         nextMsgText = (language === 'en'
@@ -4476,14 +4646,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             }
           ]);
         } else {
+          if (metaAdAccounts.length === 0) {
+            fetchMetaAccountsLive();
+          }
           setAgentMessages([
             {
               id: '1',
               sender: 'agent',
               text: language === 'en'
-                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
-                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
-              options: goalOptions
+                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. Shall we start creating your ad?"
+                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. ¿Comenzamos con tu anuncio publicitario?",
+              options: [
+                { label: language === 'en' ? "🚀 Start" : "🚀 Comenzar", value: '__start_campaign__' }
+              ]
             }
           ]);
         }
@@ -12951,12 +13126,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 id: '1',
                                 sender: 'agent',
                                 text: language === 'en'
-                                  ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. I'm here to design your perfect marketing campaign automatically!\n\nTo get started, tell me: what is your primary marketing goal?"
-                                  : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. Estoy aquí para diseñar tu campaña de marketing perfecta de forma automática.\n\nPara empezar, dime: ¿Cuál es el objetivo principal de tu campaña?",
+                                  ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. Shall we start creating your ad?"
+                                  : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. ¿Comenzamos con tu anuncio publicitario?",
                                 options: [
-                                  { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
-                                  { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
-                                  { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+                                  { label: language === 'en' ? "🚀 Start" : "🚀 Comenzar", value: '__start_campaign__' }
                                 ]
                               }
                             ]);
@@ -13013,7 +13186,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                         goal={agentGoal || 'local'}
                                         answers={agentAnswers}
                                         language={language}
-                                        onConfirm={() => handleAgentMessageSubmit('apply', language === 'en' ? '⚡ Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar')}
                                       />
                                       
                                       {/* ADDITIONAL PREMIUM FEATURE: Inline Copys Selector */}
@@ -13031,6 +13203,15 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                           setToast({ message: language === 'en' ? '✍️ High-converting copy applied!' : '✍️ ¡Texto persuasivo de alta conversión aplicado!', type: 'success' });
                                         }}
                                       />
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAgentMessageSubmit('apply', language === 'en' ? '⚡ Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar')}
+                                        className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg hover:opacity-95 transition-opacity active:scale-98"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">bolt</span>
+                                        {language === 'en' ? 'Apply Campaign Setup' : '⚡ Aplicar Configuración y Continuar'}
+                                      </button>
                                     </div>
                                   )}
                                 </div>

@@ -77,7 +77,7 @@ async function listMetaAssets(accessToken: string, limit = 50) {
   adAccountsUrl.searchParams.set('limit', String(limit));
 
   const pagesUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/accounts`);
-  pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url}');
+  pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url},whatsapp_number');
   pagesUrl.searchParams.set('limit', String(limit));
 
   const requestInit: RequestInit = { headers: { Authorization: `Bearer ${accessToken}` } };

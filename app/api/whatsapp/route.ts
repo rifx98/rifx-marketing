@@ -720,10 +720,10 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         .limit(1),
       supabase
         .from('messages')
-        .select('role, content')
+        .select('role, content, created_at')
         .eq('conversation_id', conversation.id)
         .order('created_at', { ascending: false })
-        .limit(15),
+        .limit(20),
       tenantId ? getActiveKnowledgeContext(supabase, tenantId).catch(() => '') : Promise.resolve(''),
       tenantId ? loadTenantPricing(supabase, tenantId).catch(() => []) : Promise.resolve([]),
       tenantId ? hasAvailableCredits(supabase, tenantId).catch(() => ({ hasCredits: true, balance: 100 })) : Promise.resolve({ hasCredits: true, balance: 100 }),
@@ -994,7 +994,24 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       updatedSignals.acceptedProposal
     );
 
-    // 3. Historial de mensajes (precargado en paralelo)
+    // 3. Historial de mensajes y detección de inactividad de sesión (precargado en paralelo)
+    const SESSION_INACTIVITY_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 horas
+    const nowMs = Date.now();
+
+    // Encontrar el mensaje anterior más reciente para determinar el tiempo de inactividad
+    const prevInteractionMsg = (rawHistory || []).find((m: any) => {
+      if (!m.created_at) return false;
+      const msgTime = new Date(m.created_at).getTime();
+      return (nowMs - msgTime) > 3000; // ignorar el mensaje del usuario recién insertado hace < 3s
+    });
+
+    const timeSinceLastMsgMs = prevInteractionMsg?.created_at
+      ? nowMs - new Date(prevInteractionMsg.created_at).getTime()
+      : Infinity;
+
+    const isNewSession = timeSinceLastMsgMs > SESSION_INACTIVITY_TIMEOUT_MS;
+    const isGreetingOnly = /^(¡?hola!?|¡?buen[ao]s\s*(?:días|tardes|noches)?!?|saludos!?|qué\s+tal\??|que\s+tal\??|hey!?)\s*$/i.test(customerMessage.trim());
+
     // Filtrar mensajes de error/fallback que contaminan el contexto
     const errorPatterns = [
       'Lo siento, no pude procesar',
@@ -1002,6 +1019,7 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
       'Estamos experimentando dificultades técnicas',
     ];
     const cleanHistory = (rawHistory || [])
+      .slice()
       .reverse() // volver a orden cronológico
       .filter((m: { content: string }) => 
         !errorPatterns.some(p => m.content.includes(p)) &&
@@ -1011,8 +1029,18 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
         m.content !== '__HUMAN_ASK__'
       );
 
-    // Limitar a los últimos 10 mensajes limpios para no exceder el contexto
-    const history = cleanHistory.slice(-10);
+    // Si es una nueva sesión y el cliente solo está saludando, no inyectar mensajes antiguos
+    // para evitar que la IA asuma temas o citas pendientes de hace días
+    let history: { role: string; content: string }[] = [];
+    if (isNewSession && isGreetingOnly) {
+      history = [];
+      console.log(`🌅 [NUEVA SESIÓN] Cliente ${customerPhone} saludando tras inactividad (${Math.round(timeSinceLastMsgMs / 3600000)}h). Historial de contexto reiniciado.`);
+    } else if (isNewSession) {
+      history = cleanHistory.slice(-3);
+      console.log(`🌅 [NUEVA SESIÓN] Mensaje tras inactividad (${Math.round(timeSinceLastMsgMs / 3600000)}h). Historial acotado a 3 mensajes.`);
+    } else {
+      history = cleanHistory.slice(-10);
+    }
 
     // 4. Decode extended config for AI keys + model settings first
     let extConfig = {
@@ -1084,8 +1112,8 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
     }
 
     // 4.25 🆕 Pricing Guard — Lista oficial de precios del tenant (precargada en paralelo)
-    const tenantPricing: any[] = preloadedTenantPricing;
-    if (tenantId && tenantPricing.length > 0 && !(extConfig.dropi_enabled && intentResult.intent === 'sales_dropshipping')) {
+    const tenantPricing: any[] = preloadedTenantPricing || [];
+    if (tenantId && !(extConfig.dropi_enabled && intentResult.intent === 'sales_dropshipping')) {
       const pricingPrompt = buildPricingPrompt(tenantPricing);
       aiPrompt += pricingPrompt;
       console.log(`💰 Pricing: ${tenantPricing.length} servicios cargados para tenant ${tenantId}`);
@@ -1222,13 +1250,15 @@ INSTRUCCIONES CRÍTICAS: Si el cliente pregunta cuándo es su cita o pide inform
       }
     }
 
-    const isOngoingConversation = (history || []).length > 0;
+    const isOngoingConversation = (history || []).length > 0 && !isNewSession;
 
     // Enforce greeting/signature rule & WhatsApp bold formatting
     aiPrompt += `\n\n[REGLAS CRÍTICAS DE COMUNICACIÓN Y FORMATO]:
 - FORMATO WHATSAPP: Para texto en negrita, usa SIEMPRE UN SOLO ASTERISCO: *palabra*. NUNCA uses doble asterisco **palabra** ni markdown normal, porque WhatsApp no activa las negritas con doble asterisco.
 ${isOngoingConversation
-  ? '- CONVERSACIÓN EN CURSO: El cliente ya está hablando contigo. NO SALUDES (prohibido decir "¡Hola!", "Buenas tardes", "Hola de nuevo", "¿Cómo estás?", etc.). Ve directo a responder y asesorar sin rodeos de saludo.'
+  ? '- CONVERSACIÓN EN CURSO: El cliente ya está hablando contigo en este momento. NO SALUDES (prohibido decir "¡Hola!", "Buenas tardes", "Hola de nuevo", "¿Cómo estás?", etc.). Ve directo a responder y asesorar sin rodeos de saludo.'
+  : isNewSession
+  ? '- NUEVA SESIÓN TRAS INACTIVIDAD: El cliente vuelve a escribir después de un tiempo. Salúdalo amablemente de forma natural (ej: "¡Hola! Qué gusto saludarte de nuevo", "¡Buenas tardes!"). Atiende su mensaje actual desde cero. Prohibido continuar o asumir temas de citas de sesiones pasadas.'
   : '- Saluda de forma natural una sola vez. No repitas saludos.'}
 - Únicamente debes presentarte en tu primer saludo si aplica. En los siguientes mensajes, responde con naturalidad, empatía y profesionalismo sin repetir saludos ni quién eres.`;
 
@@ -2034,10 +2064,22 @@ Transportadora: *${orderResult.carrier}*`;
       
       if (hasHallucination && !responseLower.includes('error') && !responseLower.includes('no pude')) {
         console.warn('⚠️ [GUARD] Alucinación de agendamiento detectada (sin tag [AGENDAR_CITA]). Interceptando respuesta...');
-        if (isCalendarConnected) {
-          aiResponse = "Lo siento, hubo un problema técnico al procesar tu cita. 🙏\n\n¿Podrías confirmarme nuevamente el *día* y la *hora* que prefieres para agendarla correctamente en nuestro calendario?";
+        const userHadAppointmentIntent = 
+          intentResult.intent === 'appointment' ||
+          /\b(agendar|cita|reuni[oó]n|llamada|videollamada|hora|horario|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|mañana|hoy|\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i.test(customerMessage);
+
+        if (userHadAppointmentIntent) {
+          if (isCalendarConnected) {
+            aiResponse = "Lo siento, hubo un problema técnico al procesar tu cita. 🙏\n\n¿Podrías confirmarme nuevamente el *día* y la *hora* que prefieres para agendarla correctamente en nuestro calendario?";
+          } else {
+            aiResponse = "Lo siento, en este momento nuestro sistema de agendamiento no está disponible. 🙏\n\nPor favor déjame tu nombre y el horario que prefieres, y un asesor se pondrá en contacto contigo para confirmar la cita.";
+          }
         } else {
-          aiResponse = "Lo siento, en este momento nuestro sistema de agendamiento no está disponible. 🙏\n\nPor favor déjame tu nombre y el horario que prefieres, y un asesor se pondrá en contacto contigo para confirmar la cita.";
+          // El cliente NO estaba intentando agendar una cita (ej. solo saludó o preguntó otra cosa); la IA alucinó una confirmación por contexto previo
+          console.warn('⚠️ [GUARD] El cliente no tenía intención de agendar cita. Reemplazando con asistencia/saludo cordial.');
+          aiResponse = isNewSession || isGreetingOnly
+            ? '¡Hola! Qué gusto saludarte de nuevo. ¿En qué te podemos colaborar el día de hoy? 😊'
+            : 'Con gusto te colaboro. ¿Qué dudas tienes o en qué servicio te gustaría que te asesoremos? 😊';
         }
       }
     }

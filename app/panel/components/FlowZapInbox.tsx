@@ -86,7 +86,7 @@ export default function FlowZapInbox({
   const [messages, setMessages] = useState<any[]>([]);
   const messageCache = useRef<Record<string, any[]>>({});
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = typeof window !== 'undefined'
       ? (localStorage.getItem('rifx_session_token') || localStorage.getItem('token'))
       : null;

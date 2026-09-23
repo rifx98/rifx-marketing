@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import OpenAI from 'openai';
 
 // ============================================
 // INTENT ROUTER — Clasificación de intención
@@ -20,6 +19,18 @@ export interface IntentResult {
   intent: Intent;
   confidence: number;
   method: 'keywords' | 'ai';
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasKeywordMatch(text: string, kw: string): boolean {
+  if (kw.includes(' ')) {
+    return text.includes(kw);
+  }
+  const regex = new RegExp(`(^|[^a-záéíóúñü0-9])${escapeRegex(kw)}([^a-záéíóúñü0-9]|$)`, 'i');
+  return regex.test(text);
 }
 
 // ---- CAPA 1: Keywords ----
@@ -44,17 +55,22 @@ const INTENT_KEYWORDS: Record<Intent, string[]> = {
     'forma de pago', 'método de pago', 'metodo de pago',
   ],
   support: [
-    'ayuda', 'soporte', 'problema', 'error', 'no funciona', 'reclamo',
-    'queja', 'devolución', 'devolucion', 'reembolso', 'falla', 'bug',
-    'no me llega', 'no recibí', 'no recibi', 'mal servicio',
+    'soporte técnico', 'soporte tecnico', 'ayuda técnica', 'ayuda tecnica',
+    'problema', 'error', 'no funciona', 'reclamo', 'queja', 'devolución',
+    'devolucion', 'reembolso', 'falla', 'bug', 'no me llega', 'no recibí',
+    'no recibi', 'mal servicio', 'soporte',
   ],
   sales_services: [
-    'servicio', 'precio', 'cotización', 'cotizacion', 'presupuesto',
-    'plan', 'paquete', 'qué incluye', 'que incluye', 'cómo funciona',
-    'como funciona', 'resultados', 'casos de éxito', 'casos de exito',
+    'servicio', 'servicios', 'precio', 'precios', 'cotización', 'cotizacion',
+    'presupuesto', 'plan', 'planes', 'paquete', 'paquetes', 'qué incluye', 'que incluye',
+    'cómo funciona', 'como funciona', 'resultados', 'casos de éxito', 'casos de exito',
     'me interesa', 'quiero contratar', 'quiero el servicio', 'cuánto cuesta',
     'cuanto cuesta', 'cuánto vale', 'cuanto vale', 'cuánto cobran', 'cuanto cobran',
-    'invertir', 'inversión', 'inversion',
+    'invertir', 'inversión', 'inversion', 'publicidad', 'facebook ads', 'meta ads',
+    'anuncios', 'campaña', 'campañas', 'campana', 'campanas', 'marketing',
+    'redes sociales', 'diseño', 'diseno', 'página web', 'pagina web', 'sitio web',
+    'tienda online', 'ecommerce', 'app', 'branding', 'logo', 'posicionamiento',
+    'tráfico', 'trafico',
   ],
   sales_dropshipping: [
     'pedido', 'orden', 'envío', 'envio', 'dirección', 'direccion',
@@ -69,22 +85,27 @@ const INTENT_KEYWORDS: Record<Intent, string[]> = {
 };
 
 export function classifyByKeywords(message: string, isDropiEnabled: boolean): IntentResult | null {
-  const lower = message.toLowerCase();
+  const lower = message.toLowerCase().trim();
 
-  // Orden de prioridad: human > appointment > payment > support > sales > general
+  // Si tiene palabras de queja/problema real, support tiene prioridad alta
+  const hasHardSupportProblem = ['problema', 'error', 'no funciona', 'falla', 'bug', 'reclamo', 'queja', 'reembolso', 'devolución', 'devolucion', 'no me llega', 'no recibí'].some(kw => lower.includes(kw));
+
+  // Orden de prioridad dinámico:
+  // human > appointment > payment > (hard support) > sales > (soft support) > general
   const priorityOrder: Intent[] = [
     'human_request',
     'appointment',
     'payment',
-    'support',
+    ...(hasHardSupportProblem ? (['support'] as Intent[]) : []),
     isDropiEnabled ? 'sales_dropshipping' : 'sales_services',
     isDropiEnabled ? 'sales_services' : 'sales_dropshipping',
+    ...(!hasHardSupportProblem ? (['support'] as Intent[]) : []),
     'general_chat',
   ];
 
   for (const intent of priorityOrder) {
     const keywords = INTENT_KEYWORDS[intent];
-    const matchCount = keywords.filter(kw => lower.includes(kw)).length;
+    const matchCount = keywords.filter(kw => hasKeywordMatch(lower, kw)).length;
     if (matchCount > 0) {
       return {
         intent,
