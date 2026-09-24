@@ -863,7 +863,6 @@ export const SIDEBAR_ITEMS = [
   { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
   { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
   { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
-  { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
   { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
   { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
   { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' }
@@ -885,7 +884,6 @@ const VALID_PANEL_TABS = [
   'banners',
   'campaigns',
   'social',
-  'segments',
   'analytics',
   'billing',
   'settings',
@@ -3984,9 +3982,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const planPermissions: Record<string, string[]> = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"]
+      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders"]
     };
 
     const currentPlanKey = tenantData?.plan || 'trial';
@@ -4010,7 +4008,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       case 'orders':
         return { key: 'start', name: 'Chatea Pro Start' };
       case 'banners':
-      case 'segments':
       case 'analytics':
       case 'social':
       case 'appointments':
@@ -5084,23 +5081,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [analyticsCalMonth, setAnalyticsCalMonth] = useState(new Date().getMonth());
   const [analyticsCalYear, setAnalyticsCalYear] = useState(new Date().getFullYear());
   const [hoveredChartIdx, setHoveredChartIdx] = useState<number | null>(null);
-
-  // Segments states
-  const [showNewSegmentModal, setShowNewSegmentModal] = useState(false);
-  const [newSegName, setNewSegName] = useState('');
-  const [newSegDescription, setNewSegDescription] = useState('');
-  const [newSegColor, setNewSegColor] = useState('violet');
-  const [newSegKeywords, setNewSegKeywords] = useState('');
-  const [newSegConfidence, setNewSegConfidence] = useState(80);
-  const [customSegments, setCustomSegments] = useState<{id: string, name: string, description: string, color: string, keywords: string[], confidence: number, createdAt: string}[]>(() => {
-    if (typeof window !== 'undefined') {
-      try { return JSON.parse(localStorage.getItem('rifx_custom_segments') || '[]'); } catch { return []; }
-    }
-    return [];
-  });
-  const [segDetailView, setSegDetailView] = useState<'interested' | 'chatting' | 'bought' | string>('interested');
-  const [segTablePage, setSegTablePage] = useState(1);
-  const [segViewMode, setSegViewMode] = useState<'live' | 'archive'>('live');
 
   const handleVerifyWhatsApp = async (silentOrEvent: boolean | React.MouseEvent = false) => {
     const silent = typeof silentOrEvent === 'boolean' ? silentOrEvent : false;
@@ -7400,73 +7380,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setShowExportModal(false);
   };
 
-  // Persist custom segments
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('rifx_custom_segments', JSON.stringify(customSegments));
-    }
-  }, [customSegments]);
-
-  const handleCreateSegment = () => {
-    if (!newSegName.trim()) return;
-    const seg = {
-      id: Date.now().toString(),
-      name: newSegName.trim(),
-      description: newSegDescription.trim(),
-      color: newSegColor,
-      keywords: newSegKeywords.split(',').map(k => k.trim()).filter(Boolean),
-      confidence: newSegConfidence,
-      createdAt: new Date().toISOString(),
-    };
-    setCustomSegments(prev => [...prev, seg]);
-    setNewSegName(''); setNewSegDescription(''); setNewSegKeywords(''); setNewSegConfidence(80); setNewSegColor('violet');
-    setShowNewSegmentModal(false);
-  };
-
-  const handleDeleteSegment = (id: string) => {
-    setCustomSegments(prev => prev.filter(s => s.id !== id));
-  };
-
-  const segDetailContacts = React.useMemo(() => {
-    if (segDetailView === 'interested') return conversationsData?.interested || [];
-    if (segDetailView === 'chatting') return conversationsData?.chatting || [];
-    if (segDetailView === 'bought') return conversationsData?.bought || [];
-    // Custom segment: match contacts by keywords in their conversation
-    return allContacts;
-  }, [segDetailView, conversationsData, allContacts]);
-
-  const segDetailLabel = React.useMemo(() => {
-    if (segDetailView === 'interested') return language === 'en' ? 'Interested' : 'Interesados';
-    if (segDetailView === 'chatting') return language === 'en' ? 'Undecided' : 'Indecisos';
-    if (segDetailView === 'bought') return language === 'en' ? 'Curious' : 'Curiosos';
-    const seg = customSegments.find(s => s.id === segDetailView);
-    return seg?.name || '';
-  }, [segDetailView, language, customSegments]);
-
-  const SEG_ROWS = 8;
-  const totalSegPages = Math.max(1, Math.ceil(segDetailContacts.length / SEG_ROWS));
-  const pagedSegContacts = segDetailContacts.slice((segTablePage - 1) * SEG_ROWS, segTablePage * SEG_ROWS);
-
-  const handleExportSegmentCSV = () => {
-    const contacts = segDetailContacts;
-    const BOM = '\uFEFF';
-    let csv = BOM;
-    csv += `RIFX CRM - Segmento: ${segDetailLabel}\n`;
-    csv += `Generado: ${new Date().toLocaleString('es')}\n`;
-    csv += `Total contactos: ${contacts.length}\n\n`;
-    csv += 'Nombre,Teléfono,Estado,Última Actividad\n';
-    contacts.forEach((c: any) => {
-      csv += `${c.customer_name || 'Sin nombre'},${c.phone_number || ''},${c.status || ''},${c.updated_at || c.created_at || ''}\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `RIFX_Segmento_${segDetailLabel}_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleSelectAll = (checked: boolean) => {
     setSelectAllContacts(checked);
     if (checked) {
@@ -7856,7 +7769,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 platform_name: curr.platform_name || 'Sovereign',
-                sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+                sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'analytics', 'admin'],
                 global_ai_config: adminGlobalAi,
                 tracking_pixels: adminTrackingPixels
               })
@@ -8323,7 +8236,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
             { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
-            { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
             { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
             { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
             { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
@@ -8436,7 +8348,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
                 { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
                 { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
-                { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
                 { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
                 { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
                 { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
@@ -8498,7 +8409,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <input 
               autoComplete="new-password" data-lpignore="true" name="dashboard-search-input" 
               className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary-container/20 transition-all text-black outline-none" 
-              placeholder={language === 'en' ? 'Search audience or segments...' : 'Buscar audiencia o segmentos...'} 
+              placeholder={language === 'en' ? 'Search...' : 'Buscar...'} 
               type="text" 
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
@@ -8523,7 +8434,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
                       { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
                       { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
-                      { key: 'segments', icon: 'pie_chart', labelEs: 'Segmentos', labelEn: 'Segments' },
                       { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
                       { key: 'billing', icon: 'payments', labelEs: 'Planes y Facturación', labelEn: 'Billing' },
                       { key: 'settings', icon: 'settings', labelEs: 'Configuraciones', labelEn: 'Settings' },
@@ -14773,378 +14683,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         )}
 
 
-        {activeTab === 'segments' && (
-          <motion.div
-            key="segments"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-10"
-          >
-            {/* Header Section */}
-            <header className="flex justify-between items-end">
-              <div>
-                <h2 className="text-4xl font-extrabold tracking-tight text-primary font-headline mb-2">
-                  {language === 'en' ? 'Audience Segments' : 'Segmentos de Audiencia'}
-                </h2>
-                <p className="text-slate-500 font-medium">
-                  {language === 'en' ? 'Orchestrate your audience and AI classification rules.' : 'Orquestación de audiencia y reglas de clasificación por IA.'}
-                </p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setSegDetailView(segDetailView === 'interested' ? 'chatting' : segDetailView === 'chatting' ? 'bought' : 'interested')} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
-                  <span className="material-symbols-outlined text-sm">filter_list</span>
-                  {language === 'en' ? 'Filter' : 'Filtrar'}
-                </button>
-                <button onClick={() => setShowNewSegmentModal(true)} className="px-5 py-2.5 bg-primary-container text-white rounded-xl text-xs font-bold hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-primary-container/20">
-                  <span className="material-symbols-outlined text-sm">add</span>
-                  {language === 'en' ? 'New Segment' : 'Nuevo Segmento'}
-                </button>
-              </div>
-            </header>
-
-            {/* Bento Grid Section: Overview Cards */}
-            <section className="grid grid-cols-12 gap-6">
-              {/* Stat Card: Interesados */}
-              <div onClick={() => { setSegDetailView('interested'); setSegTablePage(1); }} className={`col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 ${segDetailView === 'interested' ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-emerald-500'} shadow-sm group cursor-pointer`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {language === 'en' ? 'High Intent' : 'Alto Interés'}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">
-                    {language === 'en' ? 'Interested' : 'Interesados'}
-                  </h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-black text-primary font-headline tracking-tighter">
-                      {conversationsData?.interested?.length || 0}
-                    </span>
-                    <span className="text-slate-400 text-sm font-medium">{language === 'en' ? 'leads' : 'prospectos'}</span>
-                  </div>
-                </div>
-                <div className="mt-6 pt-6 border-t border-slate-50">
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
-                      style={{ width: `${Math.min(100, ((conversationsData?.interested?.length || 0) / (allContacts.length || 1)) * 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat Card: Indecisos */}
-              <div onClick={() => { setSegDetailView('chatting'); setSegTablePage(1); }} className={`col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 ${segDetailView === 'chatting' ? 'border-amber-500 ring-2 ring-amber-200' : 'border-amber-500'} shadow-sm group cursor-pointer`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div className="p-3 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-all">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>pending</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {language === 'en' ? 'Medium Intent' : 'Interés Medio'}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">
-                    {language === 'en' ? 'Undecided' : 'Indecisos'}
-                  </h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-black text-primary font-headline tracking-tighter">
-                      {conversationsData?.chatting?.length || 0}
-                    </span>
-                    <span className="text-slate-400 text-sm font-medium">{language === 'en' ? 'leads' : 'prospectos'}</span>
-                  </div>
-                </div>
-                <div className="mt-6 pt-6 border-t border-slate-50">
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-amber-500 rounded-full transition-all duration-1000" 
-                      style={{ width: `${Math.min(100, ((conversationsData?.chatting?.length || 0) / (allContacts.length || 1)) * 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat Card: Curiosos */}
-              <div onClick={() => { setSegDetailView('bought'); setSegTablePage(1); }} className={`col-span-12 md:col-span-4 bg-white p-8 rounded-2xl flex flex-col justify-between hover:shadow-xl hover:shadow-slate-200/50 transition-all border-l-4 ${segDetailView === 'bought' ? 'border-slate-400 ring-2 ring-slate-300' : 'border-slate-400'} shadow-sm group cursor-pointer`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div className="p-3 bg-slate-50 rounded-xl text-slate-600 group-hover:bg-slate-500 group-hover:text-white transition-all">
-                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>visibility</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    {language === 'en' ? 'Low Intent' : 'Bajo Interés'}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-1">
-                    {language === 'en' ? 'Curious' : 'Curiosos'}
-                  </h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-black text-primary font-headline tracking-tighter">
-                      {conversationsData?.bought?.length || 0}
-                    </span>
-                    <span className="text-slate-400 text-sm font-medium">{language === 'en' ? 'leads' : 'prospectos'}</span>
-                  </div>
-                </div>
-                <div className="mt-6 pt-6 border-t border-slate-50">
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-slate-400 rounded-full transition-all duration-1000" 
-                      style={{ width: `${Math.min(100, ((conversationsData?.bought?.length || 0) / (allContacts.length || 1)) * 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Middle Section: Analysis & Rules */}
-            <section className="grid grid-cols-12 gap-8">
-              {/* Segment Analysis */}
-              <div className="col-span-12 lg:col-span-5 bg-white rounded-3xl p-8 shadow-sm border border-slate-100 overflow-hidden relative group">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -mr-20 -mt-20 blur-3xl group-hover:bg-primary-container/10 transition-colors"></div>
-                <div className="relative z-10 h-full flex flex-col">
-                  <div className="flex justify-between items-center mb-8">
-                    <h3 className="text-xl font-bold font-headline text-primary">
-                      {language === 'en' ? 'Audience Distribution' : 'Distribución de Audiencia'}
-                    </h3>
-                    <button className="text-primary-container font-bold text-[10px] uppercase tracking-widest flex items-center gap-1 hover:gap-2 transition-all">
-                      {language === 'en' ? 'FULL REPORT' : 'REPORTE COMPLETO'} 
-                      <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                    </button>
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center space-y-8">
-                    <div className="space-y-4">
-                      <div className="flex justify-between text-[10px] font-bold uppercase text-slate-400 tracking-widest">
-                        <span>{language === 'en' ? 'Classification Mix' : 'Mix de Clasificación'}</span>
-                        <span>Total: {(allContacts.length / 1000).toFixed(1)}k</span>
-                      </div>
-                      <div className="h-16 w-full flex rounded-2xl overflow-hidden shadow-inner border border-slate-50">
-                        <div className="h-full bg-emerald-500 border-r border-white/20" style={{ width: `${((conversationsData?.interested?.length || 0) / (allContacts.length || 1)) * 100}%` }} title="Interesados"></div>
-                        <div className="h-full bg-amber-500 border-r border-white/20" style={{ width: `${((conversationsData?.chatting?.length || 0) / (allContacts.length || 1)) * 100}%` }} title="Indecisos"></div>
-                        <div className="h-full bg-slate-300" style={{ width: `${((conversationsData?.bought?.length || 0) / (allContacts.length || 1)) * 100}%` }} title="Curiosos"></div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'High Intent (Interested)' : 'Alto Interés (Interesados)'}</span>
-                        </div>
-                        <span className="font-bold text-primary">{Math.round(((conversationsData?.interested?.length || 0) / (allContacts.length || 1)) * 100)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'Medium Intent (Undecided)' : 'Interés Medio (Indecisos)'}</span>
-                        </div>
-                        <span className="font-bold text-primary">{Math.round(((conversationsData?.chatting?.length || 0) / (allContacts.length || 1)) * 100)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full bg-slate-300"></div>
-                          <span className="text-sm font-semibold text-slate-700">{language === 'en' ? 'Low Intent (Curious)' : 'Bajo Interés (Curiosos)'}</span>
-                        </div>
-                        <span className="font-bold text-primary">{Math.round(((conversationsData?.bought?.length || 0) / (allContacts.length || 1)) * 100)}%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Classification Rules */}
-              <div className="col-span-12 lg:col-span-7 bg-white rounded-3xl p-8 shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-8">
-                  <div>
-                    <h3 className="text-xl font-bold font-headline text-primary">
-                      {language === 'en' ? 'AI Intelligence Rules' : 'Reglas de Inteligencia IA'}
-                    </h3>
-                    <p className="text-slate-500 text-sm font-medium">
-                      {language === 'en' ? 'Configure how Sovereign tags your audience' : 'Configura cómo Sovereign etiqueta a tu audiencia'}
-                    </p>
-                  </div>
-                  <button className="bg-slate-100 p-2.5 rounded-xl text-primary hover:bg-primary hover:text-white transition-all shadow-sm">
-                    <span className="material-symbols-outlined">settings_suggest</span>
-                  </button>
-                </div>
-                <div className="space-y-4">
-                  <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:border-primary-container/30 transition-all flex items-start gap-4 group">
-                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-primary-container shrink-0 shadow-sm group-hover:bg-primary-container group-hover:text-white transition-all">
-                      <span className="material-symbols-outlined">key</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-primary">{language === 'en' ? 'Keywords for Interested' : 'Palabras Clave para Interesados'}</h4>
-                        <div className="flex gap-2">
-                          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-lg uppercase tracking-wider">{language === 'en' ? 'Active' : 'Activo'}</span>
-                          <button className="text-slate-400 hover:text-primary transition-colors"><span className="material-symbols-outlined text-sm">edit</span></button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1 mb-3">Triggered by: "comprar", "precio", "disponible", "quiero uno"</p>
-                      <div className="flex gap-2 flex-wrap">
-                        <span className="text-[10px] px-2.5 py-1.5 bg-white border border-slate-100 rounded-full text-slate-600 font-bold uppercase tracking-tighter">E-commerce</span>
-                        <span className="text-[10px] px-2.5 py-1.5 bg-white border border-slate-100 rounded-full text-slate-600 font-bold uppercase tracking-tighter">Direct Sales</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:border-primary-container/30 transition-all flex items-start gap-4 group">
-                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-primary-container shrink-0 shadow-sm group-hover:bg-primary-container group-hover:text-white transition-all">
-                      <span className="material-symbols-outlined">network_check</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-bold text-primary">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}</h4>
-                        <div className="flex gap-2">
-                          <span className="px-2.5 py-1 bg-primary-container/10 text-primary-container text-[10px] font-bold rounded-lg uppercase tracking-wider">Strict</span>
-                          <button className="text-slate-400 hover:text-primary transition-colors"><span className="material-symbols-outlined text-sm">edit</span></button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1 mb-3">Auto-tagging required confidence: <span className="font-bold text-primary">85%</span></p>
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary-container rounded-full" style={{ width: '85%' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowNewSegmentModal(true)} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-primary-container hover:text-primary-container transition-all text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-sm">add_circle</span>
-                    {language === 'en' ? 'CREATE NEW CLASSIFICATION LOGIC' : 'CREAR NUEVA LOGICA DE CLASIFICACION'}
-                  </button>
-                  {/* Custom Segments */}
-                  {customSegments.map(seg => (
-                    <div key={seg.id} className="p-5 rounded-2xl bg-violet-50/50 border border-violet-100 hover:border-primary-container/30 transition-all flex items-start gap-4 group">
-                      <div className="w-12 h-12 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center text-violet-600 shrink-0 shadow-sm">
-                        <span className="material-symbols-outlined">label</span>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-primary">{seg.name}</h4>
-                          <div className="flex gap-2">
-                            <span className="px-2.5 py-1 bg-violet-100 text-violet-700 text-[10px] font-bold rounded-lg uppercase tracking-wider">{language === 'en' ? 'Custom' : 'Personalizado'}</span>
-                            <button onClick={() => handleDeleteSegment(seg.id)} className="text-slate-400 hover:text-red-500 transition-colors"><span className="material-symbols-outlined text-sm">delete</span></button>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1 mb-3">{seg.description || (language === 'en' ? 'Keywords' : 'Palabras clave')}: {seg.keywords.join(', ') || '-'}</p>
-                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-violet-500 rounded-full" style={{ width: `${seg.confidence}%` }}></div>
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1">{language === 'en' ? 'Confidence' : 'Confianza'}: {seg.confidence}%</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {/* Bottom Section: Segment Table */}
-            <section className="space-y-6">
-              <div className="flex justify-between items-end">
-                <div className="flex items-center gap-4">
-                  <h3 className="text-2xl font-bold font-headline text-primary">
-                    {language === 'en' ? `Detailed View: ${segDetailLabel}` : `Vista Detallada: ${segDetailLabel}`}
-                  </h3>
-                  <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
-                    <button onClick={() => setSegViewMode('live')} className={`px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${segViewMode === 'live' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>Live</button>
-                    <button onClick={() => setSegViewMode('archive')} className={`px-5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${segViewMode === 'archive' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-primary'}`}>Archive</button>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={handleExportSegmentCSV} className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
-                    <span className="material-symbols-outlined text-sm">download</span>
-                    {language === 'en' ? 'Export CSV' : 'Exportar CSV'}
-                  </button>
-                </div>
-              </div>
-              <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/50">
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Contact' : 'Contacto'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Last Activity' : 'Última Actividad'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'Phone Number' : 'Teléfono'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">{language === 'en' ? 'AI Confidence' : 'Confianza IA'}</th>
-                        <th className="px-8 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">{language === 'en' ? 'Actions' : 'Acciones'}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {pagedSegContacts.map((contact: any, i: number) => {
-                        const score = contactScores[contact.id]?.score;
-                        const confidence = score != null ? score : Math.floor(Math.random() * 20 + 75);
-                        const statusColor = contact.status === 'interested' ? 'emerald' : contact.status === 'chatting' ? 'amber' : 'slate';
-                        return (
-                        <tr key={contact.id || i} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="px-8 py-6">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full bg-${statusColor}-100 flex items-center justify-center font-bold text-${statusColor}-700 text-xs shadow-sm`}>
-                                {contact.customer_name?.substring(0, 2).toUpperCase() || 'CX'}
-                              </div>
-                              <div>
-                                <p className="font-bold text-primary text-sm">{contact.customer_name || 'Desconocido'}</p>
-                                <p className={`text-[10px] font-bold text-${statusColor}-600 uppercase tracking-wider`}>{contact.status === 'interested' ? 'Interesado' : contact.status === 'chatting' ? 'En chat' : 'Comprador'}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <span className="text-xs text-slate-500 font-bold">{formatRelativeTime(contact.updated_at || contact.created_at, language)}</span>
-                          </td>
-                          <td className="px-8 py-6">
-                            <p className="text-xs text-slate-700 font-mono">{contact.phone_number}</p>
-                          </td>
-                          <td className="px-8 py-6">
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full min-w-[100px] overflow-hidden">
-                                <div className={`h-full bg-${confidence >= 85 ? 'emerald' : confidence >= 60 ? 'amber' : 'red'}-500 rounded-full`} style={{ width: `${confidence}%` }}></div>
-                              </div>
-                              <span className={`text-[10px] font-black text-${confidence >= 85 ? 'emerald' : confidence >= 60 ? 'amber' : 'red'}-600`}>{confidence}%</span>
-                            </div>
-                          </td>
-                          <td className="px-8 py-6 text-right">
-                            <button 
-                              onClick={() => {
-                                setSelectedChat(contact);
-                                setShowChartModal(true);
-                              }}
-                              className="p-2.5 text-slate-400 hover:text-primary-container hover:bg-primary-container/10 rounded-xl transition-all shadow-sm bg-white border border-slate-100"
-                            >
-                              <span className="material-symbols-outlined text-lg">forum</span>
-                            </button>
-                          </td>
-                        </tr>
-                        );
-                      })}
-                      {segDetailContacts.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-8 py-20 text-center text-slate-400">
-                            <div className="flex flex-col items-center gap-3">
-                              <span className="material-symbols-outlined text-5xl opacity-20">group_off</span>
-                              <p className="text-xs font-bold uppercase tracking-widest">
-                                {language === 'en' ? 'No contacts found in this segment' : 'No se encontraron contactos en este segmento'}
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="p-6 bg-slate-50/50 flex justify-between items-center border-t border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {language === 'en' ? `Showing ${pagedSegContacts.length} of ${segDetailContacts.length} contacts` : `Mostrando ${pagedSegContacts.length} de ${segDetailContacts.length} contactos`}
-                  </span>
-                  <div className="flex gap-2">
-                    <button onClick={() => setSegTablePage(p => Math.max(1, p - 1))} disabled={segTablePage <= 1} className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm disabled:opacity-30"><span className="material-symbols-outlined text-sm">chevron_left</span></button>
-                    {Array.from({ length: Math.min(totalSegPages, 5) }, (_, i) => i + 1).map(p => (
-                      <button key={p} onClick={() => setSegTablePage(p)} className={`px-4 py-2 text-[10px] font-black rounded-xl transition-all ${segTablePage === p ? 'bg-primary-container text-white shadow-lg shadow-primary-container/20' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>{p}</button>
-                    ))}
-                    <button onClick={() => setSegTablePage(p => Math.min(totalSegPages, p + 1))} disabled={segTablePage >= totalSegPages} className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all shadow-sm disabled:opacity-30"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </motion.div>
-        )}
-
         {/* ========== BILLING / PAGOS TAB ========== */}
         {activeTab === 'billing' && (
           <motion.div key="billing" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} transition={{ duration: 0.3 }} className="space-y-6">
@@ -16255,13 +15793,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             <section className="bg-white rounded-3xl border border-slate-50 shadow-sm overflow-hidden">
               <div className="px-10 py-8 flex justify-between items-center border-b border-slate-50">
                 <h4 className="text-xl font-black text-primary">{language === 'en' ? 'Top Performance Segments' : 'Segmentos de Mayor Rendimiento'}</h4>
-                <button 
-                  onClick={() => safeSetActiveTab('segments')}
-                  className="text-[10px] font-black text-primary-container uppercase tracking-widest flex items-center gap-2 hover:underline"
-                >
-                  {language === 'en' ? 'View All Segments' : 'Ver Todos los Segmentos'}
-                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
@@ -18972,7 +18503,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                   platform_name: curr.platform_name || 'Sovereign',
-                                  sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+                                  sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'analytics', 'admin'],
                                   tracking_pixels: adminTrackingPixels
                                 })
                               });
@@ -18995,45 +18526,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </motion.div>
         )}
 
-
-      {/* ========== NEW SEGMENT MODAL ========== */}
-      {showNewSegmentModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] flex items-center justify-center px-4" onClick={() => setShowNewSegmentModal(false)}>
-          <div className="bg-white rounded-2xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-violet-600 rounded-2xl mx-auto mb-4 flex items-center justify-center"><span className="material-symbols-outlined text-white text-2xl">add_circle</span></div>
-              <h3 className="text-lg font-extrabold text-primary">{language === 'en' ? 'Create New Segment' : 'Crear Nuevo Segmento'}</h3>
-              <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Define custom classification rules for your audience' : 'Define reglas de clasificación personalizadas para tu audiencia'}</p>
-            </div>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Segment Name' : 'Nombre del Segmento'}</label>
-                <input value={newSegName} onChange={e => setNewSegName(e.target.value)} placeholder={language === 'en' ? 'e.g. VIP Customers' : 'ej. Clientes VIP'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Description' : 'Descripción'}</label>
-                <input value={newSegDescription} onChange={e => setNewSegDescription(e.target.value)} placeholder={language === 'en' ? 'Brief description...' : 'Breve descripción...'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Keywords (comma separated)' : 'Palabras Clave (separadas por coma)'}</label>
-                <input value={newSegKeywords} onChange={e => setNewSegKeywords(e.target.value)} placeholder={language === 'en' ? 'buy, price, deal' : 'comprar, precio, oferta'} className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-slate-50 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">{language === 'en' ? 'Confidence Threshold' : 'Umbral de Confianza'}: {newSegConfidence}%</label>
-                <input type="range" min="50" max="100" value={newSegConfidence} onChange={e => setNewSegConfidence(Number(e.target.value))} className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-violet-500" />
-                <div className="flex justify-between text-[10px] text-slate-300 mt-1"><span>50%</span><span>100%</span></div>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowNewSegmentModal(false)} className="flex-1 py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all">{language === 'en' ? 'Cancel' : 'Cancelar'}</button>
-              <button onClick={handleCreateSegment} disabled={!newSegName.trim()} className="flex-1 py-3 bg-gradient-to-r from-violet-500 to-violet-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-violet-500/20 hover:opacity-90 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50">
-                <span className="material-symbols-outlined text-sm">add</span>
-                {language === 'en' ? 'Create Segment' : 'Crear Segmento'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========== EXPORT REPORT MODAL ========== */}
       {showExportModal && (

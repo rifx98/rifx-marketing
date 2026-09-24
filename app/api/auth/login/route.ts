@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
     let planPermissions: any = {
       trial: ["dashboard", "settings", "billing"],
       start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "segments", "analytics", "social", "appointments", "conversations", "orders"]
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders"]
     };
 
     try {

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         platform_name: 'Sovereign',
         platform_logo: null,
-        sidebar_order: ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'segments', 'analytics', 'admin'],
+        sidebar_order: ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'analytics', 'admin'],
         global_ai_config: { enabled: false, provider: '', model: '', apiKey: '' },
         tracking_pixels: { google_analytics: '', facebook_pixel: '', tiktok_pixel: '' }
       });

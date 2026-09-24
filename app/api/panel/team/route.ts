@@ -13,7 +13,7 @@ const VALID_ROLES = ['Administrador', 'Asesor', 'Supervisor'] as const;
 const ASSIGNABLE_SECTIONS = [
   'dashboard', 'crm', 'conversations', 'wa_campaigns', 'orders',
   'basic_bot', 'appointments', 'banners', 'campaigns', 'social',
-  'segments', 'analytics',
+  'analytics',
 ] as const;
 
 export async function GET(req: NextRequest) {

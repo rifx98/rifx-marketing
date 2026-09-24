@@ -19,7 +19,6 @@ const ASSIGNABLE_SECTIONS = [
   { key: 'banners', icon: 'palette', label: 'Pancartas' },
   { key: 'campaigns', icon: 'campaign', label: 'Pautas Publicitarias' },
   { key: 'social', icon: 'rocket_launch', label: 'OmniPublish' },
-  { key: 'segments', icon: 'pie_chart', label: 'Segmentos' },
   { key: 'analytics', icon: 'monitoring', label: 'Análisis' },
 ] as const;
 
