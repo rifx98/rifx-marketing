@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
           name,
           email,
           role: safeRole,
-          departments: { allowed_sections: safeSections },
+          departments: safeSections,
         }
       ])
       .select()
@@ -85,12 +85,12 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[Team POST] Error:', error);
-      return NextResponse.json({ error: 'Error al crear agente' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Error al crear agente' }, { status: 500 });
     }
 
     return NextResponse.json({ agent });
-  } catch (error) {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
   }
 }
 
@@ -124,7 +124,7 @@ export async function PATCH(req: NextRequest) {
       const safeSections = allowedSections.filter(
         (s: string) => (ASSIGNABLE_SECTIONS as readonly string[]).includes(s)
       );
-      updatePayload.departments = { allowed_sections: safeSections };
+      updatePayload.departments = safeSections;
     }
 
     if (Object.keys(updatePayload).length === 0) {
@@ -142,12 +142,12 @@ export async function PATCH(req: NextRequest) {
 
     if (error) {
       console.error('[Team PATCH] Error:', error);
-      return NextResponse.json({ error: 'Error al actualizar agente' }, { status: 500 });
+      return NextResponse.json({ error: error.message || 'Error al actualizar agente' }, { status: 500 });
     }
 
     return NextResponse.json({ agent });
-  } catch (error) {
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Error interno' }, { status: 500 });
   }
 }
 

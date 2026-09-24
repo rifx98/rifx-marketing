@@ -32,9 +32,16 @@ interface TeamAgent {
   email: string;
   role: string;
   status: string;
-  departments: { allowed_sections?: string[] } | null;
+  departments: string[] | { allowed_sections?: string[] } | null;
   created_at: string;
   updated_at: string;
+}
+
+function extractAllowedSections(dept: any): string[] {
+  if (!dept) return [];
+  if (Array.isArray(dept)) return dept;
+  if (Array.isArray(dept.allowed_sections)) return dept.allowed_sections;
+  return [];
 }
 
 // ---- Component ----
@@ -161,7 +168,7 @@ export default function TeamTab({ language }: { language: string }) {
   const openEditModal = (agent: TeamAgent) => {
     setEditingAgent(agent);
     setEditRole(agent.role);
-    setEditSections(agent.departments?.allowed_sections || []);
+    setEditSections(extractAllowedSections(agent.departments));
   };
 
   const toggleFormSection = (key: string) => {
@@ -197,9 +204,7 @@ export default function TeamTab({ language }: { language: string }) {
   };
 
   const getSectionCount = (agent: TeamAgent) => {
-    const sections = agent.departments?.allowed_sections;
-    if (!sections || !Array.isArray(sections)) return 0;
-    return sections.length;
+    return extractAllowedSections(agent.departments).length;
   };
 
   if (loading) {
