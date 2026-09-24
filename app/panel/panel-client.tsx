@@ -19531,6 +19531,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           </>
         )}
 
+        {/* ═══════════════════ TEAM TAB ═══════════════════ */}
+        {activeTab === 'team' && (<TeamTab language={language} />)}
+
           </>
         )}
         {activeTab === 'pricing' && (<PricingTab language={language} tenantData={tenantData} />)}
