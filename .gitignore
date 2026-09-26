@@ -35,8 +35,19 @@ public/debug/
 # Security audit and sensitive files
 *.audit
 *.secret
+*.token
+*.credentials
 .DS_Store
 Thumbs.db
 
+# Scratch and throwaway test scripts
+*.cjs
+!scripts/local_whatsapp_drain.cjs
+test_*.js
+test_*.mjs
+test_*.cjs
+scripts/update_*.mjs
+
 .vercel
 .env*
+!.env.example
