@@ -57,7 +57,21 @@ function mapAdAccounts(data: any): any[] {
     currency: String(account?.currency || ''),
     timezone: String(account?.timezone_name || ''),
     business: String(account?.business?.name || ''),
+    business_id: String(account?.business?.id || ''),
+    has_business_portfolio: !!account?.business?.id,
+    has_payment_method: !!(account?.funding_source_details?.id || account?.account_status === 1),
+    funding_source_type: account?.funding_source_details?.type || null,
+    funding_source_display: account?.funding_source_details?.display_string || null,
   })).filter((account: any) => account.id);
+}
+
+function mapBusinesses(data: any): any[] {
+  if (!Array.isArray(data?.data)) return [];
+  return data.data.slice(0, 50).map((b: any) => ({
+    id: String(b?.id || ''),
+    name: String(b?.name || ''),
+    verification_status: b?.verification_status || null,
+  })).filter((b: any) => b.id);
 }
 
 function mapPages(data: any): any[] {
@@ -73,30 +87,42 @@ function mapPages(data: any): any[] {
 
 async function listMetaAssets(accessToken: string, limit = 50) {
   const adAccountsUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/adaccounts`);
-  adAccountsUrl.searchParams.set('fields', 'id,name,account_status,currency,timezone_name,business{id,name}');
+  adAccountsUrl.searchParams.set('fields', 'id,name,account_status,currency,timezone_name,business{id,name},funding_source_details{id,display_string,type}');
   adAccountsUrl.searchParams.set('limit', String(limit));
 
   const pagesUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/accounts`);
   pagesUrl.searchParams.set('fields', 'id,name,category,fan_count,picture{url},whatsapp_number');
   pagesUrl.searchParams.set('limit', String(limit));
 
+  const businessesUrl = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/me/businesses`);
+  businessesUrl.searchParams.set('fields', 'id,name,verification_status');
+  businessesUrl.searchParams.set('limit', String(limit));
+
   const requestInit: RequestInit = { headers: { Authorization: `Bearer ${accessToken}` } };
-  const [adResponse, pagesResponse] = await Promise.all([
+  const [adResponse, pagesResponse, businessesResponse] = await Promise.all([
     graphFetch(adAccountsUrl, requestInit),
     graphFetch(pagesUrl, requestInit),
+    graphFetch(businessesUrl, requestInit).catch(() => null),
   ]);
-  const [adData, pagesData] = await Promise.all([
+  const [adData, pagesData, businessesData] = await Promise.all([
     responseJson(adResponse),
     responseJson(pagesResponse),
+    businessesResponse ? responseJson(businessesResponse) : null,
   ]);
 
   if (!adResponse.ok || adData?.error || !Array.isArray(adData?.data)) {
     throw new Error('META_ASSET_LOOKUP_FAILED');
   }
 
+  const adAccounts = mapAdAccounts(adData);
+  const businesses = businessesData && Array.isArray(businessesData?.data) ? mapBusinesses(businessesData) : [];
+  const hasBusinessPortfolio = businesses.length > 0 || adAccounts.some((a: any) => a.has_business_portfolio);
+
   return {
-    adAccounts: mapAdAccounts(adData),
+    adAccounts,
     pages: pagesResponse.ok && !pagesData?.error ? mapPages(pagesData) : [],
+    businesses,
+    hasBusinessPortfolio,
   };
 }
 
@@ -123,12 +149,14 @@ export async function GET(req: NextRequest) {
       return json({ error: 'Meta Ads no esta conectado para este tenant' }, 400);
     }
 
-    const { adAccounts, pages } = await listMetaAssets(accessToken);
+    const { adAccounts, pages, businesses, hasBusinessPortfolio } = await listMetaAssets(accessToken);
     return json({
       accessToken: SECRET_PLACEHOLDER,
       tokenConfigured: true,
       adAccounts,
       pages,
+      businesses,
+      hasBusinessPortfolio,
     });
   } catch {
     console.error('Meta asset lookup failed');
@@ -254,12 +282,14 @@ export async function POST(req: NextRequest) {
       .eq('tenant_id', tenant.tenantId);
     if (saveError) return json({ error: 'No se pudo guardar la conexion de Meta' }, 500);
 
-    const { adAccounts, pages } = await listMetaAssets(accessToken, 20);
+    const { adAccounts, pages, businesses, hasBusinessPortfolio } = await listMetaAssets(accessToken, 20);
     return json({
       accessToken: SECRET_PLACEHOLDER,
       tokenConfigured: true,
       adAccounts,
       pages,
+      businesses,
+      hasBusinessPortfolio,
       adAccountCount: adAccounts.length,
       pageCount: pages.length,
     });

@@ -1,3 +1,8 @@
+import dns from 'node:dns';
+try {
+  dns.setDefaultResultOrder?.('ipv4first');
+} catch {}
+
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 const contentSecurityPolicy = [

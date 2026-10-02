@@ -300,14 +300,25 @@ export const AuthComponent = ({
 
   const runWithLoadingSteps = async (action: () => Promise<void>) => {
     setModalStatus('loading');
-    const totalDuration = (modalSteps.length - 1) * TEXT_LOOP_INTERVAL * 1000;
+    const minDisplayDuration = 1200;
     try {
-      await Promise.all([
-        new Promise(r => setTimeout(r, totalDuration)),
-        action(),
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('La conexión tardó más de lo esperado. Por favor, intenta de nuevo.')), 7000)
+      );
+
+      await Promise.race([
+        Promise.all([
+          new Promise(r => setTimeout(r, minDisplayDuration)),
+          action(),
+        ]),
+        timeoutPromise,
       ]);
+
       fireSideCanons();
       setModalStatus('success');
+      setTimeout(() => {
+        setModalStatus('closed');
+      }, 1000);
     } catch (err: any) {
       setModalErrorMessage(err?.message || 'Error. Intenta de nuevo.');
       setModalStatus('error');
@@ -493,11 +504,20 @@ export const AuthComponent = ({
               <><AlertCircle className="w-12 h-12 text-red-400" /><p className="text-base font-medium text-white text-center">{modalErrorMessage}</p><GlassButton onClick={closeModal} size="sm" className="mt-2">Intentar de nuevo</GlassButton></>
             )}
             {modalStatus === 'loading' && (
-              <TextLoop interval={TEXT_LOOP_INTERVAL} stopOnEnd>
-                {modalSteps.slice(0, -1).map((s, i) => (
-                  <div key={i} className="flex flex-col items-center gap-4">{s.icon}<p className="text-base font-medium text-white">{s.message}</p></div>
-                ))}
-              </TextLoop>
+              <>
+                <TextLoop interval={TEXT_LOOP_INTERVAL} stopOnEnd>
+                  {modalSteps.slice(0, -1).map((s, i) => (
+                    <div key={i} className="flex flex-col items-center gap-4">{s.icon}<p className="text-base font-medium text-white">{s.message}</p></div>
+                  ))}
+                </TextLoop>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="mt-3 text-xs text-gray-400 hover:text-white underline transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </>
             )}
             {modalStatus === 'success' && (
               <div className="flex flex-col items-center gap-4">

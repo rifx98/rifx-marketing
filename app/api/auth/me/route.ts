@@ -10,14 +10,83 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
+    if (tenant.tenantId === 'admin-local-master') {
+      const allowedTabs = [
+        'dashboard', 'crm', 'brain', 'voice_agent', 'voice', 'settings',
+        'billing', 'playground', 'campaigns', 'wa_campaigns', 'banners',
+        'analytics', 'social', 'appointments', 'conversations', 'orders',
+        'team', 'admin', 'basic_bot'
+      ];
+      return NextResponse.json({
+        id: 'admin-local-master',
+        email: tenant.email || 'admin@rifx.com',
+        companyName: 'RIFX Marketing (Admin)',
+        ownerName: 'Administrador',
+        plan: 'master',
+        planStatus: 'active',
+        planStartedAt: new Date().toISOString(),
+        planExpiresAt: null,
+        pendingPlan: null,
+        ai_credits_balance: 999999,
+        storageLimitBytes: 10 * 1024 * 1024 * 1024,
+        storageUsedBytes: 0,
+        contactLimit: 100000,
+        isAdmin: true,
+        adminRole: 'full',
+        createdAt: new Date().toISOString(),
+        phone: null,
+        phoneVerified: true,
+        allowedTabs,
+        permissionOverrides: {},
+      }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+
     const supabase = createSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('*')
-      .eq('id', tenant.tenantId)
-      .single();
+    let data: any = null;
+    let error: any = null;
+    try {
+      const res = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('id', tenant.tenantId)
+        .single();
+      data = res.data;
+      error = res.error;
+    } catch (e: any) {
+      error = e;
+    }
 
     if (error || !data) {
+      if (tenant.isAdmin) {
+        const allowedTabs = [
+          'dashboard', 'crm', 'brain', 'voice_agent', 'voice', 'settings',
+          'billing', 'playground', 'campaigns', 'wa_campaigns', 'banners',
+          'analytics', 'social', 'appointments', 'conversations', 'orders',
+          'team', 'admin', 'basic_bot'
+        ];
+        return NextResponse.json({
+          id: tenant.tenantId,
+          email: tenant.email,
+          companyName: 'RIFX Marketing (Admin)',
+          ownerName: 'Administrador',
+          plan: 'master',
+          planStatus: 'active',
+          planStartedAt: new Date().toISOString(),
+          planExpiresAt: null,
+          pendingPlan: null,
+          ai_credits_balance: 999999,
+          storageLimitBytes: 10 * 1024 * 1024 * 1024,
+          storageUsedBytes: 0,
+          contactLimit: 100000,
+          isAdmin: true,
+          adminRole: 'full',
+          createdAt: new Date().toISOString(),
+          phone: null,
+          phoneVerified: true,
+          allowedTabs,
+          permissionOverrides: {},
+        }, { headers: { 'Cache-Control': 'no-store' } });
+      }
       console.error('/api/auth/me tenant lookup failed:', error?.code || 'not_found');
       return NextResponse.json({ error: 'Tenant no encontrado' }, { status: 404 });
     }

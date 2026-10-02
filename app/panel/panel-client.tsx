@@ -51,6 +51,8 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 import ThemeSettings from './theme-settings';
 import PricingTab from './PricingTab';
 import { parseFacebookOAuthBootstrap } from '@/lib/facebook-oauth-bootstrap';
+import { MetaSetupWizardModal } from './components/MetaSetupWizardModal';
+
 
 // OmniPublish V1 Imports
 import VideoUploader from '@/components/social/VideoUploader';
@@ -2813,6 +2815,132 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       return;
     }
 
+    if (value === '__open_meta_portfolio__') {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (language === 'en' ? '🏢 Configure Business Portfolio in Meta' : '🏢 Configurar Portafolio Comercial en Meta'),
+      }]);
+      setAgentIsTyping(true);
+      openMetaBusinessPortfolio();
+      setTimeout(() => {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? "I've opened Meta Business Suite in a new tab. There you can create your Business Portfolio and assign an Ad Account. Once ready, click 'Sync Accounts' below or open the Step-by-Step Wizard."
+            : "Abrí Meta Business Suite en otra pestaña para que crees o verifiques tu Portafolio Comercial. Una vez creado, pulsa 'Sincronizar Cuentas' abajo o abre el Asistente Paso a Paso para continuar:",
+          options: [
+            { label: language === 'en' ? '🔄 Sync Accounts' : '🔄 Sincronizar Cuentas', value: '__sync_meta_accounts__' },
+            { label: language === 'en' ? '💳 Configure Payments & Card' : '💳 Configurar Pagos y Tarjeta', value: '__open_meta_billing__' },
+            { label: language === 'en' ? '⚙️ Open Step-by-Step Wizard' : '⚙️ Abrir Asistente Paso a Paso', value: '__open_meta_wizard__' },
+            { label: language === 'en' ? '🚀 Start Campaign' : '🚀 Comenzar Anuncio', value: '__start_campaign__' },
+          ]
+        }]);
+        setAgentIsTyping(false);
+      }, 600);
+      return;
+    }
+
+    if (value === '__open_meta_billing__') {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (language === 'en' ? '💳 Configure Payments & Card' : '💳 Configurar Pagos y Tarjeta'),
+      }]);
+      setAgentIsTyping(true);
+      openOfficialFacebookBilling();
+      setTimeout(() => {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? "I've opened the Official Facebook Billing Portal. You can securely add your credit/debit card or PayPal directly with Meta's official encryption. When finished, confirm below:"
+            : "Abrí la Pasarela Oficial de Pagos de Facebook en una ventana emergente segura. Allí puedes agregar tu tarjeta bancaria o PayPal con el cifrado de Meta. Una vez que hayas agregado tu tarjeta, confirma aquí abajo:",
+          options: [
+            { label: language === 'en' ? '✅ Payment configured, continue' : '✅ Ya configuré mi tarjeta / pago', value: '__confirm_payment_ready__' },
+            { label: language === 'en' ? '⚙️ Open Step-by-Step Wizard' : '⚙️ Abrir Asistente Paso a Paso', value: '__open_meta_wizard__' },
+            { label: language === 'en' ? '🚀 Start Campaign' : '🚀 Comenzar Anuncio', value: '__start_campaign__' },
+          ]
+        }]);
+        setAgentIsTyping(false);
+      }, 600);
+      return;
+    }
+
+    if (value === '__confirm_payment_ready__') {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (language === 'en' ? '✅ Payment configured, continue' : '✅ Ya configuré mi tarjeta / pago'),
+      }]);
+      setAgentIsTyping(true);
+      setTimeout(() => {
+        setAgentMessages(prev => [...prev, {
+          id: Math.random().toString(),
+          sender: 'agent' as const,
+          text: language === 'en'
+            ? "Awesome! With your payment method ready, your ads will publish without interruptions. What is your primary marketing goal?"
+            : "¡Excelente! Con tu método de pago listo, tus anuncios se publicarán sin inconvenientes. ¿Cuál es el objetivo principal de tu campaña?",
+          options: [
+            { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
+            { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
+            { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
+          ]
+        }]);
+        setAgentIsTyping(false);
+      }, 500);
+      return;
+    }
+
+    if (value === '__open_meta_wizard__') {
+      setShowMetaWizardModal(true);
+      return;
+    }
+
+    if (value === '__sync_meta_accounts__') {
+      setAgentMessages(prev => [...prev, {
+        id: Math.random().toString(),
+        sender: 'user' as const,
+        text: optionLabel || (language === 'en' ? '🔄 Sync Accounts' : '🔄 Sincronizar Cuentas'),
+      }]);
+      setAgentIsTyping(true);
+      fetchMetaAccountsLive().then(data => {
+        const found = data?.adAccounts || [];
+        setTimeout(() => {
+          if (found.length > 0) {
+            setAgentMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              sender: 'agent' as const,
+              text: language === 'en'
+                ? `Great news! Found ${found.length} Meta Ad Account(s). Select which account to use:`
+                : `¡Excelente! Se detectaron ${found.length} cuenta(s) publicitaria(s) en Meta. Elige cuál deseas utilizar:`,
+              options: found.map((acc: any) => ({
+                label: `💼 ${acc.name || acc.id}`,
+                value: `__select_meta_ad_account__:${acc.id}`
+              }))
+            }]);
+          } else {
+            setAgentMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              sender: 'agent' as const,
+              text: language === 'en'
+                ? "No ad accounts detected yet. You can open Meta Business Suite to create one, or use our Step-by-Step Wizard."
+                : "Aún no se detectaron cuentas publicitarias. Puedes abrir Meta Business Suite para crearla o abrir nuestro Asistente Paso a Paso:",
+              options: [
+                { label: language === 'en' ? '🏢 Configure Business Portfolio in Meta' : '🏢 Configurar Portafolio Comercial en Meta', value: '__open_meta_portfolio__' },
+                { label: language === 'en' ? '⚙️ Open Step-by-Step Wizard' : '⚙️ Abrir Asistente Paso a Paso', value: '__open_meta_wizard__' },
+                { label: language === 'en' ? '🔄 Sync Again' : '🔄 Sincronizar de Nuevo', value: '__sync_meta_accounts__' },
+                { label: language === 'en' ? '➡️ Continue without account' : '➡️ Continuar sin cuenta', value: '__continue_after_meta_check__' },
+              ]
+            }]);
+          }
+          setAgentIsTyping(false);
+        }, 500);
+      });
+      return;
+    }
+
     if (value === '__start_campaign__') {
       setAgentMessages(prev => [...prev, {
         id: Math.random().toString(),
@@ -2827,22 +2955,38 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           : (configData.facebook_ad_account_id ? [{ id: configData.facebook_ad_account_id, name: configData.meta_ad_account_name || configData.facebook_ad_account_id }] : []);
 
         setTimeout(() => {
-          setAgentMessages(prev => [...prev, {
-            id: Math.random().toString(),
-            sender: 'agent' as const,
-            text: language === 'en'
-              ? "¿Which Meta Ad Account would you like to use for this campaign?"
-              : "¿Qué cuenta publicitaria deseas utilizar para este anuncio?",
-            options: availableAccounts.length > 0
-              ? availableAccounts.map((acc: any) => ({
+          if (availableAccounts.length > 0) {
+            setAgentMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              sender: 'agent' as const,
+              text: language === 'en'
+                ? "¿Which Meta Ad Account would you like to use for this campaign?"
+                : "¿Qué cuenta publicitaria deseas utilizar para este anuncio?",
+              options: [
+                ...availableAccounts.map((acc: any) => ({
                   label: `💼 ${acc.name || acc.id}`,
                   value: `__select_meta_ad_account__:${acc.id}`
-                }))
-              : [
-                  { label: language === 'en' ? '🔗 Connect Meta Ads' : '🔗 Conectar Meta Ads', value: '__connect_meta__' },
-                  { label: language === 'en' ? '➡️ Continue without account' : '➡️ Continuar sin cuenta', value: '__continue_after_meta_check__' }
-                ]
-          }]);
+                })),
+                { label: language === 'en' ? '💳 Configure Account Payments' : '💳 Configurar Pagos en Facebook', value: '__open_meta_billing__' },
+                { label: language === 'en' ? '⚙️ Open Setup Wizard' : '⚙️ Abrir Asistente de Configuración', value: '__open_meta_wizard__' },
+              ]
+            }]);
+          } else {
+            setAgentMessages(prev => [...prev, {
+              id: Math.random().toString(),
+              sender: 'agent' as const,
+              text: language === 'en'
+                ? "⚠️ No Meta Ad Account or Business Portfolio detected yet for this Facebook profile. How would you like to proceed?"
+                : "⚠️ No se detectó ninguna Cuenta Publicitaria ni Portafolio Comercial vinculado a este perfil de Facebook. ¿Cómo deseas proceder?",
+              options: [
+                { label: language === 'en' ? '🏢 Configure Business Portfolio in Meta' : '🏢 Configurar Portafolio Comercial en Meta', value: '__open_meta_portfolio__' },
+                { label: language === 'en' ? '💳 Configure Payments & Card' : '💳 Configurar Pagos y Facturación', value: '__open_meta_billing__' },
+                { label: language === 'en' ? '⚙️ Open Step-by-Step Wizard' : '⚙️ Abrir Asistente Paso a Paso', value: '__open_meta_wizard__' },
+                { label: language === 'en' ? '🔄 Sync Accounts' : '🔄 Sincronizar Cuentas', value: '__sync_meta_accounts__' },
+                { label: language === 'en' ? '➡️ Continue without account' : '➡️ Continuar sin cuenta', value: '__continue_after_meta_check__' },
+              ]
+            }]);
+          }
           setAgentIsTyping(false);
         }, 500);
       };
@@ -2889,16 +3033,19 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             id: Math.random().toString(),
             sender: 'agent' as const,
             text: language === 'en'
-              ? `Account selected: "${account.name}".\n\nNow, which Facebook Page will run the advertising?`
-              : `Cuenta seleccionada: "${account.name}".\n\nAhora, ¿a qué página de Facebook se va a realizar la publicidad?`,
-            options: availablePages.length > 0
-              ? availablePages.map((page: any) => ({
-                  label: `📄 ${page.name || page.id}`,
-                  value: `__select_meta_page__:${page.id}`
-                }))
-              : [
-                  { label: language === 'en' ? '➡️ Continue with current Page' : '➡️ Continuar con la página actual', value: `__select_meta_page__:${configData.facebook_page_id || 'default'}` }
-                ]
+              ? `Account selected: "${account.name}".\n\nNow, which Facebook Page will run the advertising?\n\n💡 *Tip:* If this is a new account, configure payments so your ads deliver without issues.`
+              : `Cuenta seleccionada: "${account.name}".\n\nAhora, ¿a qué página de Facebook se va a realizar la publicidad?\n\n💡 *Consejo:* Si es una cuenta nueva, puedes configurar tu tarjeta en Facebook antes de publicar.`,
+            options: [
+              ...(availablePages.length > 0
+                ? availablePages.map((page: any) => ({
+                    label: `📄 ${page.name || page.id}`,
+                    value: `__select_meta_page__:${page.id}`
+                  }))
+                : [
+                    { label: language === 'en' ? '➡️ Continue with current Page' : '➡️ Continuar con la página actual', value: `__select_meta_page__:${configData.facebook_page_id || 'default'}` }
+                  ]),
+              { label: language === 'en' ? '💳 Configure Account Payments' : '💳 Configurar Pagos de esta Cuenta', value: '__open_meta_billing__' },
+            ]
           }]);
           setAgentIsTyping(false);
         }, 500);
@@ -2915,6 +3062,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }
       return;
     }
+
 
     if (value.startsWith('__select_meta_page__:')) {
       const pageId = value.replace('__select_meta_page__:', '');
@@ -4675,6 +4823,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // esperar los datos reales de conexion.
   const [configReady, setConfigReady] = useState(false);
 
+  const [metaFbToken, setMetaFbToken] = useState('');
+  const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
+  const [metaPages, setMetaPages] = useState<any[]>([]);
+  const [metaBusinesses, setMetaBusinesses] = useState<any[]>([]);
+  const [metaHasPortfolio, setMetaHasPortfolio] = useState<boolean | null>(null);
+  const [metaShowPicker, setMetaShowPicker] = useState(false);
+  const [showMetaWizardModal, setShowMetaWizardModal] = useState(false);
+
   // Salvavidas: si /api/panel/config no responde en 5s (falla de red no
   // capturada, etc.) igual dejamos que el saludo se arme en vez de quedar
   // "escribiendo..." para siempre.
@@ -4683,58 +4839,81 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     return () => clearTimeout(fallback);
   }, []);
 
-  // Saludo inicial del Agente de Meta Ads - espera a que configReady sea true
-  // (el fetch de configuracion ya resolvio) para no mostrar un estado de
-  // conexion Meta vacio por una condicion de carrera con ese fetch.
+  // Saludo inicial del Agente de Meta Ads - detecta con precisión portafolio comercial y métodos de pago
   React.useEffect(() => {
-    if (showMarketingAgent && agentMessages.length === 0 && !greetingSentRef.current && configReady) {
+    const isInitialGreeting = agentMessages.length === 0 || (agentMessages.length === 1 && (agentMessages[0]?.id === 'meta-check' || agentMessages[0]?.id === '1'));
+    if (showMarketingAgent && isInitialGreeting && configReady) {
       setAgentIsTyping(true);
       const timer = setTimeout(() => {
         greetingSentRef.current = true;
-        const isMetaConnected = !!(configData.facebook_access_token && configData.facebook_ad_account_id);
-        const goalOptions = [
-          { label: language === 'en' ? "🏪 Attract clients to my Local Store" : "🏪 Atraer clientes a mi Local Físico", value: 'local' },
-          { label: language === 'en' ? "💬 Drive Sales via WhatsApp" : "💬 Recibir mensajes y vender por WhatsApp", value: 'whatsapp' },
-          { label: language === 'en' ? "🌐 Sell from my Website" : "🌐 Vender desde mi Página Web o tienda online", value: 'web' },
-        ];
+        const hasToken = !!configData.facebook_access_token;
+        const hasAccount = !!configData.facebook_ad_account_id;
 
-        if (!isMetaConnected) {
+        if (!hasToken) {
+          // Caso 1: Perfil de Facebook no vinculado
           setAgentMessages([
             {
               id: 'meta-check',
               sender: 'agent',
               text: language === 'en'
-                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent.\n\nBefore we start: you haven't connected a Meta Ads account yet, so I don't know which Page or Ad Account (portfolio) to publish to. Connect it now, or continue and connect it later before publishing."
-                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads.\n\nAntes de empezar: todavía no conectaste una cuenta de Meta Ads, así que no sé en qué Página ni Cuenta Publicitaria (portafolio) publicar. Conectala ahora, o seguí y conectala más tarde antes de publicar.",
+                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent.\n\nBefore we start: you haven't linked your Meta Ads account yet. Connect it now to automatically detect your pages and ad accounts, or continue and connect later."
+                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads.\n\nAntes de empezar: todavía no vinculaste tu cuenta de Facebook o Meta Ads. Conéctala ahora para sincronizar tus páginas y cuentas publicitarias, o continúa y conéctala más tarde.",
               options: [
                 { label: language === 'en' ? '🔗 Connect Meta Ads now' : '🔗 Conectar Meta Ads ahora', value: '__connect_meta__' },
+                { label: language === 'en' ? '⚙️ Step-by-Step Wizard' : '⚙️ Asistente Paso a Paso', value: '__open_meta_wizard__' },
                 { label: language === 'en' ? '➡️ Continue without connecting' : '➡️ Continuar sin conectar', value: '__continue_after_meta_check__' },
               ]
             }
           ]);
-        } else {
+        } else if (!hasAccount && metaAdAccounts.length === 0) {
+          // Caso 2: Facebook vinculado pero SIN portafolio comercial ni cuenta publicitaria configurada
           if (metaAdAccounts.length === 0) {
             fetchMetaAccountsLive();
           }
           setAgentMessages([
             {
+              id: 'meta-check',
+              sender: 'agent',
+              text: language === 'en'
+                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent.\n\n⚠️ **Notice:** Your Facebook account is connected, but **you don't have a Business Portfolio (Portafolio Comercial) or Ad Account configured** in Meta yet.\n\n💡 To run ads, Meta requires a Business Portfolio and an active payment method (card or PayPal). Configure it now or open the guided wizard:"
+                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads.\n\n⚠️ **Atención:** Detecté que tu cuenta de Facebook está vinculada, pero **todavía no tienes configurado tu Portafolio Comercial ni una Cuenta Publicitaria** en Meta Ads para publicar anuncios.\n\n💡 Para poder pautar necesitas tener creado tu Portafolio Comercial en Meta y configurar tus métodos de pago (tarjeta/facturación). Puedes configurarlo ahora de forma guiada:",
+              options: [
+                { label: language === 'en' ? '🏢 Configure Business Portfolio in Meta' : '🏢 Configurar Portafolio Comercial en Meta', value: '__open_meta_portfolio__' },
+                { label: language === 'en' ? '💳 Configure Payments & Card' : '💳 Configurar Pagos y Tarjeta', value: '__open_meta_billing__' },
+                { label: language === 'en' ? '⚙️ Open Step-by-Step Wizard' : '⚙️ Abrir Asistente Paso a Paso', value: '__open_meta_wizard__' },
+                { label: language === 'en' ? '🔄 Sync Accounts' : '🔄 Sincronizar Cuentas', value: '__sync_meta_accounts__' },
+                { label: language === 'en' ? '➡️ Continue without account' : '➡️ Continuar sin cuenta', value: '__continue_after_meta_check__' },
+              ]
+            }
+          ]);
+        } else {
+          // Caso 3: Facebook conectado y cuenta publicitaria lista
+          if (metaAdAccounts.length === 0) {
+            fetchMetaAccountsLive();
+          }
+          const accName = configData.meta_ad_account_name || configData.facebook_ad_account_id;
+          const pgName = configData.meta_page_name || (language === 'en' ? 'Default Page' : 'Página seleccionada');
+          setAgentMessages([
+            {
               id: '1',
               sender: 'agent',
               text: language === 'en'
-                ? "Hi! 🤖 I'm your Meta Ads AI Marketing Agent. Shall we start creating your ad?"
-                : "¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. ¿Comenzamos con tu anuncio publicitario?",
+                ? `Hi! 🤖 I'm your Meta Ads AI Marketing Agent. Shall we start creating your ad?\n\n💼 **Ad Account:** "${accName}"\n📄 **Page:** "${pgName}"\n\n💡 *Tip for new users:* If you haven't added a payment card to this Meta account yet, configure payments now so your ads deliver without issues.`
+                : `¡Hola! 🤖 Soy tu Agente Experto en Meta Ads. ¿Comenzamos con tu anuncio publicitario?\n\n💼 **Cuenta Publicitaria:** "${accName}"\n📄 **Página:** "${pgName}"\n\n💡 *Para nuevos usuarios:* Si todavía no agregaste una tarjeta a esta cuenta, puedes configurar tus pagos en Meta para que tu anuncio se active de inmediato.`,
               options: [
-                { label: language === 'en' ? "🚀 Start" : "🚀 Comenzar", value: '__start_campaign__' }
+                { label: language === 'en' ? "🚀 Start Campaign" : "🚀 Comenzar Anuncio", value: '__start_campaign__' },
+                { label: language === 'en' ? "💳 Configure Meta Payments" : "💳 Configurar Pagos en Meta", value: '__open_meta_billing__' },
+                { label: language === 'en' ? "⚙️ Full Setup Wizard" : "⚙️ Asistente de Configuración", value: '__open_meta_wizard__' },
+                { label: language === 'en' ? "🔄 Change Account / Page" : "🔄 Cambiar cuenta/página", value: '__start_campaign__' },
               ]
             }
           ]);
         }
         setAgentIsTyping(false);
-      }, 800);
+      }, 500);
       return () => clearTimeout(timer);
     }
-
-  }, [showMarketingAgent, agentMessages.length, language, configReady, configData.facebook_access_token, configData.facebook_ad_account_id, configData.meta_page_name, configData.meta_ad_account_name]);
+  }, [showMarketingAgent, language, configReady, configData.facebook_access_token, configData.facebook_ad_account_id, configData.meta_page_name, configData.meta_ad_account_name, metaAdAccounts.length]);
 
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
   const [showWhatsappPanel, setShowWhatsappPanel] = useState(false);
@@ -4869,10 +5048,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [waFbToken, setWaFbToken] = useState('');
   const [waPhoneOptions, setWaPhoneOptions] = useState<any[]>([]);
   const [waShowPhonePicker, setWaShowPhonePicker] = useState(false);
-  const [metaFbToken, setMetaFbToken] = useState('');
-  const [metaAdAccounts, setMetaAdAccounts] = useState<any[]>([]);
-  const [metaPages, setMetaPages] = useState<any[]>([]);
-  const [metaShowPicker, setMetaShowPicker] = useState(false);
 
   // Selectores de cuenta/pagina en la barra superior de Pautas Publicitarias
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
@@ -4890,6 +5065,45 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     }
   };
 
+  // Abre la pasarela oficial y segura de Facebook Billing para agregar/configurar tarjeta
+  const openOfficialFacebookBilling = (accountId?: string) => {
+    const rawId = accountId || configData.facebook_ad_account_id || '';
+    const cleanId = String(rawId).replace(/^act_/, '');
+    const w = 800, h = 750;
+    const left = window.screen.width / 2 - w / 2;
+    const top = window.screen.height / 2 - h / 2;
+    const url = cleanId
+      ? `https://adsmanager.facebook.com/ads/manager/billing/payment_methods/?act=${cleanId}`
+      : 'https://adsmanager.facebook.com/ads/manager/billing/payment_methods/';
+
+    const popup = window.open(
+      url,
+      'meta_billing_popup',
+      `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,status=no,toolbar=no,menubar=no`
+    );
+    if (!popup) {
+      window.open(url, '_blank');
+    }
+    setToast({
+      type: 'info',
+      message: language === 'en'
+        ? 'Opened official Facebook Billing portal. Add or verify your payment method there securely.'
+        : 'Se abrió la pasarela oficial de facturación de Facebook. Agrega o verifica tu tarjeta allí con total seguridad.',
+    });
+  };
+
+  // Abre el creador de cuenta publicitaria / portafolio comercial en Meta Business Suite
+  const openMetaBusinessPortfolio = () => {
+    const url = 'https://business.facebook.com/overview';
+    window.open(url, '_blank');
+    setToast({
+      type: 'info',
+      message: language === 'en'
+        ? 'Opened Meta Business Suite to configure your Business Portfolio.'
+        : 'Se abrió Meta Business Suite para configurar tu Portafolio Comercial y cuenta publicitaria.',
+    });
+  };
+
   const selectAccountFromBar = async (account: any) => {
     setShowAccountDropdown(false);
     const currentPage = metaPages.find((p: any) => String(p.id) === String(configData.facebook_page_id)) || (configData.facebook_page_id ? { id: configData.facebook_page_id, name: configData.meta_page_name } : null);
@@ -4902,7 +5116,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     await handleSelectMetaAccount(currentAccount, page);
   };
 
-  const fetchMetaAccountsLive = async (): Promise<{ adAccounts: any[]; pages: any[] } | null> => {
+  const fetchMetaAccountsLive = async (): Promise<{ adAccounts: any[]; pages: any[]; businesses?: any[]; hasBusinessPortfolio?: boolean } | null> => {
     try {
       const res = await authFetch('/api/panel/meta/facebook-connect');
       const data = await res.json();
@@ -4912,7 +5126,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }
       setMetaAdAccounts(data.adAccounts || []);
       setMetaPages(data.pages || []);
-      return { adAccounts: data.adAccounts || [], pages: data.pages || [] };
+      setMetaBusinesses(data.businesses || []);
+      const hasPortfolio = typeof data.hasBusinessPortfolio === 'boolean'
+        ? data.hasBusinessPortfolio
+        : (data.adAccounts?.some((a: any) => a.has_business_portfolio) ?? false);
+      setMetaHasPortfolio(hasPortfolio);
+      return {
+        adAccounts: data.adAccounts || [],
+        pages: data.pages || [],
+        businesses: data.businesses || [],
+        hasBusinessPortfolio: hasPortfolio,
+      };
     } catch (e: any) {
       setToast({ message: e.message || 'Error consultando cuentas de Meta', type: 'error' });
       return null;
@@ -6067,24 +6291,36 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   const handleLoginViaAuthComponent = async (email: string, password: string) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setFailedLoginAttempts(prev => prev + 1);
-      if (res.status === 429) {
-        throw new Error(`429:${data.error || 'Demasiados intentos'}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6500);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFailedLoginAttempts(prev => prev + 1);
+        if (res.status === 429) {
+          throw new Error(`429:${data.error || 'Demasiados intentos'}`);
+        }
+        throw new Error(data.error || 'Email o contraseña incorrectos');
       }
-      throw new Error(data.error || 'Email o contraseña incorrectos');
+      setFailedLoginAttempts(0);
+      setAuthToken('cookie-session');
+      setTenantData(data.tenant);
+      setCurrentPlan(data.tenant.plan || 'trial');
+      setIsLoggedIn(true);
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('La conexión tardó más de lo esperado. Por favor verifica tu red e intenta de nuevo.');
+      }
+      throw err;
     }
-    setFailedLoginAttempts(0);
-    setAuthToken('cookie-session');
-    setTenantData(data.tenant);
-    setCurrentPlan(data.tenant.plan || 'trial');
-    setIsLoggedIn(true);
   };
 
   const handleRegisterViaAuthComponent = async (email: string, password: string, acceptedTerms: boolean, companyName: string) => {
@@ -12848,6 +13084,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           {configData.meta_page_name || configData.facebook_page_id ? ` · ${configData.meta_page_name || configData.facebook_page_id}` : ''}
                         </p>
                       </>
+                    ) : configData.facebook_access_token ? (
+                      <>
+                        <p className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                          {language === 'en' ? 'Missing Commercial Portfolio' : 'Falta Portafolio Comercial'}
+                        </p>
+                        <p className="text-[10px] text-amber-700">{language === 'en' ? 'Configure Business Portfolio and payments in Meta' : 'Configura tu Portafolio Comercial y pagos en Meta'}</p>
+                      </>
                     ) : (
                       <>
                         <p className="text-xs font-bold text-[#0b1c30] flex items-center gap-1.5">
@@ -12940,6 +13184,57 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </div>
                       )}
                     </div>
+                    {/* Botón rápido de pagos */}
+                    <button
+                      type="button"
+                      onClick={() => openOfficialFacebookBilling()}
+                      className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg hover:bg-emerald-100 transition-all cursor-pointer"
+                      title={language === 'en' ? 'Configure payments and card in Meta' : 'Configurar pagos y tarjeta en Meta'}
+                    >
+                      <span className="material-symbols-outlined text-sm">credit_card</span>
+                      <span className="hidden sm:inline">{language === 'en' ? 'Billing' : 'Pagos'}</span>
+                    </button>
+                    {/* Botón rápido del asistente */}
+                    <button
+                      type="button"
+                      onClick={() => setShowMetaWizardModal(true)}
+                      className="flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer"
+                      title={language === 'en' ? 'Open Step-by-Step Meta Wizard' : 'Abrir Asistente Paso a Paso'}
+                    >
+                      <span className="material-symbols-outlined text-sm">tune</span>
+                      <span className="hidden sm:inline">{language === 'en' ? 'Wizard' : 'Asistente'}</span>
+                    </button>
+                    <button onClick={handleMetaDisconnect} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-100/50 transition-all">
+                      {language === 'en' ? 'Disconnect' : 'Desconectar'}
+                    </button>
+                  </div>
+                ) : configData.facebook_access_token ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={openMetaBusinessPortfolio}
+                      className="text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">add_business</span>
+                      {language === 'en' ? 'Set up Portfolio' : 'Configurar Portafolio'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openOfficialFacebookBilling()}
+                      className="text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">credit_card</span>
+                      {language === 'en' ? 'Billing' : 'Pagos'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowMetaWizardModal(true)}
+                      className="text-xs font-bold text-white px-3 py-1.5 rounded-lg transition-opacity flex items-center gap-1 cursor-pointer"
+                      style={{ background: 'linear-gradient(135deg, #1877F2 0%, #054ADA 100%)' }}
+                    >
+                      <span className="material-symbols-outlined text-sm">tune</span>
+                      {language === 'en' ? 'Setup Wizard' : 'Asistente Meta'}
+                    </button>
                     <button onClick={handleMetaDisconnect} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-red-100/50 transition-all">
                       {language === 'en' ? 'Disconnect' : 'Desconectar'}
                     </button>
@@ -20738,6 +21033,23 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setToast={setToast}
         teamAgents={teamAgentsList}
         contacts={allContacts}
+      />
+
+      {/* Meta Setup & Payments Wizard Modal */}
+      <MetaSetupWizardModal
+        isOpen={showMetaWizardModal}
+        onClose={() => setShowMetaWizardModal(false)}
+        language={language}
+        configData={configData}
+        setConfigData={setConfigData}
+        metaAdAccounts={metaAdAccounts}
+        setMetaAdAccounts={setMetaAdAccounts}
+        authFetch={authFetch}
+        setToast={setToast}
+        handleMetaFacebookLogin={handleMetaFacebookLogin}
+        onFinish={() => {
+          fetchMetaAccountsLive();
+        }}
       />
 
     </>

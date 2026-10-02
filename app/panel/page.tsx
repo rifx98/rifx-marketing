@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
-import PanelLoader from './panel-loader';
+import PanelClient from './panel-client';
 
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Panel de Control IA | RIFX Marketing',
@@ -8,7 +9,8 @@ export const metadata: Metadata = {
 };
 
 export default function PanelPage() {
-  return <PanelLoader />;
+  return <PanelClient />;
 }
+
 
 
