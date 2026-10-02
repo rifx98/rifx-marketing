@@ -1,0 +1,27 @@
+{
+  "35e485ad-f7fa-4680-9792-fa131be7cc3f": [
+    {
+      "id": "bk_1790804661250_d5map",
+      "tenantId": "35e485ad-f7fa-4680-9792-fa131be7cc3f",
+      "title": "Objeción: Muy Caro",
+      "content": "Si el cliente dice que el servicio es muy caro, no bajes el precio. Explica que la implementación incluye garantía de 30 días, soporte 24/7 y que el retorno de inversión promedio es de 3.5x en el primer mes.",
+      "category": "objections",
+      "active": true,
+      "createdAt": "2026-09-30T21:44:21.249Z",
+      "updatedAt": "2026-09-30T21:44:21.249Z"
+    }
+  ],
+  "26db5d82-84e2-4af5-9458-add284631021": [
+    {
+      "id": "bk_1790804926028_mr3op",
+      "tenantId": "26db5d82-84e2-4af5-9458-add284631021",
+      "title": "Garantia de Satisfaccion 100%",
+      "content": "Si un cliente duda en comprar en la llamada o chat, recuerdale que tiene garantia de devolucion total en los primeros 15 dias.",
+      "category": "objections",
+      "active": true,
+      "createdAt": "2026-09-30T21:48:46.028Z",
+      "updatedAt": "2026-09-30T21:48:46.028Z"
+    }
+  ],
+  "test-admin-tenant": []
+}

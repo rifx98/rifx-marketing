@@ -13,13 +13,14 @@ export type PanelFeature =
   | 'wa_campaigns'
   | 'flow_builder'
   | 'ai_premium'
-  | 'team';
+  | 'team'
+  | 'voice_agent';
 
 const PLAN_FEATURES: Readonly<Record<string, ReadonlySet<PanelFeature>>> = {
-  trial: new Set<PanelFeature>(),
-  start: new Set<PanelFeature>(['crm', 'playground', 'orders', 'team', 'flow_builder']),
-  plus: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'appointments', 'analytics', 'orders', 'team', 'flow_builder', 'wa_campaigns']),
-  master: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'campaigns', 'appointments', 'analytics', 'orders', 'team', 'flow_builder', 'wa_campaigns', 'ai_premium']),
+  trial: new Set<PanelFeature>(['voice_agent']), // Permitir probar llamadas de prueba en trial
+  start: new Set<PanelFeature>(['crm', 'playground', 'orders', 'team', 'flow_builder', 'voice_agent']),
+  plus: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'appointments', 'analytics', 'orders', 'team', 'flow_builder', 'wa_campaigns', 'voice_agent']),
+  master: new Set<PanelFeature>(['crm', 'playground', 'banners', 'social', 'campaigns', 'appointments', 'analytics', 'orders', 'team', 'flow_builder', 'wa_campaigns', 'ai_premium', 'voice_agent']),
 };
 
 function normalizedPlan(plan: string | undefined): string {

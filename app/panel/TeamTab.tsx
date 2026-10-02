@@ -11,6 +11,7 @@ const VALID_ROLES = [
 const ASSIGNABLE_SECTIONS = [
   { key: 'dashboard', icon: 'dashboard', label: 'Panel Principal' },
   { key: 'crm', icon: 'group', label: 'Usuarios / CRM' },
+  { key: 'brain', icon: 'neurology', label: 'Cerebro IA' },
   { key: 'conversations', icon: 'sms', label: 'Conversaciones' },
   { key: 'wa_campaigns', icon: 'campaign', label: 'Campañas WA' },
   { key: 'orders', icon: 'receipt_long', label: 'Pedidos' },

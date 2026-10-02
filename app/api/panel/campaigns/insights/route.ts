@@ -29,6 +29,16 @@ function shortText(value: unknown, maxLength = 120): string {
 function heuristicInsights(kpis: any, platformBreakdown: any[], topCreatives: any[]): InsightItem[] {
   const insights: InsightItem[] = [];
 
+  const conversations = parseFloat(kpis?.conversations || '0');
+  const costPerConv = parseFloat(kpis?.costPerConversation || kpis?.cpa || '0');
+  if (conversations > 0) {
+    insights.push({
+      message: `Tus campañas han generado ${conversations} conversaciones con clientes a $${costPerConv > 0 ? costPerConv.toFixed(2) : '0.00'} por contacto. ¡Excelente volumen de captación por chat!`,
+      metric: `${conversations} conversaciones | $${costPerConv > 0 ? costPerConv.toFixed(2) : '0.00'}/conv`,
+      confidence: 'Alta Confianza',
+    });
+  }
+
   const sortedPlatforms = [...(platformBreakdown || [])]
     .filter(p => parseInt(p.impressions || '0') > 0)
     .sort((a, b) => parseFloat(b.percentage) - parseFloat(a.percentage));
@@ -57,7 +67,7 @@ function heuristicInsights(kpis: any, platformBreakdown: any[], topCreatives: an
 
   const cpa = parseFloat(kpis?.cpa || '0');
   const spend = parseFloat(kpis?.spend || '0');
-  if (spend > 0) {
+  if (spend > 0 && conversations === 0) {
     insights.push({
       message: cpa > 0
         ? `El costo por conversion actual es de $${kpis.cpa}. Compara este numero con el valor promedio de tu cliente para saber si la campana es rentable.`
@@ -106,6 +116,8 @@ export async function POST(req: NextRequest) {
       cpa: metric(sourceKpis.cpa),
       roas: metric(sourceKpis.roas),
       conversions: metric(sourceKpis.conversions),
+      conversations: metric(sourceKpis.conversations),
+      costPerConversation: metric(sourceKpis.costPerConversation),
     };
     const platformBreakdown = (Array.isArray(bodyResult.body.platformBreakdown)
       ? bodyResult.body.platformBreakdown
@@ -128,6 +140,7 @@ export async function POST(req: NextRequest) {
         ctr: metric(item.ctr),
         spend: metric(item.spend),
         conversions: metric(item.conversions),
+        conversations: metric(item.conversations),
       }));
 
     const supabase = createSupabaseAdmin();
@@ -162,15 +175,17 @@ KPIs de la cuenta (periodo seleccionado):
 - Clics: ${kpis.clicks}
 - CTR: ${kpis.ctr}%
 - CPC: $${kpis.cpc}
-- CPA: $${kpis.cpa}
+- Conversaciones generadas (WhatsApp / Mensajería): ${kpis.conversations || kpis.conversions}
+- Costo por conversación: $${kpis.costPerConversation || kpis.cpa}
+- Total Conversiones: ${kpis.conversions}
+- CPA (Costo por conversión total): $${kpis.cpa}
 - ROAS: ${kpis.roas}x
-- Conversiones: ${kpis.conversions}
 
 Desglose por plataforma:
 ${(platformBreakdown || []).map((p: any) => `- ${p.platform}: ${p.percentage}% de impresiones, $${p.spend} de gasto`).join('\n') || '(sin datos)'}
 
 Top anuncios por impresiones:
-${(topCreatives || []).slice(0, 5).map((c: any) => `- "${c.name}": CTR ${c.ctr}%, gasto $${c.spend}, conversiones ${c.conversions}`).join('\n') || '(sin datos)'}
+${(topCreatives || []).slice(0, 5).map((c: any) => `- "${c.name}": CTR ${c.ctr}%, gasto $${c.spend}, conversiones/conversaciones ${c.conversations || c.conversions}`).join('\n') || '(sin datos)'}
 `.trim();
 
     const completion = await groq.chat.completions.create({
@@ -178,10 +193,10 @@ ${(topCreatives || []).slice(0, 5).map((c: any) => `- "${c.name}": CTR ${c.ctr}%
       messages: [
         {
           role: 'system',
-          content: `Eres un analista de marketing digital experto en Facebook/Instagram Ads. Analiza SOLO los numeros reales que te paso y da recomendaciones concretas y accionables basadas exclusivamente en esos datos. No inventes campanas, porcentajes ni cifras que no esten en los datos proporcionados.
+          content: `Eres un analista de marketing digital experto en Meta Ads (Facebook, Instagram y WhatsApp). Analiza SOLO los numeros reales que te paso y da recomendaciones concretas y accionables basadas exclusivamente en esos datos. Si hay conversaciones iniciadas en WhatsApp o mensajeria, ese es el principal objetivo de captacion. No inventes campanas, porcentajes ni cifras que no esten en los datos proporcionados.
 
 Responde SOLO con un JSON array de maximo 3 objetos:
-[{"message": "recomendacion concisa en espanol, max 30 palabras, mencionando el dato real que la respalda", "metric": "el dato concreto que respalda la recomendacion (ej: 'CTR: 3.2%')", "confidence": "Alta Confianza" | "Confianza Media" | "Baja Confianza"}]
+[{"message": "recomendacion concisa en espanol, max 30 palabras, mencionando el dato real que la respalda", "metric": "el dato concreto que respalda la recomendacion (ej: '227 conversaciones | $0.15/conv')", "confidence": "Alta Confianza" | "Confianza Media" | "Baja Confianza"}]
 
 Si los datos son insuficientes o todo esta en cero, dilo honestamente en vez de inventar una recomendacion.`
         },

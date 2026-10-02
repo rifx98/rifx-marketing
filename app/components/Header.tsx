@@ -80,6 +80,16 @@ export default function Header() {
                     <div className="text-white/40 text-[10px]">Ventas en piloto automático</div>
                   </div>
                 </Link>
+
+                <Link href="/servicios/agentes-de-voz-ia" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group/item">
+                  <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400 group-hover/item:scale-110 transition-transform">
+                    <span className="material-symbols-outlined text-lg">phone_in_talk</span>
+                  </div>
+                  <div>
+                    <div className="text-white text-sm font-bold">Agentes de Voz & Llamadas IA</div>
+                    <div className="text-white/40 text-[10px]">Ventas telefónicas y voz clonada</div>
+                  </div>
+                </Link>
                 
                 <Link href="/servicios/diseno-web-inmersivo" className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group/item">
                   <div className="w-8 h-8 bg-rocket-orange/10 rounded-lg flex items-center justify-center text-rocket-orange group-hover/item:scale-110 transition-transform">
@@ -183,6 +193,9 @@ export default function Header() {
               </Link>
               <Link href="/servicios/whatsapp-ai" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-all text-sm">
                 💬 WhatsApp con IA
+              </Link>
+              <Link href="/servicios/agentes-de-voz-ia" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-blue-300 hover:text-white hover:bg-white/5 transition-all text-sm font-semibold">
+                🎙️ Agentes de Voz & Llamadas IA
               </Link>
               <Link href="/servicios/diseno-web-inmersivo" onClick={() => setMobileOpen(false)} className="block px-3 py-2.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-all text-sm">
                 🎨 Diseño UX/UI

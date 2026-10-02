@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "RIFX AI - Piloto Automático para Meta Ads",
+  "version": "1.0.0",
+  "description": "Automatiza y toma el control de Facebook Ads Manager rellenando campañas, presupuestos, segmentación y copies persuasivos generados por tu IA.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "RIFX AI Meta Ads Copilot"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.facebook.com/*",
+    "*://adsmanager.facebook.com/*",
+    "*://business.facebook.com/*",
+    "http://localhost:3000/*",
+    "https://*.rifx.com/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "https://*.rifx.com/*",
+        "https://*.vercel.app/*"
+      ],
+      "js": ["content-crm-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://adsmanager.facebook.com/*",
+        "*://*.facebook.com/adsmanager/*",
+        "*://business.facebook.com/*"
+      ],
+      "js": ["content-facebook-ads.js"],
+      "css": ["rifx-meta-autopilot.css"],
+      "run_at": "document_end"
+    }
+  ]
+}

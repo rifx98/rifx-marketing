@@ -177,9 +177,9 @@ export async function POST(req: NextRequest) {
     // Fetch global plan permissions from platform_settings
     let planPermissions: any = {
       trial: ["dashboard", "settings", "billing"],
-      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders"]
+      start: ["dashboard", "crm", "brain", "settings", "billing", "playground", "conversations", "orders"],
+      plus: ["dashboard", "crm", "brain", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "brain", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders"]
     };
 
     try {
@@ -215,6 +215,7 @@ export async function POST(req: NextRequest) {
     const allowedTabsSet = new Set([...baseAllowedTabs, ...activeOverrides]);
     if (tenant.is_admin) {
       allowedTabsSet.add('admin');
+      allowedTabsSet.add('brain');
     }
     allowedTabsSet.add('dashboard');
     allowedTabsSet.add('billing');

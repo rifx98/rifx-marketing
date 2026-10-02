@@ -32,6 +32,7 @@ export async function fetchFacebookJson(
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   const response = await fetch(url, {
     ...init,
+    cache: 'no-store',
     headers,
     redirect: 'error',
     signal: init.signal || AbortSignal.timeout(15_000),

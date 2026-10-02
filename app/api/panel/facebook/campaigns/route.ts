@@ -43,10 +43,14 @@ async function mapWithConcurrency<T, U>(
 // GET - Listar campañas con métricas
 export async function GET(req: NextRequest) {
   try {
-    const { tenantId, token, adAccountId } = await getFacebookCredentials(req);
+    const { tenantId, token, adAccountId: defaultAdAccountId } = await getFacebookCredentials(req);
     const rateDenied = await enforceTenantRateLimit('facebook-campaigns-read', tenantId, 30, 60_000);
     if (rateDenied) return rateDenied;
     const { searchParams } = new URL(req.url);
+    const requestedAdAccountId = searchParams.get('ad_account_id');
+    const adAccountId = (requestedAdAccountId && /^(?:act_)?[0-9]{5,30}$/.test(requestedAdAccountId))
+      ? (requestedAdAccountId.startsWith('act_') ? requestedAdAccountId : `act_${requestedAdAccountId}`)
+      : defaultAdAccountId;
     const requestedPreset = searchParams.get('date_preset') || 'last_30d';
     const datePreset = VALID_DATE_PRESETS.has(requestedPreset) ? requestedPreset : 'last_30d';
 
@@ -74,10 +78,34 @@ export async function GET(req: NextRequest) {
 
           const insight = insightsData.data?.[0] || {};
 
-          // Extraer conversiones del array de actions
-          const conversions = insight.actions?.find(
-            (a: any) => a.action_type === 'offsite_conversion' || a.action_type === 'lead'
+          // Extraer conversiones y conversaciones reales del array de actions
+          const actions = insight.actions || [];
+          const convStarted = actions.find((a: any) => 
+            a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+            a.action_type === 'onsite_conversion.messaging_conversation_started' ||
+            a.action_type === 'messaging_conversation_started_7d' ||
+            a.action_type === 'onsite_conversion.total_messaging_connection' ||
+            a.action_type === 'onsite_conversion.messaging_first_reply' ||
+            a.action_type === 'contact'
           );
+          const conversationsCount = convStarted ? (parseInt(String(convStarted.value), 10) || 0) : 0;
+
+          const leadOrPurchase = actions.find((a: any) =>
+            a.action_type === 'offsite_conversion' ||
+            a.action_type === 'purchase' ||
+            a.action_type === 'lead' ||
+            a.action_type === 'onsite_conversion.lead_grouped' ||
+            a.action_type === 'leadgen_grouped'
+          );
+          const webConversions = leadOrPurchase ? (parseInt(String(leadOrPurchase.value), 10) || 0) : 0;
+          const totalConversions = Math.max(webConversions + (webConversions === conversationsCount ? 0 : conversationsCount), conversationsCount);
+
+          const spend = insight.spend || '0.00';
+          const costPerConv = conversationsCount > 0
+            ? (parseFloat(spend) / conversationsCount).toFixed(2)
+            : totalConversions > 0
+            ? (parseFloat(spend) / totalConversions).toFixed(2)
+            : '0.00';
 
           // El schedule real de entrega vive en los Ad Sets (campaign.start_time
           // suele venir vacio en campañas ABO) — usamos el mas temprano/tardio.
@@ -106,8 +134,10 @@ export async function GET(req: NextRequest) {
               clicks: insight.clicks || '0',
               ctr: insight.ctr ? parseFloat(insight.ctr).toFixed(2) : '0.00',
               cpc: insight.cpc ? parseFloat(insight.cpc).toFixed(2) : '0.00',
-              spend: insight.spend || '0.00',
-              conversions: conversions?.value || '0',
+              spend,
+              conversions: String(totalConversions),
+              conversations: String(conversationsCount),
+              costPerConversation: costPerConv,
             },
           };
         } catch {
@@ -133,12 +163,16 @@ export async function GET(req: NextRequest) {
 // POST - Crear nueva campaña
 export async function POST(req: NextRequest) {
   try {
-    const { tenantId, token, adAccountId } = await getFacebookCredentials(req);
+    const { tenantId, token, adAccountId: defaultAdAccountId } = await getFacebookCredentials(req);
     const rateDenied = await enforceTenantRateLimit('facebook-campaigns-write', tenantId, 12, 60_000);
     if (rateDenied) return rateDenied;
     const parsedBody = await readLimitedJsonObject(req, 32 * 1024);
     if (!parsedBody.ok) return parsedBody.response;
     const body = parsedBody.body;
+    const requestedAdAccountId = typeof body.ad_account_id === 'string' ? body.ad_account_id.trim() : '';
+    const adAccountId = (requestedAdAccountId && /^(?:act_)?[0-9]{5,30}$/.test(requestedAdAccountId))
+      ? (requestedAdAccountId.startsWith('act_') ? requestedAdAccountId : `act_${requestedAdAccountId}`)
+      : defaultAdAccountId;
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const objective = body.objective === undefined ? 'OUTCOME_TRAFFIC' : body.objective;
     const status = body.status === undefined ? 'PAUSED' : body.status;

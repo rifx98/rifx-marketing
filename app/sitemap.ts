@@ -12,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/servicios/diseno-web-inmersivo', priority: 0.8, changeFrequency: 'monthly' as const },
     { path: '/servicios/ecommerce-interestelar', priority: 0.8, changeFrequency: 'monthly' as const },
     { path: '/servicios/whatsapp-ai', priority: 0.8, changeFrequency: 'monthly' as const },
+    { path: '/servicios/agentes-de-voz-ia', priority: 0.8, changeFrequency: 'monthly' as const },
 
     { path: '/contacto', priority: 0.7, changeFrequency: 'monthly' as const },
     { path: '/formulario', priority: 0.6, changeFrequency: 'monthly' as const },

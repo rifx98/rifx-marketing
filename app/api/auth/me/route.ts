@@ -47,10 +47,10 @@ export async function GET(req: NextRequest) {
 
     // Fetch global plan permissions from platform_settings
     let planPermissions: any = {
-      trial: ["dashboard", "settings", "billing"],
-      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders"]
+      trial: ["dashboard", "settings", "billing", "brain", "voice_agent"],
+      start: ["dashboard", "crm", "brain", "voice_agent", "voice", "settings", "billing", "playground", "conversations", "orders"],
+      plus: ["dashboard", "crm", "brain", "voice_agent", "voice", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
+      master: ["dashboard", "crm", "brain", "voice_agent", "voice", "settings", "billing", "playground", "campaigns", "wa_campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders", "team"]
     };
 
     try {
@@ -84,11 +84,27 @@ export async function GET(req: NextRequest) {
     }
 
     const allowedTabsSet = new Set([...baseAllowedTabs, ...activeOverrides]);
-    if (data.is_admin) {
-      allowedTabsSet.add('admin');
-    }
+    // Always include core modules brain and voice_agent
+    allowedTabsSet.add('brain');
+    allowedTabsSet.add('voice_agent');
     allowedTabsSet.add('dashboard');
     allowedTabsSet.add('billing');
+
+    if (data.is_admin) {
+      allowedTabsSet.add('admin');
+      allowedTabsSet.add('campaigns');
+      allowedTabsSet.add('wa_campaigns');
+      allowedTabsSet.add('crm');
+      allowedTabsSet.add('conversations');
+      allowedTabsSet.add('orders');
+      allowedTabsSet.add('team');
+      allowedTabsSet.add('basic_bot');
+      allowedTabsSet.add('appointments');
+      allowedTabsSet.add('banners');
+      allowedTabsSet.add('social');
+      allowedTabsSet.add('analytics');
+      allowedTabsSet.add('settings');
+    }
 
     const allowedTabs = Array.from(allowedTabsSet);
 

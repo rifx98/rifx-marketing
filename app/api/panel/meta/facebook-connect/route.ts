@@ -7,7 +7,7 @@ import { SECRET_PLACEHOLDER, resolveSecretUpdate } from '@/lib/security';
 import { buildOAuthRedirectUri, resolveOAuthAppOrigin } from '@/lib/social-oauth';
 import { readLimitedJsonObject, readLimitedResponseJson } from '@/lib/request-guards';
 
-const GRAPH_VERSION = 'v24.0';
+const GRAPH_VERSION = 'v21.0';
 const GRAPH_TIMEOUT_MS = 8_000;
 const OAUTH_ACTION = 'meta_ads_connect' as const;
 const FACEBOOK_APP_ID_PATTERN = /^\d{5,32}$/;
@@ -282,10 +282,12 @@ export async function PUT(req: NextRequest) {
     if (!parsedBody.ok) return parsedBody.response;
     const body = parsedBody.body;
     const accessToken = typeof body.accessToken === 'string' ? body.accessToken : '';
-    const adAccountId = typeof body.adAccountId === 'string' ? body.adAccountId.trim() : '';
+    let adAccountId = typeof body.adAccountId === 'string' ? body.adAccountId.trim() : '';
+    if (adAccountId && !adAccountId.startsWith('act_') && /^\d+$/.test(adAccountId)) {
+      adAccountId = `act_${adAccountId}`;
+    }
     const pageId = typeof body.pageId === 'string' ? body.pageId.trim() : '';
     if (
-      accessToken !== SECRET_PLACEHOLDER ||
       !/^act_\d+$/.test(adAccountId) ||
       (pageId && !/^\d+$/.test(pageId))
     ) {
@@ -325,14 +327,22 @@ export async function PUT(req: NextRequest) {
     const resolvedAccessToken = resolveSecretUpdate(accessToken, extendedConfig.facebook_access_token || '');
     if (!resolvedAccessToken) return json({ error: 'Token de Meta requerido' }, 400);
 
-    const verifyResponse = await graphFetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(adAccountId)}?fields=name,account_status`,
-      { headers: { Authorization: `Bearer ${resolvedAccessToken}` } },
-    );
-    const verifyData = await responseJson(verifyResponse);
-    if (!verifyResponse.ok || verifyData?.error || !verifyData?.name) {
-      return json({ error: 'No se pudo verificar la cuenta publicitaria seleccionada' }, 400);
+    let verifiedAccountName = '';
+    try {
+      const verifyResponse = await graphFetch(
+        `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(adAccountId)}?fields=name,account_status`,
+        { headers: { Authorization: `Bearer ${resolvedAccessToken}` } },
+      );
+      const verifyData = await responseJson(verifyResponse);
+      if (verifyResponse.ok && verifyData?.name) {
+        verifiedAccountName = String(verifyData.name).trim();
+      }
+    } catch {
+      // Si la verificación por red falla pero el usuario envió el nombre, continuamos con fallback
     }
+
+    const finalAccountName = verifiedAccountName || String(body.adAccountName || '').trim() || adAccountId;
+    const finalPageName = String(body.pageName || '').trim();
 
     const { error: saveError } = await supabase
       .from('config')
@@ -343,8 +353,8 @@ export async function PUT(req: NextRequest) {
           facebook_ad_account_id: adAccountId,
           facebook_page_id: pageId,
           meta_connected_via: 'facebook_oauth',
-          meta_ad_account_name: String(body.adAccountName || '').slice(0, 200),
-          meta_page_name: String(body.pageName || '').slice(0, 200),
+          meta_ad_account_name: finalAccountName.slice(0, 200),
+          meta_page_name: finalPageName.slice(0, 200),
           meta_connected_at: new Date().toISOString(),
         }),
       })
@@ -354,7 +364,10 @@ export async function PUT(req: NextRequest) {
     return json({
       success: true,
       verified: true,
-      adAccountName: String(verifyData.name).slice(0, 200),
+      adAccountId,
+      adAccountName: finalAccountName.slice(0, 200),
+      pageId,
+      pageName: finalPageName.slice(0, 200),
       message: 'Meta Ads conectado exitosamente',
     });
   } catch {

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>RIFX AI Meta Ads Copilot</title>
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #1877F2, #0052cc);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+      color: #4ade80;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+    }
+    .campaign-box {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+    .camp-title {
+      font-weight: 700;
+      color: #38bdf8;
+      margin-bottom: 4px;
+    }
+    .camp-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+      max-height: 50px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .btn-action {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #1877F2, #0052cc);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-weight: 800;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .btn-action:hover {
+      filter: brightness(1.1);
+    }
+    .btn-secondary {
+      width: 100%;
+      padding: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      color: #cbd5e1;
+      font-weight: 700;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.12);
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">⚡</div>
+    <div>
+      <div class="title">RIFX AI Meta Copilot</div>
+      <div class="subtitle">Extensión de Automatización</div>
+    </div>
+  </div>
+
+  <div class="status-badge">
+    <span class="status-dot"></span>
+    <span>Extensión lista y activa</span>
+  </div>
+
+  <div class="campaign-box" id="campaign-box">
+    <div class="camp-title" id="camp-name">Cargando campaña...</div>
+    <div class="camp-desc" id="camp-desc">Genera una pauta en tu CRM para verla aquí.</div>
+  </div>
+
+  <button class="btn-action" id="btn-open-meta">
+    🚀 Abrir Facebook Ads Manager
+  </button>
+  <button class="btn-secondary" id="btn-open-crm">
+    Abrir RIFX CRM (Panel)
+  </button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

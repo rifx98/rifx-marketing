@@ -9,6 +9,8 @@ import FlowZapInbox from './components/FlowZapInbox';
 import CampaignsTab from './CampaignsTab';
 import AILedger from './AILedger';
 import TeamTab from './TeamTab';
+import BrainTab from './BrainTab';
+import VoiceAgentTab from './VoiceAgentTab';
 import DirectAppointmentModal from './components/DirectAppointmentModal';
 import AddWaitlistModal from './components/AddWaitlistModal';
 import BitrixCalendarView from './components/BitrixCalendarView';
@@ -857,7 +859,7 @@ export const SIDEBAR_ITEMS = [
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
   { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-  
+  { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
   { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
   { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
   { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -879,6 +881,7 @@ const VALID_PANEL_TABS = [
   'wa_campaigns',
   'orders',
   'team',
+  'voice_agent',
   'basic_bot',
   'appointments',
   'banners',
@@ -972,7 +975,7 @@ function getInitialCampaignSubTab(): 'campaigns' | 'creative' | 'analytics' {
       }
     } catch (_) {}
   }
-  return 'creative';
+  return 'campaigns';
 }
 
 export default function PanelClient() {
@@ -1002,6 +1005,18 @@ export default function PanelClient() {
   const [tenantData, setTenantData] = useState<any>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingCheckoutUrl, setPendingCheckoutUrl] = useState('');
+
+  // El Cerebro IA se administra exclusivamente desde el Panel de Administrador
+  useEffect(() => {
+    if (activeTab === 'brain') {
+      if (tenantData?.isAdmin) {
+        setActiveTab('admin');
+        setAdminTab('brain');
+      } else {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [activeTab, tenantData]);
 
   
   const [testMessages, setTestMessages] = useState<any[]>([
@@ -3216,6 +3231,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // === Facebook Marketing API ===
   const [fbCampaigns, setFbCampaigns] = useState<any[]>([]);
   const [selectedCreative, setSelectedCreative] = useState<any>(null);
+  const [playingCreativeVideo, setPlayingCreativeVideo] = useState<any>(null);
+  const [selectedAnalyticsCampaignId, setSelectedAnalyticsCampaignId] = useState<string>('all');
   const [fbInsights, setFbInsights] = useState<any>(null);
   const [fbLoading, setFbLoading] = useState(false);
   const [fbError, setFbError] = useState<string | null>(null);
@@ -3227,7 +3244,21 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [aiInsights, setAiInsights] = useState<{ message: string; metric: string; confidence: string }[] | null>(null);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
   const isNoMetaApiError = (msg: string) => msg?.toLowerCase().includes('no tienes credenciales') || msg?.toLowerCase().includes('meta ads configuradas') || msg?.toLowerCase().includes('faltan credenciales');
-  const loadFbCampaigns = async () => { setFbLoading(true); setFbError(null); try { const r = await authFetch('/api/panel/facebook/campaigns?date_preset=last_30d'); const d = await r.json(); if(d.success) setFbCampaigns(d.campaigns||[]); else { if(isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error||'Error'); } } } catch(e:any){ if(isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); } } finally{setFbLoading(false)} };
+  const loadFbCampaigns = async (adAccountIdOverride?: string) => {
+    setFbLoading(true); setFbError(null);
+    try {
+      const targetAcc = adAccountIdOverride || configDataRef.current?.facebook_ad_account_id;
+      const accParam = targetAcc ? '&ad_account_id=' + encodeURIComponent(targetAcc) : '';
+      const r = await authFetch('/api/panel/facebook/campaigns?date_preset=last_30d' + accParam);
+      const d = await r.json();
+      if (d.success) setFbCampaigns(d.campaigns || []);
+      else {
+        if (isNoMetaApiError(d.error)) { setShowMetaNoApiModal(true); } else { setFbError(d.error || 'Error'); }
+      }
+    } catch (e: any) {
+      if (isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); }
+    } finally { setFbLoading(false); }
+  };
   const loadAiInsights = async (insightsData: any) => {
     setAiInsightsLoading(true);
     try {
@@ -3244,11 +3275,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       setAiInsightsLoading(false);
     }
   };
-  const loadFbInsights = async (periodOverride?: 'week' | 'month') => {
+  const loadFbInsights = async (periodOverride?: 'week' | 'month', campaignIdOverride?: string, adAccountIdOverride?: string) => {
     setFbLoading(true); setFbError(null);
     try {
       const period = periodOverride || analyticsPeriod;
-      const r = await authFetch(`/api/panel/facebook/insights?period=${period}`);
+      const cid = campaignIdOverride !== undefined ? campaignIdOverride : selectedAnalyticsCampaignId;
+      const targetAcc = adAccountIdOverride || configDataRef.current?.facebook_ad_account_id;
+      const accParam = targetAcc ? '&ad_account_id=' + encodeURIComponent(targetAcc) : '';
+      const r = await authFetch('/api/panel/facebook/insights?period=' + period + (cid && cid !== 'all' ? '&campaign_id=' + cid : '') + accParam);
       const d = await r.json();
       if (d.success) {
         setFbInsights(d);
@@ -3260,6 +3294,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     } catch (e: any) {
       if (isNoMetaApiError(e.message)) { setShowMetaNoApiModal(true); } else { setFbError(e.message); }
     } finally { setFbLoading(false); }
+  };
+
+  const handleAnalyticsCampaignChange = (campaignId: string) => {
+    setSelectedAnalyticsCampaignId(campaignId);
+    loadFbInsights(undefined, campaignId);
   };
 
   // Refresco automatico cada 60s mientras se esta viendo la pestaña de
@@ -3961,8 +4000,12 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   // Helper to check if a tab is locked for the current tenant
   // Uses server-provided allowedTabs (which reflect admin's plan permission matrix)
   const isTabLocked = React.useCallback((tab: string) => {
-    if (tab === 'billing' || tab === 'conversations' || tab === 'orders') return false;
-    if (tab === 'admin' && tenantData?.isAdmin) return false;
+    // El Cerebro IA y el Panel Admin son exclusivos de administradores
+    if (tab === 'brain' || tab === 'admin') {
+      return !tenantData?.isAdmin;
+    }
+    if (tenantData?.isAdmin) return false;
+    if (tab === 'billing' || tab === 'conversations' || tab === 'orders' || tab === 'voice_agent') return false;
 
     // Checks custom overrides first
     const overrides = tenantData?.permissionOverrides || {};
@@ -3971,8 +4014,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
     if (hasActiveOverride) return false; // Overridden access is active
 
-    // Removed hard-lockout so the UI relies on server-provided allowedTabs which safely fall back to trial tier when expired.
-
     // Use server-provided allowedTabs (includes admin's updated plan permissions from platform_settings)
     if (tenantData?.allowedTabs && Array.isArray(tenantData.allowedTabs)) {
       return !tenantData.allowedTabs.includes(tab);
@@ -3980,11 +4021,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
     // Fallback to hardcoded defaults only if allowedTabs not yet loaded from server
     const planPermissions: Record<string, string[]> = {
-      trial: ["dashboard", "settings", "billing"],
-      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders"],
-      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
-      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders"],
-      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders"]
+      trial: ["dashboard", "settings", "billing", "voice_agent"],
+      start: ["dashboard", "crm", "settings", "billing", "playground", "conversations", "orders", "voice_agent"],
+      advanced: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders", "voice_agent"],
+      plus: ["dashboard", "crm", "settings", "billing", "playground", "banners", "analytics", "social", "appointments", "conversations", "orders", "voice_agent"],
+      master: ["dashboard", "crm", "settings", "billing", "playground", "campaigns", "banners", "analytics", "social", "appointments", "conversations", "orders", "voice_agent", "team"]
     };
 
     const currentPlanKey = tenantData?.plan || 'trial';
@@ -3993,9 +4034,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     const allowedSet = new Set([...baseAllowed]);
     if (tenantData?.isAdmin) {
       allowedSet.add('admin');
+      allowedSet.add('brain');
     }
     allowedSet.add('dashboard');
     allowedSet.add('billing');
+    allowedSet.add('voice_agent');
 
     return !allowedSet.has(tab);
   }, [isPlanExpired, tenantData?.plan, tenantData?.permissionOverrides, tenantData?.isAdmin, tenantData?.allowedTabs]);
@@ -4600,6 +4643,33 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const originalConfigRef = React.useRef<any>(null);
   const configDataRef = React.useRef(configData);
   React.useEffect(() => { configDataRef.current = configData; }, [configData]);
+
+  // Carga reactiva de datos al cambiar de sub-pestaña o cuenta publicitaria
+  const lastLoadedAdAccountRef = React.useRef<string>('');
+  useEffect(() => {
+    if (activeTab !== 'campaigns') return;
+    const currentAcc = configData.facebook_ad_account_id;
+    if (!currentAcc && !configData.facebook_access_token) return;
+
+    const accountChanged = Boolean(currentAcc && lastLoadedAdAccountRef.current && lastLoadedAdAccountRef.current !== currentAcc);
+    if (accountChanged) {
+      setFbCampaigns([]);
+      setFbInsights(null);
+      setSelectedAnalyticsCampaignId('all');
+    }
+    lastLoadedAdAccountRef.current = currentAcc;
+
+    if (campaignSubTab === 'campaigns') {
+      if (accountChanged || (fbCampaigns.length === 0 && !fbLoading)) {
+        loadFbCampaigns(currentAcc);
+      }
+    } else if (campaignSubTab === 'analytics' || campaignSubTab === 'creative') {
+      if (accountChanged || (!fbInsights && !fbLoading)) {
+        loadFbInsights(undefined, 'all', currentAcc);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, campaignSubTab, analyticsPeriod, configData.facebook_ad_account_id]);
   // Senal explicita de que /api/panel/config ya resolvio (exito o error), para
   // no adivinar con un timer fijo si el saludo del agente Meta Ads debe
   // esperar los datos reales de conexion.
@@ -4822,12 +4892,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   const selectAccountFromBar = async (account: any) => {
     setShowAccountDropdown(false);
-    await handleSelectMetaAccount(account, metaPages.find((p: any) => p.id === configData.facebook_page_id) || null);
+    const currentPage = metaPages.find((p: any) => String(p.id) === String(configData.facebook_page_id)) || (configData.facebook_page_id ? { id: configData.facebook_page_id, name: configData.meta_page_name } : null);
+    await handleSelectMetaAccount(account, currentPage);
   };
 
   const selectPageFromBar = async (page: any) => {
     setShowPageDropdown(false);
-    const currentAccount = metaAdAccounts.find((a: any) => a.id === configData.facebook_ad_account_id) || { id: configData.facebook_ad_account_id, name: configData.meta_ad_account_name };
+    const currentAccount = metaAdAccounts.find((a: any) => a.id === configData.facebook_ad_account_id || a.id?.replace(/^act_/, '') === String(configData.facebook_ad_account_id).replace(/^act_/, '')) || { id: configData.facebook_ad_account_id, name: configData.meta_ad_account_name };
     await handleSelectMetaAccount(currentAccount, page);
   };
 
@@ -4977,33 +5048,69 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   };
 
   const handleSelectMetaAccount = async (account: any, page: any) => {
-    setToast({ message: language === 'en' ? 'Saving Meta connection...' : 'Guardando conexión Meta...', type: 'info' });
-    const res = await authFetch('/api/panel/meta/facebook-connect', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        accessToken: metaFbToken || configData.facebook_access_token,
-        adAccountId: account.id,
-        adAccountName: account.name,
-        pageId: page?.id || '',
-        pageName: page?.name || '',
-      }),
+    const rawAccountId = String(account?.id || configData.facebook_ad_account_id || '').trim();
+    const targetAccountId = rawAccountId.startsWith('act_') ? rawAccountId : (rawAccountId ? 'act_' + rawAccountId : '');
+    const targetAccountName = String(account?.name || configData.meta_ad_account_name || '').trim();
+    const targetPageId = String(page?.id !== undefined && page?.id !== null ? page.id : (configData.facebook_page_id || '')).trim();
+    const targetPageName = String(page?.name !== undefined && page?.name !== null ? page.name : (configData.meta_page_name || '')).trim();
+
+    setToast({
+      message: language === 'en' ? 'Switching to ' + (targetAccountName || 'selected account') + '...' : 'Cambiando a ' + (targetAccountName || 'cuenta seleccionada') + '...',
+      type: 'info',
     });
-    const data = await res.json();
-    if (data.success) {
-      setConfigData((prev: any) => ({
-        ...prev,
-        facebook_access_token: metaFbToken || prev.facebook_access_token,
-        facebook_ad_account_id: account.id,
-        facebook_page_id: page?.id || prev.facebook_page_id,
-        meta_ad_account_name: account.name || prev.meta_ad_account_name,
-        meta_page_name: page?.name || prev.meta_page_name,
-      }));
-      setMetaShowPicker(false);
-      setToast({ message: language === 'en' ? '✓ Meta Ads connected!' : '✓ Meta Ads conectado!', type: 'success' });
-    } else {
-      setToast({ message: data.error || 'Error saving', type: 'error' });
+
+    // 1. Limpieza y actualización inmediata de estado en UI
+    setFbCampaigns([]);
+    setFbInsights(null);
+    setSelectedAnalyticsCampaignId('all');
+    setSelectedCreative(null);
+    setFbError(null);
+    lastLoadedAdAccountRef.current = targetAccountId;
+
+    const updatedConfig = {
+      ...configData,
+      facebook_ad_account_id: targetAccountId,
+      meta_ad_account_name: targetAccountName,
+      facebook_page_id: targetPageId,
+      meta_page_name: targetPageName,
+    };
+    configDataRef.current = updatedConfig;
+    setConfigData(updatedConfig);
+
+    // 2. Disparar de inmediato la carga de campañas e insights para la cuenta seleccionada
+    const fetchPromises = Promise.all([
+      loadFbCampaigns(targetAccountId),
+      loadFbInsights(undefined, 'all', targetAccountId),
+    ]);
+
+    // 3. Persistir en la base de datos de fondo
+    try {
+      const res = await authFetch('/api/panel/meta/facebook-connect', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: metaFbToken || configData.facebook_access_token || '__RIFX_SECRET_CONFIGURED__',
+          adAccountId: targetAccountId,
+          adAccountName: targetAccountName,
+          pageId: targetPageId,
+          pageName: targetPageName,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && !data.error) {
+        setMetaShowPicker(false);
+        setToast({
+          message: language === 'en' ? '✓ Switched to ' + (targetAccountName || 'account') : '✓ Conectado a ' + (targetAccountName || 'cuenta'),
+          type: 'success',
+        });
+      } else {
+        console.warn('Meta account switch save warning:', data.error);
+      }
+    } catch (err: any) {
+      console.warn('Meta connection save error:', err);
     }
+
+    await fetchPromises;
   };
 
   const handleMetaDisconnect = async () => {
@@ -6040,83 +6147,105 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // Auto-login from stored token and restore active states
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // 1. Restore navigation states from URL first, fallback to localStorage
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const urlTab = params.get('tab');
-        const savedTab = localStorage.getItem('rifx_active_tab');
-        const resolvedTab = (urlTab && (VALID_PANEL_TABS as readonly string[]).includes(urlTab))
-          ? urlTab
-          : (savedTab && (VALID_PANEL_TABS as readonly string[]).includes(savedTab))
-            ? savedTab
-            : 'dashboard';
-        if (resolvedTab) setActiveTab(resolvedTab as any);
-
-        const urlSection = params.get('section');
-        const savedSection = localStorage.getItem('rifx_settings_section');
-        const resolvedSection = (urlSection && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(urlSection))
-          ? urlSection
-          : (savedSection && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(savedSection))
-            ? savedSection
-            : 'profile';
-        if (resolvedSection) setSettingsSection(resolvedSection as any);
-
-        const urlBotSec = params.get('bot') || params.get('bot_section');
-        const savedBotSec = localStorage.getItem('rifx_bot_section');
-        const resolvedBotSec = (urlBotSec && (VALID_BOT_SECTIONS as readonly string[]).includes(urlBotSec))
-          ? urlBotSec
-          : (savedBotSec && (VALID_BOT_SECTIONS as readonly string[]).includes(savedBotSec))
-            ? savedBotSec
-            : 'constructor';
-        if (resolvedBotSec) setBotSection(resolvedBotSec as any);
-
-        const urlCampSub = params.get('sub') || params.get('campaign_sub');
-        const savedCampSub = localStorage.getItem('rifx_campaign_subtab');
-        const resolvedCampSub = (urlCampSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(urlCampSub))
-          ? urlCampSub
-          : (savedCampSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(savedCampSub))
-            ? savedCampSub
-            : 'creative';
-        if (resolvedCampSub) setCampaignSubTab(resolvedCampSub as any);
-      } catch (_) {}
-
-      // 2. Restore OmniPublish states
-      const savedUploadMode = localStorage.getItem('rifx_upload_mode');
-      if (savedUploadMode) setUploadMode(savedUploadMode as any);
-
-      const savedVideoType = localStorage.getItem('rifx_video_type');
-      if (savedVideoType) setVideoType(savedVideoType as any);
-
-      const savedUploadedVideoPath = localStorage.getItem('rifx_uploaded_video_path');
-      if (savedUploadedVideoPath) setUploadedVideoPath(savedUploadedVideoPath);
-
-      const savedUploadedVideos = localStorage.getItem('rifx_uploaded_videos');
-      if (savedUploadedVideos) {
-        try {
-          setUploadedVideos(JSON.parse(savedUploadedVideos));
-        } catch (_) {}
+    let isMounted = true;
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        setIsCheckingAuth(false);
       }
+    }, 4000);
 
-      const savedTrackingPostIds = localStorage.getItem('rifx_tracking_post_ids');
-      if (savedTrackingPostIds) {
+    try {
+      if (typeof window !== 'undefined') {
+        // 1. Restore navigation states from URL first, fallback to localStorage
         try {
-          setTrackingPostIds(JSON.parse(savedTrackingPostIds));
+          const params = new URLSearchParams(window.location.search);
+          const urlTab = params.get('tab');
+          const savedTab = localStorage.getItem('rifx_active_tab');
+          const resolvedTab = (urlTab && (VALID_PANEL_TABS as readonly string[]).includes(urlTab))
+            ? urlTab
+            : (savedTab && (VALID_PANEL_TABS as readonly string[]).includes(savedTab))
+              ? savedTab
+              : 'dashboard';
+          if (resolvedTab) setActiveTab(resolvedTab as any);
+
+          const urlSection = params.get('section');
+          const savedSection = localStorage.getItem('rifx_settings_section');
+          const resolvedSection = (urlSection && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(urlSection))
+            ? urlSection
+            : (savedSection && (VALID_SETTINGS_SECTIONS as readonly string[]).includes(savedSection))
+              ? savedSection
+              : 'profile';
+          if (resolvedSection) setSettingsSection(resolvedSection as any);
+
+          const urlBotSec = params.get('bot') || params.get('bot_section');
+          const savedBotSec = localStorage.getItem('rifx_bot_section');
+          const resolvedBotSec = (urlBotSec && (VALID_BOT_SECTIONS as readonly string[]).includes(urlBotSec))
+            ? urlBotSec
+            : (savedBotSec && (VALID_BOT_SECTIONS as readonly string[]).includes(savedBotSec))
+              ? savedBotSec
+              : 'constructor';
+          if (resolvedBotSec) setBotSection(resolvedBotSec as any);
+
+          const urlCampSub = params.get('sub') || params.get('campaign_sub');
+          const savedCampSub = localStorage.getItem('rifx_campaign_subtab');
+          const resolvedCampSub = (urlCampSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(urlCampSub))
+            ? urlCampSub
+            : (savedCampSub && (VALID_CAMPAIGN_SUBTABS as readonly string[]).includes(savedCampSub))
+              ? savedCampSub
+              : 'creative';
+          if (resolvedCampSub) setCampaignSubTab(resolvedCampSub as any);
         } catch (_) {}
+
+        // 2. Restore OmniPublish states
+        try {
+          const savedUploadMode = localStorage.getItem('rifx_upload_mode');
+          if (savedUploadMode) setUploadMode(savedUploadMode as any);
+
+          const savedVideoType = localStorage.getItem('rifx_video_type');
+          if (savedVideoType) setVideoType(savedVideoType as any);
+
+          const savedUploadedVideoPath = localStorage.getItem('rifx_uploaded_video_path');
+          if (savedUploadedVideoPath) setUploadedVideoPath(savedUploadedVideoPath);
+
+          const savedUploadedVideos = localStorage.getItem('rifx_uploaded_videos');
+          if (savedUploadedVideos) {
+            try {
+              setUploadedVideos(JSON.parse(savedUploadedVideos));
+            } catch (_) {}
+          }
+
+          const savedTrackingPostIds = localStorage.getItem('rifx_tracking_post_ids');
+          if (savedTrackingPostIds) {
+            try {
+              setTrackingPostIds(JSON.parse(savedTrackingPostIds));
+            } catch (_) {}
+          }
+
+          const savedCurrentPostId = localStorage.getItem('rifx_current_post_id');
+          if (savedCurrentPostId) setCurrentPostId(savedCurrentPostId);
+        } catch (_) {}
+
+        // Lock isStateLoadedRef so updates can write to localStorage from now on
+        isStateLoadedRef.current = true;
       }
-
-      const savedCurrentPostId = localStorage.getItem('rifx_current_post_id');
-      if (savedCurrentPostId) setCurrentPostId(savedCurrentPostId);
-
-      // Lock isStateLoadedRef so updates can write to localStorage from now on
-      isStateLoadedRef.current = true;
+    } catch (e) {
+      console.warn('Error reading panel local storage state:', e);
     }
 
-    // 2. Restore only from the HttpOnly session cookie. No JWT is exposed to
-    // JavaScript or persisted in localStorage.
-    fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+    // 2. Restore only from the HttpOnly session cookie with a timeout
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const fetchTimeout = setTimeout(() => {
+      try { controller?.abort(); } catch (_) {}
+    }, 3500);
+
+    fetch('/api/auth/me', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller?.signal,
+    })
       .then(async response => response.ok ? response.json() : null)
       .then(data => {
+        if (!isMounted) return;
         if (data) {
           setAuthToken('cookie-session');
           setTenantData(data);
@@ -6129,11 +6258,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         }
       })
       .catch(() => {
+        if (!isMounted) return;
         setAuthToken(null);
         setTenantData(null);
         setIsLoggedIn(false);
       })
-      .finally(() => setIsCheckingAuth(false));
+      .finally(() => {
+        clearTimeout(fetchTimeout);
+        clearTimeout(safetyTimer);
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+      clearTimeout(fetchTimeout);
+      try { controller?.abort(); } catch (_) {}
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -8230,7 +8373,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
             { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-            
+            { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
             { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
             { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -8342,7 +8485,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
                 { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-                
+                { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
                 { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                 { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -8428,7 +8571,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               { key: 'wa_campaigns', icon: 'campaign', labelEs: 'Campañas', labelEn: 'Campaigns' },
                       { key: 'orders', icon: 'receipt_long', labelEs: 'Pedidos', labelEn: 'Orders' },
               { key: 'team', icon: 'group_add', labelEs: 'Equipo', labelEn: 'Team' },
-                      
+                      { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
                       { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                       { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
                       { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
@@ -12665,9 +12808,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
               </div>
               <nav className="flex gap-1 bg-[#eff4ff] p-1 rounded-xl border border-[#c1c6d6]">
                 {([
-                  { key: 'creative' as const, icon: 'brush', label: 'Creative Lab' },
                   { key: 'campaigns' as const, icon: 'campaign', label: language === 'en' ? 'Campaigns' : 'Campañas' },
                   { key: 'analytics' as const, icon: 'monitoring', label: language === 'en' ? 'Analytics' : 'Analíticas' },
+                  { key: 'creative' as const, icon: 'brush', label: 'Creative Lab' },
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -12741,10 +12884,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <button
                               key={acc.id}
                               onClick={() => selectAccountFromBar(acc)}
-                              className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${acc.id === configData.facebook_ad_account_id ? 'bg-blue-50 font-bold text-blue-800' : 'text-[#414754]'}`}
+                              className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${(acc.id === configData.facebook_ad_account_id || (acc.id && configData.facebook_ad_account_id && acc.id.replace(/^act_/, '') === String(configData.facebook_ad_account_id).replace(/^act_/, ''))) ? 'bg-blue-50 font-bold text-blue-800' : 'text-[#414754]'}`}
                             >
                               <span className="truncate">{acc.name}</span>
-                              {acc.id === configData.facebook_ad_account_id && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
+                              {(acc.id === configData.facebook_ad_account_id || (acc.id && configData.facebook_ad_account_id && acc.id.replace(/^act_/, '') === String(configData.facebook_ad_account_id).replace(/^act_/, ''))) && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
                             </button>
                           ))}
                         </div>
@@ -12773,10 +12916,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <button
                               key={pg.id}
                               onClick={() => selectPageFromBar(pg)}
-                              className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${pg.id === configData.facebook_page_id ? 'bg-blue-50 font-bold text-blue-800' : 'text-[#414754]'}`}
+                              className={`w-full text-left px-3 py-2 text-xs hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${String(pg.id) === String(configData.facebook_page_id) ? 'bg-blue-50 font-bold text-blue-800' : 'text-[#414754]'}`}
                             >
                               <span className="truncate">{pg.name}</span>
-                              {pg.id === configData.facebook_page_id && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
+                              {String(pg.id) === String(configData.facebook_page_id) && <span className="material-symbols-outlined text-sm text-blue-600">check</span>}
                             </button>
                           ))}
                           {!metaListLoading && metaPages.length <= 1 && (
@@ -14353,6 +14496,34 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </p>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
+                    {/* Selector interactivo de Campaña para filtrar métricas y creativos */}
+                    <div className="flex items-center bg-white border border-[#c1c6d6] rounded-lg px-3 py-1.5 shadow-sm">
+                      <span className="material-symbols-outlined text-sm text-[#0058bc] mr-1.5">campaign</span>
+                      <span className="text-[12px] font-semibold text-[#414754] mr-2 uppercase tracking-wider">{language === 'en' ? 'Campaign:' : 'Campaña:'}</span>
+                      <select
+                        value={selectedAnalyticsCampaignId}
+                        onChange={(e) => handleAnalyticsCampaignChange(e.target.value)}
+                        className="bg-transparent border-none text-xs font-bold text-[#0b1c30] focus:ring-0 cursor-pointer pr-4"
+                      >
+                        <option value="all">
+                          {language === 'en' ? 'All Campaigns' : 'Todas las Campañas'} ({(fbInsights?.campaignsBreakdown || fbInsights?.campaigns || fbCampaigns || []).length})
+                        </option>
+                        {(fbInsights?.campaignsBreakdown || fbInsights?.campaigns || fbCampaigns || []).map((camp: any) => (
+                          <option key={camp.id} value={camp.id}>{camp.name || camp.id}</option>
+                        ))}
+                      </select>
+                      {selectedAnalyticsCampaignId !== 'all' && (
+                        <button
+                          onClick={() => handleAnalyticsCampaignChange('all')}
+                          className="ml-2 text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full transition-colors flex items-center gap-0.5"
+                          title={language === 'en' ? 'Reset to all campaigns' : 'Quitar filtro'}
+                        >
+                          <span>✕</span>
+                          <span>{language === 'en' ? 'All' : 'Todas'}</span>
+                        </button>
+                      )}
+                    </div>
+
                     <div className="flex items-center bg-[#eff4ff] border border-[#c1c6d6] rounded-lg p-1 gap-1">
                       {(['week', 'month'] as const).map(p => (
                         <button
@@ -14614,12 +14785,33 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             >
                               <td className="py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 rounded bg-[#e5eeff] overflow-hidden flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[#0058bc]">{c.icon}</span>
+                                  <div className="relative w-12 h-12 rounded-lg bg-[#e5eeff] overflow-hidden flex items-center justify-center shrink-0 border border-[#c1c6d6]/60">
+                                    {c.raw?.thumbnail ? (
+                                      <img
+                                        src={c.raw.thumbnail}
+                                        alt={c.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                                      />
+                                    ) : (
+                                      <span className="material-symbols-outlined text-[#0058bc]">{c.icon}</span>
+                                    )}
+                                    {c.raw?.isVideo && (
+                                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-white text-base drop-shadow">play_circle</span>
+                                      </div>
+                                    )}
                                   </div>
-                                  <div>
-                                    <p className="text-sm font-semibold">{c.name}</p>
-                                    <p className="text-[11px] text-[#414754]">{c.campaign}</p>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-sm font-semibold truncate text-[#0b1c30]">{c.name}</p>
+                                      {c.raw?.isVideo && (
+                                        <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-indigo-100 text-indigo-700 shrink-0">
+                                          Video
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-[#414754] truncate">{c.raw?.headline || c.campaign}</p>
                                   </div>
                                 </div>
                               </td>
@@ -14633,29 +14825,273 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </div>
                   </div>
                 </div>
+
+                {/* ===== RESULTADOS POR CAMPAÑA ===== */}
+                <div className="bg-white p-6 rounded-xl border border-[#c1c6d6]" style={{ boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[#0058bc]">leaderboard</span>
+                        <h4 className="text-xl font-semibold text-[#0b1c30]">
+                          {language === 'en' ? 'Results by Campaign' : 'Resultados por Campaña'}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-[#414754] mt-0.5">
+                        {language === 'en'
+                          ? 'Specific results obtained per campaign (messages, leads, sales or clicks) and cost per result.'
+                          : 'Resultados específicos obtenidos por cada campaña (mensajes, clientes potenciales, compras o clics) y su costo por resultado.'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selectedAnalyticsCampaignId !== 'all' && (
+                        <button
+                          onClick={() => handleAnalyticsCampaignChange('all')}
+                          className="text-xs text-[#0058bc] font-bold hover:underline flex items-center gap-1 bg-[#eff4ff] px-3 py-1.5 rounded-lg border border-[#c1c6d6]"
+                        >
+                          <span className="material-symbols-outlined text-sm">clear_all</span>
+                          {language === 'en' ? 'Show all campaigns' : 'Ver todas las campañas'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => safeSetCampaignSubTab('campaigns')}
+                        className="text-xs font-semibold text-[#0058bc] hover:bg-[#eff4ff] border border-[#c1c6d6] px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">table_rows</span>
+                        {language === 'en' ? 'Manage Campaigns' : 'Administrar Campañas'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Campaigns Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-[#c1c6d6] bg-[#eff4ff]/60">
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider">{language === 'en' ? 'Campaign' : 'Campaña'}</th>
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider text-center">{language === 'en' ? 'Status' : 'Estado'}</th>
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider text-right">{language === 'en' ? 'Spend' : 'Inversión'}</th>
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider text-center">{language === 'en' ? 'Results / Messages' : 'Resultados / Mensajes'}</th>
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider text-right">{language === 'en' ? 'Cost/Result' : 'Costo x Resultado'}</th>
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider text-center">CTR / Clics</th>
+                          <th className="py-3 px-4 text-[12px] font-semibold text-[#414754] uppercase tracking-wider text-center">{language === 'en' ? 'Filter' : 'Seleccionar'}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#c1c6d6]">
+                        {((fbInsights?.campaignsBreakdown && fbInsights.campaignsBreakdown.length > 0)
+                          ? fbInsights.campaignsBreakdown
+                          : (fbCampaigns && fbCampaigns.length > 0)
+                          ? fbCampaigns.map((c: any) => ({
+                              id: c.id,
+                              name: c.name || 'Sin nombre',
+                              status: c.status || 'ACTIVE',
+                              spend: c.insights?.spend || '0.00',
+                              conversations: c.insights?.conversations || c.insights?.actions?.find((a: any) => a.action_type?.includes('messaging'))?.value || '0',
+                              costPerConversation: c.insights?.cpc ? '$' + c.insights.cpc : '--',
+                              costPerResult: c.insights?.cpc ? '$' + c.insights.cpc : '--',
+                              resultLabel: 'Conversaciones',
+                              resultCount: c.insights?.actions?.find((a: any) => a.action_type?.includes('messaging'))?.value || 0,
+                              clicks: c.insights?.clicks || '0',
+                              ctr: c.insights?.ctr ? parseFloat(c.insights.ctr).toFixed(2) : '0.00',
+                            }))
+                          : []
+                        ).length > 0 ? (
+                          ((fbInsights?.campaignsBreakdown && fbInsights.campaignsBreakdown.length > 0) ? fbInsights.campaignsBreakdown : fbCampaigns).map((camp: any, idx: number) => {
+                            const isSelected = String(camp.id) === String(selectedAnalyticsCampaignId);
+                            const isCampActive = String(camp.status).toUpperCase() === 'ACTIVE';
+                            return (
+                              <tr
+                                key={camp.id || idx}
+                                onClick={() => handleAnalyticsCampaignChange(isSelected ? 'all' : camp.id)}
+                                className={`cursor-pointer transition-colors ${
+                                  isSelected 
+                                    ? 'bg-[#eff4ff] font-medium' 
+                                    : 'hover:bg-[#f8f9ff]'
+                                }`}
+                              >
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#0058bc] text-white' : 'bg-[#e5eeff] text-[#0058bc]'}`}>
+                                      <span className="material-symbols-outlined text-lg">campaign</span>
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-bold text-[#0b1c30] truncate max-w-[240px] sm:max-w-[320px]" title={camp.name}>
+                                        {camp.name || 'Sin nombre'}
+                                      </p>
+                                      <p className="text-[11px] text-[#414754]">
+                                        ID: {camp.id}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                    isCampActive 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isCampActive ? 'bg-emerald-600' : 'bg-gray-400'}`} />
+                                    {isCampActive ? (language === 'en' ? 'Active' : 'Activa') : (language === 'en' ? 'Paused' : 'Pausada')}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right text-sm font-bold text-[#0b1c30]">
+                                  ${parseFloat(camp.spend || '0').toFixed(2)}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <span className="material-symbols-outlined text-xs">chat</span>
+                                    {camp.conversations || camp.resultCount || '0'} {language === 'en' ? 'chats' : 'mensajes'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right text-sm font-bold text-[#0058bc]">
+                                  {camp.costPerConversation && camp.costPerConversation !== '0.00' && camp.costPerConversation !== '--'
+                                    ? (camp.costPerConversation.startsWith('$') ? camp.costPerConversation : '$' + camp.costPerConversation)
+                                    : (camp.costPerResult && camp.costPerResult !== '0.00' && camp.costPerResult !== '--'
+                                      ? (camp.costPerResult.startsWith('$') ? camp.costPerResult : '$' + camp.costPerResult)
+                                      : (parseFloat(camp.spend || '0') > 0 && parseInt(camp.conversations || '0') > 0
+                                        ? '$' + (parseFloat(camp.spend) / parseInt(camp.conversations)).toFixed(2)
+                                        : '--'))}
+                                </td>
+                                <td className="py-3.5 px-4 text-center text-xs text-[#414754]">
+                                  <span className="font-semibold text-[#0b1c30]">{camp.ctr || '0'}%</span>
+                                  <span className="text-[10px] text-[#727785] ml-1">({camp.clicks || '0'} clics)</span>
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAnalyticsCampaignChange(isSelected ? 'all' : camp.id);
+                                    }}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                      isSelected
+                                        ? 'bg-[#0058bc] text-white shadow-sm'
+                                        : 'bg-white hover:bg-[#eff4ff] text-[#0058bc] border border-[#c1c6d6]'
+                                    }`}
+                                  >
+                                    {isSelected ? (language === 'en' ? 'Selected ✓' : 'Seleccionada ✓') : (language === 'en' ? 'Select' : 'Filtrar')}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={7} className="py-8 text-center text-sm text-[#414754]">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <span className="material-symbols-outlined text-3xl text-gray-400">campaign</span>
+                                <p>{language === 'en' ? 'No campaigns data loaded yet.' : 'Aún no se han cargado datos de campañas.'}</p>
+                                <button
+                                  onClick={() => loadFbInsights()}
+                                  className="mt-2 px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#0058bc] hover:bg-[#004799] transition-colors"
+                                >
+                                  {language === 'en' ? 'Load from Facebook' : 'Cargar de Facebook'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
                 </div>
               </div>
             )}
 
             {/* Creative Detail Modal */}
             {selectedCreative && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setSelectedCreative(null)}>
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded bg-[#e5eeff] flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-[#0058bc]">campaign</span>
+              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setSelectedCreative(null)}>
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-[#e5eeff] flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[#0058bc]">
+                          {selectedCreative.isVideo ? 'smart_display' : 'image'}
+                        </span>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-[#0b1c30]">{selectedCreative.name}</h3>
-                        <p className="text-[11px] text-[#414754]">{language === 'en' ? 'Real performance data for this creative' : 'Datos reales de rendimiento de esta creatividad'}</p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-[#0b1c30] truncate">{selectedCreative.name}</h3>
+                          {selectedCreative.isVideo && (
+                            <span className="px-2 py-0.5 text-[10px] font-black uppercase rounded bg-indigo-100 text-indigo-700">
+                              Video
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#414754] truncate">
+                          {selectedCreative.headline || (language === 'en' ? 'Meta Ad Creative' : 'Creatividad de Meta Ads')}
+                        </p>
                       </div>
                     </div>
-                    <button onClick={() => setSelectedCreative(null)} className="text-[#414754] hover:text-[#0b1c30]">
+                    <button onClick={() => setSelectedCreative(null)} className="text-[#414754] hover:text-[#0b1c30] p-1 rounded-lg hover:bg-slate-100">
                       <span className="material-symbols-outlined">close</span>
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+
+                  {/* Video Player or Image Display */}
+                  {selectedCreative.isVideo ? (
+                    <div className="mb-4 bg-black rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
+                      {selectedCreative.videoEmbedUrl ? (
+                        <iframe
+                          src={selectedCreative.videoEmbedUrl}
+                          className="w-full aspect-[9/16] max-h-80 border-0"
+                          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                          allowFullScreen
+                          title={selectedCreative.name}
+                        />
+                      ) : selectedCreative.videoId ? (
+                        <iframe
+                          src={`https://www.facebook.com/plugins/video.php?href=https%3A%2F%2Fwww.facebook.com%2Freel%2F${selectedCreative.videoId}%2F&show_text=false&autoplay=true`}
+                          className="w-full aspect-[9/16] max-h-80 border-0"
+                          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                          allowFullScreen
+                          title={selectedCreative.name}
+                        />
+                      ) : selectedCreative.thumbnail ? (
+                        <img
+                          src={selectedCreative.thumbnail}
+                          alt={selectedCreative.name}
+                          className="w-full max-h-72 object-contain"
+                        />
+                      ) : null}
+                      {selectedCreative.videoWatchUrl && (
+                        <div className="w-full bg-[#111] px-4 py-2 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-300 font-medium">Facebook Reel / Video</span>
+                          <a
+                            href={selectedCreative.videoWatchUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-400 hover:text-blue-300"
+                          >
+                            <span className="material-symbols-outlined text-sm">open_in_new</span>
+                            {language === 'en' ? 'Watch in Facebook' : 'Ver en Facebook'}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedCreative.thumbnail ? (
+                    <div className="mb-4 rounded-xl overflow-hidden border border-[#c1c6d6] bg-[#f8f9ff] flex items-center justify-center max-h-72">
+                      <img
+                        src={selectedCreative.thumbnail}
+                        alt={selectedCreative.name}
+                        className="max-h-72 object-contain w-full"
+                      />
+                    </div>
+                  ) : null}
+
+                  {/* Ad Body Copy if available */}
+                  {selectedCreative.bodyText && (
+                    <div className="mb-4 p-3 bg-[#f4f6fb] rounded-xl border border-[#e5eeff]">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#727785] mb-1">
+                        {language === 'en' ? 'Ad Copy' : 'Texto del Anuncio'}
+                      </p>
+                      <p className="text-xs text-[#0b1c30] whitespace-pre-line leading-relaxed">
+                        {selectedCreative.bodyText}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* KPIs Grid */}
+                  <div className="grid grid-cols-2 gap-3">
                     {[
                       { label: language === 'en' ? 'Impressions' : 'Impresiones', value: parseInt(selectedCreative.impressions || '0').toLocaleString() },
                       { label: language === 'en' ? 'Clicks' : 'Clics', value: parseInt(selectedCreative.clicks || '0').toLocaleString() },
@@ -14669,9 +15105,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           : '--',
                       },
                     ].map((stat, i) => (
-                      <div key={i} className="bg-[#f4f6fb] rounded-xl p-4">
-                        <p className="text-[11px] font-semibold text-[#414754] uppercase tracking-wide mb-1">{stat.label}</p>
-                        <p className="text-xl font-bold text-[#0b1c30]">{stat.value}</p>
+                      <div key={i} className="bg-[#f4f6fb] rounded-xl p-3 border border-[#e5eeff]/50">
+                        <p className="text-[10px] font-bold text-[#414754] uppercase tracking-wide mb-0.5">{stat.label}</p>
+                        <p className="text-lg font-bold text-[#0b1c30]">{stat.value}</p>
                       </div>
                     ))}
                   </div>
@@ -16685,6 +17121,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   { key: 'templates', label: 'Plantillas', icon: 'palette' },
                   { key: 'ai_engine', label: 'Motor Visual IA', icon: 'auto_awesome' },
                     { key: 'tracking', label: 'Rastreo', icon: 'monitoring' },
+                    { key: 'brain', label: 'Cerebro IA', icon: 'neurology' },
                 ].map(t => (
                   <button key={t.key} onClick={() => setAdminTab(t.key as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${adminTab === t.key ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
@@ -18521,6 +18958,17 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   </div>
                 )}
 
+                {/* ===== CEREBRO IA SUB-TAB (Panel de Administrador) ===== */}
+                {adminTab === 'brain' && (
+                  <div className="pt-1">
+                    <BrainTab
+                      language={language}
+                      adminView={true}
+                      tenants={adminData?.tenants || []}
+                    />
+                  </div>
+                )}
+
               </>
             )}
           </motion.div>
@@ -19025,6 +19473,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
         {/* ═══════════════════ TEAM TAB ═══════════════════ */}
         {activeTab === 'team' && (<TeamTab language={language} />)}
+
+        {/* ═══════════════════ VOICE AGENT TAB (Llamadas de Voz IA) ═══════════════════ */}
+        {activeTab === 'voice_agent' && (<VoiceAgentTab language={language} tenantData={adminData || {}} />)}
 
           </>
         )}

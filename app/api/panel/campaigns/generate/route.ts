@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import { denyUnlessFeature } from '@/lib/feature-access';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitKey } from '@/lib/security';
+import { getBrainAdvertisingDirectivesForPrompt } from '@/lib/brain-sales-intelligence';
 
 export const dynamic = 'force-dynamic';
 
@@ -180,12 +181,15 @@ export async function POST(req: NextRequest) {
       hasProductImage ? 'El usuario subió una FOTO DEL PRODUCTO - incorpora eso en las sugerencias de creative y recomienda composición visual.' : '',
     ].filter(Boolean).join('\n');
 
+    // Extraer inteligencia aprendida del Cerebro Autónomo para campañas publicitarias
+    const brainAdDirectives = await getBrainAdvertisingDirectivesForPrompt(tenant.tenantId).catch(() => '');
+
     const completion = await groq.chat.completions.create({
       model: 'qwen/qwen3.8-27b',
       messages: [
         {
           role: 'system',
-          content: MARKETING_SYSTEM_PROMPT
+          content: `${MARKETING_SYSTEM_PROMPT}\n\n${brainAdDirectives}`
         },
         {
           role: 'user',

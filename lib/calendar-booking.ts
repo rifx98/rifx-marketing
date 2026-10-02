@@ -2,6 +2,7 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 import { getCalendarCredentials, createCalendarEvent } from '@/lib/google-calendar';
 import { sendNewAppointmentAlertEmail } from '@/lib/email';
 import { deductAiCredits, hasAvailableCredits } from '@/lib/ai-credits';
+import { recordBrainLearningEvent } from '@/lib/brain-sales-intelligence';
 
 export interface TimeSlotOption {
   time24: string;
@@ -100,25 +101,9 @@ export function parseNaturalDate(text: string): string | null {
     return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   }
 
-  // 3. "hoy"
-  if (lower.includes('hoy') || lower.includes('el día de hoy') || lower.includes('el dia de hoy')) {
-    return now.dateStr;
-  }
+  // Remove business schedule boilerplate like "de lunes a viernes", "lunes a sabado" to prevent false day match
+  const cleanedText = lower.replace(/\b(?:de\s+)?(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\s+a\s+(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/gi, '');
 
-  // 4. "mañana" (avoid matching "en la mañana")
-  if (/\bmañana\b/.test(lower) && !/\b(?:de|en)\s+la\s+mañana\b/.test(lower)) {
-    const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const tmrParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-    return tmrParts;
-  }
-
-  // 5. "pasado mañana"
-  if (lower.includes('pasado mañana') || lower.includes('pasado manana')) {
-    const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-  }
-
-  // 6. Day names ("el lunes", "el jueves", etc.)
   const dayNamesMap: Record<string, number> = {
     'domingo': 0,
     'lunes': 1,
@@ -131,15 +116,52 @@ export function parseNaturalDate(text: string): string | null {
     'sabado': 6
   };
 
-  for (const [name, targetDay] of Object.entries(dayNamesMap)) {
-    const regex = new RegExp(`\\b(?:el\\s+|este\\s+)?${name}\\b`, 'i');
-    if (regex.test(lower)) {
+  // 3. Explicit day proposition: "para el lunes", "el lunes", "agendar para el martes", etc.
+  const explicitDayMatch = cleanedText.match(/\b(?:agendar\s+)?(?:para\s+el|para|el|este)\s+(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/i);
+  if (explicitDayMatch) {
+    const targetDay = dayNamesMap[explicitDayMatch[1].toLowerCase()];
+    if (targetDay !== undefined) {
       const currentDay = now.dayOfWeek;
       let diff = targetDay - currentDay;
       if (diff <= 0) diff += 7; // next upcoming day
       const targetDate = new Date(Date.now() + diff * 24 * 60 * 60 * 1000);
       return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(targetDate);
     }
+  }
+
+  // 4. "pasado mañana"
+  if (cleanedText.includes('pasado mañana') || cleanedText.includes('pasado manana')) {
+    const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  }
+
+  // 5. "mañana" (avoid matching when "mañana" only means morning like "de la mañana")
+  const withoutMorning = cleanedText.replace(/\b(?:de|en|por)\s+la\s+mañana\b/gi, '');
+  if (/\bmañana\b/i.test(withoutMorning)) {
+    const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  }
+
+  // 6. Day names anywhere in cleanedText ("lunes", "martes", etc.), ignoring negations ("sábado no")
+  for (const [name, targetDay] of Object.entries(dayNamesMap)) {
+    const regex = new RegExp(`\\b${name}\\b`, 'i');
+    if (regex.test(cleanedText)) {
+      const isNegated = new RegExp(`\\b${name}\\s*(?:no\\b|cerrado|descanso)`, 'i').test(cleanedText);
+      if (!isNegated) {
+        const currentDay = now.dayOfWeek;
+        let diff = targetDay - currentDay;
+        if (diff <= 0) diff += 7; // next upcoming day
+        const targetDate = new Date(Date.now() + diff * 24 * 60 * 60 * 1000);
+        return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(targetDate);
+      }
+    }
+  }
+
+  // 7. "hoy" (only if NOT negated like "hoy no", "hoy cerrado", "hoy no tenemos", "hoy sábado no")
+  const isHoyNegated = /\b(?:lamentablemente\s+)?hoy(?:\s+\w+)?\s+no\b/i.test(lower) ||
+                       /\bno\s+(?:tenemos|atendemos|abrimos|hay|es\s+posible|se\s+puede)\s+hoy\b/i.test(lower);
+  if (!isHoyNegated && (lower.includes('hoy') || lower.includes('el día de hoy') || lower.includes('el dia de hoy'))) {
+    return now.dateStr;
   }
 
   return null;
@@ -152,8 +174,12 @@ export function parseNaturalTime(text: string): { time24: string; hour: number; 
   if (!text) return null;
   const lower = text.toLowerCase();
 
-  // Pattern: "a las 3 de la tarde", "3:00 pm", "15:00", "a las 10 am", "las 4"
-  const timeMatch = lower.match(/(?:a\s+)?(?:las?\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:de\s+la\s+)?(am|pm|a\.m\.|p\.m\.|mañana|tarde|noche)?/i);
+  // Remove business schedule boilerplate like "de 9:00 am a 6:00 pm", "de 9 a 18"
+  const cleanedText = lower.replace(/\b(?:de\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\s*a\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\b/gi, '');
+
+  // 1. Explicit proposal: "a las 3 de la tarde", "para las 3", "a las 15:00"
+  const explicitTimeMatch = cleanedText.match(/(?:agendar\s+)?(?:para\s+las?|a\s+las?)\s+(\d{1,2})(?::(\d{2}))?\s*(?:de\s+la\s+)?(am|pm|a\.m\.|p\.m\.|mañana|tarde|noche)?/i);
+  const timeMatch = explicitTimeMatch || cleanedText.match(/(?:a\s+)?(?:las?\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:de\s+la\s+)?(am|pm|a\.m\.|p\.m\.|mañana|tarde|noche)?/i);
   if (!timeMatch) return null;
 
   let hour = parseInt(timeMatch[1], 10);
@@ -178,6 +204,62 @@ export function parseNaturalTime(text: string): { time24: string; hour: number; 
 }
 
 /**
+ * Consulta la configuración de días y horarios laborales del tenant desde la base de datos
+ */
+export async function getTenantCalendarConfig(tenantId: string): Promise<{
+  businessDays: number[];
+  businessDaysNames: string[];
+  businessDaysFormatted: string;
+  startHour: string;
+  endHour: string;
+  startHourLabel: string;
+  endHourLabel: string;
+}> {
+  const supabase = createSupabaseAdmin();
+  let businessDays = [1, 2, 3, 4, 5];
+  let startHour = '09:00';
+  let endHour = '18:00';
+
+  try {
+    const { data: cfg } = await supabase
+      .from('config')
+      .select('openai_key')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (cfg?.openai_key) {
+      const parsed = JSON.parse(cfg.openai_key);
+      if (Array.isArray(parsed.business_days) && parsed.business_days.length > 0) {
+        businessDays = parsed.business_days;
+      }
+      if (parsed.business_start_hour) startHour = parsed.business_start_hour;
+      if (parsed.business_end_hour) endHour = parsed.business_end_hour;
+    }
+  } catch {}
+
+  const businessDaysNames = businessDays.map(d => DAY_NAMES[d] || `Día ${d}`);
+
+  let businessDaysFormatted = businessDaysNames.join(', ');
+  if (businessDays.length === 5 && [1, 2, 3, 4, 5].every(d => businessDays.includes(d))) {
+    businessDaysFormatted = 'Lunes a Viernes';
+  } else if (businessDays.length === 6 && [1, 2, 3, 4, 5, 6].every(d => businessDays.includes(d))) {
+    businessDaysFormatted = 'Lunes a Sábado';
+  } else if (businessDays.length === 7) {
+    businessDaysFormatted = 'Todos los días (Lunes a Domingo)';
+  }
+
+  return {
+    businessDays,
+    businessDaysNames,
+    businessDaysFormatted,
+    startHour,
+    endHour,
+    startHourLabel: formatTimeLabel(startHour),
+    endHourLabel: formatTimeLabel(endHour)
+  };
+}
+
+/**
  * Check availability for a specific date across:
  * 1. Business days
  * 2. Business hours
@@ -193,9 +275,10 @@ export async function checkDateAvailability(
     endHour?: string;
   }
 ): Promise<AvailabilityResult> {
-  const bDays = options?.businessDays || [1, 2, 3, 4, 5]; // Mon-Fri default
-  const startHourNum = parseInt(options?.startHour || '09', 10);
-  const endHourNum = parseInt(options?.endHour || '18', 10);
+  const tenantCal = await getTenantCalendarConfig(tenantId);
+  const bDays = options?.businessDays || tenantCal.businessDays;
+  const startHourNum = parseInt(options?.startHour || tenantCal.startHour.split(':')[0], 10) || 9;
+  const endHourNum = parseInt(options?.endHour || tenantCal.endHour.split(':')[0], 10) || 18;
 
   const [y, m, d] = dateStr.split('-').map(Number);
   const targetDayOfWeek = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
@@ -203,18 +286,16 @@ export async function checkDateAvailability(
   // 1. Business day check
   if (!bDays.includes(targetDayOfWeek)) {
     const dayName = DAY_NAMES[targetDayOfWeek];
-    const allowedDaysStr = bDays.map(d => DAY_NAMES[d]).join(', ');
     return {
       available: false,
       date: dateStr,
       slots: [],
-      reason: `Los días ${dayName} no son días de atención. Nuestros días disponibles son: ${allowedDaysStr}.`
+      reason: `Los días ${dayName} no atendemos. Nuestros días de atención son de ${tenantCal.businessDaysFormatted} de ${tenantCal.startHourLabel} a ${tenantCal.endHourLabel}.`
     };
   }
-
-  const supabase = createSupabaseAdmin();
   const now = getNowInTimezone();
   const isToday = now.dateStr === dateStr;
+  const supabase = createSupabaseAdmin();
 
   // 2. Fetch busy intervals from appointments table in Supabase
   const dayStartISO = new Date(`${dateStr}T00:00:00-05:00`).toISOString();
@@ -343,6 +424,143 @@ export async function checkSpecificSlot(
   return {
     available: true,
     availableSlots: result.slots
+  };
+}
+
+/**
+ * Evalúa en tiempo real si el día y la hora solicitados por el cliente en llamada de voz
+ * están disponibles en el calendario, si el día no se atiende, si está fuera de horario, o si ya está ocupado.
+ */
+export async function evaluateVoiceAvailability(
+  tenantId: string,
+  candidateDate?: string | null,
+  candidateTime?: { time24: string; hour: number; minute: number } | null
+): Promise<{
+  calConfig: {
+    businessDays: number[];
+    businessDaysNames: string[];
+    businessDaysFormatted: string;
+    startHour: string;
+    endHour: string;
+    startHourLabel: string;
+    endHourLabel: string;
+  };
+  hasProposal: boolean;
+  status: 'available' | 'day_not_allowed' | 'outside_hours' | 'slot_busy' | 'no_slots_left' | 'info_only';
+  reason?: string;
+  suggestedSlots: TimeSlotOption[];
+  nextAvailableDate?: string;
+  targetDayName?: string;
+}> {
+  const calConfig = await getTenantCalendarConfig(tenantId);
+
+  if (!candidateDate) {
+    return {
+      calConfig,
+      hasProposal: false,
+      status: 'info_only',
+      suggestedSlots: []
+    };
+  }
+
+  const [y, m, d] = candidateDate.split('-').map(Number);
+  const targetDayOfWeek = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
+  const targetDayName = DAY_NAMES[targetDayOfWeek] || 'ese día';
+
+  // 1. ¿El día propuesto es día de atención?
+  if (!calConfig.businessDays.includes(targetDayOfWeek)) {
+    // Buscar el próximo día laborable disponible
+    let nextDateStr = '';
+    let nextDayName = '';
+    for (let offset = 1; offset <= 7; offset++) {
+      const checkD = new Date(Date.now() + offset * 24 * 60 * 60 * 1000);
+      const checkDow = checkD.getUTCDay();
+      if (calConfig.businessDays.includes(checkDow)) {
+        nextDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(checkD);
+        nextDayName = DAY_NAMES[checkDow];
+        break;
+      }
+    }
+
+    return {
+      calConfig,
+      hasProposal: true,
+      status: 'day_not_allowed',
+      targetDayName,
+      reason: `Los días ${targetDayName} no son días de atención. Nuestros días de atención son de ${calConfig.businessDaysFormatted} de ${calConfig.startHourLabel} a ${calConfig.endHourLabel}.`,
+      suggestedSlots: [],
+      nextAvailableDate: nextDateStr ? `${nextDayName} (${nextDateStr})` : undefined
+    };
+  }
+
+  // 2. Revisar disponibilidad de slots para ese día
+  const dateResult = await checkDateAvailability(tenantId, candidateDate, {
+    businessDays: calConfig.businessDays,
+    startHour: calConfig.startHour,
+    endHour: calConfig.endHour
+  });
+
+  if (!dateResult.available || dateResult.slots.length === 0) {
+    return {
+      calConfig,
+      hasProposal: true,
+      status: 'no_slots_left',
+      targetDayName,
+      reason: `Para el ${targetDayName} (${candidateDate}) ya no nos quedan horarios disponibles.`,
+      suggestedSlots: []
+    };
+  }
+
+  // Si no especificó hora aún, ese día sí se puede
+  if (!candidateTime) {
+    return {
+      calConfig,
+      hasProposal: true,
+      status: 'available',
+      targetDayName,
+      suggestedSlots: dateResult.slots
+    };
+  }
+
+  // 3. Revisar si la hora está dentro del horario de atención
+  const startH = parseInt(calConfig.startHour.split(':')[0], 10);
+  const endH = parseInt(calConfig.endHour.split(':')[0], 10);
+
+  if (candidateTime.hour < startH || candidateTime.hour >= endH) {
+    return {
+      calConfig,
+      hasProposal: true,
+      status: 'outside_hours',
+      targetDayName,
+      reason: `El horario de las ${formatTimeLabel(candidateTime.time24)} está fuera de nuestro horario de atención (${calConfig.startHourLabel} a ${calConfig.endHourLabel}).`,
+      suggestedSlots: dateResult.slots
+    };
+  }
+
+  // 4. Revisar si esa hora específica está libre o ya ocupada
+  const matchingSlot = dateResult.slots.find(s => {
+    const [h] = s.time24.split(':').map(Number);
+    return h === candidateTime.hour;
+  });
+
+  if (!matchingSlot) {
+    return {
+      calConfig,
+      hasProposal: true,
+      status: 'slot_busy',
+      targetDayName,
+      reason: `El horario de las ${formatTimeLabel(candidateTime.time24)} ya se encuentra ocupado en el calendario.`,
+      suggestedSlots: dateResult.slots
+    };
+  }
+
+  // 5. ¡Totalmente disponible!
+  return {
+    calConfig,
+    hasProposal: true,
+    status: 'available',
+    targetDayName,
+    suggestedSlots: dateResult.slots
   };
 }
 
@@ -652,6 +870,7 @@ export async function bookAppointment(params: {
   endHour?: string;
   history?: Array<{ role: string; content: string }>;
   notes?: string;
+  force?: boolean;
 }): Promise<BookingResult> {
   const {
     tenantId,
@@ -665,7 +884,8 @@ export async function bookAppointment(params: {
     startHour,
     endHour,
     history,
-    notes
+    notes,
+    force = false
   } = params;
 
   // 1. Verify availability first
@@ -675,7 +895,7 @@ export async function bookAppointment(params: {
     endHour
   });
 
-  if (!slotCheck.available) {
+  if (!slotCheck.available && !force) {
     return {
       success: false,
       reason: slotCheck.reason,
@@ -818,6 +1038,14 @@ export async function bookAppointment(params: {
         })
         .eq('id', conversationId);
     }
+
+    // Auto-asimilar aprendizaje en el Cerebro Central del CRM
+    recordBrainLearningEvent(tenantId, {
+      type: 'appointment_booked',
+      trigger: `Cita confirmada: ${service || 'Consulta'} con ${customerName || 'Cliente'}`,
+      lesson: `Cliente agendó exitosamente para las ${formatTimeLabel(time)}. La confirmación inmediata y cierre de doble alternativa maximizaron la conversión.`,
+      context: `Día: ${date} ${time} | Tel: ${phoneNumber || 'WhatsApp'}`,
+    }).catch(() => {});
 
     // 5. Send instant email alert to admin/business owner
     sendNewAppointmentAlertEmail({

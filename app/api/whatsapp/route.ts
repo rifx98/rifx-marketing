@@ -8,6 +8,7 @@ import { notifyNextInWaitlist } from '@/lib/waitlist-engine';
 import { classifyIntent } from '@/lib/intent-router';
 import { detectSignalsFromMessage, calculateLeadScore, inferSalesStage, extractSalesMetadata } from '@/lib/lead-scoring';
 import { getSalesStageInstructions, DEFAULT_SALES_PROMPT, DEFAULT_SUPPORT_PROMPT } from '@/lib/sales-prompts';
+import { getBrainLearnedDirectivesForPrompt, recordBrainLearningEvent } from '@/lib/brain-sales-intelligence';
 import { loadTenantPricing, buildPricingPrompt, validatePricingInResponse } from '@/lib/pricing-guard';
 import { triggerCriticalAlert } from '@/lib/alerts';
 import { createHmac, randomUUID } from 'node:crypto';
@@ -1101,6 +1102,16 @@ async function processQueuedWhatsAppMessage(req: NextRequest) {
 - Tu nombre: ${botName || 'Asistente'}
 - Tu rol: ${botRole || 'Asesor de Atención'}
 - Tono de comunicación: ${botTone || 'Profesional'}`;
+    }
+
+    // 4.215 Inyectar Inteligencia y Directivas de Cierre Aprendidas por el Cerebro Autónomo
+    try {
+      const brainDirectives = await getBrainLearnedDirectivesForPrompt(tenantId);
+      if (brainDirectives) {
+        aiPrompt += `\n\n${brainDirectives}`;
+      }
+    } catch (brainErr) {
+      console.warn('[whatsapp] Error inyectando directivas del cerebro:', brainErr);
     }
 
     // 4.22 Seguridad y Guardrails (Profanity Filter y Topic Locks)
@@ -2296,12 +2307,31 @@ Transportadora: *${orderResult.carrier}*`;
       lead_score: newLeadScore,
       updated_at: new Date().toISOString(),
     };
-    if (salesMeta.objection) salesUpdate.last_objection = salesMeta.objection;
+    if (salesMeta.objection) {
+      salesUpdate.last_objection = salesMeta.objection;
+      if (tenantId) {
+        recordBrainLearningEvent(tenantId, {
+          type: 'objection_resolved',
+          trigger: `Objeción: "${salesMeta.objection}"`,
+          lesson: `El cliente expresó duda o reparo: "${salesMeta.objection}". La IA aplicó reencuadre de valor, empatía y garantía para continuar la negociación.`,
+          context: `Interés: ${salesMeta.serviceInterest || 'General'}`,
+        }).catch(() => {});
+      }
+    }
     if (salesMeta.nextAction) salesUpdate.next_action = salesMeta.nextAction;
     if (salesMeta.businessType) salesUpdate.business_type = salesMeta.businessType;
     if (salesMeta.urgency) salesUpdate.urgency_level = salesMeta.urgency;
     if (salesMeta.serviceInterest) salesUpdate.service_interest = salesMeta.serviceInterest;
     if (salesMeta.budgetRange) salesUpdate.budget_range = salesMeta.budgetRange;
+
+    if (tenantId && newSalesStage === 'won') {
+      recordBrainLearningEvent(tenantId, {
+        type: 'sale_won',
+        trigger: `Venta cerrada exitosamente`,
+        lesson: `Cierre concretado con alta certidumbre y valor tangible. Interés: ${salesMeta.serviceInterest || 'General'}.`,
+        context: `Score: ${newLeadScore}/100`,
+      }).catch(() => {});
+    }
 
     // 7 & 8. Enviar respuesta por WhatsApp INMEDIATAMENTE y persistir en la DB en paralelo para mínima latencia percibida
     const sendPromise = sendWhatsAppMessage(customerPhone, aiResponse, config, 'assistant_response')
