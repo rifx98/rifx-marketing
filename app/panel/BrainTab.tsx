@@ -25,6 +25,20 @@ const BrainGraph3D = dynamic(() => import('./components/BrainGraph3D'), {
   ),
 });
 
+// Dynamically load the Neuromapa interactive canvas engine
+const NeuromapaGraph = dynamic(() => import('./components/NeuromapaGraph'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full min-h-[500px] flex-col items-center justify-center bg-[#0a0c10] text-slate-400">
+      <span className="material-symbols-outlined mb-3 animate-spin text-4xl text-[#a193ff]">
+        progress_activity
+      </span>
+      <p className="text-sm font-semibold text-slate-200">Iniciando Neuromapa Neuronal...</p>
+      <p className="mt-1 text-xs text-slate-500">Cargando sinapsis activas, impulsos y memoria cognitiva</p>
+    </div>
+  ),
+});
+
 const NODE_TYPE_META: Record<
   BrainNodeType,
   { labelEs: string; labelEn: string; icon: string; color: string; bg: string; text: string }
@@ -247,6 +261,7 @@ export default function BrainTab({
   const [error, setError] = useState<string | null>(null);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'neuromapa' | '3d'>('neuromapa');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'confirmed' | 'inferred'>('all');
@@ -1180,44 +1195,94 @@ export default function BrainTab({
             {/* Top Bar inside the white card */}
             <div className="flex items-center justify-between pb-3.5 mb-1 border-b border-slate-100 flex-wrap gap-2">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20">
+                <div
+                  className={`w-10 h-10 rounded-xl text-white flex items-center justify-center font-bold shadow-md transition-all ${
+                    viewMode === 'neuromapa'
+                      ? 'bg-gradient-to-br from-[#a193ff] to-[#6366f1] shadow-[#a193ff]/20'
+                      : 'bg-gradient-to-br from-orange-500 to-amber-500 shadow-orange-500/20'
+                  }`}
+                >
                   <span className="material-symbols-outlined text-xl">neurology</span>
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 font-headline flex items-center gap-2">
-                    <span>{isEn ? 'Anatomical 3D Cortex & Synaptic Rays' : 'Corteza Cerebral Anatómica 3D'}</span>
-                    <span className="rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 px-2 py-0.5 text-[10px] font-bold">
-                      2,100 Neuronas · Rayos Sinápticos Activos
+                    <span>
+                      {viewMode === 'neuromapa'
+                        ? isEn
+                          ? 'Cognitive Neuromapa CRM'
+                          : 'Neuromapa Cognitivo CRM'
+                        : isEn
+                        ? 'Anatomical 3D Cortex & Synaptic Rays'
+                        : 'Corteza Cerebral Anatómica 3D'}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                        viewMode === 'neuromapa'
+                          ? 'bg-[#a193ff]/15 text-[#6366f1] border-[#a193ff]/30'
+                          : 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                      }`}
+                    >
+                      {viewMode === 'neuromapa'
+                        ? `${filteredNodes.length} Nodos · Sinapsis Activas & Halos`
+                        : '2,100 Neuronas · Rayos Sinápticos Activos'}
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400 font-normal">
-                    {isEn
+                    {viewMode === 'neuromapa'
+                      ? isEn
+                        ? 'Interactive Neuromapa canvas · Neural spotlighting, synaptic action potentials and focus'
+                        : 'Lienzo interactivo Neuromapa · Enfoque sináptico, impulsos eléctricos y halos neuronales'
+                      : isEn
                       ? 'Deep cognitive neural mesh · Actively learning customer messages & call coherence'
                       : 'Malla neural profunda · Asimila continuamente mensajes de WhatsApp y calibra la coherencia en llamadas'}
                   </p>
                 </div>
               </div>
 
+              {/* View Mode Switcher Pills */}
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-400 font-semibold hidden sm:inline">
-                  {isEn ? 'Interactive Viewport' : 'Visor Interactivo'}
-                </span>
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/60 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('neuromapa')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      viewMode === 'neuromapa'
+                        ? 'bg-gradient-to-r from-[#a193ff] to-[#6366f1] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">neurology</span>
+                    <span>{isEn ? 'Neuromapa' : 'Modo Neuromapa'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('3d')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      viewMode === '3d'
+                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">view_in_ar</span>
+                    <span>{isEn ? '3D Galaxy' : 'Galaxia 3D'}</span>
+                  </button>
+                </div>
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse ml-1" />
               </div>
             </div>
 
-            {/* Inner 3D Canvas Box */}
-            <div className="relative h-[650px] w-full overflow-hidden rounded-2xl bg-[#02040c] shadow-inner">
+            {/* Inner Canvas Box */}
+            <div className="relative h-[650px] w-full overflow-hidden rounded-2xl bg-[#0a0c10] shadow-inner">
               {loading ? (
-                <div className="flex h-full w-full flex-col items-center justify-center space-y-3 bg-[#02040c] text-slate-400">
-                  <span className="material-symbols-outlined animate-spin text-5xl text-cyan-400">
+                <div className="flex h-full w-full flex-col items-center justify-center space-y-3 bg-[#0a0c10] text-slate-400">
+                  <span className="material-symbols-outlined animate-spin text-5xl text-[#a193ff]">
                     neurology
                   </span>
                   <p className="text-sm font-semibold text-slate-200">
-                    {isEn ? 'Generating 3D Brain Silhouette & Synaptic Lattice...' : 'Generando silueta 3D del cerebro y red sináptica...'}
+                    {isEn ? 'Generating Neuromapa & Synaptic Lattice...' : 'Generando lienzo de Neuromapa y red sináptica...'}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {isEn ? 'Positioning cortical hemispheres and CRM entities' : 'Posicionando hemisferios corticales y entidades del CRM'}
+                    {isEn ? 'Positioning neural clusters and CRM entities' : 'Posicionando racimos neuronales y entidades del CRM'}
                   </p>
                 </div>
               ) : filteredNodes.length === 0 ? (
@@ -1240,6 +1305,28 @@ export default function BrainTab({
                     {isEn ? 'Reset Filters' : 'Restablecer Filtros'}
                   </button>
                 </div>
+              ) : viewMode === 'neuromapa' ? (
+                <NeuromapaGraph
+                  nodes={filteredNodes}
+                  edges={filteredEdges}
+                  selectedNodeId={selectedNodeId}
+                  onSelectNode={(id) => setSelectedNodeId(id)}
+                  language={language}
+                  learningState={graph?.learning}
+                  onTriggerLearn={handleTriggerLearn}
+                  onExecuteCopilotAction={(action, node) => {
+                    setActiveSideTab('copilot');
+                    setCopilotMessages((prev) => [
+                      ...prev,
+                      {
+                        id: `ctx-${Date.now()}`,
+                        role: 'assistant',
+                        content: `Analizando el nodo "${node.label}" (${NODE_TYPE_META[node.type]?.[isEn ? 'labelEn' : 'labelEs'] || node.type}). ${node.summary}. ¿Deseas que prepare una propuesta comercial, evalúe el historial de mensajes o programe una acción?`,
+                        timestamp: new Date().toISOString(),
+                      },
+                    ]);
+                  }}
+                />
               ) : (
                 <BrainGraph3D
                   nodes={filteredNodes}
@@ -1253,37 +1340,77 @@ export default function BrainTab({
               )}
             </div>
 
-            {/* Bottom Bar: Anatomical Lobes Guide (Inside White Card) */}
+            {/* Bottom Bar: Guide depending on viewMode */}
             <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                {isEn ? 'Lobes & Regions' : 'Guía de Lóbulos'}:
+                {viewMode === 'neuromapa'
+                  ? isEn
+                    ? 'Neural Categories'
+                    : 'Categorías Neuronales'
+                  : isEn
+                  ? 'Lobes & Regions'
+                  : 'Guía de Lóbulos'}
+                :
               </span>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-pink-500" />
-                  Temporal (Memoria WhatsApp)
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-rose-500" />
-                  Auditivo / Broca (Coherencia en Llamadas)
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  Prefrontal (Reglas & Estrategia)
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-sky-400" />
-                  Cerebelo (Respuestas Inmediatas)
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                  Frontal (Clientes)
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  Accumbens (Ventas)
-                </span>
-              </div>
+              {viewMode === 'neuromapa' ? (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#a193ff]" />
+                    Core Motor IA
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#10b981]" />
+                    Clientes / CRM
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#06b6d4]" />
+                    Conversaciones WhatsApp
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#8b5cf6]" />
+                    Respuestas Aprendidas
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#f59e0b]" />
+                    Intención & Ventas
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
+                    Objeciones Resueltas
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-[#6366f1]" />
+                    Base de Conocimiento
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-pink-500" />
+                    Temporal (Memoria WhatsApp)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    Auditivo / Broca (Coherencia en Llamadas)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    Prefrontal (Reglas & Estrategia)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-sky-400" />
+                    Cerebelo (Respuestas Inmediatas)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
+                    Frontal (Clientes)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    Accumbens (Ventas)
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
