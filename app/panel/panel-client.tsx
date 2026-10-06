@@ -16,6 +16,7 @@ import AddWaitlistModal from './components/AddWaitlistModal';
 import BitrixCalendarView from './components/BitrixCalendarView';
 import { templates } from './components/templates';
 import InboxClient from './inbox/inbox-client';
+import OutreachClient from './correos/outreach-client';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -8602,6 +8603,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         </div>
         
         <nav className="flex-1 flex flex-col gap-3 items-center overflow-y-auto no-scrollbar py-2 w-full">
+          <Link
+            href="/panel/correos"
+            title="Correos y prospectos"
+            aria-label="Correos y prospectos"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-slate-600 hover:bg-blue-100 hover:text-blue-900 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[22px]">mail</span>
+          </Link>
           {[
             { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
             { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
@@ -8714,6 +8723,14 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             </div>
             {/* Drawer Navigation Items — synced with desktop sidebar */}
             <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
+              <Link
+                href="/panel/correos"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-900 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px] text-blue-700">mail</span>
+                Correos y prospectos
+              </Link>
               {[
                 { key: 'dashboard', icon: 'dashboard', labelEs: 'Panel Principal', labelEn: 'Dashboard' },
                 { key: 'crm', icon: 'group', labelEs: 'Usuarios / CRM', labelEn: 'CRM & Users' },
@@ -17417,6 +17434,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   { key: 'ai_engine', label: 'Motor Visual IA', icon: 'auto_awesome' },
                     { key: 'tracking', label: 'Rastreo', icon: 'monitoring' },
                     { key: 'brain', label: 'Cerebro IA', icon: 'neurology' },
+                    { key: 'outreach', label: 'Correos / Prospectos', icon: 'mail' },
                 ].map(t => (
                   <button key={t.key} onClick={() => setAdminTab(t.key as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${adminTab === t.key ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
@@ -19261,6 +19279,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       adminView={true}
                       tenants={adminData?.tenants || []}
                     />
+                  </div>
+                )}
+
+                {/* ===== CORREOS Y PROSPECTOS (OUTREACH) SUB-TAB ===== */}
+                {adminTab === 'outreach' && (
+                  <div className="pt-1">
+                    <OutreachClient embedded={true} />
                   </div>
                 )}
 

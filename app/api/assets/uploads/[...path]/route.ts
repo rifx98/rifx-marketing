@@ -4,7 +4,7 @@ import { createSupabaseAdmin } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const PUBLIC_UPLOAD_PATH = /^announcements\/[0-9]{10,17}_[a-zA-Z0-9_-]{6,64}\.(?:jpe?g|png|webp|gif)$/;
+const PUBLIC_UPLOAD_PATH = /^(?:announcements|outreach)\/[0-9]{10,17}_[a-zA-Z0-9_-]{6,64}\.(?:jpe?g|png|webp|gif)$/;
 const CONTENT_TYPES: Readonly<Record<string, string>> = {
   gif: 'image/gif',
   jpeg: 'image/jpeg',
