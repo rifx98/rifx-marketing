@@ -3,6 +3,53 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
+  Sparkles,
+  Send,
+  Users,
+  MessageSquare,
+  CheckCircle2,
+  Inbox,
+  PenSquare,
+  RefreshCw,
+  Plus,
+  Search,
+  Building2,
+  FileText,
+  Smartphone,
+  Monitor,
+  FolderOpen,
+  Image as ImageIcon,
+  Save,
+  Mail,
+  X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  UploadCloud,
+  Check,
+  AlertCircle,
+  HelpCircle,
+  Clock,
+  Trash2,
+  ExternalLink,
+  ThumbsUp,
+  ThumbsDown,
+  ArrowRight,
+  ArrowLeft,
+  Star,
+  Zap,
+  Eye,
+  Megaphone,
+  Link as LinkIcon,
+  Lightbulb,
+  Shield,
+  Layers,
+  Award,
+  Pin,
+  PinOff,
+  Bookmark,
+} from 'lucide-react';
+import {
   prepareOutreachTemplate,
   renderAgencyReply,
   renderOutreach,
@@ -59,6 +106,10 @@ const emptyDraft: OutreachDraft = {
   template_html: null,
   include_whatsapp: true,
   whatsapp_phone: '+593 98 391 0712',
+  greeting_intro: 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+  include_greeting: true,
+  closing_message: '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+  include_closing: true,
 };
 
 const AI_EXAMPLES = [
@@ -89,20 +140,88 @@ type QuickReplyItem = {
 const DEFAULT_QUICK_REPLIES: QuickReplyItem[] = [
   {
     id: 'pedir-whatsapp',
-    title: '📲 Pedir WhatsApp',
+    title: 'Pedir WhatsApp',
     text: 'Hola {{nombre}},\n\nCon mucho gusto. ¿Me indicas a qué número de WhatsApp puedo escribirte para coordinar los detalles y enviarte ejemplos?\n\nQuedo atento.',
     isDefault: true,
   },
   {
     id: 'proponer-llamada',
-    title: '📅 Proponer llamada',
+    title: 'Proponer llamada',
     text: 'Hola {{nombre}},\n\nPerfecto. ¿Te parece bien si coordinamos una breve videollamada de 10 minutos para revisar los detalles del paquete?\n\n¿Qué día y hora te queda más cómodo?',
     isDefault: true,
   },
   {
     id: 'confirmar-inicio',
-    title: '🚀 Confirmar inicio',
+    title: 'Confirmar inicio',
     text: 'Hola {{nombre}},\n\nExcelente. El paquete acordado incluye 12 piezas gráficas y 3 videos editables con pauta segmentada. ¿Deseas que iniciemos esta semana con la primera propuesta de diseño?\n\nQuedo a tu disposición.',
+    isDefault: true,
+  },
+];
+
+export type GreetingItem = {
+  id: string;
+  title: string;
+  text: string;
+  isDefault?: boolean;
+};
+
+const DEFAULT_GREETINGS: GreetingItem[] = [
+  {
+    id: 'gr_default_1',
+    title: 'Oficial Ambato',
+    text: 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+    isDefault: true,
+  },
+  {
+    id: 'gr_default_2',
+    title: 'Director de Rifx',
+    text: 'Soy Bryan Arcos, Director de Rifx Marketing.',
+    isDefault: true,
+  },
+  {
+    id: 'gr_default_3',
+    title: 'Consultor Comercial',
+    text: 'Te saluda Bryan Arcos, consultor comercial en Rifx Marketing.',
+    isDefault: true,
+  },
+  {
+    id: 'gr_default_4',
+    title: 'Equipo Rifx',
+    text: 'Te saluda el equipo de crecimiento comercial de Rifx Marketing.',
+    isDefault: true,
+  },
+];
+
+export type ClosingMessageItem = {
+  id: string;
+  title: string;
+  text: string;
+  isDefault?: boolean;
+};
+
+const DEFAULT_CLOSING_MESSAGES: ClosingMessageItem[] = [
+  {
+    id: 'cl_default_1',
+    title: 'Conversar / Presupuesto',
+    text: '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+    isDefault: true,
+  },
+  {
+    id: 'cl_default_2',
+    title: 'Coordinar por WhatsApp',
+    text: '¿Con quién puedo coordinar los detalles de esta propuesta? Si les interesa, podemos conversar directamente por WhatsApp.',
+    isDefault: true,
+  },
+  {
+    id: 'cl_default_3',
+    title: 'Llamada de 10 min',
+    text: '¿Tendrían disponibilidad para una breve llamada de 10 minutos esta semana para revisar los detalles y responder dudas?',
+    isDefault: true,
+  },
+  {
+    id: 'cl_default_4',
+    title: 'Respuesta al correo',
+    text: 'Si les interesa la propuesta, simplemente respondan a este correo y con gusto coordinamos el inicio.',
     isDefault: true,
   },
 ];
@@ -137,6 +256,44 @@ export type InboxThread = {
   }>;
   uids: string[];
   isStarred: boolean;
+};
+
+export type UnifiedSentMessage = {
+  id: string;
+  sourceType: 'imap' | 'crm_proposal' | 'agency_reply';
+  typeBadge: 'Propuesta' | 'Respuesta' | 'Correo';
+  badgeColor: string;
+  subject: string;
+  snippet: string;
+  date: string;
+  contact?: Contact;
+  replyItem?: SentReplyItem;
+  imapMessage?: {
+    uid: string;
+    fromEmail: string;
+    fromName: string;
+    toEmail?: string;
+    toName?: string;
+    subject: string;
+    date: string;
+    snippet: string;
+  };
+};
+
+export type UnifiedSentItem = {
+  id: string;
+  recipientEmail: string;
+  recipientName: string;
+  businessName?: string;
+  matchedContactId?: string;
+  matchedContactBusiness?: string;
+  typeBadge: 'Propuesta' | 'Respuesta' | 'Correo';
+  badgeColor: string;
+  subject: string;
+  snippet: string;
+  date: string;
+  messages: UnifiedSentMessage[];
+  contact?: Contact;
 };
 
 function WhatsAppIcon({ className = 'h-4 w-4', fill = '#25D366' }: { className?: string; fill?: string }) {
@@ -218,6 +375,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     deliverables_note?: string;
     full_draft?: string;
   } | null>(null);
+  const [aiDraftText, setAiDraftText] = useState('');
+  const [selectedAiText, setSelectedAiText] = useState('');
+  const aiDraftTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const proposalTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [aiFeedback, setAiFeedback] = useState<'up' | 'down' | null>(null);
   const [aiDropdownOpen, setAiDropdownOpen] = useState(false);
 
@@ -302,16 +463,35 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     uid: string;
     fromEmail: string;
     fromName: string;
+    toEmail?: string;
+    toName?: string;
     subject: string;
     date: string;
     snippet: string;
     matchedContactId?: string;
     matchedContactBusiness?: string;
+    isSent?: boolean;
+  }>>([]);
+  const [sentInboxMessages, setSentInboxMessages] = useState<Array<{
+    uid: string;
+    fromEmail: string;
+    fromName: string;
+    toEmail?: string;
+    toName?: string;
+    subject: string;
+    date: string;
+    snippet: string;
+    matchedContactId?: string;
+    matchedContactBusiness?: string;
+    isSent?: boolean;
   }>>([]);
   const [syncingInbox, setSyncingInbox] = useState(false);
   const [inboxQuery, setInboxQuery] = useState('');
   const [selectedInboxUid, setSelectedInboxUid] = useState<string | null>(null);
-  const [inboxCategoryFilter, setInboxCategoryFilter] = useState<'all' | 'crm' | 'starred'>('all');
+  const [selectedSentId, setSelectedSentId] = useState<string | null>(null);
+  const [selectedSentSubMsgId, setSelectedSentSubMsgId] = useState<string | null>(null);
+  const [inboxCategoryFilter, setInboxCategoryFilter] = useState<'all' | 'crm' | 'starred' | 'sent'>('all');
+  const [sentPreviewSize, setSentPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
   const [inboxSearch, setInboxSearch] = useState('');
   const [starredUids, setStarredUids] = useState<string[]>([]);
   const [selectedInboxUids, setSelectedInboxUids] = useState<string[]>([]);
@@ -332,6 +512,18 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     title: '',
     text: '',
   });
+  const [greetingsList, setGreetingsList] = useState<GreetingItem[]>(DEFAULT_GREETINGS);
+  const [newGreetingModal, setNewGreetingModal] = useState<{ open: boolean; title: string; text: string }>({
+    open: false,
+    title: '',
+    text: '',
+  });
+  const [closingMessagesList, setClosingMessagesList] = useState<ClosingMessageItem[]>(DEFAULT_CLOSING_MESSAGES);
+  const [newClosingModal, setNewClosingModal] = useState<{ open: boolean; title: string; text: string }>({
+    open: false,
+    title: '',
+    text: '',
+  });
   const [improvingReplyWithAi, setImprovingReplyWithAi] = useState(false);
   const [replyIncludeWhatsApp, setReplyIncludeWhatsApp] = useState(true);
   const [replyWhatsAppPhone, setReplyWhatsAppPhone] = useState('+593 98 391 0712');
@@ -345,6 +537,52 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         if (Array.isArray(parsed) && parsed.length > 0) {
           setQuickReplies(parsed);
         }
+      }
+      const savedGreetings = localStorage.getItem('rifx_custom_greetings');
+      if (savedGreetings) {
+        const parsed = JSON.parse(savedGreetings);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setGreetingsList(parsed);
+        }
+      }
+      const savedGreetingPinned = localStorage.getItem('rifx_greeting_pinned');
+      const savedGreetingIntro = localStorage.getItem('rifx_greeting_intro');
+      if (savedGreetingPinned !== null || savedGreetingIntro) {
+        const isPinned = savedGreetingPinned !== null ? savedGreetingPinned === 'true' : true;
+        const intro = savedGreetingIntro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.';
+        setDraft(prev => ({
+          ...prev,
+          include_greeting: prev.include_greeting !== undefined ? prev.include_greeting : isPinned,
+          greeting_intro: prev.greeting_intro || intro,
+        }));
+        setBulkCampaignDraft(prev => ({
+          ...prev,
+          include_greeting: prev.include_greeting !== undefined ? prev.include_greeting : isPinned,
+          greeting_intro: prev.greeting_intro || intro,
+        }));
+      }
+      const savedClosingList = localStorage.getItem('rifx_custom_closing_messages');
+      if (savedClosingList) {
+        const parsed = JSON.parse(savedClosingList);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setClosingMessagesList(parsed);
+        }
+      }
+      const savedClosingPinned = localStorage.getItem('rifx_closing_pinned');
+      const savedClosingMessage = localStorage.getItem('rifx_closing_message');
+      if (savedClosingPinned !== null || savedClosingMessage) {
+        const isPinned = savedClosingPinned !== null ? savedClosingPinned === 'true' : true;
+        const msg = savedClosingMessage || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.';
+        setDraft(prev => ({
+          ...prev,
+          include_closing: prev.include_closing !== undefined ? prev.include_closing : isPinned,
+          closing_message: prev.closing_message || msg,
+        }));
+        setBulkCampaignDraft(prev => ({
+          ...prev,
+          include_closing: prev.include_closing !== undefined ? prev.include_closing : isPinned,
+          closing_message: prev.closing_message || msg,
+        }));
       }
       const savedWa = localStorage.getItem('rifx_reply_include_whatsapp');
       if (savedWa !== null) {
@@ -408,10 +646,13 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       if (Array.isArray(result.messages)) {
         setInboxMessages(result.messages);
       }
+      if (Array.isArray(result.sentMessages)) {
+        setSentInboxMessages(result.sentMessages);
+      }
       setMessage(
         result.updatedCount > 0
-          ? `✓ Sincronizado: ${result.updatedCount} prospecto(s) cambiaron automáticamente a estado "Respondió".`
-          : '✓ Bandeja de respuestas actualizada con el buzón de Nominalia.'
+          ? `Sincronizado: ${result.updatedCount} prospecto(s) cambiaron automáticamente a estado "Respondió".`
+          : 'Bandeja de respuestas actualizada con el buzón de Nominalia.'
       );
       void load();
     } catch (err) {
@@ -444,7 +685,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       }
       setDeleteConfirmModal(null);
       setMessage(
-        `✓ ${result.count || uids.length} correo(s) eliminados permanentemente del servidor de Nominalia. Memoria del buzón liberada.`
+        `${result.count || uids.length} correo(s) eliminados permanentemente del servidor de Nominalia. Memoria del buzón liberada.`
       );
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al eliminar correos de Nominalia.');
@@ -477,7 +718,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       if (!response.ok) {
         throw new Error(result.error || 'No se pudo enviar la respuesta.');
       }
-      setMessage('✓ Respuesta enviada con éxito al cliente desde ' + sender);
+      setMessage('Respuesta enviada con éxito al cliente desde ' + sender);
       setReplyModal(null);
       void load();
     } catch (err) {
@@ -499,7 +740,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       return;
     }
     setImprovingReplyWithAi(true);
-    setMessage('✨ Perfeccionando mensaje con IA (tono persuasivo y ejecutivo)...');
+    setMessage('Perfeccionando mensaje con IA...');
     try {
       const response = await fetch('/api/panel/outreach', {
         method: 'POST',
@@ -517,7 +758,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       if (!response.ok) throw new Error(result.error || 'No se pudo perfeccionar la respuesta con IA.');
       if (result.improvedText) {
         params.onSuccess(result.improvedText);
-        setMessage('✓ Respuesta perfeccionada profesionalmente con Inteligencia Artificial.');
+        setMessage('Respuesta perfeccionada con Inteligencia Artificial.');
       }
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al perfeccionar con IA.');
@@ -538,8 +779,12 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     setBulkCampaignDraft({
       ...draft,
       subject: draft.subject.includes('{{negocio}}') ? draft.subject : `${draft.subject} - {{negocio}}`,
+      include_greeting: draft.include_greeting !== false,
+      greeting_intro: draft.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+      include_closing: draft.include_closing !== false,
+      closing_message: draft.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
     });
-    setMessage('✓ Datos copiados del editor a la campaña masiva.');
+    setMessage('Datos copiados del editor a la campaña masiva.');
   };
 
   const handleStartBulkSend = async () => {
@@ -671,7 +916,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     setMessage(
       bulkStopRef.current
         ? `Envío masivo detenido. Exitosos: ${sentAcc}, Fallidos: ${failedAcc}.`
-        : `✓ Envío masivo completado. ${sentAcc} correo(s) enviados con éxito, ${failedAcc} fallido(s).`
+        : `Envío masivo completado. ${sentAcc} correo(s) enviados con éxito, ${failedAcc} fallido(s).`
     );
     void load();
   };
@@ -716,11 +961,11 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
       if (result.imageUrl) {
         setDraft(prev => ({ ...prev, image_url: result.imageUrl }));
-        setMessage('📷 Foto cargada con éxito desde tu galería.');
+        setMessage('Foto cargada con éxito desde tu galería.');
       }
     } catch (err) {
       console.warn('[Outreach Gallery Upload] Usando vista local:', err);
-      setMessage('📷 Foto cargada correctamente desde tu dispositivo.');
+      setMessage('Foto cargada correctamente desde tu dispositivo.');
     } finally {
       setUploadingImage(false);
     }
@@ -739,6 +984,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       setContacts(result.contacts || []);
       setTemplates(result.templates || []);
       if (Array.isArray(result.inbox)) setInboxMessages(result.inbox);
+      if (Array.isArray(result.sent)) setSentInboxMessages(result.sent);
       setReady(true);
       setSmtpReady(result.smtpReady);
       setTestEmail(result.testEmail || '');
@@ -784,19 +1030,27 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     (draft.image_url || '') !== (selected.image_url || '') ||
     (draft.template_html || null) !== (selected.template_html || null) ||
     (draft.include_whatsapp !== false) !== (selected.include_whatsapp !== false) ||
-    (draft.whatsapp_phone || '+593 98 391 0712') !== (selected.whatsapp_phone || '+593 98 391 0712');
+    (draft.whatsapp_phone || '+593 98 391 0712') !== (selected.whatsapp_phone || '+593 98 391 0712') ||
+    (draft.include_greeting !== false) !== (selected.include_greeting !== false) ||
+    (draft.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.') !== (selected.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.') ||
+    (draft.include_closing !== false) !== (selected.include_closing !== false) ||
+    (draft.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.') !== (selected.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.');
 
-  const locked = Boolean(selected && selected.delivery_status !== 'draft');
+  const locked = Boolean(selected && selected.delivery_status !== 'draft' && draft.email.trim().toLowerCase() === selected.email?.trim().toLowerCase());
 
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
     try {
+      let targetId = selected?.id;
+      if (selected && selected.email?.toLowerCase().trim() !== draft.email.toLowerCase().trim()) {
+        targetId = undefined;
+      }
       const response = await fetch('/api/panel/outreach', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', ...draft, id: selected?.id }),
+        body: JSON.stringify({ action: 'save', ...draft, id: targetId }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
@@ -815,6 +1069,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         template_html: result.contact.template_html,
         include_whatsapp: result.contact.include_whatsapp !== false,
         whatsapp_phone: result.contact.whatsapp_phone || '+593 98 391 0712',
+        include_greeting: result.contact.include_greeting !== false,
+        greeting_intro: result.contact.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+        include_closing: result.contact.include_closing !== false,
+        closing_message: result.contact.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
       });
       await load();
       setMessage('Propuesta guardada correctamente. Ya puedes probarla o enviarla.');
@@ -846,6 +1104,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Error al generar la propuesta.');
       setAiResult(data);
+      const generated = data.full_draft || data.proposal || '';
+      setAiDraftText(generated);
+      setSelectedAiText('');
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Error al conectar con el Asistente AI.');
     } finally {
@@ -853,38 +1114,85 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     }
   };
 
-  const applyAiToEmail = (mode: 'all' | 'proposal_only' | 'copy') => {
-    if (!aiResult) return;
+  const applyAiToEmail = (mode: 'all' | 'proposal_only' | 'append' | 'copy') => {
+    if (!aiResult && !aiDraftText) return;
+
+    // Detectar si el usuario seleccionó un fragmento con el ratón
+    let activeSelection = selectedAiText.trim();
+    if (!activeSelection && aiDraftTextareaRef.current) {
+      const { selectionStart, selectionEnd, value } = aiDraftTextareaRef.current;
+      if (selectionStart !== selectionEnd) {
+        activeSelection = value.substring(selectionStart, selectionEnd).trim();
+      }
+    }
+    if (!activeSelection && typeof window !== 'undefined') {
+      const winSel = window.getSelection()?.toString().trim();
+      if (winSel && aiDraftText.includes(winSel)) {
+        activeSelection = winSel;
+      }
+    }
+
+    const textToUse = activeSelection || aiDraftText.trim() || aiResult?.full_draft || aiResult?.proposal || '';
 
     if (mode === 'copy') {
-      const textToCopy = aiResult.full_draft || aiResult.proposal || '';
-      void navigator.clipboard.writeText(textToCopy);
-      setMessage('📋 Texto copiado al portapapeles.');
+      void navigator.clipboard.writeText(textToUse);
+      setMessage(activeSelection ? 'Fragmento seleccionado copiado al portapapeles.' : 'Texto copiado al portapapeles.');
+      return;
+    }
+
+    if (mode === 'append') {
+      setDraft(prev => ({
+        ...prev,
+        proposal: prev.proposal ? `${prev.proposal.trim()}\n\n${textToUse}` : textToUse,
+      }));
+      setMessage('Texto añadido al final de "Tu propuesta de campaña comercial".');
+      setShowAiModal(false);
+      setTimeout(() => {
+        proposalTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        proposalTextareaRef.current?.focus();
+      }, 150);
       return;
     }
 
     if (mode === 'proposal_only') {
       setDraft(prev => ({
         ...prev,
-        proposal: aiResult.proposal || prev.proposal,
+        proposal: textToUse,
       }));
-      setMessage('✨ Propuesta redactada aplicada al correo.');
+      setMessage(
+        activeSelection
+          ? 'Fragmento seleccionado insertado en "Tu propuesta de campaña comercial". Ya puedes editarlo.'
+          : 'Propuesta insertada en "Tu propuesta de campaña comercial". Ya puedes editarla o añadir más detalles.'
+      );
       setShowAiModal(false);
+      setTimeout(() => {
+        proposalTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        proposalTextareaRef.current?.focus();
+      }, 150);
       return;
     }
 
+    // Modo 'all': aplica todos los campos y el texto seleccionado/redactado en proposal
     setDraft(prev => ({
       ...prev,
-      subject: aiResult.subject || prev.subject,
-      observation: aiResult.observation || prev.observation,
-      proposal: aiResult.proposal || prev.proposal,
-      service_title: aiResult.service_title || prev.service_title,
-      price: aiResult.price || prev.price,
-      deliverables: aiResult.deliverables || prev.deliverables,
-      deliverables_note: aiResult.deliverables_note || prev.deliverables_note,
+      subject: aiResult?.subject || prev.subject,
+      observation: aiResult?.observation || prev.observation,
+      proposal: textToUse,
+      service_title: aiResult?.service_title || prev.service_title,
+      price: aiResult?.price || prev.price,
+      deliverables: aiResult?.deliverables || prev.deliverables,
+      deliverables_note: aiResult?.deliverables_note || prev.deliverables_note,
     }));
-    setMessage('✨ Propuesta completa y personalizada aplicada a todos los campos del correo.');
+    setMessage(
+      activeSelection
+        ? 'Fragmento seleccionado y propuesta aplicados a "Tu propuesta de campaña comercial". Ya puedes editarlo.'
+        : 'Propuesta completa aplicada a "Tu propuesta de campaña comercial". Ya puedes editarla o añadir lo que desees.'
+    );
     setShowAiModal(false);
+    setTimeout(() => {
+      proposalTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      proposalTextareaRef.current?.focus();
+    }, 150);
   };
 
   const send = async (test: boolean) => {
@@ -893,6 +1201,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     setConfirming(false);
     try {
       let targetId = selected?.id;
+      if (selected && selected.email?.toLowerCase().trim() !== draft.email.toLowerCase().trim()) {
+        targetId = undefined;
+      }
 
       if (!test) {
         const saveRes = await fetch('/api/panel/outreach', {
@@ -915,7 +1226,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
           test
-            ? { action: 'test', ...draft }
+            ? { action: 'test', testEmail: draft.email || testEmail, ...draft }
             : { action: 'send', id: targetId, confirmed: true }
         ),
       });
@@ -925,10 +1236,11 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         setSelected({ ...selected, delivery_status: 'sent', sent_at: new Date().toISOString() });
       }
       await load();
+      const destination = result.to || draft.email;
       setMessage(
         test
-          ? `¡Prueba enviada con éxito! Revisa tu bandeja de entrada en: ${testEmail || 'tu correo de pruebas'}.`
-          : '¡Propuesta comercial enviada con éxito! Las respuestas llegarán directamente a tu buzón.'
+          ? `¡Prueba enviada con éxito a ${destination}! Revisa tu bandeja de entrada o la carpeta de Spam / Correo no deseado.`
+          : `¡Propuesta comercial enviada con éxito a ${destination}! Las respuestas llegarán directamente a tu buzón.`
       );
     } catch (error) {
       await load();
@@ -936,6 +1248,29 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         setSelected({ ...selected, delivery_status: 'uncertain' });
       }
       setMessage(error instanceof Error ? error.message : 'No se pudo enviar el correo.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetStatus = async (contactId: string) => {
+    setBusy(true);
+    try {
+      const response = await fetch('/api/panel/outreach', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset-status', id: contactId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      if (selected?.id === contactId) {
+        setSelected(result.contact);
+      }
+      await load();
+      setMessage('Contacto desbloqueado y listo para editar o reenviar la propuesta.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No se pudo reactivar el contacto.');
     } finally {
       setBusy(false);
     }
@@ -1026,6 +1361,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       template_html: c.template_html,
       include_whatsapp: c.include_whatsapp !== false,
       whatsapp_phone: c.whatsapp_phone || '+593 98 391 0712',
+      include_greeting: c.include_greeting !== false,
+      greeting_intro: c.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+      include_closing: c.include_closing !== false,
+      closing_message: c.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
     });
     setConfirming(false);
     setShowContactList(false);
@@ -1035,19 +1374,73 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     setSelected(null);
     let defaultIncludeWa = true;
     let defaultPhone = '+593 98 391 0712';
+    let defaultIncludeGreeting = true;
+    let defaultGreetingIntro = 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.';
+    let defaultIncludeClosing = true;
+    let defaultClosingMessage = '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.';
     try {
       const savedWa = localStorage.getItem('rifx_outreach_include_whatsapp');
       if (savedWa !== null) defaultIncludeWa = savedWa === 'true';
       const savedPhone = localStorage.getItem('rifx_outreach_whatsapp_phone');
       if (savedPhone) defaultPhone = savedPhone;
+      const savedGreetingPinned = localStorage.getItem('rifx_greeting_pinned');
+      if (savedGreetingPinned !== null) defaultIncludeGreeting = savedGreetingPinned === 'true';
+      const savedGreetingIntro = localStorage.getItem('rifx_greeting_intro');
+      if (savedGreetingIntro) defaultGreetingIntro = savedGreetingIntro;
+      const savedClosingPinned = localStorage.getItem('rifx_closing_pinned');
+      if (savedClosingPinned !== null) defaultIncludeClosing = savedClosingPinned === 'true';
+      const savedClosingMsg = localStorage.getItem('rifx_closing_message');
+      if (savedClosingMsg) defaultClosingMessage = savedClosingMsg;
     } catch {}
     setDraft({
       ...emptyDraft,
       include_whatsapp: defaultIncludeWa,
       whatsapp_phone: defaultPhone,
+      include_greeting: defaultIncludeGreeting,
+      greeting_intro: defaultGreetingIntro,
+      include_closing: defaultIncludeClosing,
+      closing_message: defaultClosingMessage,
     });
     setConfirming(false);
     setShowContactList(false);
+  };
+
+  const handleDeleteGreeting = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const item = greetingsList.find(g => g.id === id);
+    if (!item || item.isDefault) return;
+    const updated = greetingsList.filter(g => g.id !== id);
+    setGreetingsList(updated);
+    try {
+      localStorage.setItem('rifx_custom_greetings', JSON.stringify(updated));
+    } catch {}
+    if (draft.greeting_intro === item.text) {
+      const fallback = DEFAULT_GREETINGS[0].text;
+      setDraft(prev => ({ ...prev, greeting_intro: fallback }));
+      try {
+        localStorage.setItem('rifx_greeting_intro', fallback);
+      } catch {}
+    }
+    setMessage(`Saludo personalizado "${item.title}" eliminado.`);
+  };
+
+  const handleDeleteClosingMessage = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const item = closingMessagesList.find(c => c.id === id);
+    if (!item || item.isDefault) return;
+    const updated = closingMessagesList.filter(c => c.id !== id);
+    setClosingMessagesList(updated);
+    try {
+      localStorage.setItem('rifx_custom_closing_messages', JSON.stringify(updated));
+    } catch {}
+    if (draft.closing_message === item.text) {
+      const fallback = DEFAULT_CLOSING_MESSAGES[0].text;
+      setDraft(prev => ({ ...prev, closing_message: fallback }));
+      try {
+        localStorage.setItem('rifx_closing_message', fallback);
+      } catch {}
+    }
+    setMessage(`Mensaje de cierre "${item.title}" eliminado.`);
   };
 
   const inboxThreads = useMemo<InboxThread[]>(() => {
@@ -1177,6 +1570,206 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
     return true;
   });
 
+  const sentItems = useMemo<UnifiedSentItem[]>(() => {
+    // 1. Recopilar todos los mensajes enviados individuales
+    const rawMessages: UnifiedSentMessage[] = [];
+
+    // A. Mensajes enviados desde IMAP (INBOX.Sent)
+    for (const m of sentInboxMessages) {
+      const email = (m.toEmail || m.fromEmail || '').toLowerCase().trim();
+      const isPropuesta = !!m.matchedContactBusiness || (m.subject && m.subject.toLowerCase().includes('propuesta'));
+
+      const matchedContact = m.matchedContactId
+        ? contacts.find(c => c.id === m.matchedContactId)
+        : contacts.find(c => c.email && c.email.toLowerCase().trim() === email);
+
+      rawMessages.push({
+        id: `imap-${m.uid}`,
+        sourceType: 'imap',
+        typeBadge: isPropuesta ? 'Propuesta' : 'Correo',
+        badgeColor: isPropuesta
+          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+          : 'bg-slate-100 text-slate-700 border-slate-200',
+        subject: m.subject || '(Sin asunto)',
+        snippet: m.snippet || '',
+        date: m.date,
+        contact: matchedContact,
+        imapMessage: m,
+      });
+    }
+
+    // B. Propuestas enviadas del CRM (delivery_status === 'sent')
+    const sentContacts = contacts.filter(c => c.delivery_status === 'sent');
+    for (const c of sentContacts) {
+      const email = (c.email || '').toLowerCase().trim();
+      const subject = c.subject || `Propuesta de marketing digital para ${c.business || 'su negocio'}`;
+
+      // Si ya hay un correo IMAP con este mismo destinatario enviado en la misma fecha/asunto, enriquecerlo y evitar duplicar
+      const alreadyInImap = rawMessages.find(
+        rm =>
+          ((rm.imapMessage?.toEmail || '').toLowerCase().trim() === email || (rm.contact?.email || '').toLowerCase().trim() === email) &&
+          (rm.subject.toLowerCase().includes('propuesta') ||
+            rm.subject === subject ||
+            Math.abs(new Date(rm.date).getTime() - new Date(c.sent_at || '').getTime()) < 86400000)
+      );
+
+      if (alreadyInImap) {
+        if (!alreadyInImap.contact) alreadyInImap.contact = c;
+        alreadyInImap.typeBadge = 'Propuesta';
+        alreadyInImap.badgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
+        continue;
+      }
+
+      rawMessages.push({
+        id: `crm-${c.id}`,
+        sourceType: 'crm_proposal',
+        typeBadge: 'Propuesta',
+        badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        subject,
+        snippet: c.observation || c.proposal || 'Propuesta comercial enviada',
+        date: c.sent_at || new Date().toISOString(),
+        contact: c,
+      });
+    }
+
+    // C. Respuestas de agencia enviadas desde el panel
+    for (const r of sentReplies) {
+      const email = (r.threadKey || '').toLowerCase().trim();
+      const matchedContact = contacts.find(c => c.email && c.email.toLowerCase().trim() === email);
+
+      const alreadyInImap = rawMessages.find(
+        rm =>
+          ((rm.imapMessage?.toEmail || '').toLowerCase().trim() === email || (rm.contact?.email || '').toLowerCase().trim() === email) &&
+          rm.subject === r.subject
+      );
+
+      if (alreadyInImap) {
+        if (!alreadyInImap.replyItem) alreadyInImap.replyItem = r;
+        continue;
+      }
+
+      rawMessages.push({
+        id: r.id,
+        sourceType: 'agency_reply',
+        typeBadge: 'Respuesta',
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        subject: r.subject || 'Respuesta de Rifx Marketing',
+        snippet: r.text || '',
+        date: r.date,
+        replyItem: r,
+        contact: matchedContact,
+      });
+    }
+
+    // 2. AGRUPAR POR DESTINATARIO (1 SOLA VEZ POR CORREO / DESTINATARIO)
+    const groupMap = new Map<string, {
+      recipientEmail: string;
+      recipientName: string;
+      businessName?: string;
+      contact?: Contact;
+      messages: UnifiedSentMessage[];
+    }>();
+
+    for (const msg of rawMessages) {
+      const email = (msg.contact?.email || msg.imapMessage?.toEmail || msg.replyItem?.threadKey || '').toLowerCase().trim();
+      const business = msg.contact?.business || (email ? contacts.find(c => c.email?.toLowerCase().trim() === email)?.business : '') || '';
+      const key = email || business.toLowerCase().trim() || msg.id;
+
+      const existing = groupMap.get(key);
+      if (existing) {
+        // Evitar duplicados idénticos en el mismo grupo
+        const isDuplicate = existing.messages.some(
+          m => m.subject === msg.subject && (m.snippet === msg.snippet || Math.abs(new Date(m.date).getTime() - new Date(msg.date).getTime()) < 10000)
+        );
+        if (!isDuplicate) {
+          existing.messages.push(msg);
+        }
+        if (!existing.businessName && business) existing.businessName = business;
+        if (!existing.contact && msg.contact) existing.contact = msg.contact;
+        if (business && existing.recipientName === existing.recipientEmail) {
+          existing.recipientName = business;
+        }
+      } else {
+        const name = business || msg.imapMessage?.toName || email || 'Destinatario';
+        groupMap.set(key, {
+          recipientEmail: email,
+          recipientName: name,
+          businessName: business,
+          contact: msg.contact,
+          messages: [msg],
+        });
+      }
+    }
+
+    // 3. CONSTRUIR LA LISTA FINAL (1 VEZ POR CORREO)
+    const groups: UnifiedSentItem[] = [];
+
+    for (const [key, group] of groupMap.entries()) {
+      group.messages.sort((a, b) => {
+        const tA = new Date(a.date).getTime() || 0;
+        const tB = new Date(b.date).getTime() || 0;
+        return tA - tB;
+      });
+
+      const latest = group.messages[group.messages.length - 1];
+      const matchedContact = group.contact || group.messages.find(m => !!m.contact)?.contact;
+      const bName = group.businessName || matchedContact?.business;
+      const recName = bName || group.recipientName || group.recipientEmail;
+
+      groups.push({
+        id: `recipient-${key}`,
+        recipientEmail: group.recipientEmail,
+        recipientName: recName,
+        businessName: bName,
+        matchedContactId: matchedContact?.id,
+        matchedContactBusiness: bName,
+        typeBadge: latest.typeBadge,
+        badgeColor: latest.badgeColor,
+        subject: latest.subject || '(Sin asunto)',
+        snippet: latest.snippet || '',
+        date: latest.date,
+        messages: group.messages,
+        contact: matchedContact,
+      });
+    }
+
+    // Ordenar por fecha del correo más reciente (más nuevo primero)
+    groups.sort((a, b) => {
+      const tA = new Date(a.date).getTime() || 0;
+      const tB = new Date(b.date).getTime() || 0;
+      return tB - tA;
+    });
+
+    return groups;
+  }, [sentInboxMessages, contacts, sentReplies]);
+
+  const filteredSentItems = useMemo<UnifiedSentItem[]>(() => {
+    if (!inboxSearch.trim()) return sentItems;
+    const q = inboxSearch.toLowerCase().trim();
+    return sentItems.filter(item => {
+      const matchRecipient =
+        item.recipientName.toLowerCase().includes(q) || item.recipientEmail.toLowerCase().includes(q);
+      const matchSubject = item.subject.toLowerCase().includes(q);
+      const matchSnippet = item.snippet.toLowerCase().includes(q);
+      const matchBusiness = (item.businessName || '').toLowerCase().includes(q);
+      const matchAnyMsg = item.messages.some(
+        m => m.subject.toLowerCase().includes(q) || m.snippet.toLowerCase().includes(q)
+      );
+      return matchRecipient || matchSubject || matchSnippet || matchBusiness || matchAnyMsg;
+    });
+  }, [sentItems, inboxSearch]);
+
+  const activeSentItem = selectedSentId
+    ? sentItems.find(item => item.id === selectedSentId) || null
+    : null;
+
+  const currentSentMessage = activeSentItem
+    ? (selectedSentSubMsgId
+        ? activeSentItem.messages.find(m => m.id === selectedSentSubMsgId) ||
+          activeSentItem.messages[activeSentItem.messages.length - 1]
+        : activeSentItem.messages[activeSentItem.messages.length - 1])
+    : null;
+
   const mainContent = (
     <div className={embedded ? 'w-full' : 'mx-auto max-w-7xl'}>
       {!embedded && (
@@ -1192,18 +1785,18 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       <header className={`${embedded ? 'mb-5 mt-1' : 'my-6'} flex flex-wrap items-center justify-between gap-4`}>
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-orange-600">Rifx Marketing</span>
-            <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs font-semibold text-slate-500">Módulo Comercial</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Rifx Marketing</span>
+            <span className="text-xs text-slate-300">•</span>
+            <span className="text-xs font-medium text-slate-500">Módulo Comercial</span>
           </div>
           <h1 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
             Correos y prospectos
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-600">
+          <p className="mt-1 text-xs sm:text-sm text-slate-500">
             Redacta en el lado izquierdo y visualiza en tiempo real el diseño final para tu cliente en el lado derecho.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={() => {
@@ -1212,16 +1805,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               }
               setShowAiModal(true);
             }}
-            className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 px-4 py-1.5 text-xs font-bold text-white shadow-sm hover:from-blue-800 hover:to-indigo-700 transition-all hover:shadow active:scale-95"
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition-all active:scale-95"
           >
-            <span>✨</span>
+            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
             <span>Asistente de escritura AI</span>
-            <span className="rounded bg-emerald-500 px-1.5 py-0.2 text-[9px] font-black uppercase text-white shadow-xs">NEW</span>
+            <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">NEW</span>
           </button>
 
           <span
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold shadow-sm ${
-              smtpReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold shadow-xs ${
+              smtpReady ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-700'
             }`}
           >
             <span className={`h-2 w-2 rounded-full ${smtpReady ? 'bg-emerald-500' : 'bg-amber-500'}`} />
@@ -1233,14 +1826,19 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       {/* Tarjetas de Métricas Rápidas */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          ['Contactos guardados', contacts.length],
-          ['Envíos realizados', contacts.filter(c => c.delivery_status === 'sent').length],
-          ['Respondieron', contacts.filter(c => ['replied', 'meeting', 'won'].includes(c.stage)).length],
-          ['Contratados / Ganados', contacts.filter(c => c.stage === 'won').length],
-        ].map(([label, count]) => (
-          <div key={String(label)} className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-            <p className="mt-1 text-2xl font-black text-slate-900">{count}</p>
+          { label: 'Contactos guardados', count: contacts.length, icon: Users },
+          { label: 'Envíos realizados', count: contacts.filter(c => c.delivery_status === 'sent').length, icon: Send },
+          { label: 'Respondieron', count: contacts.filter(c => ['replied', 'meeting', 'won'].includes(c.stage)).length, icon: MessageSquare },
+          { label: 'Contratados / Ganados', count: contacts.filter(c => c.stage === 'won').length, icon: CheckCircle2 },
+        ].map(({ label, count, icon: Icon }) => (
+          <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+              <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-600">
+                <Icon className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{count}</p>
           </div>
         ))}
       </div>
@@ -1249,9 +1847,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       <div
         role="status"
         aria-live="polite"
-        className="mb-5 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs sm:text-sm text-blue-950 backdrop-blur-sm"
+        className="mb-5 flex items-center justify-between rounded-xl border border-blue-200/80 bg-blue-50/60 px-4 py-2.5 text-xs text-blue-950 backdrop-blur-xs"
       >
-        <span>{message}</span>
+        <span className="font-medium">{message}</span>
         {!ready && (
           <Link href="/panel" className="ml-2 font-bold underline hover:text-blue-800">
             Ir al panel
@@ -1260,33 +1858,33 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       </div>
 
       {/* Selector de Pestaña Principal: Editor vs Envíos Masivos vs Bandeja de Respuestas */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('editor')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
               activeTab === 'editor'
-                ? 'bg-[#103260] text-white shadow-sm'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
             }`}
           >
-            <span>📝</span>
+            <PenSquare className="w-3.5 h-3.5" />
             <span>Redactar Propuesta</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('bulk')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
               activeTab === 'bulk'
-                ? 'bg-[#103260] text-white shadow-sm'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
             }`}
           >
-            <span>🚀</span>
+            <Megaphone className="w-3.5 h-3.5" />
             <span>Envíos Masivos</span>
-            <span className="rounded-full bg-[#f27121] text-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+            <span className="rounded-md bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
               Campaña
             </span>
           </button>
@@ -1297,16 +1895,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               setActiveTab('inbox');
               if (inboxMessages.length === 0) void handleSyncInbox();
             }}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
               activeTab === 'inbox'
-                ? 'bg-[#103260] text-white shadow-sm'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
             }`}
           >
-            <span>📥</span>
+            <Inbox className="w-3.5 h-3.5" />
             <span>Bandeja de Respuestas</span>
             {inboxMessages.length > 0 && (
-              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">
+              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
                 {inboxMessages.length}
               </span>
             )}
@@ -1318,9 +1916,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             type="button"
             disabled={syncingInbox}
             onClick={() => void handleSyncInbox()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 transition shadow-xs disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 transition shadow-xs disabled:opacity-50"
           >
-            <span className={syncingInbox ? 'animate-spin' : ''}>🔄</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${syncingInbox ? 'animate-spin' : ''}`} />
             <span>{syncingInbox ? 'Comprobando buzón...' : 'Comprobar nuevas respuestas'}</span>
           </button>
         )}
@@ -1334,86 +1932,454 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
       {/* ============================================================== */}
       {activeTab === 'inbox' && (
         <div className="space-y-5 pb-36">
-          {inboxMessages.length === 0 ? (
-            <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center text-slate-500 shadow-sm">
-              <span className="text-4xl">📭</span>
-              <p className="mt-3 font-extrabold text-slate-800 text-base">No hay respuestas en tu buzón todavía</p>
-              <p className="mt-1 text-xs text-slate-400 max-w-sm mx-auto">
-                Toca el botón para conectarte a Nominalia y comprobar si algún cliente te ha contestado.
-              </p>
-              <button
-                type="button"
-                disabled={syncingInbox}
-                onClick={() => void handleSyncInbox()}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-700 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-800 transition disabled:opacity-50"
-              >
-                <span className={syncingInbox ? 'animate-spin' : ''}>🔄</span>
-                <span>Comprobar buzón ahora</span>
-              </button>
+          {inboxCategoryFilter === 'sent' && activeSentItem ? (
+            /* ------------------------------------------------------------ */
+            /* PANTALLA 3: DETALLE DEL CORREO ENVIADO SELECCIONADO          */
+            /* ------------------------------------------------------------ */
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Barra superior de navegación de vuelta a la lista de enviados */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSentId(null);
+                      setSelectedSentSubMsgId(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 transition active:scale-95 shadow-xs"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Volver a enviados</span>
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                    <span>Enviado a:</span>
+                    <strong className="text-slate-900 font-semibold">{activeSentItem.recipientName}</strong>
+                    <span className="text-slate-400 font-mono text-[11px]">({activeSentItem.recipientEmail})</span>
+                    {activeSentItem.businessName && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 text-blue-700 px-2 py-0.5 text-[10px] font-semibold border border-blue-200/60">
+                        <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>{activeSentItem.businessName}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Aceptado por servidor SMTP</span>
+                  </span>
+
+                  {(currentSentMessage?.contact || activeSentItem.contact) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectContact((currentSentMessage?.contact || activeSentItem.contact)!);
+                        setActiveTab('editor');
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 text-xs font-semibold text-blue-700 transition"
+                      title="Editar o reenviar propuesta en el redactor"
+                    >
+                      <PenSquare className="w-3.5 h-3.5" />
+                      <span>Abrir en redactor</span>
+                    </button>
+                  )}
+
+                  <span className="text-slate-300">|</span>
+
+                  {(() => {
+                    const currentIdx = sentItems.findIndex(it => it.id === activeSentItem.id);
+                    return (
+                      <>
+                        <span className="text-xs text-slate-400 font-medium">
+                          {currentIdx >= 0 ? currentIdx + 1 : 1} de {sentItems.length}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={currentIdx <= 0}
+                          onClick={() => {
+                            if (currentIdx > 0) {
+                              setSelectedSentId(sentItems[currentIdx - 1].id);
+                              setSelectedSentSubMsgId(null);
+                            }
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 p-1.5 text-xs text-slate-600 disabled:opacity-30 disabled:pointer-events-none transition"
+                          title="Destinatario anterior"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={currentIdx < 0 || currentIdx >= sentItems.length - 1}
+                          onClick={() => {
+                            if (currentIdx >= 0 && currentIdx < sentItems.length - 1) {
+                              setSelectedSentId(sentItems[currentIdx + 1].id);
+                              setSelectedSentSubMsgId(null);
+                            }
+                          }}
+                          className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 p-1.5 text-xs text-slate-600 disabled:opacity-30 disabled:pointer-events-none transition"
+                          title="Destinatario siguiente"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Selector si hay múltiples envíos a este mismo destinatario */}
+              {activeSentItem.messages.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2 bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3 shadow-xs">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 pr-2 mr-1 border-r border-blue-200">
+                    <Send className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{activeSentItem.messages.length} envíos a este correo:</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {activeSentItem.messages.map((msg, idx) => {
+                      const isSelected = (currentSentMessage?.id || activeSentItem.messages[activeSentItem.messages.length - 1].id) === msg.id;
+                      return (
+                        <button
+                          key={msg.id}
+                          type="button"
+                          onClick={() => setSelectedSentSubMsgId(msg.id)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-xs ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />
+                          <span>Envío #{idx + 1}</span>
+                          <span className={`text-[11px] font-normal ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                            ({formatInboxDate(msg.date)})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Grid de 2 Columnas: Datos del envío a la izquierda, Preview a la derecha */}
+              {(() => {
+                const curMsg = currentSentMessage || activeSentItem.messages[activeSentItem.messages.length - 1];
+                const curContact = curMsg?.contact || activeSentItem.contact;
+                const curReply = curMsg?.replyItem;
+
+                return (
+                  <div className="grid gap-6 lg:grid-cols-2 items-start">
+                    {/* COLUMNA IZQUIERDA: DETALLES DE CORREO ENVIADO */}
+                    <div className="space-y-4">
+                      <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                            <Send className="w-4 h-4 text-blue-600" />
+                            <span>Detalles del Correo Enviado</span>
+                          </h3>
+                          <span className={`text-[10px] font-semibold border px-2.5 py-0.5 rounded-full ${curMsg?.badgeColor || activeSentItem.badgeColor}`}>
+                            {curMsg?.typeBadge || activeSentItem.typeBadge}
+                          </span>
+                        </div>
+
+                        <div className="space-y-3 text-xs">
+                          <div>
+                            <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Destinatario</span>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-medium text-slate-800">
+                              <strong>{activeSentItem.recipientName}</strong> &lt;{activeSentItem.recipientEmail}&gt;
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Remitente oficial</span>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-800">
+                              Bryan Arcos • Rifx Marketing &lt;{sender}&gt;
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Asunto del correo</span>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 font-semibold text-slate-900">
+                              {curMsg?.subject || activeSentItem.subject}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Fecha y hora</span>
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-slate-700">
+                                {formatInboxDate(curMsg?.date || activeSentItem.date)}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Estado en servidor</span>
+                              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-2.5 font-semibold text-emerald-800 flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Entregado / 250 OK</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Contenido / Propuesta entregada */}
+                        <div className="pt-2 border-t border-slate-100 space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                            Contenido entregado al cliente:
+                          </h4>
+
+                          {curContact ? (
+                            <div className="space-y-3">
+                              {curContact.observation && (
+                                <div>
+                                  <span className="block text-[10px] font-bold uppercase text-slate-400">Observación comercial:</span>
+                                  <div className="mt-1 rounded-xl bg-slate-50 border border-slate-200/80 p-3 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                                    {curContact.observation}
+                                  </div>
+                                </div>
+                              )}
+
+                              {curContact.proposal && (
+                                <div>
+                                  <span className="block text-[10px] font-bold uppercase text-slate-400">Propuesta de campaña:</span>
+                                  <div className="mt-1 rounded-xl bg-slate-50 border border-slate-200/80 p-3 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed font-sans">
+                                    {curContact.proposal}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                                  <span className="block text-[10px] font-bold uppercase text-slate-400">Servicio:</span>
+                                  <strong className="text-slate-800">{curContact.service_title || 'Marketing Digital'}</strong>
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                                  <span className="block text-[10px] font-bold uppercase text-slate-400">Inversión cotizada:</span>
+                                  <strong className="text-blue-700">{curContact.price || 'A convenir'}</strong>
+                                </div>
+                              </div>
+
+                              {curContact.deliverables && (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-xs">
+                                  <span className="block text-[10px] font-bold uppercase text-slate-400">Entregables:</span>
+                                  <span className="text-slate-700">{curContact.deliverables}</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : curReply ? (
+                            <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                              {curReply.text}
+                            </div>
+                          ) : (
+                            <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3.5 text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">
+                              {curMsg?.imapMessage?.snippet || curMsg?.snippet || activeSentItem.snippet || 'Mensaje enviado a través del servidor de correo corporativo.'}
+                            </div>
+                          )}
+
+                          {/* Acciones Rápidas */}
+                          <div className="pt-2 flex flex-wrap gap-2">
+                            {curContact && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  selectContact(curContact);
+                                  setActiveTab('editor');
+                                }}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 text-xs font-semibold shadow-xs transition"
+                              >
+                                <PenSquare className="w-3.5 h-3.5 text-blue-400" />
+                                <span>Cargar en redactor para reenviar o editar</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const subj = curMsg?.subject || activeSentItem.subject;
+                                setReplyModal({
+                                  to: activeSentItem.recipientEmail,
+                                  contactId: activeSentItem.matchedContactId,
+                                  business: activeSentItem.businessName,
+                                  subject: subj.startsWith('Re:') ? subj : `Re: ${subj}`,
+                                  replyText: `Hola ${activeSentItem.recipientName},\n\nQuería dar seguimiento a la propuesta enviada anteriormente.\n\n¿Tuvieron oportunidad de revisarla?`,
+                                });
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 text-xs font-semibold shadow-xs transition"
+                            >
+                              <Send className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Enviar seguimiento por correo</span>
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+
+                    {/* COLUMNA DERECHA: PREVISUALIZACIÓN EN VIVO */}
+                    <div className="sticky top-4">
+                      <section className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-900 border border-emerald-200/60">
+                            <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Vista previa del correo entregado al cliente</span>
+                          </span>
+
+                          {/* Selector Computadora / Celular */}
+                          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
+                            <button
+                              type="button"
+                              onClick={() => setSentPreviewSize('desktop')}
+                              className={`p-1.5 rounded-md font-bold transition ${
+                                sentPreviewSize === 'desktop'
+                                  ? 'bg-white text-blue-900 shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                              title="Vista en computadora"
+                            >
+                              <Monitor className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSentPreviewSize('mobile')}
+                              className={`p-1.5 rounded-md font-bold transition ${
+                                sentPreviewSize === 'mobile'
+                                  ? 'bg-white text-blue-900 shadow-xs'
+                                  : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                              title="Vista en celular"
+                            >
+                              <Smartphone className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-100 p-2 sm:p-3 overflow-hidden shadow-xs">
+                          <div className="mb-2 bg-[#103260] px-3.5 py-2 text-white rounded-lg flex items-center justify-between text-xs font-semibold">
+                            <span className="truncate pr-2">Para: {activeSentItem.recipientEmail}</span>
+                            <span className="shrink-0 text-[10px] text-blue-200 font-mono">Diseño Rifx</span>
+                          </div>
+                          <iframe
+                            title="Previsualización de Correo Enviado"
+                            srcDoc={
+                              curContact
+                                ? renderOutreach({
+                                    ...draft,
+                                    business: curContact.business || activeSentItem.businessName || activeSentItem.recipientName,
+                                    email: curContact.email || activeSentItem.recipientEmail,
+                                    subject: curMsg?.subject || activeSentItem.subject,
+                                    observation: curContact.observation || '',
+                                    proposal: curContact.proposal || curMsg?.snippet || activeSentItem.snippet,
+                                    price: curContact.price || '',
+                                    service_title: curContact.service_title || '',
+                                    deliverables: curContact.deliverables || '',
+                                    deliverables_note: curContact.deliverables_note || '',
+                                    image_url: curContact.image_url || '',
+                                    include_whatsapp: curContact.include_whatsapp,
+                                    whatsapp_phone: curContact.whatsapp_phone,
+                                    include_greeting: curContact.include_greeting,
+                                    greeting_intro: curContact.greeting_intro,
+                                    include_closing: curContact.include_closing,
+                                    closing_message: curContact.closing_message,
+                                  }).html
+                                : curReply
+                                ? renderAgencyReply({
+                                    subject: curMsg?.subject || activeSentItem.subject,
+                                    replyText: curReply.text,
+                                    clientName: activeSentItem.recipientName,
+                                    clientBusiness: activeSentItem.businessName,
+                                    includeWhatsApp: curReply.includeWhatsApp,
+                                  }).html
+                                : renderAgencyReply({
+                                    subject: curMsg?.subject || activeSentItem.subject,
+                                    replyText: curMsg?.imapMessage?.snippet || curMsg?.snippet || activeSentItem.snippet,
+                                    clientName: activeSentItem.recipientName,
+                                    clientBusiness: activeSentItem.businessName,
+                                  }).html
+                            }
+                            className="mx-auto w-full bg-white rounded-lg border border-slate-200 shadow-sm transition-all"
+                            style={{
+                              height: '750px',
+                              width: sentPreviewSize === 'mobile' ? 360 : '100%',
+                              maxWidth: '100%',
+                            }}
+                          />
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : !activeInboxMessage ? (
             /* ------------------------------------------------------------ */
-            /* PANTALLA 1: LISTA GENERAL DE CORREOS (ESTILO GMAIL / WEBMAIL) */
+            /* PANTALLA 1: BANDEJA DE CORREOS (RECIBIDOS O ENVIADOS)        */
             /* ------------------------------------------------------------ */
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden animate-in fade-in duration-150 min-h-[500px]">
+            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-xs overflow-hidden animate-in fade-in duration-150 min-h-[500px]">
               
               {/* Barra superior de pestañas de categoría y buscador */}
-              <div className="border-b border-slate-200 bg-white p-3 sm:p-4">
+              <div className="border-b border-slate-200/80 bg-white p-3 sm:p-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                   
                   {/* Selector maestro y Basurero minimalista + Categorías */}
                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     
-                    {/* Selector maestro y basurero minimalista integrado al CRM */}
-                    <div className="flex items-center gap-1.5 pr-2 mr-0.5 border-r border-slate-200">
-                      <input
-                        type="checkbox"
-                        checked={filteredThreads.length > 0 && filteredThreads.every((t: InboxThread) => t.uids.every((id: string) => selectedInboxUids.includes(id)))}
-                        onChange={e => {
-                          if (e.target.checked) {
-                            const allUids: string[] = Array.from(new Set(filteredThreads.flatMap((t: InboxThread) => t.uids)));
-                            setSelectedInboxUids(allUids);
-                          } else {
-                            setSelectedInboxUids([]);
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition"
-                        title={selectedInboxUids.length > 0 ? 'Desmarcar todos' : 'Seleccionar todas las conversaciones'}
-                      />
+                    {/* Selector maestro y basurero minimalista integrado al CRM (solo en recibidos) */}
+                    {inboxCategoryFilter !== 'sent' ? (
+                      <div className="flex items-center gap-1.5 pr-2 mr-0.5 border-r border-slate-200">
+                        <input
+                          type="checkbox"
+                          checked={filteredThreads.length > 0 && filteredThreads.every((t: InboxThread) => t.uids.every((id: string) => selectedInboxUids.includes(id)))}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              const allUids: string[] = Array.from(new Set(filteredThreads.flatMap((t: InboxThread) => t.uids)));
+                              setSelectedInboxUids(allUids);
+                            } else {
+                              setSelectedInboxUids([]);
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition"
+                          title={selectedInboxUids.length > 0 ? 'Desmarcar todos' : 'Seleccionar todas las conversaciones'}
+                        />
 
-                      {/* Solo asoma el basurero minimalista cuando hay correos seleccionados */}
-                      {selectedInboxUids.length > 0 && (
-                        <button
-                          type="button"
-                          disabled={deletingInbox}
-                          onClick={() => setDeleteConfirmModal({
-                            uids: selectedInboxUids,
-                            description: `${selectedInboxUids.length} correo(s) seleccionado(s)`,
-                          })}
-                          className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 text-slate-500 hover:text-red-600 transition-all shadow-2xs active:scale-95 animate-in fade-in zoom-in-90 disabled:opacity-50"
-                          title={`Eliminar ${selectedInboxUids.length} correo(s) de Nominalia para liberar memoria`}
-                          aria-label="Eliminar seleccionados"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
+                        {/* Solo asoma el basurero minimalista cuando hay correos seleccionados */}
+                        {selectedInboxUids.length > 0 && (
+                          <button
+                            type="button"
+                            disabled={deletingInbox}
+                            onClick={() => setDeleteConfirmModal({
+                              uids: selectedInboxUids,
+                              description: `${selectedInboxUids.length} correo(s) seleccionado(s)`,
+                            })}
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 text-slate-500 hover:text-red-600 transition-all shadow-2xs active:scale-95 animate-in fade-in zoom-in-90 disabled:opacity-50"
+                            title={`Eliminar ${selectedInboxUids.length} correo(s) de Nominalia para liberar memoria`}
+                            aria-label="Eliminar seleccionados"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 pr-2 mr-0.5 border-r border-slate-200 text-slate-400">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                          <Send className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    )}
 
                     <button
                       type="button"
-                      onClick={() => setInboxCategoryFilter('all')}
-                      className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold transition-all rounded-xl ${
+                      onClick={() => {
+                        setInboxCategoryFilter('all');
+                        setSelectedSentId(null);
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all rounded-xl ${
                         inboxCategoryFilter === 'all'
-                          ? 'bg-blue-50 text-blue-700 shadow-2xs font-extrabold'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
-                      <span>📥</span>
+                      <Inbox className="w-3.5 h-3.5" />
                       <span>Principal</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                        inboxCategoryFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        inboxCategoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {inboxThreads.length}
                       </span>
@@ -1421,17 +2387,20 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                     <button
                       type="button"
-                      onClick={() => setInboxCategoryFilter('crm')}
-                      className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold transition-all rounded-xl ${
+                      onClick={() => {
+                        setInboxCategoryFilter('crm');
+                        setSelectedSentId(null);
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all rounded-xl ${
                         inboxCategoryFilter === 'crm'
-                          ? 'bg-blue-50 text-blue-700 shadow-2xs font-extrabold'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
-                      <span>🏢</span>
+                      <Building2 className="w-3.5 h-3.5" />
                       <span>Clientes CRM</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                        inboxCategoryFilter === 'crm' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        inboxCategoryFilter === 'crm' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {inboxThreads.filter(t => !!t.matchedContactBusiness).length}
                       </span>
@@ -1439,42 +2408,67 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                     <button
                       type="button"
-                      onClick={() => setInboxCategoryFilter('starred')}
-                      className={`flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-bold transition-all rounded-xl ${
+                      onClick={() => {
+                        setInboxCategoryFilter('starred');
+                        setSelectedSentId(null);
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all rounded-xl ${
                         inboxCategoryFilter === 'starred'
-                          ? 'bg-blue-50 text-blue-700 shadow-2xs font-extrabold'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
-                      <span>⭐</span>
+                      <Star className="w-3.5 h-3.5" />
                       <span>Destacados</span>
                       {inboxThreads.filter(t => t.isStarred).length > 0 && (
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                          inboxCategoryFilter === 'starred' ? 'bg-blue-600 text-white' : 'bg-amber-100 text-amber-800'
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          inboxCategoryFilter === 'starred' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
                         }`}>
                           {inboxThreads.filter(t => t.isStarred).length}
                         </span>
                       )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInboxCategoryFilter('sent');
+                        setSelectedInboxUid(null);
+                      }}
+                      className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all rounded-xl ${
+                        inboxCategoryFilter === 'sent'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      }`}
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Enviados</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        inboxCategoryFilter === 'sent' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {sentItems.length}
+                      </span>
                     </button>
                   </div>
 
                   {/* Buscador de correos y botón de refrescar */}
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="🔍 Buscar en correos..."
+                        placeholder={inboxCategoryFilter === 'sent' ? 'Buscar en enviados...' : 'Buscar en correos...'}
                         value={inboxSearch}
                         onChange={e => setInboxSearch(e.target.value)}
-                        className="w-48 sm:w-64 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        className="w-48 sm:w-64 rounded-xl border border-slate-200 bg-slate-50/80 pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
                       {inboxSearch && (
                         <button
                           type="button"
                           onClick={() => setInboxSearch('')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         >
-                          ✕
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -1483,147 +2477,248 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       type="button"
                       disabled={syncingInbox}
                       onClick={() => void handleSyncInbox()}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 transition shadow-2xs disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition shadow-xs disabled:opacity-50"
                       title="Actualizar buzón de Nominalia"
                     >
-                      <span className={syncingInbox ? 'animate-spin' : ''}>🔄</span>
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncingInbox ? 'animate-spin' : ''}`} />
                       <span className="hidden sm:inline">{syncingInbox ? 'Actualizando...' : 'Actualizar'}</span>
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Tabla de correos (Como en la captura de Gmail) */}
-              <div className="divide-y divide-slate-100">
-                {filteredThreads.length === 0 ? (
-                  <div className="p-12 text-center text-slate-500">
-                    <span className="text-3xl">📭</span>
-                    <p className="mt-2 font-bold text-slate-700 text-sm">No se encontraron conversaciones en esta vista</p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {inboxSearch ? 'Prueba con otro término de búsqueda.' : 'Toca "Actualizar" para sincronizar correos con Nominalia.'}
-                    </p>
-                  </div>
-                ) : (
-                  filteredThreads.map(thread => {
-                    const isChecked = thread.uids.length > 0 && thread.uids.every(id => selectedInboxUids.includes(id));
-                    const latestMsg = thread.messages[thread.messages.length - 1];
-                    return (
+              {/* Contenido: Lista de Enviados vs Lista de Recibidos */}
+              {inboxCategoryFilter === 'sent' ? (
+                /* TABLA DE MENSAJES ENVIADOS */
+                <div className="divide-y divide-slate-100">
+                  {filteredSentItems.length === 0 ? (
+                    <div className="p-12 text-center text-slate-500">
+                      <Send className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="font-bold text-slate-700 text-sm">No se encontraron mensajes enviados</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {inboxSearch ? 'Prueba con otro término de búsqueda.' : 'Toca "Actualizar" para sincronizar tus correos enviados desde Nominalia.'}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredSentItems.map(item => (
                       <div
-                        key={thread.threadId}
+                        key={item.id}
                         onClick={() => {
-                          setSelectedInboxUid(latestMsg.uid);
-                          setInboxReplySubject(latestMsg.subject.startsWith('Re:') ? latestMsg.subject : `Re: ${latestMsg.subject}`);
-                          setInboxReplyText('');
+                          setSelectedSentId(item.id);
+                          setSelectedSentSubMsgId(null);
                         }}
-                        className="group flex items-center gap-3 px-4 py-3 hover:bg-blue-50/40 cursor-pointer transition-colors border-l-4 border-l-transparent hover:border-l-blue-600"
+                        className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50/80 cursor-pointer transition-colors border-l-4 border-l-transparent hover:border-l-blue-600"
                       >
-                        {/* Checkbox */}
-                        <div className="shrink-0 flex items-center" onClick={e => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={e => {
-                              if (e.target.checked) {
-                                setSelectedInboxUids(Array.from(new Set([...selectedInboxUids, ...thread.uids])));
-                              } else {
-                                setSelectedInboxUids(selectedInboxUids.filter(id => !thread.uids.includes(id)));
-                              }
-                            }}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
+                        {/* Icono de avión de papel */}
+                        <div className="shrink-0 flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition">
+                          <Send className="w-3.5 h-3.5" />
                         </div>
 
-                        {/* Estrella */}
-                        <button
-                          type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            toggleStar(latestMsg.uid, e);
-                          }}
-                          className="shrink-0 text-base leading-none transition-transform active:scale-125"
-                          title={thread.isStarred ? 'Quitar de destacados' : 'Destacar conversación'}
-                        >
-                          {thread.isStarred ? (
-                            <span className="text-amber-500">★</span>
-                          ) : (
-                            <span className="text-slate-300 group-hover:text-slate-400">☆</span>
-                          )}
-                        </button>
+                        {/* Badge de tipo de mensaje */}
+                        <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-semibold border shrink-0 ${item.badgeColor}`}>
+                          {item.typeBadge}
+                        </span>
 
-                        {/* Remitente / Empresa + Notificación de múltiples respuestas */}
+                        {/* Destinatario / Empresa + Badge si tiene múltiples envíos */}
                         <div className="w-48 sm:w-60 shrink-0 truncate flex items-center gap-1.5">
-                          {thread.matchedContactBusiness ? (
-                            <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                              🏢 {thread.matchedContactBusiness}
+                          {item.businessName ? (
+                            <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm truncate">
+                              <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span className="truncate">{item.businessName}</span>
                             </span>
                           ) : (
                             <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                              {thread.clientName}
+                              {item.recipientName}
                             </span>
                           )}
-                          {thread.messages.length > 1 && (
+                          {item.messages.length > 1 && (
                             <span
-                              className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800 border border-blue-200/90 shadow-2xs shrink-0"
-                              title={`${thread.messages.length} mensajes recibidos en esta conversación`}
+                              className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200/80 shrink-0"
+                              title={`${item.messages.length} correos enviados a este destinatario`}
                             >
-                              <span>💬</span>
-                              <span>{thread.messages.length} respuestas</span>
+                              <Send className="w-2.5 h-2.5 text-blue-600" />
+                              <span>{item.messages.length}</span>
                             </span>
                           )}
                         </div>
 
-                        {/* Asunto + Separador + Extracto de mensaje */}
+                        {/* Asunto + Extracto */}
                         <div className="flex-1 min-w-0 truncate text-xs sm:text-sm">
-                          <span className="font-bold text-slate-900">
-                            {thread.latestSubject}
+                          <span className="font-semibold text-slate-900">
+                            {item.subject}
                           </span>
                           <span className="text-slate-400 mx-1.5 font-normal">-</span>
                           <span className="text-slate-500 font-normal">
-                            {thread.latestSnippet || 'Sin vista previa disponible'}
+                            {item.snippet || 'Sin vista previa'}
                           </span>
                         </div>
 
-                        {/* Fecha o Hora + Basurero minimalista en hover */}
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          <span className="text-xs font-semibold text-slate-600 min-w-[60px] text-right">
-                            {formatInboxDate(thread.latestDate)}
+                        {/* Estado y Fecha */}
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 rounded-md px-2 py-0.5">
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>Aceptado</span>
                           </span>
-                          <button
-                            type="button"
-                            disabled={deletingInbox}
-                            onClick={e => {
-                              e.stopPropagation();
-                              setDeleteConfirmModal({
-                                uids: thread.uids,
-                                description: `la conversación de ${thread.clientName} (${thread.messages.length} correo${thread.messages.length > 1 ? 's' : ''})`,
-                              });
-                            }}
-                            className="opacity-0 group-hover:opacity-100 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg p-1.5 transition-all"
-                            title="Eliminar esta conversación de Nominalia"
-                            aria-label="Eliminar conversación"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          <span className="text-xs font-medium text-slate-500 min-w-[60px] text-right">
+                            {formatInboxDate(item.date)}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                    ))
+                  )}
+                </div>
+              ) : inboxMessages.length === 0 ? (
+                /* VACÍO EN RECIBIDOS */
+                <div className="p-12 text-center text-slate-500">
+                  <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+                    <Inbox className="w-6 h-6 text-slate-400" />
+                  </div>
+                  <p className="font-bold text-slate-800 text-base">No hay respuestas en tu buzón todavía</p>
+                  <p className="mt-1 text-xs text-slate-400 max-w-sm mx-auto">
+                    Toca el botón para conectarte a Nominalia y comprobar si algún cliente te ha contestado.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={syncingInbox}
+                    onClick={() => void handleSyncInbox()}
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingInbox ? 'animate-spin' : ''}`} />
+                    <span>Comprobar buzón ahora</span>
+                  </button>
+                </div>
+              ) : (
+                /* TABLA DE RECIBIDOS */
+                <div className="divide-y divide-slate-100">
+                  {filteredThreads.length === 0 ? (
+                    <div className="p-12 text-center text-slate-500">
+                      <Inbox className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="font-bold text-slate-700 text-sm">No se encontraron conversaciones en esta vista</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {inboxSearch ? 'Prueba con otro término de búsqueda.' : 'Toca "Actualizar" para sincronizar correos con Nominalia.'}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredThreads.map(thread => {
+                      const isChecked = thread.uids.length > 0 && thread.uids.every(id => selectedInboxUids.includes(id));
+                      const latestMsg = thread.messages[thread.messages.length - 1];
+                      return (
+                        <div
+                          key={thread.threadId}
+                          onClick={() => {
+                            setSelectedInboxUid(latestMsg.uid);
+                            setInboxReplySubject(latestMsg.subject.startsWith('Re:') ? latestMsg.subject : `Re: ${latestMsg.subject}`);
+                            setInboxReplyText('');
+                          }}
+                          className="group flex items-center gap-3 px-4 py-3 hover:bg-slate-50/80 cursor-pointer transition-colors border-l-4 border-l-transparent hover:border-l-blue-600"
+                        >
+                          {/* Checkbox */}
+                          <div className="shrink-0 flex items-center" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setSelectedInboxUids(Array.from(new Set([...selectedInboxUids, ...thread.uids])));
+                                } else {
+                                  setSelectedInboxUids(selectedInboxUids.filter(id => !thread.uids.includes(id)));
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </div>
 
-              {/* Pie de lista con resumen */}
-              {filteredThreads.length > 0 && (
-                <div className="bg-slate-50/70 border-t border-slate-100 px-4 py-2.5 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>
-                    Mostrando {filteredThreads.length} conversación(es) ({inboxMessages.length} correo(s) en total en tu buzón)
-                  </span>
-                  <span className="font-mono text-slate-400">
-                    Buzón Nominalia: {sender}
-                  </span>
+                          {/* Estrella */}
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              toggleStar(latestMsg.uid, e);
+                            }}
+                            className="shrink-0 transition-transform active:scale-125"
+                            title={thread.isStarred ? 'Quitar de destacados' : 'Destacar conversación'}
+                          >
+                            {thread.isStarred ? (
+                              <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                            ) : (
+                              <Star className="w-4 h-4 text-slate-300 group-hover:text-slate-400" />
+                            )}
+                          </button>
+
+                          {/* Remitente / Empresa + Notificación de múltiples respuestas */}
+                          <div className="w-48 sm:w-60 shrink-0 truncate flex items-center gap-1.5">
+                            {thread.matchedContactBusiness ? (
+                              <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 text-xs sm:text-sm truncate">
+                                <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span className="truncate">{thread.matchedContactBusiness}</span>
+                              </span>
+                            ) : (
+                              <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                                {thread.clientName}
+                              </span>
+                            )}
+                            {thread.messages.length > 1 && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 border border-blue-200/80 shrink-0"
+                                title={`${thread.messages.length} mensajes recibidos en esta conversación`}
+                              >
+                                <MessageSquare className="w-3 h-3 text-blue-600" />
+                                <span>{thread.messages.length}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Asunto + Separador + Extracto de mensaje */}
+                          <div className="flex-1 min-w-0 truncate text-xs sm:text-sm">
+                            <span className="font-semibold text-slate-900">
+                              {thread.latestSubject}
+                            </span>
+                            <span className="text-slate-400 mx-1.5 font-normal">-</span>
+                            <span className="text-slate-500 font-normal">
+                              {thread.latestSnippet || 'Sin vista previa disponible'}
+                            </span>
+                          </div>
+
+                          {/* Fecha o Hora + Basurero minimalista en hover */}
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <span className="text-xs font-medium text-slate-500 min-w-[60px] text-right">
+                              {formatInboxDate(thread.latestDate)}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={deletingInbox}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setDeleteConfirmModal({
+                                  uids: thread.uids,
+                                  description: `la conversación de ${thread.clientName} (${thread.messages.length} correo${thread.messages.length > 1 ? 's' : ''})`,
+                                });
+                              }}
+                              className="opacity-0 group-hover:opacity-100 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg p-1.5 transition-all"
+                              title="Eliminar esta conversación de Nominalia"
+                              aria-label="Eliminar conversación"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               )}
+
+              {/* Pie de lista con resumen */}
+              <div className="bg-slate-50/70 border-t border-slate-100 px-4 py-2.5 flex items-center justify-between text-[11px] text-slate-500">
+                <span>
+                  {inboxCategoryFilter === 'sent'
+                    ? `Mostrando ${filteredSentItems.length} destinatario(s) (${sentItems.reduce((acc, i) => acc + i.messages.length, 0)} envíos en total)`
+                    : `Mostrando ${filteredThreads.length} conversación(es) (${inboxMessages.length} correo(s) en total en tu buzón)`}
+                </span>
+                <span className="font-mono text-slate-400">
+                  {inboxCategoryFilter === 'sent' ? `Remitente oficial: ${sender}` : `Buzón Nominalia: ${sender}`}
+                </span>
+              </div>
             </div>
           ) : (
             /* ------------------------------------------------------------ */
@@ -1632,28 +2727,30 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             <div className="space-y-4 animate-in fade-in duration-150">
               
               {/* Barra superior de navegación de vuelta a la lista y botón de borrado */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setSelectedInboxUid(null)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-700 transition active:scale-95 shadow-2xs"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 transition active:scale-95 shadow-xs"
                   >
-                    <span>←</span>
+                    <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Volver a la bandeja</span>
                   </button>
                   <span className="text-slate-300">|</span>
                   <div className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
                     <span>Conversación con:</span>
-                    <strong className="text-slate-900 font-bold">{activeThread?.clientName || activeInboxMessage.fromName || activeInboxMessage.fromEmail}</strong>
+                    <strong className="text-slate-900 font-semibold">{activeThread?.clientName || activeInboxMessage.fromName || activeInboxMessage.fromEmail}</strong>
                     {activeThread?.matchedContactBusiness && (
-                      <span className="rounded-md bg-blue-100 text-blue-800 px-2 py-0.5 text-[10px] font-bold">
-                        🏢 {activeThread.matchedContactBusiness}
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 text-blue-700 px-2 py-0.5 text-[10px] font-semibold border border-blue-200/60">
+                        <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+                        <span>{activeThread.matchedContactBusiness}</span>
                       </span>
                     )}
                     {activeThread && activeThread.messages.length > 1 && (
-                      <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-black border border-emerald-200">
-                        💬 {activeThread.messages.length} mensajes en este hilo
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-800 px-2 py-0.5 text-[10px] font-semibold border border-emerald-200">
+                        <MessageSquare className="w-3 h-3 text-emerald-700 shrink-0" />
+                        <span>{activeThread.messages.length} mensajes en este hilo</span>
                       </span>
                     )}
                   </div>
@@ -1668,13 +2765,11 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       uids: activeThread?.uids || [activeInboxMessage.uid],
                       description: `la conversación completa de ${activeThread?.clientName || activeInboxMessage.fromName || activeInboxMessage.fromEmail}`,
                     })}
-                    className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 text-slate-500 hover:text-red-600 transition-all shadow-2xs active:scale-95 disabled:opacity-50"
+                    className="inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:border-red-200 text-slate-500 hover:text-red-600 transition-all shadow-xs active:scale-95 disabled:opacity-50"
                     title="Eliminar esta conversación completa de Nominalia"
                     aria-label="Eliminar conversación de Nominalia"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-4 h-4" />
                   </button>
 
                   <span className="text-slate-300">|</span>
@@ -1701,7 +2796,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 p-1.5 text-xs text-slate-600 disabled:opacity-30 disabled:pointer-events-none transition"
                           title="Conversación anterior"
                         >
-                          ◀
+                          <ChevronLeft className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
@@ -1718,7 +2813,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           className="rounded-lg border border-slate-200 bg-white hover:bg-slate-50 p-1.5 text-xs text-slate-600 disabled:opacity-30 disabled:pointer-events-none transition"
                           title="Conversación siguiente"
                         >
-                          ▶
+                          <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </>
                     );
@@ -1731,13 +2826,13 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                 
                 {/* COLUMNA IZQUIERDA: FORMULARIO DE RESPUESTA DEDICADO */}
                 <div className="space-y-4">
-                  <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                  <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs">
                     <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                      <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                        <span>✍️</span>
+                      <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <PenSquare className="w-4 h-4 text-blue-600" />
                         <span>Redactar respuesta para {activeInboxMessage.fromName || activeInboxMessage.fromEmail}</span>
                       </h3>
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full">
+                      <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
                         Desde {sender}
                       </span>
                     </div>
@@ -1769,17 +2864,17 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       {/* Plantillas de respuesta rápida (Predeterminadas y Personalizadas) */}
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                            <span>⚡</span>
+                          <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-blue-600" />
                             <span>Respuestas rápidas de 1 clic:</span>
                           </span>
                           <button
                             type="button"
                             onClick={() => setNewQuickReplyModal({ open: true, title: '', text: '' })}
-                            className="inline-flex items-center gap-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-0.5 text-[11px] transition shadow-2xs"
+                            className="inline-flex items-center gap-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 text-[11px] transition shadow-xs"
                             title="Crear y guardar una nueva respuesta personalizada"
                           >
-                            <span>+</span>
+                            <Plus className="w-3 h-3" />
                             <span>Nueva respuesta</span>
                           </button>
                         </div>
@@ -1787,7 +2882,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           {quickReplies.map(qr => (
                             <div
                               key={qr.id}
-                              className="group inline-flex items-center rounded-lg bg-blue-50 hover:bg-blue-100 border border-blue-200/80 transition shadow-2xs"
+                              className="group inline-flex items-center rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 transition shadow-xs"
                             >
                               <button
                                 type="button"
@@ -1798,7 +2893,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                     .replace(/\{nombre\}/g, name);
                                   setInboxReplyText(filled);
                                 }}
-                                className="px-2.5 py-1 text-xs font-semibold text-blue-800 transition"
+                                className="px-2.5 py-1 text-xs font-medium text-slate-700 group-hover:text-blue-800 transition"
                               >
                                 {qr.title}
                               </button>
@@ -1814,9 +2909,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                     } catch {}
                                   }}
                                   title="Eliminar respuesta personalizada"
-                                  className="pr-2 pl-0.5 text-blue-400 hover:text-rose-600 text-xs font-bold transition"
+                                  className="pr-2 pl-0.5 text-slate-400 hover:text-rose-600 transition"
                                 >
-                                  ✕
+                                  <X className="w-3 h-3" />
                                 </button>
                               )}
                             </div>
@@ -1843,7 +2938,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                   onSuccess: improved => setInboxReplyText(improved),
                                 });
                               }}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-700 hover:from-purple-700 hover:to-blue-800 text-white px-3 py-1 text-xs font-bold shadow-xs transition active:scale-95 disabled:opacity-40"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white px-3 py-1 text-xs font-semibold shadow-xs transition active:scale-95 disabled:opacity-40"
                               title="Perfecciona la redacción, cortesía y persuasión comercial con Inteligencia Artificial"
                             >
                               {improvingReplyWithAi ? (
@@ -1853,14 +2948,14 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                 </>
                               ) : (
                                 <>
-                                  <span>✨</span>
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
                                   <span>Mejorar con IA</span>
                                 </>
                               )}
                             </button>
 
-                            <span className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md">
-                              <span>👁️</span>
+                            <span className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                              <Eye className="w-3.5 h-3.5" />
                               <span>Se previsualiza a la derecha</span>
                             </span>
                           </div>
@@ -1876,16 +2971,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         />
 
                         <div className="mt-2 rounded-lg bg-slate-50 border border-slate-200/80 p-2 text-[11px] text-slate-500 flex items-center gap-1.5">
-                          <span>🛡️</span>
+                          <Shield className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                           <span>
-                            Tu mensaje viaja formateado automáticamente con cabecera azul marino, franja tomate, cita del cliente
+                            Tu mensaje viaja formateado automáticamente con cabecera corporativa, franja institucional, cita del cliente
                             {replyIncludeWhatsApp ? ' y botón directo a WhatsApp' : ''}.
                           </span>
                         </div>
                       </div>
 
-                      {/* Configuración de WhatsApp en la respuesta (Opcional + Editable + Botón Limpio) */}
-                      <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs space-y-2.5">
+                      {/* Configuración de WhatsApp en la respuesta */}
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs space-y-2.5">
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-2 cursor-pointer select-none">
                             <input
@@ -1899,7 +2994,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               }}
                               className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                             />
-                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                               <WhatsAppIcon className="h-4 w-4" fill="#25D366" />
                               <span>Incluir botón de WhatsApp en la respuesta</span>
                             </span>
@@ -1933,7 +3028,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               />
                             </div>
                             <div className="text-[11px] text-slate-500 bg-slate-50 rounded-lg p-2 border border-slate-200/60 leading-tight">
-                              El botón en el correo se mostrará limpio como <strong>"Chatear por WhatsApp"</strong> con el logo oficial. El número no se expone en el botón.
+                              El botón en el correo se mostrará como <strong>"Chatear por WhatsApp"</strong> con el logo oficial. El número no se expone directamente.
                             </div>
                           </div>
                         )}
@@ -1986,7 +3081,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                 return nextList;
                               });
 
-                              setMessage('✓ Respuesta con diseño oficial enviada con éxito a ' + activeInboxMessage.fromEmail + ' desde ' + sender);
+                              setMessage('Respuesta con diseño oficial enviada con éxito a ' + activeInboxMessage.fromEmail + ' desde ' + sender);
                               setInboxReplyText('');
                               void load();
                             } catch (err) {
@@ -1995,7 +3090,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               setSendingInboxReply(false);
                             }
                           }}
-                          className="w-full rounded-xl bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 hover:from-blue-800 hover:to-indigo-900 px-5 py-3.5 text-xs sm:text-sm font-bold text-white shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-40"
+                          className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-3 text-xs sm:text-sm font-semibold text-white shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-40"
                         >
                           {sendingInboxReply ? (
                             <>
@@ -2004,7 +3099,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             </>
                           ) : (
                             <>
-                              <span>✉️</span>
+                              <Send className="w-4 h-4" />
                               <span>Enviar respuesta con diseño al cliente</span>
                             </>
                           )}
@@ -2018,7 +3113,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2 text-xs">
                         <div className="flex items-center justify-between font-bold text-slate-700">
                           <span className="flex items-center gap-1.5">
-                            <span>ℹ️</span>
+                            <AlertCircle className="w-3.5 h-3.5 text-slate-500" />
                             <span>Datos del correo en Nominalia</span>
                           </span>
                           <span className="font-mono text-[10px] text-slate-400">UID #{activeInboxMessage.uid}</span>
@@ -2050,9 +3145,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                 setActiveTab('editor');
                               }
                             }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                           >
-                            <span>📋 Abrir propuesta en editor</span>
+                            <FileText className="w-3.5 h-3.5 text-slate-600" />
+                            <span>Abrir propuesta en editor</span>
                           </button>
                         </div>
                       )}
@@ -2062,13 +3158,13 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                 {/* COLUMNA DERECHA: MENSAJE RECIBIDO + VISTA PREVIA EN VIVO */}
                 <div className="sticky top-4">
-                  <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
+                  <section className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs space-y-4">
                     <div className="space-y-4">
                       {/* Cabecera con selector de vista y selector de dispositivo */}
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                         <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold text-blue-900">
-                            <span>💬</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-900 border border-blue-200/60">
+                            <MessageSquare className="w-3.5 h-3.5 text-blue-700" />
                             <span>Bandeja de Conversación &amp; Vista Previa</span>
                           </span>
                         </div>
@@ -2078,35 +3174,38 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             <button
                               type="button"
                               onClick={() => setInboxRightTab('all')}
-                              className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition ${
                                 inboxRightTab === 'all'
-                                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                                  ? 'bg-white text-slate-900 shadow-xs font-bold'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
-                              ⚡ Ambos
+                              <Layers className="w-3.5 h-3.5" />
+                              <span>Ambos</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setInboxRightTab('client')}
-                              className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition ${
                                 inboxRightTab === 'client'
-                                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                                  ? 'bg-white text-slate-900 shadow-xs font-bold'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
-                              💬 Chat ({activeThread ? activeThread.messages.length : 1})
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>Chat ({activeThread ? activeThread.messages.length : 1})</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setInboxRightTab('preview')}
-                              className={`px-2.5 py-1 rounded-md font-semibold transition ${
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition ${
                                 inboxRightTab === 'preview'
-                                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                                  ? 'bg-white text-slate-900 shadow-xs font-bold'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                             >
-                              👁️ Vista previa
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Vista previa</span>
                             </button>
                           </div>
 
@@ -2115,26 +3214,26 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             <button
                               type="button"
                               onClick={() => setInboxPreviewSize('desktop')}
-                              className={`px-2 py-1 rounded-md font-bold transition ${
+                              className={`p-1.5 rounded-md font-bold transition ${
                                 inboxPreviewSize === 'desktop'
-                                  ? 'bg-white text-blue-900 shadow-2xs'
+                                  ? 'bg-white text-blue-900 shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                               title="Vista en computadora"
                             >
-                              💻
+                              <Monitor className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
                               onClick={() => setInboxPreviewSize('mobile')}
-                              className={`px-2 py-1 rounded-md font-bold transition ${
+                              className={`p-1.5 rounded-md font-bold transition ${
                                 inboxPreviewSize === 'mobile'
-                                  ? 'bg-white text-blue-900 shadow-2xs'
+                                  ? 'bg-white text-blue-900 shadow-xs'
                                   : 'text-slate-600 hover:text-slate-900'
                               }`}
                               title="Vista en celular"
                             >
-                              📱
+                              <Smartphone className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -2142,21 +3241,22 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                       {/* BLOQUE 1: BANDEJA DE CHAT DE CONVERSACIÓN (HISTORIAL COMPLETO DE LO ENVIADO Y RECIBIDO) */}
                       {(inboxRightTab === 'all' || inboxRightTab === 'client') && (
-                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs space-y-3">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
                           {/* Cabecera del Chat */}
                           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                             <div className="flex items-center gap-2.5">
-                              <div className="h-9 w-9 rounded-full bg-blue-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                                {activeThread?.clientName ? activeThread.clientName.charAt(0).toUpperCase() : '👤'}
+                              <div className="h-9 w-9 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                {activeThread?.clientName ? activeThread.clientName.charAt(0).toUpperCase() : <Users className="w-4 h-4 text-white" />}
                               </div>
                               <div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
                                     {activeThread?.clientName || activeInboxMessage.fromName || activeInboxMessage.fromEmail}
                                   </span>
                                   {activeThread?.matchedContactBusiness && (
-                                    <span className="rounded bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5">
-                                      🏢 {activeThread.matchedContactBusiness}
+                                    <span className="inline-flex items-center gap-1 rounded bg-blue-50 text-blue-800 text-[10px] font-semibold px-1.5 py-0.5 border border-blue-200/60">
+                                      <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
+                                      <span>{activeThread.matchedContactBusiness}</span>
                                     </span>
                                   )}
                                 </div>
@@ -2166,7 +3266,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               </div>
                             </div>
                             <div className="text-right">
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 <span>Hilo activo</span>
                               </span>
@@ -2185,22 +3285,25 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             {/* 1. Burbuja Inicial: Propuesta enviada por Rifx si existe contacto en CRM */}
                             {activeMatchedContact && (
                               <div className="flex justify-end">
-                                <div className="max-w-[85%] rounded-2xl bg-gradient-to-br from-[#103260] to-[#1a4a88] text-white p-3.5 shadow-xs border border-blue-950">
-                                  <div className="flex items-center justify-between gap-2 mb-1.5 border-b border-blue-400/20 pb-1">
-                                    <span className="text-[10px] font-extrabold text-orange-300 uppercase tracking-wider flex items-center gap-1">
-                                      <span>🎯</span>
+                                <div className="max-w-[85%] rounded-2xl bg-slate-900 text-white p-3.5 shadow-xs border border-slate-800">
+                                  <div className="flex items-center justify-between gap-2 mb-1.5 border-b border-slate-700 pb-1">
+                                    <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Award className="w-3.5 h-3.5 text-blue-400" />
                                       <span>Propuesta Inicial de Rifx Marketing</span>
                                     </span>
-                                    <span className="text-[9px] text-blue-200">
+                                    <span className="text-[9px] text-slate-400">
                                       Primer contacto
                                     </span>
                                   </div>
-                                  <div className="text-xs text-blue-50 leading-relaxed whitespace-pre-wrap">
+                                  <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">
                                     {activeMatchedContact.observation || activeMatchedContact.proposal || `Propuesta comercial enviada para potenciar la visibilidad y ventas de ${activeMatchedContact.business || 'tu negocio'}.`}
                                   </div>
-                                  <div className="mt-2 text-[9px] text-blue-300/80 flex items-center justify-between">
+                                  <div className="mt-2 text-[9px] text-slate-400 flex items-center justify-between">
                                     <span>Enviado desde el módulo comercial Rifx</span>
-                                    <span>✓✓ Enviado</span>
+                                    <span className="inline-flex items-center gap-1 font-medium text-emerald-400">
+                                      <Check className="w-3 h-3" />
+                                      <span>Enviado</span>
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -2258,7 +3361,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                 if (item.isClient) {
                                   return (
                                     <div key={item.id} className="flex justify-start">
-                                      <div className="max-w-[85%] rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-2xs">
+                                      <div className="max-w-[85%] rounded-2xl bg-white border border-slate-200/90 p-3.5 shadow-xs">
                                         <div className="flex items-center justify-between gap-2 mb-1.5 border-b border-slate-100 pb-1">
                                           <div className="flex items-center gap-1.5">
                                             <span className="h-5 w-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center">
@@ -2289,10 +3392,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                               const quote = `> "${item.text.trim()}"\n\n`;
                                               setInboxReplyText(prev => prev.includes(quote) ? prev : quote + prev);
                                             }}
-                                            className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 hover:text-blue-900 hover:underline"
+                                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
                                             title="Citar este mensaje específico en el cuadro de respuesta"
                                           >
-                                            <span>✍️</span>
+                                            <PenSquare className="w-3 h-3 text-blue-600" />
                                             <span>Citar en mi respuesta</span>
                                           </button>
                                           {item.uid && (
@@ -2306,9 +3409,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                               className="text-slate-300 hover:text-red-500 p-0.5 rounded transition"
                                               title="Eliminar sólo este correo de Nominalia"
                                             >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                              </svg>
+                                              <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                           )}
                                         </div>
@@ -2318,10 +3419,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                 } else {
                                   return (
                                     <div key={item.id} className="flex justify-end">
-                                      <div className="max-w-[85%] rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-3.5 shadow-2xs">
+                                      <div className="max-w-[85%] rounded-2xl bg-blue-600 text-white p-3.5 shadow-xs">
                                         <div className="flex items-center justify-between gap-2 mb-1.5 border-b border-white/20 pb-1">
-                                          <span className="text-xs font-bold text-white flex items-center gap-1">
-                                            <span>👑</span>
+                                          <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-200" />
                                             <span>Tú ({item.sender})</span>
                                           </span>
                                           <span className="text-[10px] text-blue-200">
@@ -2339,7 +3440,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                             </span>
                                           ) : <span />}
                                           <span className="font-semibold text-blue-100 flex items-center gap-1">
-                                            <span>✓✓</span>
+                                            <Check className="w-3 h-3" />
                                             <span>Enviado con marco oficial</span>
                                           </span>
                                         </div>
@@ -2402,15 +3503,15 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-orange-600">Rifx Marketing</span>
+                <span className="text-xs font-semibold tracking-wider text-blue-600 uppercase">Rifx Marketing</span>
                 <span className="text-xs text-slate-400">•</span>
-                <span className="text-xs font-semibold text-slate-500">Módulo de Envíos Masivos</span>
+                <span className="text-xs font-medium text-slate-500">Módulo de Envíos Masivos</span>
               </div>
               <h2 className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
                 Campaña Masiva de Propuestas Comerciales
               </h2>
               <p className="mt-1 text-xs sm:text-sm text-slate-600 max-w-3xl">
-                Envía tu propuesta formal con marco profesional (cabecera azul marino, franja tomate y botón a WhatsApp) a decenas de prospectos con personalización automática por negocio.
+                Envía tu propuesta formal con marco profesional (cabecera corporativa, franja institucional y botón a WhatsApp) a decenas de prospectos con personalización automática por negocio.
               </p>
             </div>
 
@@ -2418,16 +3519,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               <button
                 type="button"
                 onClick={copyEditorDraftToBulk}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 px-4 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition active:scale-95"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition active:scale-95"
                 title="Copia el asunto, precio, propuesta y entregables que tienes en el editor individual"
               >
-                <span>📋</span>
+                <FileText className="w-3.5 h-3.5 text-slate-600" />
                 <span>Copiar datos del editor</span>
               </button>
 
               <span
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold shadow-sm ${
-                  smtpReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold shadow-xs ${
+                  smtpReady ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
                 }`}
               >
                 <span className={`h-2 w-2 rounded-full ${smtpReady ? 'bg-emerald-500' : 'bg-amber-500'}`} />
@@ -2438,25 +3539,25 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
           {/* Tarjetas de Métricas Rápidas de la Campaña */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Contactos en CRM</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">{contacts.length}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{contacts.length}</p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sin enviar (Borradores)</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">
+              <p className="mt-1 text-2xl font-bold text-slate-900">
                 {contacts.filter(c => c.delivery_status === 'draft').length}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Destinatarios elegidos</p>
-              <p className="mt-1 text-2xl font-black text-slate-900">
+              <p className="mt-1 text-2xl font-bold text-slate-900">
                 {bulkMode === 'crm' ? bulkSelectedIds.length : bulkParsedRecipients.length}
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm">
+            <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Remitente oficial</p>
-              <p className="mt-2 text-xs font-bold text-slate-800 truncate font-mono">{sender}</p>
+              <p className="mt-2 text-xs font-semibold text-slate-800 truncate font-mono">{sender}</p>
             </div>
           </div>
 
@@ -2469,13 +3570,13 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             <div className="space-y-5">
 
               {/* TARJETA 1: SELECCIÓN DE DESTINATARIOS */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                    <span>👥</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600" />
                     <span>1. Destinatarios de la Campaña</span>
                   </h3>
-                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 rounded-full">
                     {bulkMode === 'crm' ? `${bulkSelectedIds.length} de ${contacts.length} seleccionados` : `${bulkParsedRecipients.length} correos listos`}
                   </span>
                 </div>
@@ -2485,26 +3586,26 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   <button
                     type="button"
                     onClick={() => setBulkMode('crm')}
-                    className={`rounded-lg py-2 text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`rounded-lg py-2 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
                       bulkMode === 'crm'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span>📇</span>
+                    <Building2 className="w-3.5 h-3.5 text-slate-600" />
                     <span>Desde CRM ({contacts.length})</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setBulkMode('paste')}
-                    className={`rounded-lg py-2 text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`rounded-lg py-2 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
                       bulkMode === 'paste'
                         ? 'bg-white text-slate-900 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span>📋</span>
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
                     <span>Pegar Lista / CSV</span>
                   </button>
                 </div>
@@ -2515,43 +3616,41 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     {/* Filtros rápidos y Búsqueda */}
                     <div className="flex flex-col sm:flex-row gap-2">
                       <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="text"
                           value={bulkSearch}
                           onChange={e => setBulkSearch(e.target.value)}
                           placeholder="Buscar por negocio o correo..."
-                          className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-8 pr-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                          className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-8 pr-7 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                         />
-                        <span className="absolute left-2.5 top-2 text-xs text-slate-400">🔍</span>
                         {bulkSearch && (
                           <button
                             type="button"
                             onClick={() => setBulkSearch('')}
-                            className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-700"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700"
                           >
-                            ✕
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
 
-                      {/* Dropdown Personalizado con Animación y Estilo CRM */}
+                      {/* Dropdown Personalizado con Estilo CRM */}
                       <div ref={bulkFilterDropdownRef} className="relative shrink-0">
                         <button
                           type="button"
                           onClick={() => setBulkFilterDropdownOpen(prev => !prev)}
-                          className={`w-full sm:w-auto inline-flex items-center justify-between gap-3 rounded-xl border bg-white px-3.5 py-2 text-xs font-bold transition-all shadow-xs ${
+                          className={`w-full sm:w-auto inline-flex items-center justify-between gap-3 rounded-xl border bg-white px-3.5 py-2 text-xs font-semibold transition-all shadow-xs ${
                             bulkFilterDropdownOpen
                               ? 'border-blue-600 ring-2 ring-blue-600/20 text-blue-900 bg-blue-50/30'
                               : 'border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-50'
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            <span>
-                              {bulkFilterStatus === 'all' && '📂'}
-                              {bulkFilterStatus === 'draft' && '📝'}
-                              {bulkFilterStatus === 'pending' && '⏳'}
-                              {bulkFilterStatus === 'sent' && '✓'}
-                            </span>
+                            {bulkFilterStatus === 'all' && <Layers className="w-3.5 h-3.5 text-slate-600" />}
+                            {bulkFilterStatus === 'draft' && <FileText className="w-3.5 h-3.5 text-amber-600" />}
+                            {bulkFilterStatus === 'pending' && <Clock className="w-3.5 h-3.5 text-blue-600" />}
+                            {bulkFilterStatus === 'sent' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
                             <span>
                               {bulkFilterStatus === 'all' && 'Todos los estados'}
                               {bulkFilterStatus === 'draft' && 'Solo Borradores / Sin enviar'}
@@ -2559,18 +3658,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               {bulkFilterStatus === 'sent' && 'Ya enviados'}
                             </span>
                           </div>
-                          <span
-                            className={`text-[10px] text-slate-400 transition-transform duration-200 ${
-                              bulkFilterDropdownOpen ? 'rotate-180 text-blue-600 font-bold' : ''
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                              bulkFilterDropdownOpen ? 'rotate-180 text-blue-600' : ''
                             }`}
-                          >
-                            ▼
-                          </span>
+                          />
                         </button>
 
                         {bulkFilterDropdownOpen && (
-                          <div className="absolute right-0 top-full mt-1.5 w-64 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md p-1.5 shadow-2xl ring-1 ring-black/5 z-40 transition-all duration-200 animate-in fade-in slide-in-from-top-2">
-                            <div className="px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
+                          <div className="absolute right-0 top-full mt-1.5 w-64 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md p-1.5 shadow-xl ring-1 ring-black/5 z-40 transition-all duration-200 animate-in fade-in slide-in-from-top-2">
+                            <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
                               Filtrar prospectos
                             </div>
                             <div className="space-y-1">
@@ -2578,33 +3675,34 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                 {
                                   id: 'all',
                                   label: 'Todos los estados',
-                                  icon: '📂',
+                                  icon: Layers,
                                   count: contacts.length,
                                   color: 'bg-slate-100 text-slate-700',
                                 },
                                 {
                                   id: 'draft',
                                   label: 'Solo Borradores / Sin enviar',
-                                  icon: '📝',
+                                  icon: FileText,
                                   count: contacts.filter(c => c.delivery_status === 'draft').length,
                                   color: 'bg-amber-100 text-amber-800',
                                 },
                                 {
                                   id: 'pending',
                                   label: 'Solo Pendientes',
-                                  icon: '⏳',
+                                  icon: Clock,
                                   count: contacts.filter(c => c.stage === 'pending').length,
                                   color: 'bg-blue-100 text-blue-800',
                                 },
                                 {
                                   id: 'sent',
                                   label: 'Ya enviados',
-                                  icon: '✓',
+                                  icon: CheckCircle2,
                                   count: contacts.filter(c => c.delivery_status === 'sent').length,
                                   color: 'bg-emerald-100 text-emerald-800',
                                 },
                               ].map(item => {
                                 const active = bulkFilterStatus === item.id;
+                                const ItemIcon = item.icon;
                                 return (
                                   <button
                                     key={item.id}
@@ -2613,21 +3711,21 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                       setBulkFilterStatus(item.id as any);
                                       setBulkFilterDropdownOpen(false);
                                     }}
-                                    className={`w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-bold transition-all ${
+                                    className={`w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-semibold transition-all ${
                                       active
-                                        ? 'bg-blue-50 text-blue-900 font-extrabold border border-blue-200/60'
+                                        ? 'bg-blue-50 text-blue-900 border border-blue-200/60'
                                         : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
                                     }`}
                                   >
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm">{item.icon}</span>
+                                      <ItemIcon className="w-3.5 h-3.5 text-slate-500" />
                                       <span>{item.label}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
-                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.color}`}>
+                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${item.color}`}>
                                         {item.count}
                                       </span>
-                                      {active && <span className="text-blue-700 font-black">✓</span>}
+                                      {active && <Check className="w-3.5 h-3.5 text-blue-700" />}
                                     </div>
                                   </button>
                                 );
@@ -2640,7 +3738,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                     {/* Botones de selección masiva */}
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -2659,9 +3757,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               .map(c => c.id);
                             setBulkSelectedIds(Array.from(new Set([...bulkSelectedIds, ...filteredIds])));
                           }}
-                          className="font-bold text-blue-700 hover:underline"
+                          className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
                         >
-                          ✓ Seleccionar visibles
+                          <Check className="w-3 h-3" />
+                          <span>Seleccionar visibles</span>
                         </button>
                         <span className="text-slate-300">•</span>
                         <button
@@ -2670,7 +3769,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             const draftIds = contacts.filter(c => c.delivery_status === 'draft').map(c => c.id);
                             setBulkSelectedIds(draftIds);
                           }}
-                          className="font-bold text-amber-700 hover:underline"
+                          className="font-semibold text-amber-700 hover:underline"
                         >
                           Solo borradores ({contacts.filter(c => c.delivery_status === 'draft').length})
                         </button>
@@ -2684,7 +3783,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         </button>
                       </div>
 
-                      <span className="font-bold text-slate-700">
+                      <span className="font-semibold text-slate-700">
                         {bulkSelectedIds.length} seleccionados
                       </span>
                     </div>
@@ -2723,21 +3822,21 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                       setBulkSelectedIds(prev => prev.filter(id => id !== c.id));
                                     }
                                   }}
-                                  className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                 />
                                 <div className="min-w-0">
-                                  <p className="text-xs font-bold text-slate-800 truncate">{c.business}</p>
+                                  <p className="text-xs font-semibold text-slate-800 truncate">{c.business}</p>
                                   <p className="text-[11px] text-slate-500 font-mono truncate">{c.email}</p>
                                 </div>
                               </div>
 
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <span
-                                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                     c.delivery_status === 'sent'
-                                      ? 'bg-emerald-100 text-emerald-800'
+                                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                       : c.delivery_status === 'sending'
-                                      ? 'bg-blue-100 text-blue-800'
+                                      ? 'bg-blue-50 text-blue-800 border border-blue-200'
                                       : 'bg-slate-100 text-slate-600'
                                   }`}
                                 >
@@ -2776,16 +3875,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         handleParsePastedList(e.target.value);
                       }}
                       placeholder={`ventas@mueblesuniversal.com, Muebles Universal\ncontacto@clinicadental.ec, Clínica Dental Guayaquil\ngerencia@restaurantequito.com, Restaurante La Estancia\ninfo@tutienda.com`}
-                      className="w-full rounded-xl border border-slate-300 p-3 text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700 leading-relaxed shadow-inner"
+                      className="w-full rounded-xl border border-slate-300 p-3 text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 leading-relaxed shadow-inner"
                     />
 
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                       <button
                         type="button"
                         onClick={() => handleParsePastedList()}
-                        className="rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-xs"
+                        className="rounded-xl bg-slate-900 hover:bg-slate-800 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow-xs"
                       >
-                        <span>⚡</span>
+                        <Zap className="w-3.5 h-3.5 text-blue-400" />
                         <span>Procesar lista</span>
                       </button>
 
@@ -2794,7 +3893,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           type="checkbox"
                           checked={bulkSaveToCrm}
                           onChange={e => setBulkSaveToCrm(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600"
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span>Guardar en el CRM al enviar</span>
                       </label>
@@ -2803,8 +3902,8 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     {/* Resumen de análisis de correos pegados */}
                     {bulkParsedRecipients.length > 0 && (
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-950 space-y-1.5">
-                        <p className="font-bold flex items-center gap-1.5 text-emerald-900">
-                          <span>✓</span>
+                        <p className="font-semibold flex items-center gap-1.5 text-emerald-900">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           <span>{bulkParsedRecipients.length} destinatarios válidos listos para la campaña</span>
                         </p>
                         {bulkDuplicatesCount > 0 && (
@@ -2836,10 +3935,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               </section>
 
               {/* TARJETA 2: REDACCIÓN DE LA PROPUESTA MASIVA */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                    <span>📝</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                    <PenSquare className="w-4 h-4 text-blue-600" />
                     <span>2. Contenido de la Propuesta</span>
                   </h3>
                   <div className="text-[11px] text-slate-500 flex items-center gap-1">
@@ -2989,20 +4088,20 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               </section>
 
               {/* TARJETA 3: CONTROLES DE SEGURIDAD Y DISPARO */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                    <span>🛡️</span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-600" />
                     <span>3. Seguridad de Envío y Despacho</span>
                   </h3>
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
                     Anti-bloqueo Nominalia
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Intervalo entre correos
                     </label>
                     <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
@@ -3017,9 +4116,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           type="button"
                           disabled={bulkSending}
                           onClick={() => setBulkDelayMs(speed.ms)}
-                          className={`rounded-lg py-1.5 px-2 text-xs font-bold transition-all text-center ${
+                          className={`rounded-lg py-1.5 px-2 text-xs font-semibold transition-all text-center ${
                             bulkDelayMs === speed.ms
-                              ? 'bg-white text-blue-900 shadow-xs font-black'
+                              ? 'bg-white text-slate-900 shadow-xs font-bold'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -3029,9 +4128,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-600 leading-relaxed">
-                    <span>⏱️</span>
-                    <span className="ml-1">
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-600 leading-relaxed flex items-start gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0 mt-0.5" />
+                    <span>
                       El despacho escalonado simula un ritmo humano y evita que el servidor o los filtros antispam restrinjan tu cuenta comercial.
                     </span>
                   </div>
@@ -3049,9 +4148,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         !bulkCampaignDraft.proposal.trim()
                       }
                       onClick={() => void handleStartBulkSend()}
-                      className="w-full rounded-xl bg-[#103260] bg-gradient-to-r from-blue-700 via-[#103260] to-blue-800 p-4 text-center text-sm font-extrabold text-white shadow-md hover:from-blue-800 hover:to-slate-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 p-3.5 text-center text-sm font-semibold text-white shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      <span className="text-lg">🚀</span>
+                      <Send className="w-4 h-4" />
                       <span>
                         Iniciar Envío Masivo a{' '}
                         {bulkMode === 'crm' ? bulkSelectedIds.length : bulkParsedRecipients.length} Destinatario(s)
@@ -3064,9 +4163,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         bulkStopRef.current = true;
                         setMessage('Deteniendo envío masivo al finalizar el lote actual...');
                       }}
-                      className="w-full rounded-xl bg-red-600 p-4 text-center text-sm font-extrabold text-white shadow-md hover:bg-red-700 transition flex items-center justify-center gap-2 animate-pulse"
+                      className="w-full rounded-xl bg-red-600 hover:bg-red-700 p-3.5 text-center text-sm font-semibold text-white shadow-sm transition flex items-center justify-center gap-2 animate-pulse"
                     >
-                      <span>⏹</span>
+                      <X className="w-4 h-4" />
                       <span>Detener Envío Masivo en Progreso</span>
                     </button>
                   )}
@@ -3079,7 +4178,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             {/* COLUMNA DERECHA: PREVIEW Y CONSOLA DE ENVÍO EN VIVO       */}
             {/* ========================================================== */}
             <div className="space-y-4">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-5 sm:p-6 shadow-xs">
                 
                 {/* Switcher Superior de la columna derecha */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
@@ -3087,25 +4186,26 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     <button
                       type="button"
                       onClick={() => setBulkRightTab('preview')}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                         bulkRightTab === 'preview'
-                          ? 'bg-blue-700 text-white shadow-xs'
+                          ? 'bg-slate-900 text-white shadow-xs font-bold'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      👁️ Vista Previa en Vivo
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Vista Previa en Vivo</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setBulkRightTab('monitor')}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition flex items-center gap-1.5 ${
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition flex items-center gap-1.5 ${
                         bulkRightTab === 'monitor'
-                          ? 'bg-blue-700 text-white shadow-xs'
+                          ? 'bg-slate-900 text-white shadow-xs font-bold'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      <span>📊</span>
+                      <Monitor className="w-3.5 h-3.5" />
                       <span>Monitor de Progreso</span>
                       {bulkSending && <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />}
                     </button>
@@ -3125,7 +4225,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                           Viendo muestra personalizada para:
                         </span>
-                        <p className="text-xs font-extrabold text-slate-800 truncate">
+                        <p className="text-xs font-bold text-slate-800 truncate">
                           {bulkMode === 'crm'
                             ? (contacts.find(c => bulkSelectedIds.includes(c.id))?.business || contacts[0]?.business || 'Empresa Ejemplo')
                             : (bulkParsedRecipients[bulkPreviewIndex]?.business || 'Empresa Ejemplo')}
@@ -3146,9 +4246,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             type="button"
                             disabled={bulkPreviewIndex === 0}
                             onClick={() => setBulkPreviewIndex(prev => Math.max(0, prev - 1))}
-                            className="rounded-lg bg-white border border-slate-200 px-2 py-1 text-xs font-bold text-slate-700 disabled:opacity-30"
+                            className="rounded-lg bg-white border border-slate-200 p-1.5 text-xs text-slate-700 disabled:opacity-30"
                           >
-                            ◀
+                            <ChevronLeft className="w-3.5 h-3.5" />
                           </button>
                           <span className="text-xs font-mono font-bold text-slate-600 px-1">
                             {bulkPreviewIndex + 1} / {bulkParsedRecipients.length}
@@ -3157,17 +4257,17 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             type="button"
                             disabled={bulkPreviewIndex >= bulkParsedRecipients.length - 1}
                             onClick={() => setBulkPreviewIndex(prev => Math.min(bulkParsedRecipients.length - 1, prev + 1))}
-                            className="rounded-lg bg-white border border-slate-200 px-2 py-1 text-xs font-bold text-slate-700 disabled:opacity-30"
+                            className="rounded-lg bg-white border border-slate-200 p-1.5 text-xs text-slate-700 disabled:opacity-30"
                           >
-                            ▶
+                            <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       )}
                     </div>
 
                     {/* Marco Iframe con diseño oficial */}
-                    <div className="rounded-xl border border-slate-300 overflow-hidden bg-slate-100 shadow-sm">
-                      <div className="bg-slate-800 px-3 py-1.5 text-[11px] font-bold text-slate-200 flex items-center justify-between">
+                    <div className="rounded-xl border border-slate-300 overflow-hidden bg-slate-100 shadow-xs">
+                      <div className="bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-slate-200 flex items-center justify-between">
                         <span className="truncate pr-2">
                           Asunto: {personalizeProposal(bulkCampaignDraft.subject || '', {
                             business: bulkMode === 'crm'
@@ -3219,19 +4319,19 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   <div className="space-y-4">
                     {/* Barra de progreso */}
                     <div>
-                      <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
                         <span className="text-slate-800">
-                          {bulkSending ? '🚀 Enviando campaña masiva...' : 'Progreso de la Campaña'}
+                          {bulkSending ? 'Enviando campaña masiva...' : 'Progreso de la Campaña'}
                         </span>
-                        <span className="text-blue-700">
+                        <span className="text-blue-600 font-bold">
                           {bulkProgress.total > 0
                             ? `${Math.round((bulkProgress.current / bulkProgress.total) * 100)}% (${bulkProgress.current} de ${bulkProgress.total})`
                             : 'En espera de inicio'}
                         </span>
                       </div>
-                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                         <div
-                          className="h-full bg-gradient-to-r from-blue-600 to-emerald-500 transition-all duration-300"
+                          className="h-full bg-blue-600 transition-all duration-300"
                           style={{
                             width: `${bulkProgress.total > 0 ? (bulkProgress.current / bulkProgress.total) * 100 : 0}%`,
                           }}
@@ -3243,15 +4343,15 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     <div className="grid grid-cols-3 gap-2">
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-center">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Exitosos</span>
-                        <p className="text-xl font-black text-emerald-900">{bulkProgress.sent}</p>
+                        <p className="text-xl font-bold text-emerald-900">{bulkProgress.sent}</p>
                       </div>
                       <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-center">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">Fallidos</span>
-                        <p className="text-xl font-black text-red-900">{bulkProgress.failed}</p>
+                        <p className="text-xl font-bold text-red-900">{bulkProgress.failed}</p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-center">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">Pendientes</span>
-                        <p className="text-xl font-black text-slate-800">
+                        <p className="text-xl font-bold text-slate-800">
                           {Math.max(0, bulkProgress.total - bulkProgress.current)}
                         </p>
                       </div>
@@ -3259,7 +4359,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                     {/* Tabla de Resultados en Vivo */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
                         <span>Registro de envíos ({bulkResults.length})</span>
                         {bulkResults.some(r => r.status === 'failed') && !bulkSending && (
                           <button
@@ -3270,9 +4370,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               setBulkMode('paste');
                               setMessage(`Se cargaron ${failedItems.length} destinatarios fallidos para reintentar.`);
                             }}
-                            className="text-xs font-bold text-red-700 hover:underline flex items-center gap-1"
+                            className="text-xs font-semibold text-red-600 hover:underline flex items-center gap-1.5"
                           >
-                            <span>🔄</span>
+                            <RefreshCw className="w-3.5 h-3.5" />
                             <span>Cargar solo fallidos para reintentar</span>
                           </button>
                         )}
@@ -3282,7 +4382,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         {bulkResults.map((res, i) => (
                           <div key={`${res.email}-${i}`} className="p-2.5 flex items-center justify-between gap-3 text-xs">
                             <div className="min-w-0">
-                              <p className="font-bold text-slate-900 truncate">{res.business}</p>
+                              <p className="font-semibold text-slate-900 truncate">{res.business}</p>
                               <p className="text-[11px] text-slate-500 font-mono truncate">{res.email}</p>
                               {res.error && (
                                 <p className="text-[10px] text-red-600 font-medium mt-0.5 truncate">{res.error}</p>
@@ -3291,23 +4391,27 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                             <div className="shrink-0">
                               {res.status === 'sent' && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                                  <span>✓</span> Enviado
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
+                                  <Check className="w-3 h-3" />
+                                  <span>Enviado</span>
                                 </span>
                               )}
                               {res.status === 'failed' && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
-                                  <span>✕</span> Falló
+                                <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-800 border border-red-200">
+                                  <X className="w-3 h-3" />
+                                  <span>Falló</span>
                                 </span>
                               )}
                               {res.status === 'skipped' && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                                  <span>⚠️</span> Omitido
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                                  <AlertCircle className="w-3 h-3" />
+                                  <span>Omitido</span>
                                 </span>
                               )}
                               {res.status === 'pending' && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                                  <span>⏳</span> En cola
+                                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                  <Clock className="w-3 h-3" />
+                                  <span>En cola</span>
                                 </span>
                               )}
                             </div>
@@ -3345,7 +4449,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-xs text-emerald-950 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <p className="font-extrabold text-emerald-900 flex items-center gap-1.5">
-                  <span>💬</span>
+                  <MessageSquare className="w-4 h-4 text-emerald-700" />
                   <span>¡Este cliente ha respondido a tu propuesta!</span>
                 </p>
                 <p className="text-[11px] text-emerald-800 mt-0.5 line-clamp-1">
@@ -3366,9 +4470,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     });
                   }
                 }}
-                className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs"
               >
-                <span>💬 Responder aquí</span>
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Responder aquí</span>
               </button>
             </div>
           )}
@@ -3385,18 +4490,18 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   <button
                     type="button"
                     onClick={() => setShowContactList(!showContactList)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
                   >
-                    <span>📋</span>
+                    <FileText className="w-3.5 h-3.5" />
                     <span>Lista ({contacts.length})</span>
                   </button>
                   <button
                     type="button"
                     disabled={busy}
                     onClick={startNewContact}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#103260] px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white transition-opacity disabled:opacity-50"
                   >
-                    <span>+</span>
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Nuevo</span>
                   </button>
                 </div>
@@ -3416,11 +4521,12 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   <div className="flex items-center gap-2 truncate min-w-0">
                     {selected ? (
                       <>
+                        <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span className="shrink-0 font-bold text-slate-900">
-                          🏢 {selected.business}
+                          {selected.business}
                         </span>
-                        <span className="text-slate-400 shrink-0">—</span>
-                        <span className="text-slate-600 truncate text-[11px]">
+                        <span className="text-slate-300 shrink-0">—</span>
+                        <span className="text-slate-500 truncate text-[11px]">
                           {selected.email}
                         </span>
                         <span className="shrink-0 rounded-md bg-slate-100 text-slate-700 px-2 py-0.5 text-[10px] font-semibold">
@@ -3429,26 +4535,25 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       </>
                     ) : (
                       <span className="font-semibold text-slate-800 flex items-center gap-1.5">
-                        <span className="text-blue-600 font-black">➕</span>
+                        <Plus className="w-3.5 h-3.5 text-blue-600" />
                         <span>[Crear nueva propuesta desde cero]</span>
                       </span>
                     )}
                   </div>
-                  <span className={`text-slate-400 text-xs shrink-0 transition-transform duration-200 ${contactSelectDropdownOpen ? 'rotate-180 text-blue-600 font-bold' : ''}`}>
-                    ▼
-                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${contactSelectDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
                 </button>
 
                 {contactSelectDropdownOpen && (
                   <div className="absolute left-0 right-0 top-full mt-1.5 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md p-2 shadow-2xl ring-1 ring-black/5 z-50 transition-all duration-200 animate-in fade-in slide-in-from-top-2 max-h-80 overflow-y-auto">
                     {/* Búsqueda rápida dentro del dropdown */}
-                    <div className="px-1 pb-2">
+                    <div className="relative px-1 pb-2">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="🔍 Filtrar por negocio o correo..."
+                        placeholder="Filtrar por negocio o correo..."
                         value={contactSelectSearch}
                         onChange={e => setContactSelectSearch(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/80 pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         onClick={e => e.stopPropagation()}
                       />
                     </div>
@@ -3469,10 +4574,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className={!selected ? 'text-white' : 'text-blue-600 font-bold'}>➕</span>
-                          <span className="font-bold">Crear nueva propuesta desde cero</span>
+                          <Plus className={`w-3.5 h-3.5 ${!selected ? 'text-white' : 'text-blue-600'}`} />
+                          <span className="font-semibold">Crear nueva propuesta desde cero</span>
                         </div>
-                        {!selected && <span className="text-sm">✓</span>}
+                        {!selected && <Check className="w-3.5 h-3.5" />}
                       </button>
 
                       {/* Lista filtrada de contactos */}
@@ -3512,7 +4617,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                                   {c.email}
                                 </p>
                               </div>
-                              {isSelected && <span className="text-sm shrink-0">✓</span>}
+                              {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
                             </button>
                           );
                         })}
@@ -3524,12 +4629,15 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               {/* Desplegable interactivo para explorar/buscar contactos */}
               {showContactList && (
                 <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
-                  <input
-                    className={`${inputClass} text-xs mb-2`}
-                    placeholder="🔍 Buscar por nombre o correo..."
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                  />
+                  <div className="relative mb-2">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                    <input
+                      className={`${inputClass} pl-8 text-xs mt-0`}
+                      placeholder="Buscar por nombre o correo..."
+                      value={query}
+                      onChange={e => setQuery(e.target.value)}
+                    />
+                  </div>
                   <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                     {contacts
                       .filter(c => `${c.business} ${c.email}`.toLowerCase().includes(query.toLowerCase()))
@@ -3583,19 +4691,17 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   <div className="flex items-center gap-2 truncate min-w-0">
                     {!draft.template_html ? (
                       <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                        <span>⭐</span>
+                        <Award className="w-3.5 h-3.5 text-blue-600" />
                         <span>Rifx – Azul marino (Profesional oficial)</span>
                       </span>
                     ) : (
                       <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                        <span>🎨</span>
+                        <Layers className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Diseño personalizado aplicado</span>
                       </span>
                     )}
                   </div>
-                  <span className={`text-slate-400 text-xs shrink-0 transition-transform duration-200 ${templateDropdownOpen ? 'rotate-180 text-blue-600 font-bold' : ''}`}>
-                    ▼
-                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${templateDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
                 </button>
 
                 {templateDropdownOpen && (
@@ -3615,7 +4721,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          <span>⭐</span>
+                          <Award className="w-3.5 h-3.5 text-blue-500" />
                           <div>
                             <p className="font-bold">Rifx – Azul marino (Profesional oficial)</p>
                             <p className={`text-[10px] ${!draft.template_html ? 'text-blue-100' : 'text-slate-500'}`}>
@@ -3623,7 +4729,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             </p>
                           </div>
                         </div>
-                        {!draft.template_html && <span className="text-sm shrink-0">✓</span>}
+                        {!draft.template_html && <Check className="w-3.5 h-3.5 shrink-0" />}
                       </button>
 
                       {/* Plantilla personalizada si existe */}
@@ -3634,10 +4740,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           className="w-full flex items-center justify-between gap-3 rounded-xl p-2.5 text-left text-xs bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold"
                         >
                           <div className="flex items-center gap-2">
-                            <span>🎨</span>
+                            <Layers className="w-3.5 h-3.5 text-indigo-600" />
                             <span>Diseño personalizado aplicado</span>
                           </div>
-                          <span className="text-sm">✓</span>
+                          <Check className="w-3.5 h-3.5" />
                         </button>
                       )}
 
@@ -3653,7 +4759,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           className="w-full flex items-center justify-between gap-3 rounded-xl p-2.5 text-left text-xs hover:bg-slate-100 text-slate-800 transition-all"
                         >
                           <div className="flex items-center gap-2 min-w-0">
-                            <span>📄</span>
+                            <FileText className="w-3.5 h-3.5 text-slate-500" />
                             <span className="font-semibold truncate">{t.name}</span>
                           </div>
                         </button>
@@ -3666,7 +4772,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               {/* Accordion para plantillas HTML avanzadas */}
               <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                 <summary className="cursor-pointer text-xs font-bold text-slate-600 uppercase tracking-wider hover:text-slate-900">
-                  + Opciones avanzadas: Pegar mi propio HTML
+                  Opciones avanzadas: Pegar mi propio HTML
                 </summary>
                 <div className="mt-3 space-y-2.5">
                   <p className="text-xs text-slate-500">
@@ -3771,6 +4877,186 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               />
             </label>
 
+            {/* Saludo Inicial / Presentación de Rifx Marketing */}
+            <div className="mt-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-4.5 shadow-xs transition-all">
+              <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                    <Bookmark className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Saludo Inicial / Presentación
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Aparece antes de la observación en el cuerpo del correo
+                    </p>
+                  </div>
+                </div>
+
+                {/* Botón Fijar / Desfijar */}
+                <button
+                  type="button"
+                  disabled={locked || busy}
+                  onClick={() => {
+                    const nextPinned = draft.include_greeting === false;
+                    setDraft(prev => ({ ...prev, include_greeting: nextPinned }));
+                    try {
+                      localStorage.setItem('rifx_greeting_pinned', String(nextPinned));
+                    } catch {}
+                    setMessage(
+                      nextPinned
+                        ? 'Saludo inicial fijado en la propuesta.'
+                        : 'Saludo inicial desfijado (se omitirá en este correo).'
+                    );
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                    draft.include_greeting !== false
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/10'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
+                  }`}
+                  title={
+                    draft.include_greeting !== false
+                      ? 'Clic para desfijar (omitir saludo inicial)'
+                      : 'Clic para fijar (incluir saludo inicial)'
+                  }
+                >
+                  {draft.include_greeting !== false ? (
+                    <>
+                      <Pin className="h-3.5 w-3.5 fill-current" />
+                      <span>Fijado en propuesta</span>
+                    </>
+                  ) : (
+                    <>
+                      <PinOff className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Desfijado (Omitido)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Selector de saludos predefinidos y personalizados */}
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                    Seleccionar o fijar saludo:
+                  </span>
+                  <button
+                    type="button"
+                    disabled={locked || busy}
+                    onClick={() => setNewGreetingModal({ open: true, title: '', text: '' })}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 hover:underline"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>Nuevo saludo</span>
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {greetingsList.map(item => {
+                    const isSelected = draft.greeting_intro === item.text && draft.include_greeting !== false;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`group inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all border ${
+                          isSelected
+                            ? 'bg-blue-50 text-blue-900 border-blue-400 font-bold ring-1 ring-blue-400/20 shadow-xs'
+                            : 'bg-slate-50/80 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                        } ${locked || busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                        onClick={() => {
+                          if (locked || busy) return;
+                          setDraft(prev => ({
+                            ...prev,
+                            greeting_intro: item.text,
+                            include_greeting: true,
+                          }));
+                          try {
+                            localStorage.setItem('rifx_greeting_intro', item.text);
+                            localStorage.setItem('rifx_greeting_pinned', 'true');
+                          } catch {}
+                          setMessage(`Saludo "${item.title}" seleccionado y fijado.`);
+                        }}
+                      >
+                        {isSelected ? (
+                          <Pin className="h-3 w-3 text-blue-600 fill-current shrink-0" />
+                        ) : (
+                          <Bookmark className="h-3 w-3 text-slate-400 shrink-0" />
+                        )}
+                        <span className="truncate max-w-[200px]" title={item.text}>
+                          {item.title}
+                        </span>
+                        {!item.isDefault && (
+                          <button
+                            type="button"
+                            title="Eliminar saludo personalizado"
+                            disabled={locked || busy}
+                            onClick={e => handleDeleteGreeting(item.id, e)}
+                            className="ml-0.5 rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-rose-600 transition"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Entrada de texto editable o aviso de desfijado */}
+              {draft.include_greeting !== false ? (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                      Texto del saludo activo (editable para este correo):
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      Actualización en vivo en la vista previa
+                    </span>
+                  </div>
+                  <input
+                    disabled={locked || busy}
+                    type="text"
+                    maxLength={300}
+                    className={inputClass}
+                    placeholder="Soy Bryan Arcos, Director de Rifx Marketing."
+                    value={draft.greeting_intro ?? 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.'}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setDraft(prev => ({ ...prev, greeting_intro: val }));
+                      try {
+                        localStorage.setItem('rifx_greeting_intro', val);
+                      } catch {}
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="flex items-center justify-between rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3 text-xs text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <PinOff className="h-4 w-4 text-slate-400 shrink-0" />
+                      <span>
+                        El saludo está <strong>desfijado</strong>. Este correo iniciará directamente con la observación comercial.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={locked || busy}
+                      onClick={() => {
+                        setDraft(prev => ({ ...prev, include_greeting: true }));
+                        try {
+                          localStorage.setItem('rifx_greeting_pinned', 'true');
+                        } catch {}
+                        setMessage('Saludo inicial fijado nuevamente.');
+                      }}
+                      className="text-xs font-bold text-blue-700 hover:text-blue-800 underline shrink-0 ml-2"
+                    >
+                      Fijar saludo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <label className="mt-3.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
               ¿Qué observaste en su negocio? (Personalización)
               <textarea
@@ -3787,8 +5073,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             {/* Campo de Propuesta con botón Asistente AI */}
             <div className="mt-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Tu propuesta de campaña comercial
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Tu propuesta de campaña comercial</span>
                 </label>
                 <button
                   type="button"
@@ -3797,36 +5084,46 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     if (!aiPrompt && draft.observation) {
                       setAiPrompt(`Redacta una propuesta de marketing para ${draft.business || 'este negocio'}. Observación: ${draft.observation}`);
                     }
+                    if (!aiDraftText && aiResult) {
+                      setAiDraftText(aiResult.full_draft || aiResult.proposal || '');
+                    } else if (!aiDraftText && draft.proposal) {
+                      setAiDraftText(draft.proposal);
+                    }
                     setShowAiModal(true);
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-700 px-3 py-1.5 text-xs font-extrabold text-white shadow-sm hover:from-blue-800 hover:to-indigo-700 transition-all hover:shadow active:scale-95"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-all active:scale-95"
                 >
-                  <span>✨</span>
-                  <span>Asistente de escritura AI</span>
-                  <span className="rounded bg-emerald-500 px-1.5 py-0.2 text-[9px] font-black uppercase text-white shadow-xs">NEW</span>
+                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Asistente de redacción AI</span>
+                  <span className="rounded bg-blue-600 px-1.5 py-0.2 text-[9px] font-bold uppercase text-white shadow-xs">AI</span>
                 </button>
               </div>
               <textarea
+                ref={proposalTextareaRef}
                 disabled={locked || busy}
-                rows={4}
-                maxLength={2400}
-                className={inputClass}
+                rows={6}
+                maxLength={4000}
+                className={`${inputClass} leading-relaxed resize-y`}
                 placeholder="Les propongo una campaña orientada a salas personalizadas: destacar acabados..."
                 value={draft.proposal}
                 onChange={e => setDraft({ ...draft, proposal: e.target.value })}
               />
+              <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+                <span>Puedes editar o añadir cualquier detalle a la propuesta aquí libremente.</span>
+                <span>{draft.proposal.length} / 4000 caracteres</span>
+              </div>
             </div>
 
             {/* Sección de Personalización de Oferta, Precio y Muestra de Anuncio */}
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-xs">
+            <div className="mt-4 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">🏷️</span>
+                  <Award className="w-3.5 h-3.5 text-blue-600" />
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                     Personalizar Oferta y Anuncio
                   </h3>
                 </div>
-                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-extrabold text-blue-900 border border-blue-200">
+                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-900 border border-blue-200/60">
                   {draft.price || 'USD 300'}
                 </span>
               </div>
@@ -3896,12 +5193,14 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               {/* Imagen o muestra visual del anuncio desde galería */}
               <div className="mt-3.5 border-t border-slate-200/90 pt-3">
                 <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                    📸 Muestra visual del anuncio publicitario (Foto o Mockup)
+                  <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                    <ImageIcon className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Muestra visual del anuncio publicitario (Foto o Mockup)</span>
                   </label>
                   {draft.image_url && (
-                    <span className="text-[10px] font-bold text-emerald-700">
-                      ✓ Incluida en propuesta
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                      <Check className="w-3 h-3" />
+                      <span>Incluida en propuesta</span>
                     </span>
                   )}
                 </div>
@@ -3939,26 +5238,25 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     className={`group relative mt-2 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-5 text-center transition-all ${
                       locked || busy
                         ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
-                        : 'cursor-pointer border-blue-300 bg-gradient-to-b from-blue-50/50 to-white hover:border-blue-500 hover:bg-blue-50/80 hover:shadow-sm'
+                        : 'cursor-pointer border-slate-300 bg-slate-50/50 hover:border-blue-500 hover:bg-blue-50/50 hover:shadow-xs'
                     }`}
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/25 transition-transform group-hover:scale-105">
-                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs transition-transform group-hover:scale-105">
+                      <ImageIcon className="h-5 w-5" />
                     </div>
-                    <p className="mt-2.5 text-xs font-bold text-slate-900">
+                    <p className="mt-2.5 text-xs font-semibold text-slate-900">
                       Toca para subir foto desde tu galería
                     </p>
                     <p className="mt-0.5 text-[11px] text-slate-500 max-w-xs">
-                      Selecciona una foto o diseño desde tu galería del celular o archivos (JPG, PNG o WebP hasta 5 MB)
+                      Selecciona una foto o diseño desde tu dispositivo (JPG, PNG o WebP hasta 5 MB)
                     </p>
                     <button
                       type="button"
                       disabled={locked || busy || uploadingImage}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700"
                     >
-                      <span>📁 Abrir galería</span>
+                      <FolderOpen className="w-3.5 h-3.5" />
+                      <span>Abrir galería</span>
                     </button>
                   </div>
                 ) : (
@@ -3982,11 +5280,12 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                            ✓ Foto lista para el correo
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
+                            <Check className="w-3 h-3" />
+                            <span>Foto lista para el correo</span>
                           </span>
                           {uploadingImage && (
-                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 animate-pulse">
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-800 border border-blue-200 animate-pulse">
                               Guardando...
                             </span>
                           )}
@@ -3999,9 +5298,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             type="button"
                             disabled={locked || busy || uploadingImage}
                             onClick={() => fileInputRef.current?.click()}
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition"
                           >
-                            <span>🔄 Cambiar foto</span>
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Cambiar foto</span>
                           </button>
                           <button
                             type="button"
@@ -4010,9 +5310,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               setDraft({ ...draft, image_url: '' });
                               if (fileInputRef.current) fileInputRef.current.value = '';
                             }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100 transition"
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 transition"
                           >
-                            <span>✕ Quitar</span>
+                            <X className="w-3 h-3" />
+                            <span>Quitar</span>
                           </button>
                         </div>
                       </div>
@@ -4027,7 +5328,8 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     onClick={() => setShowUrlInput(!showUrlInput)}
                     className="text-slate-500 hover:text-slate-800 hover:underline inline-flex items-center gap-1 font-medium"
                   >
-                    <span>{showUrlInput ? '▼ Ocultar enlace URL' : '🔗 ¿Prefieres pegar un enlace web? (Opcional)'}</span>
+                    <LinkIcon className="w-3 h-3 text-slate-400" />
+                    <span>{showUrlInput ? 'Ocultar enlace URL' : '¿Prefieres pegar un enlace web? (Opcional)'}</span>
                   </button>
                   {!draft.image_url && (
                     <button
@@ -4039,7 +5341,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           image_url: 'https://rifx-marketing.com/images/rifx-logo-user.png',
                         })
                       }
-                      className="font-bold text-blue-700 hover:underline"
+                      className="font-semibold text-blue-600 hover:underline"
                     >
                       Usar logo Rifx
                     </button>
@@ -4065,82 +5367,286 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               </div>
             </div>
 
-            {/* Configuración del Botón de WhatsApp en la Propuesta */}
-            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    disabled={locked || busy}
-                    checked={draft.include_whatsapp !== false}
-                    onChange={e => {
-                      const enabled = e.target.checked;
-                      setDraft(prev => ({ ...prev, include_whatsapp: enabled }));
-                      try {
-                        localStorage.setItem('rifx_outreach_include_whatsapp', String(enabled));
-                      } catch {}
-                    }}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <WhatsAppIcon className="h-4 w-4" fill="#25D366" />
-                    <span>Incluir botón de WhatsApp en la propuesta</span>
-                  </span>
-                </label>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    draft.include_whatsapp !== false
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {draft.include_whatsapp !== false ? 'Botón Activo' : 'Desactivado (Omitido)'}
-                </span>
-              </div>
-
-              {draft.include_whatsapp !== false ? (
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                      Número de WhatsApp (editable)
-                    </label>
-                    <input
-                      disabled={locked || busy}
-                      type="text"
-                      maxLength={40}
-                      value={draft.whatsapp_phone ?? '+593 98 391 0712'}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setDraft(prev => ({ ...prev, whatsapp_phone: val }));
-                        try {
-                          localStorage.setItem('rifx_outreach_whatsapp_phone', val);
-                        } catch {}
-                      }}
-                      placeholder="+593 98 391 0712"
-                      className="w-full rounded-xl border border-slate-300 bg-slate-50/60 px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                    />
+            {/* Mensaje de Cierre / Llamada a la Acción y Botón de WhatsApp */}
+            <div className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-4.5 shadow-xs transition-all space-y-4">
+              {/* PARTE 1: Mensaje de Cierre / Llamada a la Acción */}
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                      <MessageSquare className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                        Mensaje de Cierre / Llamada a la Acción
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Aparece encima del botón de WhatsApp antes de la firma comercial
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 bg-slate-50 rounded-xl p-2.5 border border-slate-200/60 leading-tight">
-                    El botón en el correo se mostrará como <strong>&quot;Chatear por WhatsApp&quot;</strong> con el logo oficial. Al desmarcar esta casilla, el botón y el enlace se quitan por completo de la propuesta.
+
+                  {/* Botón Fijar / Desfijar Mensaje de Cierre */}
+                  <button
+                    type="button"
+                    disabled={locked || busy}
+                    onClick={() => {
+                      const nextPinned = draft.include_closing === false;
+                      setDraft(prev => ({ ...prev, include_closing: nextPinned }));
+                      try {
+                        localStorage.setItem('rifx_closing_pinned', String(nextPinned));
+                      } catch {}
+                      setMessage(
+                        nextPinned
+                          ? 'Mensaje de cierre fijado en la propuesta.'
+                          : 'Mensaje de cierre desfijado (se omitirá en este correo).'
+                      );
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs ${
+                      draft.include_closing !== false
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/10'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
+                    }`}
+                    title={
+                      draft.include_closing !== false
+                        ? 'Clic para desfijar (omitir mensaje de cierre)'
+                        : 'Clic para fijar (incluir mensaje de cierre)'
+                    }
+                  >
+                    {draft.include_closing !== false ? (
+                      <>
+                        <Pin className="h-3.5 w-3.5 fill-current" />
+                        <span>Fijado en propuesta</span>
+                      </>
+                    ) : (
+                      <>
+                        <PinOff className="h-3.5 w-3.5 text-slate-500" />
+                        <span>Desfijado (Omitido)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Selector de mensajes de cierre */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                      Seleccionar o fijar mensaje de cierre:
+                    </span>
+                    <button
+                      type="button"
+                      disabled={locked || busy}
+                      onClick={() => setNewClosingModal({ open: true, title: '', text: '' })}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-800 hover:underline"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Nuevo mensaje</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {closingMessagesList.map(item => {
+                      const isSelected = draft.closing_message === item.text && draft.include_closing !== false;
+                      return (
+                        <div
+                          key={item.id}
+                          className={`group inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all border ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-900 border-blue-400 font-bold ring-1 ring-blue-400/20 shadow-xs'
+                              : 'bg-slate-50/80 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                          } ${locked || busy ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                          onClick={() => {
+                            if (locked || busy) return;
+                            setDraft(prev => ({
+                              ...prev,
+                              closing_message: item.text,
+                              include_closing: true,
+                            }));
+                            try {
+                              localStorage.setItem('rifx_closing_message', item.text);
+                              localStorage.setItem('rifx_closing_pinned', 'true');
+                            } catch {}
+                            setMessage(`Mensaje de cierre "${item.title}" seleccionado y fijado.`);
+                          }}
+                        >
+                          {isSelected ? (
+                            <Pin className="h-3 w-3 text-blue-600 fill-current shrink-0" />
+                          ) : (
+                            <Bookmark className="h-3 w-3 text-slate-400 shrink-0" />
+                          )}
+                          <span className="truncate max-w-[200px]" title={item.text}>
+                            {item.title}
+                          </span>
+                          {!item.isDefault && (
+                            <button
+                              type="button"
+                              title="Eliminar mensaje personalizado"
+                              disabled={locked || busy}
+                              onClick={e => handleDeleteClosingMessage(item.id, e)}
+                              className="ml-0.5 rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-rose-600 transition"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ) : (
-                <p className="mt-2 text-[11px] text-slate-500 leading-normal">
-                  El correo se enviará únicamente con la propuesta y tu firma formal, sin el botón ni enlaces directos a WhatsApp.
-                </p>
-              )}
+
+                {/* Entrada de texto editable o aviso de desfijado */}
+                {draft.include_closing !== false ? (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                        Texto del mensaje de cierre activo (editable para este correo):
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        Actualización en vivo en la vista previa
+                      </span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      disabled={locked || busy}
+                      maxLength={500}
+                      className={`${inputClass} resize-y leading-relaxed`}
+                      placeholder="¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto."
+                      value={draft.closing_message ?? '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.'}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setDraft(prev => ({ ...prev, closing_message: val }));
+                        try {
+                          localStorage.setItem('rifx_closing_message', val);
+                        } catch {}
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3 text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <PinOff className="h-4 w-4 text-slate-400 shrink-0" />
+                        <span>
+                          El mensaje de cierre está <strong>desfijado</strong>. La propuesta pasará directamente al botón de WhatsApp y tu firma.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={locked || busy}
+                        onClick={() => {
+                          setDraft(prev => ({ ...prev, include_closing: true }));
+                          try {
+                            localStorage.setItem('rifx_closing_pinned', 'true');
+                          } catch {}
+                          setMessage('Mensaje de cierre fijado nuevamente.');
+                        }}
+                        className="text-xs font-bold text-blue-700 hover:text-blue-800 underline shrink-0 ml-2"
+                      >
+                        Fijar mensaje
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PARTE 2: Botón de WhatsApp en la Propuesta */}
+              <div className="pt-3 border-t border-slate-200/80">
+                <div className="flex items-center justify-between pb-2.5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      disabled={locked || busy}
+                      checked={draft.include_whatsapp !== false}
+                      onChange={e => {
+                        const enabled = e.target.checked;
+                        setDraft(prev => ({ ...prev, include_whatsapp: enabled }));
+                        try {
+                          localStorage.setItem('rifx_outreach_include_whatsapp', String(enabled));
+                        } catch {}
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                      <WhatsAppIcon className="h-4 w-4" fill="#25D366" />
+                      <span>Incluir botón de WhatsApp en la propuesta</span>
+                    </span>
+                  </label>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      draft.include_whatsapp !== false
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {draft.include_whatsapp !== false ? 'Botón Activo' : 'Desactivado (Omitido)'}
+                  </span>
+                </div>
+
+                {draft.include_whatsapp !== false ? (
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        Número de WhatsApp (editable)
+                      </label>
+                      <input
+                        disabled={locked || busy}
+                        type="text"
+                        maxLength={40}
+                        value={draft.whatsapp_phone ?? '+593 98 391 0712'}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setDraft(prev => ({ ...prev, whatsapp_phone: val }));
+                          try {
+                            localStorage.setItem('rifx_outreach_whatsapp_phone', val);
+                          } catch {}
+                        }}
+                        placeholder="+593 98 391 0712"
+                        className="w-full rounded-xl border border-slate-300 bg-slate-50/60 px-3 py-2 text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                      />
+                    </div>
+                    <div className="text-[11px] text-slate-500 bg-slate-50 rounded-xl p-2.5 border border-slate-200/60 leading-tight">
+                      El botón en el correo se mostrará como <strong>&quot;Chatear por WhatsApp&quot;</strong> con el logo oficial. Al desmarcar esta casilla, el botón y el enlace se quitan por completo de la propuesta.
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[11px] text-slate-500 leading-normal">
+                    El correo se enviará únicamente con la propuesta y tu firma formal, sin el botón ni enlaces directos a WhatsApp.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Advertencia si SMTP no está configurado en local */}
             {!smtpReady && (
-              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-950 shadow-sm">
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-950 shadow-xs">
                 <div className="flex items-center gap-2 font-bold text-amber-900">
-                  <span className="text-base">⚠️</span>
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>Servidor de correo (SMTP Nominalia) no configurado en tu entorno local (.env.local)</span>
                 </div>
                 <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800">
                   Como ya configuraste los datos en <strong>Vercel</strong>, en tu web publicada funcionará automáticamente. Para enviar correos desde <strong>localhost</strong> (tu computadora), agrega tus variables en el archivo <code className="bg-amber-100 px-1.5 py-0.5 rounded font-mono font-bold text-amber-900">.env.local</code>.
                 </p>
+              </div>
+            )}
+
+            {/* Aviso si la propuesta ya fue enviada y botón para permitir edición/reenvío */}
+            {locked && selected && (
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/80 p-3.5 text-xs text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="leading-snug">
+                    Esta propuesta ya fue <strong>aceptada por el servidor</strong>{selected.sent_at ? ` el ${new Date(selected.sent_at).toLocaleDateString('es-EC')}` : ''}. Está protegida contra envíos duplicados accidentales.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void resetStatus(selected.id)}
+                  disabled={busy}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+                  <span>Permitir editar o reenviar</span>
+                </button>
               </div>
             )}
 
@@ -4150,52 +5656,40 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                 type="button"
                 onClick={() => void save()}
                 disabled={!ready || !valid || locked || busy}
-                className="flex-1 rounded-xl bg-[#103260] px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-sm transition-all hover:bg-[#0c264a] disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 hover:bg-slate-800 px-4 py-3 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all disabled:opacity-40"
               >
-                💾 Guardar propuesta
+                <Save className="w-4 h-4" />
+                <span>Guardar propuesta</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  if (!smtpReady) {
-                    setMessage('⚠️ Faltan configurar las credenciales SMTP de Nominalia en .env.local para enviar pruebas.');
-                    return;
-                  }
-                  void send(true);
-                }}
-                disabled={!ready || !valid || busy}
-                className={`rounded-xl border px-4 py-3 text-xs sm:text-sm font-bold shadow-sm transition-all ${
-                  smtpReady
-                    ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                    : 'border-amber-300 bg-amber-50/50 text-amber-800 hover:bg-amber-100/50'
-                } disabled:opacity-40`}
-                title={!smtpReady ? 'Faltan credenciales de Nominalia en .env.local' : 'Enviar prueba'}
-              >
-                ✉️ Enviar prueba
-              </button>
+              
 
               <button
                 type="button"
                 onClick={async () => {
                   if (!smtpReady) {
-                    setMessage('⚠️ El envío está bloqueado porque faltan las credenciales SMTP de Nominalia en tu .env.local.');
+                    setMessage('El envío está bloqueado porque faltan las credenciales SMTP de Nominalia en tu .env.local.');
                     return;
                   }
-                  if (!selected || dirty) {
+                  if (!draft.email || !validOutreachEmail(draft.email)) {
+                    setMessage('Por favor ingresa un Correo del Negocio válido.');
+                    return;
+                  }
+                  if (!selected || dirty || (selected && selected.email?.toLowerCase().trim() !== draft.email.toLowerCase().trim())) {
                     await save();
                   }
                   setConfirming(true);
                 }}
                 disabled={!ready || !valid || locked || busy}
-                className={`rounded-xl px-4 py-3 text-xs sm:text-sm font-bold shadow-sm transition-all ${
+                className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-xs sm:text-sm font-semibold shadow-xs transition-all ${
                   smtpReady
-                    ? 'bg-orange-500 text-slate-950 hover:bg-orange-600'
-                    : 'bg-amber-400 text-amber-950 hover:bg-amber-500 opacity-80'
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-amber-500 hover:bg-amber-600 text-white opacity-80'
                 } disabled:opacity-40`}
                 title={!smtpReady ? 'Faltan credenciales de Nominalia en .env.local' : 'Enviar al cliente'}
               >
-                🚀 Enviar al cliente
+                <Send className="w-4 h-4" />
+                <span>Enviar al cliente</span>
               </button>
             </div>
 
@@ -4251,9 +5745,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     <span className="font-bold text-slate-900">
                       {stages[selected.stage as keyof typeof stages] || selected.stage}
                     </span>
-                    <span className={`text-slate-400 text-xs shrink-0 transition-transform duration-200 ${stageDropdownOpen ? 'rotate-180 text-blue-600 font-bold' : ''}`}>
-                      ▼
-                    </span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${stageDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
                   </button>
 
                   {stageDropdownOpen && (
@@ -4276,7 +5768,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                               }`}
                             >
                               <span>{label}</span>
-                              {isCurrent && <span className="text-sm">✓</span>}
+                              {isCurrent && <Check className="h-4 w-4 text-white" />}
                             </button>
                           );
                         })}
@@ -4296,11 +5788,11 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         {/* COLUMNA DERECHA: VISUALIZACIÓN EN VIVO (STICKY)              */}
         {/* ------------------------------------------------------------ */}
         <div className="sticky top-4">
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-xs">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                  <span>👁️</span>
+                <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-blue-600" />
                   <span>Vista previa en tiempo real</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
@@ -4309,19 +5801,29 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               </div>
 
               {/* Alternador de dispositivos */}
-              <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
                 {(['desktop', 'mobile'] as const).map(size => (
                   <button
                     key={size}
                     type="button"
                     onClick={() => setPreviewSize(size)}
-                    className={`rounded-lg px-3 py-1 text-xs font-bold transition-all ${
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
                       previewSize === size
-                        ? 'bg-white text-blue-900 shadow-sm'
+                        ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/60'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    {size === 'mobile' ? '📱 Celular' : '💻 Computadora'}
+                    {size === 'mobile' ? (
+                      <>
+                        <Smartphone className="h-3.5 w-3.5" />
+                        <span>Celular</span>
+                      </>
+                    ) : (
+                      <>
+                        <Monitor className="h-3.5 w-3.5" />
+                        <span>Computadora</span>
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -4350,7 +5852,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-6 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150"
         >
           <div
             className="relative flex flex-col w-full max-w-2xl max-h-[92vh] rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200"
@@ -4360,7 +5862,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 bg-white">
               <div>
                 <h2 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                  <span>💬</span>
+                  <MessageSquare className="h-4 w-4 text-blue-600" />
                   <span>Responder a {replyModal.business || replyModal.to}</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -4373,7 +5875,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                 aria-label="Cerrar"
               >
-                <span className="text-xl leading-none font-bold">✕</span>
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -4405,17 +5907,17 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               {/* Plantillas de respuesta rápida (Predeterminadas y Personalizadas) */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                    <span>⚡</span>
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                    <Zap className="h-3.5 w-3.5 text-amber-500" />
                     <span>Respuestas rápidas de 1 clic:</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => setNewQuickReplyModal({ open: true, title: '', text: '' })}
-                    className="inline-flex items-center gap-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2 py-0.5 text-[11px] transition shadow-2xs"
+                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-2.5 py-1 text-[11px] transition shadow-2xs"
                     title="Crear y guardar una nueva respuesta personalizada"
                   >
-                    <span>+</span>
+                    <Plus className="h-3 w-3" />
                     <span>Nueva respuesta</span>
                   </button>
                 </div>
@@ -4431,7 +5933,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                           .replace(/\{nombre\}/g, name);
                         setReplyModal({ ...replyModal, replyText: filled });
                       }}
-                      className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-100 transition shadow-2xs"
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-100 transition shadow-2xs"
                     >
                       {qr.title}
                     </button>
@@ -4454,7 +5956,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                         onSuccess: improved => setReplyModal({ ...replyModal, replyText: improved }),
                       });
                     }}
-                    className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-700 hover:from-purple-700 hover:to-blue-800 text-white px-2.5 py-1 text-xs font-bold shadow-xs transition active:scale-95 disabled:opacity-40"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1 text-xs font-bold shadow-xs transition active:scale-95 disabled:opacity-40"
                     title="Mejora la redacción y persuasión del mensaje con IA"
                   >
                     {improvingReplyWithAi ? (
@@ -4464,7 +5966,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       </>
                     ) : (
                       <>
-                        <span>✨</span>
+                        <Sparkles className="h-3 w-3 text-blue-400" />
                         <span>Mejorar con IA</span>
                       </>
                     )}
@@ -4544,7 +6046,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                 type="button"
                 disabled={sendingReply || !replyModal.replyText.trim()}
                 onClick={() => void handleSendReply()}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-700 hover:bg-blue-800 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition disabled:opacity-40"
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-xs transition disabled:opacity-40"
               >
                 {sendingReply ? (
                   <>
@@ -4553,7 +6055,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   </>
                 ) : (
                   <>
-                    <span>✉️</span>
+                    <Send className="h-4 w-4" />
                     <span>Enviar respuesta</span>
                   </>
                 )}
@@ -4570,7 +6072,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-6 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150"
         >
           <div
             className="relative flex flex-col w-full max-w-5xl max-h-[92vh] rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200"
@@ -4579,11 +6081,12 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 bg-white">
               <div className="flex items-center gap-2.5">
+                <Sparkles className="h-4 w-4 text-blue-600" />
                 <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                  Asistente de escritura AI
+                  Asistente de redacción IA
                 </h2>
-                <span className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-                  NEW
+                <span className="rounded bg-slate-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
+                  CRM
                 </span>
               </div>
               <button
@@ -4592,7 +6095,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                 aria-label="Cerrar"
               >
-                <span className="text-xl leading-none font-bold">✕</span>
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -4612,14 +6115,14 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     rows={8}
                     value={aiPrompt}
                     onChange={e => setAiPrompt(e.target.value)}
-                    placeholder="escribe un mensaje de marketing a este comercial ofreciéndole un servicio donde puedo gestionar sus redes para aumentar sus ventas y que su negocio sea más visible para las personas... en el servicio viene 12 imágenes de post 3 videos que se editan los videos los tendrán que enviar ellos y pagar lo de la campaña publicitaria"
+                    placeholder="Escribe un mensaje comercial ofreciendo gestión de redes sociales y publicidad digital para aumentar las ventas del cliente..."
                     className="w-full rounded-xl border border-slate-300 p-3 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700 leading-relaxed resize-none"
                   />
 
                   <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Estilo ⓘ
+                        Estilo
                       </label>
                       <select
                         value={aiStyle}
@@ -4636,7 +6139,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Idioma ⓘ
+                        Idioma
                       </label>
                       <select
                         value={aiLanguage}
@@ -4651,13 +6154,16 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
 
                   {/* Ejemplos interactivos */}
                   <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-blue-700 font-bold">💡 Ver ejemplos:</span>
+                    <span className="inline-flex items-center gap-1 text-xs text-blue-700 font-bold">
+                      <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                      <span>Ver ejemplos:</span>
+                    </span>
                     {AI_EXAMPLES.map((ex, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => setAiPrompt(ex.text)}
-                        className="rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 transition-colors"
+                        className="rounded-lg border border-blue-200/80 bg-blue-50/70 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 transition-colors"
                       >
                         {ex.title.split(' ')[0]}
                       </button>
@@ -4670,7 +6176,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     type="button"
                     disabled={aiGenerating || !aiPrompt.trim()}
                     onClick={() => void generateAiProposal()}
-                    className="w-full rounded-xl bg-blue-700 hover:bg-blue-800 px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                    className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-3 text-xs sm:text-sm font-bold text-white shadow-xs transition-all flex items-center justify-center gap-2 disabled:opacity-40"
                   >
                     {aiGenerating ? (
                       <>
@@ -4679,13 +6185,13 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                       </>
                     ) : (
                       <>
-                        <span>✨</span>
+                        <Sparkles className="h-4 w-4" />
                         <span>{aiResult ? 'Generar de nuevo' : 'Generar propuesta'}</span>
                       </>
                     )}
                   </button>
                   <p className="mt-2 text-[10px] text-slate-400 text-center leading-tight">
-                    100% IA europea — tu modelo propio, tus datos siguen siendo tuyos. Los resultados pueden necesitar pequeños ajustes.
+                    Modelo comercial inteligente. Los resultados pueden ajustarse manualmente según tus necesidades.
                   </p>
                 </div>
               </div>
@@ -4694,16 +6200,24 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               <div className="flex flex-col justify-between p-5 sm:p-6 bg-slate-50/50 space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-2.5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
-                      aiResult
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        : aiGenerating
-                        ? 'bg-blue-100 text-blue-800 border border-blue-300 animate-pulse'
-                        : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      <span className={`h-2 w-2 rounded-full ${aiResult ? 'bg-emerald-500' : aiGenerating ? 'bg-blue-500' : 'bg-slate-400'}`} />
-                      {aiResult ? 'DRAFT READY' : aiGenerating ? 'REDACTANDO...' : 'LISTO PARA REDACTAR'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
+                        aiResult || aiDraftText
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : aiGenerating
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300 animate-pulse'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        <span className={`h-2 w-2 rounded-full ${aiResult || aiDraftText ? 'bg-emerald-500' : aiGenerating ? 'bg-blue-500' : 'bg-slate-400'}`} />
+                        {aiResult || aiDraftText ? 'LISTO PARA INSERTAR O EDITAR' : aiGenerating ? 'REDACTANDO...' : 'LISTO PARA REDACTAR'}
+                      </span>
+                      {selectedAiText ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-800 animate-in fade-in">
+                          <Check className="h-3 w-3 text-blue-600" />
+                          <span>Fragmento seleccionado ({selectedAiText.length} carac.)</span>
+                        </span>
+                      ) : null}
+                    </div>
 
                     {aiResult?.subject && (
                       <span className="text-[11px] font-semibold text-slate-500 truncate max-w-[200px]" title={aiResult.subject}>
@@ -4712,79 +6226,155 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     )}
                   </div>
 
-                  {/* Caja de contenido redactado */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 h-[320px] sm:h-[350px] overflow-y-auto text-xs sm:text-sm text-slate-800 leading-relaxed font-sans whitespace-pre-wrap select-text shadow-inner">
-                    {aiResult ? (
-                      aiResult.full_draft || aiResult.proposal
-                    ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 p-4">
-                        <span className="text-3xl mb-2">✍️</span>
-                        <p className="font-bold text-slate-600 text-sm">Tu redacción comercial aparecerá aquí</p>
-                        <p className="text-xs text-slate-400 mt-1 max-w-xs">
-                          Escribe lo que ofreces en la columna izquierda y presiona &quot;Generar propuesta&quot; para estructurarlo con IA.
-                        </p>
+                  {/* Caja de contenido redactado - Editable y seleccionable */}
+                  {aiResult || aiDraftText ? (
+                    <div className="space-y-1.5">
+                      <textarea
+                        ref={aiDraftTextareaRef}
+                        value={aiDraftText}
+                        onChange={e => {
+                          setAiDraftText(e.target.value);
+                        }}
+                        onSelect={() => {
+                          if (aiDraftTextareaRef.current) {
+                            const { selectionStart, selectionEnd, value } = aiDraftTextareaRef.current;
+                            if (selectionStart !== selectionEnd) {
+                              setSelectedAiText(value.substring(selectionStart, selectionEnd).trim());
+                            } else {
+                              setSelectedAiText('');
+                            }
+                          }
+                        }}
+                        onMouseUp={() => {
+                          if (aiDraftTextareaRef.current) {
+                            const { selectionStart, selectionEnd, value } = aiDraftTextareaRef.current;
+                            if (selectionStart !== selectionEnd) {
+                              setSelectedAiText(value.substring(selectionStart, selectionEnd).trim());
+                            } else {
+                              setSelectedAiText('');
+                            }
+                          }
+                        }}
+                        onKeyUp={() => {
+                          if (aiDraftTextareaRef.current) {
+                            const { selectionStart, selectionEnd, value } = aiDraftTextareaRef.current;
+                            if (selectionStart !== selectionEnd) {
+                              setSelectedAiText(value.substring(selectionStart, selectionEnd).trim());
+                            } else {
+                              setSelectedAiText('');
+                            }
+                          }
+                        }}
+                        placeholder="Edita aquí tu propuesta o selecciona un fragmento con el ratón..."
+                        className="w-full rounded-xl border border-slate-300 bg-white p-4 h-[320px] sm:h-[350px] text-xs sm:text-sm text-slate-800 leading-relaxed font-sans select-text shadow-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
+                      />
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                        <span>
+                          {selectedAiText
+                            ? 'Seleccionaste un fragmento. Al presionar "Añadir al correo" se insertará exactamente ese fragmento en Tu propuesta comercial.'
+                            : 'Puedes editar este texto directamente aquí o seleccionar un fragmento con el ratón.'}
+                        </span>
+                        {selectedAiText && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAiText('')}
+                            className="text-blue-600 hover:text-blue-800 font-bold underline"
+                          >
+                            Limpiar selección
+                          </button>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 h-[320px] sm:h-[350px] flex flex-col items-center justify-center text-center text-slate-400 shadow-xs">
+                      <PenSquare className="h-8 w-8 mb-2 text-slate-300" />
+                      <p className="font-bold text-slate-600 text-sm">Tu redacción comercial aparecerá aquí</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                        Escribe lo que ofreces en la columna izquierda y presiona &quot;Generar propuesta&quot; para estructurarlo con IA.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Barra de acciones inferior */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
                   {/* Feedback */}
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span>Dar feedback</span>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span>Dar feedback:</span>
                     <button
                       type="button"
                       onClick={() => setAiFeedback('up')}
-                      className={`p-1.5 rounded hover:bg-slate-200 transition-colors ${aiFeedback === 'up' ? 'text-blue-700 font-bold bg-blue-100' : ''}`}
+                      className={`p-1.5 rounded-lg border transition-colors ${
+                        aiFeedback === 'up'
+                          ? 'border-blue-300 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-600'
+                      }`}
                       title="Me gustó la redacción"
                     >
-                      👍
+                      <ThumbsUp className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => setAiFeedback('down')}
-                      className={`p-1.5 rounded hover:bg-slate-200 transition-colors ${aiFeedback === 'down' ? 'text-amber-700 font-bold bg-amber-100' : ''}`}
+                      className={`p-1.5 rounded-lg border transition-colors ${
+                        aiFeedback === 'down'
+                          ? 'border-amber-300 bg-amber-50 text-amber-700'
+                          : 'border-slate-200 bg-white hover:bg-slate-100 text-slate-600'
+                      }`}
                       title="Podría mejorar"
                     >
-                      👎
+                      <ThumbsDown className="h-3.5 w-3.5" />
                     </button>
-                    {aiFeedback && <span className="text-[10px] text-emerald-600 font-bold">¡Gracias!</span>}
+                    {aiFeedback && <span className="text-[11px] text-emerald-600 font-bold">¡Gracias!</span>}
                   </div>
 
                   {/* Botón Añadir al Correo */}
                   <div className="relative">
-                    <div className="inline-flex rounded-xl shadow-sm">
+                    <div className="inline-flex rounded-xl shadow-xs">
                       <button
                         type="button"
-                        disabled={!aiResult}
-                        onClick={() => applyAiToEmail('all')}
-                        className="rounded-l-xl bg-blue-700 hover:bg-blue-800 px-4 py-2.5 text-xs sm:text-sm font-bold text-white transition-all disabled:opacity-40"
+                        disabled={!aiResult && !aiDraftText}
+                        onClick={() => applyAiToEmail(selectedAiText ? 'proposal_only' : 'all')}
+                        className="rounded-l-xl bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs sm:text-sm font-bold text-white transition-all disabled:opacity-40"
                       >
-                        Añadir al correo
+                        {selectedAiText ? 'Añadir selección a propuesta' : 'Añadir al correo'}
                       </button>
                       <button
                         type="button"
-                        disabled={!aiResult}
+                        disabled={!aiResult && !aiDraftText}
                         onClick={() => setAiDropdownOpen(!aiDropdownOpen)}
-                        className="rounded-r-xl border-l border-blue-600 bg-blue-700 hover:bg-blue-800 px-2.5 py-2.5 text-xs font-bold text-white transition-all disabled:opacity-40"
+                        className="inline-flex items-center justify-center rounded-r-xl border-l border-blue-500 bg-blue-600 hover:bg-blue-700 px-2.5 py-2.5 text-xs font-bold text-white transition-all disabled:opacity-40"
                         aria-label="Más opciones"
                       >
-                        ▾
+                        <ChevronDown className="h-3.5 w-3.5" />
                       </button>
                     </div>
 
                     {aiDropdownOpen && (
-                      <div className="absolute right-0 bottom-full mb-1 w-64 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-20 animate-in fade-in zoom-in-95">
+                      <div className="absolute right-0 bottom-full mb-1 w-72 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl z-20 animate-in fade-in zoom-in-95">
+                        {selectedAiText && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAiDropdownOpen(false);
+                              applyAiToEmail('proposal_only');
+                            }}
+                            className="w-full flex items-center gap-2 rounded-lg p-2 text-xs font-semibold text-blue-900 bg-blue-50 hover:bg-blue-100 text-left"
+                          >
+                            <Check className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                            <span>Añadir fragmento seleccionado ({selectedAiText.length} carac.)</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
                             setAiDropdownOpen(false);
                             applyAiToEmail('all');
                           }}
-                          className="w-full text-left rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900"
+                          className="w-full flex items-center gap-2 rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900 text-left"
                         >
-                          ✨ Aplicar todo al correo (recomendado)
+                          <Sparkles className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                          <span>Aplicar todo al correo (recomendado)</span>
                         </button>
                         <button
                           type="button"
@@ -4792,9 +6382,21 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             setAiDropdownOpen(false);
                             applyAiToEmail('proposal_only');
                           }}
-                          className="w-full text-left rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900"
+                          className="w-full flex items-center gap-2 rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900 text-left"
                         >
-                          📝 Aplicar solo el texto de propuesta
+                          <PenSquare className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                          <span>Reemplazar solo &quot;Tu propuesta comercial&quot;</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiDropdownOpen(false);
+                            applyAiToEmail('append');
+                          }}
+                          className="w-full flex items-center gap-2 rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900 text-left"
+                        >
+                          <Plus className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                          <span>Añadir al final del texto actual</span>
                         </button>
                         <button
                           type="button"
@@ -4802,9 +6404,10 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                             setAiDropdownOpen(false);
                             applyAiToEmail('copy');
                           }}
-                          className="w-full text-left rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900"
+                          className="w-full flex items-center gap-2 rounded-lg p-2 text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-900 text-left"
                         >
-                          📋 Copiar texto al portapapeles
+                          <FileText className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                          <span>Copiar texto al portapapeles</span>
                         </button>
                       </div>
                     )}
@@ -4830,8 +6433,8 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 text-red-600 mb-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-100 text-xl shrink-0">
-                🗑️
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-red-100 text-red-600 shrink-0">
+                <Trash2 className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">
@@ -4847,9 +6450,9 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
               Se eliminará permanentemente <strong className="text-slate-900 font-bold">{deleteConfirmModal.description}</strong> directamente del servidor de correo de Nominalia (<code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-slate-800">{sender}</code>).
             </p>
 
-            <div className="mt-3.5 rounded-xl bg-amber-50 border border-amber-200 p-3 text-[11px] text-amber-900 leading-relaxed space-y-1">
-              <div className="font-bold flex items-center gap-1">
-                <span>💡</span>
+            <div className="mt-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 p-3 text-[11px] text-amber-900 leading-relaxed space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <Lightbulb className="h-3.5 w-3.5 text-amber-600" />
                 <span>Evita que se llene la memoria</span>
               </div>
               <p>
@@ -4880,7 +6483,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   </>
                 ) : (
                   <>
-                    <span>🗑️</span>
+                    <Trash2 className="h-4 w-4" />
                     <span>Sí, eliminar y liberar memoria</span>
                   </>
                 )}
@@ -4905,7 +6508,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 bg-slate-50">
               <div className="flex items-center gap-2">
-                <span className="text-lg">⚡</span>
+                <Zap className="h-4 w-4 text-amber-500" />
                 <div>
                   <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
                     Nueva respuesta personalizada
@@ -4920,7 +6523,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                 onClick={() => setNewQuickReplyModal({ open: false, title: '', text: '' })}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
               >
-                ✕
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -4933,7 +6536,7 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                   type="text"
                   value={newQuickReplyModal.title}
                   onChange={e => setNewQuickReplyModal({ ...newQuickReplyModal, title: e.target.value })}
-                  placeholder="Ej: 💼 Enviar catálogo y precios"
+                  placeholder="Ej: Enviar catálogo y precios"
                   className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700"
                 />
               </div>
@@ -4983,11 +6586,237 @@ export default function OutreachClient({ embedded = false }: { embedded?: boolea
                     localStorage.setItem('rifx_custom_quick_replies', JSON.stringify(updated));
                   } catch {}
                   setNewQuickReplyModal({ open: false, title: '', text: '' });
-                  setMessage('✓ Nueva respuesta rápida personalizada "' + title + '" guardada con éxito.');
+                  setMessage('Nueva respuesta rápida personalizada "' + title + '" guardada con éxito.');
                 }}
-                className="rounded-xl bg-blue-700 hover:bg-blue-800 px-5 py-2 text-xs font-bold text-white shadow-xs transition disabled:opacity-40"
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-bold text-white shadow-xs transition disabled:opacity-40"
               >
                 Guardar respuesta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: NUEVO SALUDO PERSONALIZADO                              */}
+      {/* ============================================================== */}
+      {newGreetingModal.open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Bookmark className="h-4 w-4 text-blue-700" />
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                    Nuevo Saludo Personalizado
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Crea una fórmula de saludo para fijar o seleccionar en tus propuestas.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewGreetingModal({ open: false, title: '', text: '' })}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Nombre identificador (para el botón)
+                </label>
+                <input
+                  type="text"
+                  value={newGreetingModal.title}
+                  onChange={e => setNewGreetingModal({ ...newGreetingModal, title: e.target.value })}
+                  placeholder="Ej: Director Rifx Marketing"
+                  maxLength={50}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                    Texto exacto del saludo
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Máximo 300 caracteres
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  maxLength={300}
+                  value={newGreetingModal.text}
+                  onChange={e => setNewGreetingModal({ ...newGreetingModal, text: e.target.value })}
+                  placeholder="Ej: Soy Bryan Arcos, Director de Rifx Marketing."
+                  className="w-full rounded-xl border border-slate-300 p-3 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700 leading-relaxed resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3.5 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setNewGreetingModal({ open: false, title: '', text: '' })}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!newGreetingModal.title.trim() || !newGreetingModal.text.trim()}
+                onClick={() => {
+                  const title = newGreetingModal.title.trim();
+                  const text = newGreetingModal.text.trim();
+                  if (!title || !text) return;
+                  const newItem: GreetingItem = {
+                    id: 'gr_' + Date.now(),
+                    title,
+                    text,
+                  };
+                  const updated = [...greetingsList, newItem];
+                  setGreetingsList(updated);
+                  try {
+                    localStorage.setItem('rifx_custom_greetings', JSON.stringify(updated));
+                    localStorage.setItem('rifx_greeting_intro', text);
+                    localStorage.setItem('rifx_greeting_pinned', 'true');
+                  } catch {}
+                  setDraft(prev => ({
+                    ...prev,
+                    greeting_intro: text,
+                    include_greeting: true,
+                  }));
+                  setNewGreetingModal({ open: false, title: '', text: '' });
+                  setMessage(`Saludo "${title}" guardado y fijado en la propuesta.`);
+                }}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-bold text-white shadow-xs transition disabled:opacity-40"
+              >
+                Guardar y fijar saludo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: NUEVO MENSAJE DE CIERRE / LLAMADA A LA ACCIÓN           */}
+      {/* ============================================================== */}
+      {newClosingModal.open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-blue-700" />
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                    Nuevo Mensaje de Cierre / Llamado a la Acción
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Crea un mensaje para invitar al prospecto a responder o conversar.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewClosingModal({ open: false, title: '', text: '' })}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                  Nombre identificador (para el botón)
+                </label>
+                <input
+                  type="text"
+                  value={newClosingModal.title}
+                  onChange={e => setNewClosingModal({ ...newClosingModal, title: e.target.value })}
+                  placeholder="Ej: Reunión comercial / Presupuesto"
+                  maxLength={50}
+                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                    Texto del mensaje de cierre
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Máximo 500 caracteres
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={newClosingModal.text}
+                  onChange={e => setNewClosingModal({ ...newClosingModal, text: e.target.value })}
+                  placeholder="Ej: ¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto."
+                  className="w-full rounded-xl border border-slate-300 p-3 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700 leading-relaxed resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3.5 bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setNewClosingModal({ open: false, title: '', text: '' })}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!newClosingModal.title.trim() || !newClosingModal.text.trim()}
+                onClick={() => {
+                  const title = newClosingModal.title.trim();
+                  const text = newClosingModal.text.trim();
+                  if (!title || !text) return;
+                  const newItem: ClosingMessageItem = {
+                    id: 'cl_' + Date.now(),
+                    title,
+                    text,
+                  };
+                  const updated = [...closingMessagesList, newItem];
+                  setClosingMessagesList(updated);
+                  try {
+                    localStorage.setItem('rifx_custom_closing_messages', JSON.stringify(updated));
+                    localStorage.setItem('rifx_closing_message', text);
+                    localStorage.setItem('rifx_closing_pinned', 'true');
+                  } catch {}
+                  setDraft(prev => ({
+                    ...prev,
+                    closing_message: text,
+                    include_closing: true,
+                  }));
+                  setNewClosingModal({ open: false, title: '', text: '' });
+                  setMessage(`Mensaje de cierre "${title}" guardado y fijado en la propuesta.`);
+                }}
+                className="rounded-xl bg-blue-600 hover:bg-blue-700 px-5 py-2 text-xs font-bold text-white shadow-xs transition disabled:opacity-40"
+              >
+                Guardar y fijar mensaje
               </button>
             </div>
           </div>

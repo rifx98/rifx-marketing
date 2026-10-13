@@ -2,6 +2,36 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import {
+  BrainCircuit,
+  Sparkles,
+  RefreshCw,
+  Building2,
+  Users,
+  MessageSquare,
+  DollarSign,
+  Phone,
+  PhoneCall,
+  BookOpen,
+  ShieldAlert,
+  Layers,
+  AlertCircle,
+  TrendingUp,
+  Megaphone,
+  X,
+  Search,
+  Plus,
+  Send,
+  Upload,
+  UploadCloud,
+  CheckCircle2,
+  FileText,
+  SlidersHorizontal,
+  Activity,
+  Bot,
+  Eye,
+  Check,
+} from 'lucide-react';
 import type {
   BrainGraph,
   BrainNode,
@@ -10,20 +40,6 @@ import type {
   BrainNodeType,
   CognitiveLearningState,
 } from '@/lib/brain-graph';
-
-// Dynamically load the 3D Canvas component to guarantee no SSR issues with WebGL/Three.js
-const BrainGraph3D = dynamic(() => import('./components/BrainGraph3D'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full min-h-[500px] flex-col items-center justify-center bg-[#010309] text-slate-400">
-      <span className="material-symbols-outlined mb-3 animate-spin text-4xl text-cyan-400">
-        progress_activity
-      </span>
-      <p className="text-sm font-semibold text-slate-200">Iniciando Red Neuronal Anatómica 3D...</p>
-      <p className="mt-1 text-xs text-slate-500">Cargando neuronas corticales, hemisferios y sinapsis</p>
-    </div>
-  ),
-});
 
 // Dynamically load the Neuromapa interactive canvas engine
 const NeuromapaGraph = dynamic(() => import('./components/NeuromapaGraph'), {
@@ -198,14 +214,14 @@ export interface KnowledgeItem {
 }
 
 const CATEGORY_TAGS: Record<string, { label: string; bg: string; text: string; icon: string }> = {
-  objections: { label: 'Objeción', bg: 'bg-amber-100 border-amber-200', text: 'text-amber-800', icon: 'shield' },
-  sales: { label: 'Ventas', bg: 'bg-emerald-100 border-emerald-200', text: 'text-emerald-800', icon: 'payments' },
-  scripts: { label: 'Script', bg: 'bg-blue-100 border-blue-200', text: 'text-blue-800', icon: 'description' },
-  product: { label: 'Producto', bg: 'bg-purple-100 border-purple-200', text: 'text-purple-800', icon: 'inventory_2' },
-  process: { label: 'Proceso', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-800', icon: 'settings' },
-  faq: { label: 'FAQ', bg: 'bg-teal-100 border-teal-200', text: 'text-teal-800', icon: 'help' },
-  competitor: { label: 'Competencia', bg: 'bg-rose-100 border-rose-200', text: 'text-rose-800', icon: 'sports_mma' },
-  general: { label: 'General', bg: 'bg-cyan-100 border-cyan-200', text: 'text-cyan-800', icon: 'neurology' },
+  objections: { label: 'Objeción', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: 'shield' },
+  sales: { label: 'Ventas', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: 'payments' },
+  scripts: { label: 'Script', bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', icon: 'description' },
+  product: { label: 'Producto', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: 'inventory_2' },
+  process: { label: 'Proceso', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: 'settings' },
+  faq: { label: 'FAQ', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: 'help' },
+  competitor: { label: 'Competencia', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: 'sports_mma' },
+  general: { label: 'General', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: 'neurology' },
 };
 
 function renderFormattedContent(text: string) {
@@ -261,7 +277,6 @@ export default function BrainTab({
   const [error, setError] = useState<string | null>(null);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'neuromapa' | '3d'>('neuromapa');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'confirmed' | 'inferred'>('all');
@@ -358,8 +373,8 @@ export default function BrainTab({
   const handleTriggerLearn = useCallback(() => {
     setLearningNotification(
       isEn
-        ? '⚡ Synaptic surge: AI Brain synthesized new communication & sales patterns from recent CRM interactions.'
-        : '⚡ Descarga sináptica: El Cerebro asimiló nuevos patrones de lenguaje en WhatsApp y ajustó técnicas de venta.',
+        ? 'Actualización sináptica: El Cerebro asimiló nuevos patrones de interacción en el CRM.'
+        : 'Actualización sináptica: El Cerebro asimiló nuevos patrones de interacción en el CRM.',
     );
     setTimeout(() => {
       setLearningNotification(null);
@@ -419,7 +434,7 @@ export default function BrainTab({
           {
             id: `ai-${Date.now()}`,
             role: 'assistant',
-            content: `🧠 **Conocimiento Asimilado:** Guardé "${data.item.title}" en **${data.item.category.toUpperCase()}**.\n\nYa está sincronizado en tiempo real con las respuestas de WhatsApp y las decisiones de llamadas de voz.`,
+            content: `**Conocimiento Asimilado:** Guardé "${data.item.title}" en **${data.item.category.toUpperCase()}**.\n\nYa está sincronizado en tiempo real con las respuestas de WhatsApp y las decisiones de llamadas de voz.`,
             timestamp: new Date().toISOString(),
             actionTag: 'knowledge_learned',
           },
@@ -470,7 +485,7 @@ export default function BrainTab({
         {
           id: `ai-${Date.now()}`,
           role: 'assistant',
-          content: `🧠 **Archivo Asimilado con Éxito:** He indexado "${data.fileName || selectedFile.name}" (${(data.characterCount || 0).toLocaleString()} caracteres) en la categoría **${(data.item?.category || newCategory).toUpperCase()}**.\n\nYa forma parte de la memoria del Cerebro y está activo en WhatsApp y llamadas de voz para cerrar ventas con mayor inteligencia.`,
+          content: `**Archivo Asimilado con Éxito:** He indexado "${data.fileName || selectedFile.name}" (${(data.characterCount || 0).toLocaleString()} caracteres) en la categoría **${(data.item?.category || newCategory).toUpperCase()}**.\n\nYa forma parte de la memoria del Cerebro y está activo en WhatsApp y llamadas de voz para cerrar ventas con mayor inteligencia.`,
           timestamp: new Date().toISOString(),
           actionTag: 'knowledge_learned',
         },
@@ -584,7 +599,7 @@ export default function BrainTab({
         {
           id: `ai-err-${Date.now()}`,
           role: 'assistant',
-          content: `❌ Error al consultar al Cerebro: ${err.message || 'Error de conexión'}`,
+          content: `Error al consultar al Cerebro: ${err.message || 'Error de conexión'}`,
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -665,7 +680,7 @@ export default function BrainTab({
         {
           id: `ai-error-${Date.now()}`,
           role: 'assistant' as const,
-          content: `❌ Error de conexión: ${err.message || 'No se pudo contactar al servidor'}. Intenta de nuevo.`,
+          content: `Error de conexión: ${err.message || 'No se pudo contactar al servidor'}. Intenta de nuevo.`,
           timestamp: new Date().toISOString(),
         },
       ]);
@@ -742,17 +757,17 @@ export default function BrainTab({
     <div className="space-y-6">
       {/* ─── LEARNING PULSE TOAST NOTIFICATION ─── */}
       {learningNotification && (
-        <div className="flex items-center justify-between rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-3 text-xs text-cyan-900 shadow-sm animate-in fade-in slide-in-from-top-2">
+        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-xs text-blue-900 shadow-xs animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-cyan-600">psychology</span>
+            <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
             <span className="font-semibold">{learningNotification}</span>
           </div>
           <button
             type="button"
             onClick={() => setLearningNotification(null)}
-            className="text-cyan-700 hover:text-cyan-950 font-bold"
+            className="text-blue-500 hover:text-blue-800 transition-colors"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -760,32 +775,32 @@ export default function BrainTab({
       {/* ======================================================== */}
       {/* 1. EDITORIAL HEADER SECTION (EXACT CRM DESIGN SYSTEM)    */}
       {/* ======================================================== */}
-      <section className="mb-8 flex justify-between items-end flex-wrap gap-4">
+      <section className="mb-6 flex justify-between items-end flex-wrap gap-4">
         <div className="max-w-2xl">
-          <span className="text-orange-600 font-bold tracking-widest text-[11px] uppercase mb-1.5 flex items-center gap-1.5">
-            <span>⚡</span>
+          <span className="text-blue-600 font-bold tracking-widest text-[11px] uppercase mb-1.5 flex items-center gap-1.5">
+            <BrainCircuit className="w-3.5 h-3.5" />
             <span>{isEn ? 'RIFX CRM · Central Sales Brain' : 'RIFX CRM · Cerebro Central del Negocio'}</span>
           </span>
-          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3 flex items-center gap-3 flex-wrap">
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight mb-2 flex items-center gap-3 flex-wrap">
             <span>
               {isEn ? 'AI Brain · Central CRM Director' : 'Cerebro Central del CRM'}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              {isEn ? 'CRM Operations Director Active' : 'Director Central Activo'}
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+              {isEn ? 'Operations Director Active' : 'Director Central Activo'}
             </span>
           </h1>
-          <p className="text-sm md:text-base text-slate-500 font-normal leading-relaxed max-w-4xl">
+          <p className="text-xs md:text-sm text-slate-500 font-normal leading-relaxed max-w-3xl">
             {isEn
               ? 'Central CRM Brain. Governs customer conversations, Meta Ads advertising, phone calls and continuous sales learning to close more deals with persuasive, warm, and highly professional responses.'
               : 'El Director Central del CRM. Gobierna cómo contestar en WhatsApp, cómo estructurar la publicidad en Meta Ads, cómo asesorar en llamadas y aprende continuamente qué le gusta y qué le disgusta escuchar a tus clientes para cerrar ventas de forma profesional, cálida e irresistible.'}
           </p>
         </div>
 
-        <div className="flex gap-3 items-center flex-wrap">
+        <div className="flex gap-2.5 items-center flex-wrap">
           {adminView && (
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-xs">
-              <span className="material-symbols-outlined text-base text-orange-500">store</span>
+              <Building2 className="w-4 h-4 text-slate-500" />
               <div className="flex flex-col text-left">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   {isEn ? 'Tenant' : 'Empresa'}
@@ -798,14 +813,14 @@ export default function BrainTab({
                     setTenantId(val);
                     onSelectTenantId?.(val);
                   }}
-                  className="cursor-pointer bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
+                  className="cursor-pointer bg-transparent text-xs font-semibold text-slate-800 focus:outline-none"
                 >
                   <option value="all">
-                    🌐 {isEn ? 'Entire Platform (Global)' : 'Toda la Plataforma (Global)'}
+                    {isEn ? 'Entire Platform (Global)' : 'Toda la Plataforma (Global)'}
                   </option>
                   {tenants.map((t) => (
                     <option key={t.id} value={t.id}>
-                      🏢 {t.companyName || t.email || t.id.slice(0, 8)}
+                      {t.companyName || t.email || t.id.slice(0, 8)}
                     </option>
                   ))}
                 </select>
@@ -816,9 +831,9 @@ export default function BrainTab({
           <button
             type="button"
             onClick={handleTriggerLearn}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all active:scale-[0.98] flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-all active:scale-[0.98] flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-base">bolt</span>
+            <Sparkles className="w-3.5 h-3.5" />
             <span>{isEn ? 'Consolidate Learning' : 'Consolidar Aprendizaje'}</span>
           </button>
 
@@ -826,9 +841,9 @@ export default function BrainTab({
             type="button"
             onClick={() => fetchBrainData(true)}
             disabled={loading || refreshing}
-            className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs shadow-xs hover:bg-slate-50 transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold text-xs shadow-xs hover:bg-slate-50 transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-50"
           >
-            <span className={`material-symbols-outlined text-base ${refreshing ? 'animate-spin' : ''}`}>sync</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             <span>{isEn ? 'Sync Memory' : 'Sincronizar'}</span>
           </button>
         </div>
@@ -837,21 +852,21 @@ export default function BrainTab({
       {/* ======================================================== */}
       {/* 1.5 PANEL DE CANALES GOBERNADOS POR EL CEREBRO CENTRAL   */}
       {/* ======================================================== */}
-      <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100">
+      <section className="mb-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
-              <span className="material-symbols-outlined text-xl">neurology</span>
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+              <BrainCircuit className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>{isEn ? 'Central CRM Director · Active Operational Hub' : 'Mente Directora Central de Todo el CRM'}</span>
-                <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 flex items-center gap-1">
+                <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   {isEn ? 'Governing 100% of Decisions' : 'Gobernando 100% de Decisiones'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 {isEn
                   ? 'All marketing, sales messaging, objection handling, and phone calls are actively directed by this Brain.'
                   : 'Toda la publicidad, atención en WhatsApp, manejo de objeciones y llamadas son dirigidas por este Cerebro.'}
@@ -861,24 +876,24 @@ export default function BrainTab({
           <button
             type="button"
             onClick={() => setActiveSideTab('learning')}
-            className="rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-700 transition-all flex items-center gap-1.5 shadow-xs"
+            className="rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all flex items-center gap-1.5 shadow-xs"
           >
-            <span className="material-symbols-outlined text-sm text-slate-500">psychology</span>
+            <BookOpen className="w-3.5 h-3.5 text-slate-500" />
             <span>{isEn ? 'View Learned Rules' : 'Ver Reglas y Aprendizaje'}</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
           {/* Canal 1: WhatsApp */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 flex flex-col justify-between hover:bg-white hover:border-emerald-200 hover:shadow-xs transition-all">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 flex flex-col justify-between hover:bg-white hover:border-slate-300 hover:shadow-xs transition-all">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 font-bold text-slate-800">
-                <div className="w-6 h-6 rounded-md bg-emerald-500 text-white flex items-center justify-center">
-                  <span className="material-symbols-outlined text-sm">chat</span>
+              <div className="flex items-center gap-2 font-semibold text-slate-800">
+                <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center">
+                  <MessageSquare className="w-3.5 h-3.5" />
                 </div>
                 <span>WhatsApp CRM</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                 Cero Frialdad
               </span>
             </div>
@@ -888,15 +903,15 @@ export default function BrainTab({
           </div>
 
           {/* Canal 2: Meta Ads */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 flex flex-col justify-between hover:bg-white hover:border-blue-200 hover:shadow-xs transition-all">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 flex flex-col justify-between hover:bg-white hover:border-slate-300 hover:shadow-xs transition-all">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 font-bold text-slate-800">
-                <div className="w-6 h-6 rounded-md bg-blue-600 text-white flex items-center justify-center">
-                  <span className="material-symbols-outlined text-sm">campaign</span>
+              <div className="flex items-center gap-2 font-semibold text-slate-800">
+                <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center">
+                  <Megaphone className="w-3.5 h-3.5" />
                 </div>
                 <span>Meta Ads & Copys</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                 Scroll-Stop Hooks
               </span>
             </div>
@@ -906,15 +921,15 @@ export default function BrainTab({
           </div>
 
           {/* Canal 3: Llamadas de Voz */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 flex flex-col justify-between hover:bg-white hover:border-purple-200 hover:shadow-xs transition-all">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 flex flex-col justify-between hover:bg-white hover:border-slate-300 hover:shadow-xs transition-all">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 font-bold text-slate-800">
-                <div className="w-6 h-6 rounded-md bg-purple-600 text-white flex items-center justify-center">
-                  <span className="material-symbols-outlined text-sm">phone_in_talk</span>
+              <div className="flex items-center gap-2 font-semibold text-slate-800">
+                <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center">
+                  <PhoneCall className="w-3.5 h-3.5" />
                 </div>
                 <span>Llamadas de Voz</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold border border-purple-200">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                 Persuasión 1:1
               </span>
             </div>
@@ -924,15 +939,15 @@ export default function BrainTab({
           </div>
 
           {/* Canal 4: Auto-Aprendizaje */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 flex flex-col justify-between hover:bg-white hover:border-orange-200 hover:shadow-xs transition-all">
+          <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 flex flex-col justify-between hover:bg-white hover:border-slate-300 hover:shadow-xs transition-all">
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 font-bold text-slate-800">
-                <div className="w-6 h-6 rounded-md bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
-                  <span className="material-symbols-outlined text-sm">auto_awesome</span>
+              <div className="flex items-center gap-2 font-semibold text-slate-800">
+                <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center">
+                  <Sparkles className="w-3.5 h-3.5" />
                 </div>
                 <span>Auto-Aprendizaje</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 font-bold border border-orange-200">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
                 Tiempo Real
               </span>
             </div>
@@ -944,87 +959,87 @@ export default function BrainTab({
       </section>
 
       {/* ======================================================== */}
-      {/* 2. STATS KPI ROW (3 LIGHT CARDS + 1 DARK HERO ACCENT)    */}
+      {/* 2. STATS KPI ROW (CLEAN ENTERPRISE CRM STYLE)             */}
       {/* ======================================================== */}
       {graph && (
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Card 1: RED MULTI-TENANT */}
-          <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
             <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <span>🌐</span>
+              <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 {isEn ? 'Multi-Tenant Network' : 'Red Multi-Tenant'}
               </p>
-              <p className="text-3xl font-black text-slate-800">
+              <p className="text-2xl font-bold text-slate-900">
                 {graph.salesIntelligence?.totalTenantsAnalyzed || tenants.length || 1} {isEn ? 'Tenants' : 'Usuarios'}
               </p>
-              <span className="text-[10px] text-cyan-600 font-semibold flex items-center gap-1 mt-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
                 {isEn ? 'Cross-learning from all accounts' : 'Aprendiendo de todas las cuentas'}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-cyan-50 text-cyan-600">
-              <span className="material-symbols-outlined text-2xl">neurology</span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-50 border border-slate-200/80 text-slate-600">
+              <Users className="w-5 h-5" />
             </div>
           </div>
 
           {/* Card 2: DOLORES CAPTADOS */}
-          <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
             <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <span>🎯</span>
+              <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
                 {isEn ? 'Captured Customer Pains' : 'Dolores Captados'}
               </p>
-              <p className="text-3xl font-black text-slate-800">
+              <p className="text-2xl font-bold text-slate-900">
                 {graph.salesIntelligence?.customerPains?.length || 4} {isEn ? 'Key Pains' : 'Puntos Clave'}
               </p>
-              <span className="text-[10px] text-teal-600 font-semibold flex items-center gap-1 mt-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-500" />
+              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500" />
                 {isEn ? 'Mapped from WhatsApp & calls' : 'Mapeados de WhatsApp y llamadas'}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-teal-50 text-teal-600">
-              <span className="material-symbols-outlined text-2xl">psychology</span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-50 border border-slate-200/80 text-slate-600">
+              <ShieldAlert className="w-5 h-5" />
             </div>
           </div>
 
           {/* Card 3: LO QUE NO GUSTA OÍR (TABÚES) */}
-          <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
             <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <span>🚫</span>
-                {isEn ? 'Friction Taboos' : 'Lo que NO Gusta Oír'}
+              <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-slate-400" />
+                {isEn ? 'Friction Taboos' : 'Lo que no gusta oír'}
               </p>
-              <p className="text-3xl font-black text-slate-800">
+              <p className="text-2xl font-bold text-slate-900">
                 {graph.salesIntelligence?.frictionTriggers?.length || 4} {isEn ? 'Taboos' : 'Frases Tabú'}
               </p>
-              <span className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500" />
+              <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1 mt-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400" />
                 {isEn ? 'Replaced with winning closes' : 'Reemplazadas con cierres de venta'}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-rose-50 text-rose-600">
-              <span className="material-symbols-outlined text-2xl">do_not_disturb_on</span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-slate-50 border border-slate-200/80 text-slate-600">
+              <AlertCircle className="w-5 h-5" />
             </div>
           </div>
 
           {/* Card 4: ESPECIALISTA EN VENTAS */}
-          <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm flex items-center justify-between transition-all hover:shadow-md">
+          <div className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-xs flex items-center justify-between transition-all hover:border-slate-300">
             <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                <span>⚡</span>
+              <p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
                 {isEn ? 'Sales Specialization' : 'Especialista en Ventas'}
               </p>
-              <p className="text-3xl font-black text-slate-800">
-                +41% <span className="text-base font-bold text-slate-500">Cierre</span>
+              <p className="text-2xl font-bold text-slate-900">
+                +41% <span className="text-sm font-semibold text-slate-500">Cierre</span>
               </p>
-              <span className="text-[10px] text-orange-600 font-semibold flex items-center gap-1 mt-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-orange-500" />
+              <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 {isEn ? 'Double alternative active' : 'Cierre de doble alternativa activo'}
               </span>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shrink-0 text-white shadow-lg shadow-orange-500/20">
-              <span className="material-symbols-outlined text-2xl">workspace_premium</span>
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 text-blue-600">
+              <TrendingUp className="w-5 h-5" />
             </div>
           </div>
         </section>
@@ -1034,7 +1049,7 @@ export default function BrainTab({
       {error && (
         <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-800 shadow-xs mb-6">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-rose-600">error</span>
+            <AlertCircle className="w-5 h-5 text-rose-600" />
             <span className="text-sm font-medium">{error}</span>
           </div>
           <button
@@ -1052,10 +1067,10 @@ export default function BrainTab({
       {/* ======================================================== */}
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-black text-slate-900 font-headline tracking-tight">
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">
             {isEn ? 'Synaptic Map & Memory' : 'Mapa Sináptico 3D'}
           </h2>
-          <span className="text-slate-400 font-semibold bg-slate-100 px-2.5 py-0.5 rounded-full text-xs">
+          <span className="text-slate-500 font-medium bg-slate-100 px-2.5 py-0.5 rounded-full text-xs border border-slate-200/60">
             {filteredNodes.length} {isEn ? 'active nodes' : 'nodos en memoria'}
           </span>
         </div>
@@ -1065,84 +1080,85 @@ export default function BrainTab({
           <button
             type="button"
             onClick={() => setTypeFilter('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'all'
-                ? 'bg-slate-900 text-white font-bold shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            {isEn ? 'All Entities' : 'Todos'}
+            <Layers className="w-3.5 h-3.5" />
+            <span>{isEn ? 'All Entities' : 'Todos'}</span>
           </button>
           <button
             type="button"
             onClick={() => setTypeFilter('customer')}
-            className={`px-3 py-1.5 rounded-full text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'customer'
-                ? 'bg-cyan-600 text-white font-bold shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            <span>👤</span>
+            <Users className="w-3.5 h-3.5" />
             <span>{isEn ? 'Customers' : 'Clientes'}</span>
           </button>
           <button
             type="button"
             onClick={() => setTypeFilter('conversation')}
-            className={`px-3 py-1.5 rounded-full text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'conversation'
-                ? 'bg-indigo-600 text-white font-bold shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            <span>💬</span>
+            <MessageSquare className="w-3.5 h-3.5" />
             <span>{isEn ? 'Chats' : 'Conversaciones'}</span>
           </button>
           <button
             type="button"
             onClick={() => setTypeFilter('sale')}
-            className={`px-3 py-1.5 rounded-full text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'sale'
-                ? 'bg-emerald-600 text-white font-bold shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            <span>💰</span>
+            <DollarSign className="w-3.5 h-3.5" />
             <span>{isEn ? 'Sales' : 'Ventas'}</span>
           </button>
           <button
             type="button"
             onClick={() => setTypeFilter('voice')}
-            className={`px-3 py-1.5 rounded-full text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'voice'
-                ? 'bg-pink-600 text-white font-bold shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            <span>📞</span>
+            <Phone className="w-3.5 h-3.5" />
             <span>{isEn ? 'Calls' : 'Llamadas'}</span>
           </button>
           <button
             type="button"
             onClick={() => setTypeFilter('knowledge')}
-            className={`px-3 py-1.5 rounded-full text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'knowledge'
-                ? 'bg-sky-600 text-white font-bold shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            <span>📚</span>
+            <BookOpen className="w-3.5 h-3.5" />
             <span>{isEn ? 'Knowledge' : 'Conocimiento'}</span>
           </button>
           <button
             type="button"
             onClick={() => setTypeFilter('objection')}
-            className={`px-3 py-1.5 rounded-full text-xs transition-all flex items-center gap-1 ${
+            className={`px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 ${
               typeFilter === 'objection'
-                ? 'bg-rose-600 text-white font-bold shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100 font-medium'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
             }`}
           >
-            <span>🛡️</span>
+            <ShieldAlert className="w-3.5 h-3.5" />
             <span>{isEn ? 'Objections' : 'Objeciones'}</span>
           </button>
         </div>
@@ -1150,16 +1166,14 @@ export default function BrainTab({
         {/* Search & Source filter dropdown */}
         <div className="flex items-center gap-2">
           <div className="relative">
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-sm text-slate-400">
-              search
-            </span>
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             <input
               key="brain-search-input"
               type="text"
               value={searchQuery ?? ''}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isEn ? 'Search nodes...' : 'Buscar nodo...'}
-              className="w-44 focus:w-60 transition-all rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-700 placeholder-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 focus:outline-none"
+              className="w-44 focus:w-60 transition-all rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -1167,7 +1181,7 @@ export default function BrainTab({
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
               >
-                <span className="material-symbols-outlined text-xs">close</span>
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -1176,7 +1190,7 @@ export default function BrainTab({
             key="brain-source-filter"
             value={sourceFilter ?? 'all'}
             onChange={(e) => setSourceFilter(e.target.value as 'all' | 'confirmed' | 'inferred')}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-orange-500 focus:outline-none"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-blue-600 focus:outline-none"
           >
             <option value="all">{isEn ? 'All Sources' : 'Toda la Memoria'}</option>
             <option value="confirmed">{isEn ? 'Confirmed' : 'Confirmada'}</option>
@@ -1191,83 +1205,36 @@ export default function BrainTab({
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {/* LEFT / CENTER: MASTER 3D NEURAL CONTAINER CARD */}
         <div className="xl:col-span-8 2xl:col-span-8">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex flex-col">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 flex flex-col">
             {/* Top Bar inside the white card */}
             <div className="flex items-center justify-between pb-3.5 mb-1 border-b border-slate-100 flex-wrap gap-2">
               <div className="flex items-center gap-3">
-                <div
-                  className={`w-10 h-10 rounded-xl text-white flex items-center justify-center font-bold shadow-md transition-all ${
-                    viewMode === 'neuromapa'
-                      ? 'bg-gradient-to-br from-[#a193ff] to-[#6366f1] shadow-[#a193ff]/20'
-                      : 'bg-gradient-to-br from-orange-500 to-amber-500 shadow-orange-500/20'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-xl">neurology</span>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                  <BrainCircuit className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-900 font-headline flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-slate-900 tracking-tight flex items-center gap-2">
                     <span>
-                      {viewMode === 'neuromapa'
-                        ? isEn
-                          ? 'Cognitive Neuromapa CRM'
-                          : 'Neuromapa Cognitivo CRM'
-                        : isEn
-                        ? 'Anatomical 3D Cortex & Synaptic Rays'
-                        : 'Corteza Cerebral Anatómica 3D'}
+                      {isEn ? 'Cognitive Neuromapa CRM' : 'Neuromapa Cognitivo CRM'}
                     </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                        viewMode === 'neuromapa'
-                          ? 'bg-[#a193ff]/15 text-[#6366f1] border-[#a193ff]/30'
-                          : 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                      }`}
-                    >
-                      {viewMode === 'neuromapa'
-                        ? `${filteredNodes.length} Nodos · Sinapsis Activas & Halos`
-                        : '2,100 Neuronas · Rayos Sinápticos Activos'}
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                      {filteredNodes.length} Nodos • Sinapsis Activas & Halos 3D
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400 font-normal">
-                    {viewMode === 'neuromapa'
-                      ? isEn
-                        ? 'Interactive Neuromapa canvas · Neural spotlighting, synaptic action potentials and focus'
-                        : 'Lienzo interactivo Neuromapa · Enfoque sináptico, impulsos eléctricos y halos neuronales'
-                      : isEn
-                      ? 'Deep cognitive neural mesh · Actively learning customer messages & call coherence'
-                      : 'Malla neural profunda · Asimila continuamente mensajes de WhatsApp y calibra la coherencia en llamadas'}
+                    {isEn
+                      ? 'Interactive 3D Neuromapa canvas • Neural spotlighting, synaptic action potentials and CRM memory'
+                      : 'Lienzo interactivo Neuromapa • Enfoque sináptico, impulsos biológicos y memoria profunda del CRM'}
                   </p>
                 </div>
               </div>
 
-              {/* View Mode Switcher Pills */}
+              {/* Status Badge - Single Unified Neuromapa Mode */}
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/60 shadow-xs">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('neuromapa')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      viewMode === 'neuromapa'
-                        ? 'bg-gradient-to-r from-[#a193ff] to-[#6366f1] text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">neurology</span>
-                    <span>{isEn ? 'Neuromapa' : 'Modo Neuromapa'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('3d')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      viewMode === '3d'
-                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-sm">view_in_ar</span>
-                    <span>{isEn ? '3D Galaxy' : 'Galaxia 3D'}</span>
-                  </button>
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{isEn ? 'Neuromapa 3D Live Engine' : 'Motor Neuromapa 3D Conectado'}</span>
                 </div>
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse ml-1" />
               </div>
             </div>
 
@@ -1305,13 +1272,13 @@ export default function BrainTab({
                     {isEn ? 'Reset Filters' : 'Restablecer Filtros'}
                   </button>
                 </div>
-              ) : viewMode === 'neuromapa' ? (
+              ) : (
                 <NeuromapaGraph
                   nodes={filteredNodes}
                   edges={filteredEdges}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={(id) => setSelectedNodeId(id)}
-                  language={language}
+                  language={isEn ? 'en' : 'es'}
                   learningState={graph?.learning}
                   onTriggerLearn={handleTriggerLearn}
                   onExecuteCopilotAction={(action, node) => {
@@ -1327,145 +1294,99 @@ export default function BrainTab({
                     ]);
                   }}
                 />
-              ) : (
-                <BrainGraph3D
-                  nodes={filteredNodes}
-                  edges={filteredEdges}
-                  selectedNodeId={selectedNodeId}
-                  onSelectNode={(id) => setSelectedNodeId(id)}
-                  language={language}
-                  learningState={graph?.learning}
-                  onTriggerLearn={handleTriggerLearn}
-                />
               )}
             </div>
 
-            {/* Bottom Bar: Guide depending on viewMode */}
+            {/* Bottom Bar: Anatomical Lobes Guide */}
             <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                {viewMode === 'neuromapa'
-                  ? isEn
-                    ? 'Neural Categories'
-                    : 'Categorías Neuronales'
-                  : isEn
-                  ? 'Lobes & Regions'
-                  : 'Guía de Lóbulos'}
-                :
+                {isEn ? 'Anatomical Lobes' : 'Lóbulos Anatómicos'}:
               </span>
-              {viewMode === 'neuromapa' ? (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#a193ff]" />
-                    Core Motor IA
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#10b981]" />
-                    Clientes / CRM
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#06b6d4]" />
-                    Conversaciones WhatsApp
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#8b5cf6]" />
-                    Respuestas Aprendidas
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#f59e0b]" />
-                    Intención & Ventas
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
-                    Objeciones Resueltas
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-[#6366f1]" />
-                    Base de Conocimiento
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-pink-500" />
-                    Temporal (Memoria WhatsApp)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-rose-500" />
-                    Auditivo / Broca (Coherencia en Llamadas)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                    Prefrontal (Reglas & Estrategia)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-sky-400" />
-                    Cerebelo (Respuestas Inmediatas)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                    Frontal (Clientes)
-                  </span>
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    Accumbens (Ventas)
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#a193ff]" />
+                  Cerebelo (Motor IA)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#10b981]" />
+                  Frontal (Clientes)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#06b6d4]" />
+                  Temporal (WhatsApp)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#ec4899]" />
+                  Auditivo (Llamadas de Voz)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#f59e0b]" />
+                  Prefrontal (Reglas & Ventas)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#8b5cf6]" />
+                  Occipital (Workflows)
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                  <span className="h-2 w-2 rounded-full bg-[#6366f1]" />
+                  Parietal (Base Conocimiento)
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* RIGHT: COMMAND CENTER, LEARNING ENGINE, INSPECTOR (CLEAN CRM SYSTEM) */}
         <div className="xl:col-span-4 2xl:col-span-4">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col h-[755px]">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col h-[755px]">
             {/* Top Tab Bar (CRM Pill Style) */}
             <div className="flex items-center rounded-xl bg-slate-100 p-1 mb-4">
               <button
                 type="button"
                 onClick={() => setActiveSideTab('copilot')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
                   activeSideTab === 'copilot'
-                    ? 'bg-white text-orange-600 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">smart_toy</span>
+                <Bot className="w-3.5 h-3.5" />
                 <span>{isEn ? 'Copilot AI' : 'Copiloto IA'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSideTab('learning')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
                   activeSideTab === 'learning'
-                    ? 'bg-white text-orange-600 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">psychology</span>
+                <BrainCircuit className="w-3.5 h-3.5" />
                 <span>{isEn ? 'Learning' : 'Aprendizaje'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSideTab('inspector')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
                   activeSideTab === 'inspector'
-                    ? 'bg-white text-orange-600 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">visibility</span>
+                <Eye className="w-3.5 h-3.5" />
                 <span>{isEn ? 'Inspector' : 'Inspector'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveSideTab('activity')}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all ${
                   activeSideTab === 'activity'
-                    ? 'bg-white text-orange-600 shadow-xs'
+                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">stream</span>
+                <Activity className="w-3.5 h-3.5" />
                 <span>{isEn ? 'Activity' : 'Actividad'}</span>
               </button>
             </div>
@@ -1478,11 +1399,11 @@ export default function BrainTab({
                 {/* Header */}
                 <div className="mb-3.5 flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold shadow-xs shadow-orange-500/20">
-                      <span className="material-symbols-outlined text-sm">neurology</span>
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                      <BrainCircuit className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 font-headline">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
                         {isEn ? 'Central CRM Copilot' : 'Asistente Central del Cerebro'}
                       </h4>
                       <p className="text-[11px] text-emerald-600 font-semibold">
@@ -1495,12 +1416,12 @@ export default function BrainTab({
                     <button
                       type="button"
                       onClick={() => setIsInjectModalOpen(true)}
-                      className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-3 py-1.5 text-[11px] font-bold text-white shadow-md shadow-orange-500/20 hover:scale-[1.02] transition-all active:scale-95"
+                      className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs transition-all active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-sm">add_circle</span>
+                      <Plus className="w-3.5 h-3.5" />
                       <span>{isEn ? '+ Inject Knowledge' : '+ Inyectar Conocimiento'}</span>
                     </button>
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                       v3.8 Cognitive
                     </span>
                   </div>
@@ -1516,9 +1437,9 @@ export default function BrainTab({
                       type="button"
                       disabled={copilotLoading}
                       onClick={() => handleExecuteAutonomousAction('audit_pains')}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 p-2.5 text-left text-[11px] font-semibold text-slate-700 transition-all hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-900 active:scale-95 disabled:opacity-50 shadow-xs"
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-left text-[11px] font-medium text-slate-700 transition-all hover:bg-white hover:border-slate-300 hover:text-slate-900 active:scale-95 disabled:opacity-50 shadow-xs"
                     >
-                      <span className="material-symbols-outlined text-sm text-indigo-600">psychology</span>
+                      <ShieldAlert className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                       <span className="truncate">Mapear dolores cliente</span>
                     </button>
 
@@ -1526,9 +1447,9 @@ export default function BrainTab({
                       type="button"
                       disabled={copilotLoading}
                       onClick={() => handleExecuteAutonomousAction('friction_taboos')}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 p-2.5 text-left text-[11px] font-semibold text-slate-700 transition-all hover:bg-rose-50 hover:border-rose-300 hover:text-rose-900 active:scale-95 disabled:opacity-50 shadow-xs"
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-left text-[11px] font-medium text-slate-700 transition-all hover:bg-white hover:border-slate-300 hover:text-slate-900 active:scale-95 disabled:opacity-50 shadow-xs"
                     >
-                      <span className="material-symbols-outlined text-sm text-rose-600">do_not_disturb_on</span>
+                      <AlertCircle className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                       <span className="truncate">Qué evitar (Tabúes)</span>
                     </button>
 
@@ -1536,9 +1457,9 @@ export default function BrainTab({
                       type="button"
                       disabled={copilotLoading}
                       onClick={() => handleExecuteAutonomousAction('closing_master')}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 p-2.5 text-left text-[11px] font-semibold text-slate-700 transition-all hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-900 active:scale-95 disabled:opacity-50 shadow-xs"
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-left text-[11px] font-medium text-slate-700 transition-all hover:bg-white hover:border-slate-300 hover:text-slate-900 active:scale-95 disabled:opacity-50 shadow-xs"
                     >
-                      <span className="material-symbols-outlined text-sm text-emerald-600">workspace_premium</span>
+                      <TrendingUp className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                       <span className="truncate">Técnicas de cierre</span>
                     </button>
 
@@ -1546,9 +1467,9 @@ export default function BrainTab({
                       type="button"
                       disabled={copilotLoading}
                       onClick={() => handleExecuteAutonomousAction('calibrate_voice')}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50 p-2.5 text-left text-[11px] font-semibold text-slate-700 transition-all hover:bg-pink-50 hover:border-pink-300 hover:text-pink-900 active:scale-95 disabled:opacity-50 shadow-xs"
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-left text-[11px] font-medium text-slate-700 transition-all hover:bg-white hover:border-slate-300 hover:text-slate-900 active:scale-95 disabled:opacity-50 shadow-xs"
                     >
-                      <span className="material-symbols-outlined text-sm text-pink-600">phone_in_talk</span>
+                      <PhoneCall className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                       <span className="truncate">Calibrar llamadas voz</span>
                     </button>
                   </div>
@@ -1561,15 +1482,15 @@ export default function BrainTab({
                       key={msg.id}
                       className={`flex flex-col rounded-2xl p-3.5 text-xs leading-relaxed ${
                         msg.role === 'assistant'
-                          ? 'border border-slate-100 bg-slate-50/80 text-slate-800'
-                          : 'ml-6 bg-[#0058bc] text-white shadow-xs'
+                          ? 'border border-slate-200/80 bg-slate-50/80 text-slate-800'
+                          : 'ml-6 bg-blue-600 text-white shadow-xs'
                       }`}
                     >
                       <div className="mb-1 flex items-center justify-between text-[10px]">
-                        <span className={`font-bold flex items-center gap-1 ${msg.role === 'assistant' ? 'text-slate-900' : 'text-white/90'}`}>
+                        <span className={`font-semibold flex items-center gap-1.5 ${msg.role === 'assistant' ? 'text-slate-900' : 'text-white/90'}`}>
                           {msg.role === 'assistant' ? (
                             <>
-                              <span className="material-symbols-outlined text-xs text-orange-500">neurology</span>
+                              <Bot className="w-3.5 h-3.5 text-blue-600" />
                               Cerebro IA
                             </>
                           ) : (
@@ -1585,8 +1506,8 @@ export default function BrainTab({
                   ))}
 
                   {copilotLoading && (
-                    <div className="flex items-center gap-2 rounded-2xl border border-orange-100 bg-orange-50/40 p-3 text-xs text-orange-900">
-                      <span className="material-symbols-outlined animate-spin text-sm text-orange-500">progress_activity</span>
+                    <div className="flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50/50 p-3 text-xs text-blue-900">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
                       <span>El Cerebro está procesando la orden y analizando la memoria...</span>
                     </div>
                   )}
@@ -1595,8 +1516,8 @@ export default function BrainTab({
                 {/* Chat Input Bar */}
                 <div className="mt-3.5 space-y-1.5">
                   {copilotInput.trim().toLowerCase().match(/^(aprende|learn|recuerda|memoriza|guarda)/) && (
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-700 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-200 animate-in fade-in">
-                      <span className="material-symbols-outlined text-xs text-orange-500">psychology</span>
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-700 px-2 py-0.5 rounded-md bg-blue-50 border border-blue-200 animate-in fade-in">
+                      <BrainCircuit className="w-3.5 h-3.5 text-blue-600" />
                       <span>Modo Ingestión de Conocimiento Activo: Este mensaje se guardará en la memoria permanente del Cerebro.</span>
                     </div>
                   )}
@@ -1611,22 +1532,22 @@ export default function BrainTab({
                           ? 'Ask anything or type "Learn: [rule]" to train the brain...'
                           : 'Pregunta lo que sea o escribe "Aprende: [regla]" para entrenar...'
                       }
-                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all"
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 outline-none transition-all"
                     />
                     <button
                       type="button"
                       onClick={() => setIsInjectModalOpen(true)}
                       title="Inyectar Conocimiento Estructurado"
-                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700 transition-all active:scale-95"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-all active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-base">psychology</span>
+                      <BookOpen className="w-4 h-4" />
                     </button>
                     <button
                       type="submit"
                       disabled={!copilotInput.trim() || copilotLoading}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600 transition-all active:scale-95 disabled:opacity-50 shadow-orange-500/20"
+                      className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all active:scale-95 disabled:opacity-50"
                     >
-                      <span className="material-symbols-outlined text-base">send</span>
+                      <Send className="w-3.5 h-3.5" />
                     </button>
                   </form>
                 </div>
@@ -1640,10 +1561,10 @@ export default function BrainTab({
               <div className="flex-1 overflow-y-auto space-y-4 pr-1">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 font-headline">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
                       {isEn ? 'Continuous Learning Engine' : 'Motor de Aprendizaje Continuo'}
                     </h4>
-                    <p className="text-[11px] text-orange-600 font-semibold">
+                    <p className="text-[11px] text-blue-600 font-semibold">
                       {isEn ? 'Extracting patterns from messages, sales & calls' : 'Asimilando patrones de mensajes, ventas y llamadas'}
                     </p>
                   </div>
@@ -1651,15 +1572,15 @@ export default function BrainTab({
                     <button
                       type="button"
                       onClick={() => setIsInjectModalOpen(true)}
-                      className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-3 py-1 text-[11px] font-bold text-white shadow-xs shadow-orange-500/20 transition-all"
+                      className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs transition-all active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-xs">add</span>
+                      <Plus className="w-3.5 h-3.5" />
                       <span>Inyectar Regla</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleTriggerLearn}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 shadow-xs"
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 shadow-xs"
                     >
                       Forzar Ciclo
                     </button>
@@ -1667,11 +1588,11 @@ export default function BrainTab({
                 </div>
 
                 {/* 0. Injected Knowledge Bank */}
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-xs shadow-orange-500/20">
-                        <span className="material-symbols-outlined text-sm">psychology</span>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 border border-blue-100 text-blue-600">
+                        <BookOpen className="w-3.5 h-3.5" />
                       </div>
                       <div>
                         <h5 className="text-xs font-bold text-slate-900">
@@ -1686,8 +1607,8 @@ export default function BrainTab({
                   </div>
 
                   {knowledgeList.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4 text-center">
-                      <span className="material-symbols-outlined text-slate-400 text-2xl mb-1">school</span>
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center">
+                      <BookOpen className="w-6 h-6 text-slate-400 mx-auto mb-1" />
                       <p className="text-xs font-semibold text-slate-700">Aún no has inyectado reglas personalizadas</p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         Agrega objeciones, precios o guiones para que la IA tome decisiones más inteligentes en cada conversación o llamada.
@@ -1695,10 +1616,10 @@ export default function BrainTab({
                       <button
                         type="button"
                         onClick={() => setIsInjectModalOpen(true)}
-                        className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-3 py-1 text-[11px] font-bold text-white shadow-md shadow-orange-500/20"
+                        className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-[11px] font-semibold text-white shadow-xs"
                       >
-                        <span className="material-symbols-outlined text-xs">add</span>
-                        <span>+ Inyectar Primera Regla</span>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Inyectar Primera Regla</span>
                       </button>
                     </div>
                   ) : (
@@ -1711,9 +1632,8 @@ export default function BrainTab({
                             className="rounded-xl border border-slate-200/80 bg-white p-3 text-xs shadow-xs space-y-1.5 transition-all hover:border-slate-300"
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 font-bold text-slate-900 min-w-0">
-                                <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold ${cat.bg} ${cat.text}`}>
-                                  <span className="material-symbols-outlined text-[11px]">{cat.icon}</span>
+                              <div className="flex items-center gap-1.5 font-semibold text-slate-900 min-w-0">
+                                <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${cat.bg} ${cat.text}`}>
                                   {cat.label}
                                 </span>
                                 <span className="truncate">{item.title}</span>
@@ -1724,7 +1644,7 @@ export default function BrainTab({
                                 title="Eliminar conocimiento"
                                 className="text-slate-400 hover:text-rose-600 transition-colors p-1 rounded-md hover:bg-rose-50"
                               >
-                                <span className="material-symbols-outlined text-xs">delete</span>
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
                             <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3">
@@ -1738,19 +1658,19 @@ export default function BrainTab({
                 </div>
 
                 {/* 1. Mapeo de Dolores de Clientes Captados */}
-                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-indigo-600 text-lg">psychology</span>
+                      <ShieldAlert className="w-4 h-4 text-slate-700" />
                       <h5 className="text-xs font-bold text-slate-900">
                         1. Mapeo de Dolores Captados de Clientes
                       </h5>
                     </div>
-                    <span className="rounded-full bg-indigo-100 text-indigo-800 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 px-2.5 py-0.5 text-[10px] font-semibold">
                       {graph?.salesIntelligence?.customerPains?.length || 4} Dolores Críticos
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     Frustraciones y miedos reales detectados en los mensajes entrantes de WhatsApp y llamadas de voz en toda la plataforma:
                   </p>
                   <div className="space-y-2.5">
@@ -1788,20 +1708,20 @@ export default function BrainTab({
                         exampleQuote: 'Ya contraté un servicio similar el año pasado y no me entregaron lo prometido.',
                       }
                     ]).map((pain: any) => (
-                      <div key={pain.id} className="rounded-xl border border-indigo-100 bg-white p-3 text-[11px] shadow-xs space-y-1.5">
+                      <div key={pain.id} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 text-[11px] shadow-xs space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-indigo-900">{pain.pain}</span>
-                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
-                            pain.frequency === 'Crítica' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+                          <span className="font-semibold text-slate-900">{pain.pain}</span>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider shrink-0 ${
+                            pain.frequency === 'Crítica' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}>
                             {pain.frequency}
                           </span>
                         </div>
-                        <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 text-[10px] text-slate-600 italic">
+                        <div className="bg-white rounded-lg p-2 border border-slate-200/60 text-[10px] text-slate-600 italic">
                           "{pain.exampleQuote}"
                         </div>
                         <p className="text-[10px] text-slate-700 leading-relaxed">
-                          <strong className="text-emerald-700 font-bold">Solución Comercial: </strong>
+                          <strong className="text-emerald-700 font-semibold">Solución Comercial: </strong>
                           {pain.recommendedSolution}
                         </p>
                       </div>
@@ -1810,19 +1730,19 @@ export default function BrainTab({
                 </div>
 
                 {/* 2. Lo que a la Gente NO le Gusta Oír (Fricción & Tabúes) */}
-                <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-rose-600 text-lg">do_not_disturb_on</span>
+                      <AlertCircle className="w-4 h-4 text-slate-700" />
                       <h5 className="text-xs font-bold text-slate-900">
                         2. Lo que a la Gente NO le Gusta Oír (Errores & Tabúes)
                       </h5>
                     </div>
-                    <span className="rounded-full bg-rose-100 text-rose-800 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 px-2.5 py-0.5 text-[10px] font-semibold">
                       Evitar en WhatsApp y Llamadas
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     Frases y actitudes detectadas que provocan rechazo, pérdida de leads o abandono de compra:
                   </p>
                   <div className="space-y-2.5">
@@ -1856,17 +1776,17 @@ export default function BrainTab({
                         betterAlternative: 'Hablar de resultados palpables: "Esto te permite recibir ventas directas en tu WhatsApp sin mover un solo dedo."',
                       },
                     ]).map((fric: any) => (
-                      <div key={fric.id} className="rounded-xl border border-rose-100 bg-white p-3 text-[11px] shadow-xs space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-rose-800 font-bold">
-                          <span className="material-symbols-outlined text-xs text-rose-500">cancel</span>
+                      <div key={fric.id} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 text-[11px] shadow-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-slate-800 font-semibold">
+                          <X className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                           <span>{fric.phraseOrBehavior}</span>
                         </div>
                         <p className="text-[10px] text-slate-500 leading-snug">
                           <strong className="text-slate-700">Por qué falla: </strong>{fric.whyItFails}
                         </p>
-                        <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-2 text-[10px] text-emerald-900">
-                          <strong className="font-bold flex items-center gap-1 text-emerald-800 mb-0.5">
-                            <span className="material-symbols-outlined text-xs">check_circle</span>
+                        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-lg p-2 text-[10px] text-emerald-900">
+                          <strong className="font-semibold flex items-center gap-1 text-emerald-800 mb-0.5">
+                            <Check className="w-3 h-3 text-emerald-600" />
                             Alternativa Ganadora:
                           </strong>
                           {fric.betterAlternative}
@@ -1877,19 +1797,19 @@ export default function BrainTab({
                 </div>
 
                 {/* 3. Patrones de Cierre Infalibles */}
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-emerald-600 text-lg">workspace_premium</span>
+                      <TrendingUp className="w-4 h-4 text-slate-700" />
                       <h5 className="text-xs font-bold text-slate-900">
                         3. Patrones de Cierre Infalibles (Master Sales Playbook)
                       </h5>
                     </div>
-                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-semibold">
                       +41% Conversión
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     Estructuras de persuasión y negociación asimiladas del historial de ventas ganadas:
                   </p>
                   <div className="space-y-2.5">
@@ -1916,15 +1836,15 @@ export default function BrainTab({
                         scriptSnippet: '"Con solo un cliente adicional que cerremos con este flujo, la herramienta ya se pagó sola y te deja utilidad neta."',
                       },
                     ]).map((tech: any) => (
-                      <div key={tech.id} className="rounded-xl border border-emerald-100 bg-white p-3 text-[11px] shadow-xs space-y-1.5">
+                      <div key={tech.id} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 text-[11px] shadow-xs space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-emerald-900">{tech.name}</span>
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold shrink-0">
+                          <span className="font-semibold text-slate-900">{tech.name}</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold shrink-0">
                             {tech.conversionBoost}
                           </span>
                         </div>
                         <p className="text-[10px] text-slate-600 leading-relaxed">{tech.description}</p>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono text-[10px] text-slate-800">
+                        <div className="bg-white border border-slate-200 rounded-lg p-2 font-mono text-[10px] text-slate-800">
                           {tech.scriptSnippet}
                         </div>
                       </div>
@@ -1933,19 +1853,19 @@ export default function BrainTab({
                 </div>
 
                 {/* 4. Respuestas con Mayor Reacción y Conversión */}
-                <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-indigo-600 text-lg">auto_awesome</span>
+                      <Sparkles className="w-4 h-4 text-slate-700" />
                       <h5 className="text-xs font-bold text-slate-900">
                         4. Respuestas con Mayor Reacción de Compra (Ganchos Comprobados)
                       </h5>
                     </div>
-                    <span className="rounded-full bg-indigo-100 text-indigo-800 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 px-2.5 py-0.5 text-[10px] font-semibold">
                       92% Reacción Positiva
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     Estructuras de respuesta a las que los clientes reaccionan con mayor agilidad para avanzar y cerrar ventas:
                   </p>
                   <div className="space-y-2.5">
@@ -1978,26 +1898,26 @@ export default function BrainTab({
                         whyItConverts: 'Reduce el riesgo del comprador a cero absoluto, facilitando una decisión inmediata.',
                       },
                     ]).map((win: any) => (
-                      <div key={win.id} className="rounded-xl border border-indigo-100 bg-white p-3 text-[11px] shadow-xs space-y-2">
+                      <div key={win.id} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 text-[11px] shadow-xs space-y-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-slate-900">{win.situation}</span>
+                          <span className="font-semibold text-slate-900">{win.situation}</span>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-[9px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full font-bold">
+                            <span className="text-[9px] text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-full font-semibold">
                               {win.reactionRate}
                             </span>
-                            <span className="text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+                            <span className="text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
                               {win.conversionImpact}
                             </span>
                           </div>
                         </div>
-                        <p className="text-[10px] text-indigo-900 font-semibold leading-relaxed">
-                          🎯 Patrón: {win.winningPattern}
+                        <p className="text-[10px] text-slate-800 font-semibold leading-relaxed">
+                          Patrón comprobado: {win.winningPattern}
                         </p>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 font-mono text-[10px] text-slate-800">
+                        <div className="bg-white border border-slate-200 rounded-lg p-2 font-mono text-[10px] text-slate-800">
                           {win.exampleScript}
                         </div>
                         <p className="text-[10px] text-slate-500 italic">
-                          💡 {win.whyItConverts}
+                          Fundamento: {win.whyItConverts}
                         </p>
                       </div>
                     ))}
@@ -2005,15 +1925,15 @@ export default function BrainTab({
                 </div>
 
                 {/* 5. Señales de Compra Detectadas */}
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-3 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-amber-600 text-lg">monetization_on</span>
+                      <DollarSign className="w-4 h-4 text-slate-700" />
                       <h5 className="text-xs font-bold text-slate-900">
                         5. Señales de Compra Detectadas en Chats y Llamadas
                       </h5>
                     </div>
-                    <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 px-2.5 py-0.5 text-[10px] font-semibold">
                       Acción Inmediata
                     </span>
                   </div>
@@ -2041,20 +1961,20 @@ export default function BrainTab({
                         winningAction: 'Dar fecha u hora concreta y confirmar activación inmediata una vez confirmado el inicio.',
                       },
                     ]).map((sig: any) => (
-                      <div key={sig.id} className="rounded-xl border border-amber-100 bg-white p-3 text-[11px] shadow-xs space-y-1.5">
+                      <div key={sig.id} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3 text-[11px] shadow-xs space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-amber-950 flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-xs text-amber-600">electric_bolt</span>
+                          <span className="font-semibold text-slate-900 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                             {sig.signal}
                           </span>
-                          <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                          <span className="text-[9px] bg-slate-100 text-slate-700 border border-slate-200 font-semibold px-2 py-0.5 rounded-full">
                             {sig.frequency}
                           </span>
                         </div>
                         <p className="text-[10px] text-slate-600">
                           <strong>Intención:</strong> {sig.customerIntent}
                         </p>
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-[10px] text-emerald-900 font-medium">
+                        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-lg p-2 text-[10px] text-emerald-900 font-medium">
                           <strong>Acción Ganadora:</strong> {sig.winningAction}
                         </div>
                       </div>
@@ -2063,33 +1983,33 @@ export default function BrainTab({
                 </div>
 
                 {/* 6. Calibración de Llamadas Telefónicas de Voz */}
-                <div className="rounded-2xl border border-pink-200 bg-pink-50/40 p-4 space-y-2.5">
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-4 space-y-2.5 shadow-xs">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-pink-600 text-lg">phone_in_talk</span>
+                      <PhoneCall className="w-4 h-4 text-slate-700" />
                       <h5 className="text-xs font-bold text-slate-900">
-                        4. Calibración de Llamadas de Voz (Teléfono)
+                        6. Calibración de Llamadas de Voz (Teléfono)
                       </h5>
                     </div>
-                    <span className="rounded-full bg-pink-100 text-pink-800 px-2.5 py-0.5 text-[10px] font-bold">
+                    <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 px-2.5 py-0.5 text-[10px] font-semibold">
                       140 WPM · Pausa 1.2s
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
                     Directrices de acústica, ritmo y empatía para que las llamadas de ventas suenen naturales, persuasivas y de alta autoridad:
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <div className="bg-white rounded-xl p-2.5 border border-pink-100">
-                      <span className="font-bold text-pink-900 block mb-0.5">⏱️ Pausa de Escucha Activa</span>
+                    <div className="bg-slate-50/70 rounded-xl p-2.5 border border-slate-200/80">
+                      <span className="font-semibold text-slate-900 block mb-0.5">Pausa de Escucha Activa</span>
                       <span className="text-slate-600">1.2 segundos antes de rebatir una objeción para no sonar agresivo ni robótico.</span>
                     </div>
-                    <div className="bg-white rounded-xl p-2.5 border border-pink-100">
-                      <span className="font-bold text-pink-900 block mb-0.5">🗣️ Cadencia Verbal</span>
+                    <div className="bg-slate-50/70 rounded-xl p-2.5 border border-slate-200/80">
+                      <span className="font-semibold text-slate-900 block mb-0.5">Cadencia Verbal</span>
                       <span className="text-slate-600">140 palabras por minuto. Articulación clara y tono asertivo y consultivo.</span>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl p-2.5 border border-pink-100 text-[10px] text-slate-700">
-                    <strong className="text-pink-900 font-bold block mb-1">Estructura para rebatir objeciones por teléfono:</strong>
+                  <div className="bg-slate-50/70 rounded-xl p-2.5 border border-slate-200/80 text-[10px] text-slate-700">
+                    <strong className="text-slate-900 font-semibold block mb-1">Estructura para rebatir objeciones por teléfono:</strong>
                     <span>1. Validación Empática ("Entiendo perfectamente tu punto...") → 2. Pregunta Diagnóstico ("¿Qué es lo más crítico para ti hoy?") → 3. Cierre con Demostración de ROI.</span>
                   </div>
                 </div>
@@ -2121,7 +2041,7 @@ export default function BrainTab({
                           onClick={() => setSelectedNodeId(null)}
                           className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                         >
-                          ✕
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
 
@@ -2132,8 +2052,8 @@ export default function BrainTab({
                     </div>
 
                     {/* AI Quick Actions on Selected Node */}
-                    <div className="rounded-xl border border-orange-200 bg-orange-50/40 p-3.5 space-y-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-orange-600">
+                    <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-3.5 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
                         Acción del Asistente IA sobre este Nodo
                       </p>
                       <button
@@ -2150,9 +2070,10 @@ export default function BrainTab({
                             },
                           ]);
                         }}
-                        className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white py-2 text-xs font-bold transition-all shadow-md shadow-orange-500/20"
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-2 text-xs font-semibold transition-all shadow-xs"
                       >
-                        Comandar Asistente para este Nodo →
+                        <span>Comandar Asistente para este Nodo</span>
+                        <Bot className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
@@ -2193,7 +2114,7 @@ export default function BrainTab({
                             key={edge.id}
                             type="button"
                             onClick={() => setSelectedNodeId(targetNode.id)}
-                            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-left text-xs transition-colors hover:border-orange-300 hover:bg-white shadow-xs"
+                            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-left text-xs transition-colors hover:border-slate-300 hover:bg-white shadow-xs"
                           >
                             <div className="flex min-w-0 items-center gap-2">
                               <span
@@ -2207,7 +2128,7 @@ export default function BrainTab({
                                 </p>
                               </div>
                             </div>
-                            <span className="shrink-0 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-orange-600">
+                            <span className="shrink-0 rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
                               {isOutgoing ? '→' : '←'} {edge.relation}
                             </span>
                           </button>
@@ -2217,7 +2138,7 @@ export default function BrainTab({
                   </div>
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center p-6 text-center text-slate-400">
-                    <span className="material-symbols-outlined mb-3 text-4xl text-orange-500">touch_app</span>
+                    <BrainCircuit className="mb-3 w-8 h-8 text-slate-300" />
                     <h4 className="text-sm font-bold text-slate-800">Ningún Nodo Seleccionado</h4>
                     <p className="mt-1 text-xs text-slate-500">
                       Haz clic en cualquier nodo o sinapsis dentro del cerebro 3D para examinar sus atributos.
@@ -2252,7 +2173,7 @@ export default function BrainTab({
                           setSelectedNodeId(item.nodeId);
                           setActiveSideTab('inspector');
                         }}
-                        className="group flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-orange-300 hover:bg-white shadow-xs"
+                        className="group flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-slate-300 hover:bg-white shadow-xs"
                       >
                         <div
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
@@ -2262,7 +2183,7 @@ export default function BrainTab({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between">
-                            <p className="truncate text-xs font-bold text-slate-800 group-hover:text-orange-600">
+                            <p className="truncate text-xs font-bold text-slate-800 group-hover:text-blue-600">
                               {item.title}
                             </p>
                             <span className="shrink-0 text-[10px] text-slate-400">
@@ -2289,8 +2210,8 @@ export default function BrainTab({
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center font-bold shadow-md shadow-orange-500/20">
-                  <span className="material-symbols-outlined text-lg">psychology</span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center font-bold">
+                  <BookOpen className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 font-headline">
@@ -2308,7 +2229,7 @@ export default function BrainTab({
                 onClick={() => setIsInjectModalOpen(false)}
                 className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2319,11 +2240,11 @@ export default function BrainTab({
                 onClick={() => setInjectMode('upload')}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
                   injectMode === 'upload'
-                    ? 'bg-white text-orange-600 shadow-xs'
+                    ? 'bg-white text-blue-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">upload_file</span>
+                <UploadCloud className="w-3.5 h-3.5" />
                 <span>Subir Documento / Archivo</span>
               </button>
               <button
@@ -2331,11 +2252,11 @@ export default function BrainTab({
                 onClick={() => setInjectMode('manual')}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
                   injectMode === 'manual'
-                    ? 'bg-white text-orange-600 shadow-xs'
+                    ? 'bg-white text-blue-600 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">edit_note</span>
+                <FileText className="w-3.5 h-3.5" />
                 <span>Escribir Manualmente</span>
               </button>
             </div>
@@ -2350,16 +2271,16 @@ export default function BrainTab({
                     key="upload-category-select"
                     value={newCategory ?? 'objections'}
                     onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 focus:bg-white"
                   >
-                    <option value="product">📦 Catálogo de Productos y Precios</option>
-                    <option value="sales">💰 Estrategia de Ventas y Cierre</option>
-                    <option value="objections">🛡️ Manejo de Objeciones (Precio, Dudas)</option>
-                    <option value="scripts">📝 Guiones y Scripts de Conversación</option>
-                    <option value="faq">❓ Preguntas Frecuentes (FAQ)</option>
-                    <option value="process">⚙️ Políticas y Procesos del Negocio</option>
-                    <option value="competitor">🥊 Diferenciación vs Competencia</option>
-                    <option value="general">🧠 Conocimiento General</option>
+                    <option value="product">Catálogo de Productos y Precios</option>
+                    <option value="sales">Estrategia de Ventas y Cierre</option>
+                    <option value="objections">Manejo de Objeciones (Precio, Dudas)</option>
+                    <option value="scripts">Guiones y Scripts de Conversación</option>
+                    <option value="faq">Preguntas Frecuentes (FAQ)</option>
+                    <option value="process">Políticas y Procesos del Negocio</option>
+                    <option value="competitor">Diferenciación vs Competencia</option>
+                    <option value="general">Conocimiento General</option>
                   </select>
                 </div>
 
@@ -2398,16 +2319,14 @@ export default function BrainTab({
                     }}
                     className={`cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
                       selectedFile
-                        ? 'border-orange-500 bg-orange-50/40'
-                        : 'border-slate-200 bg-slate-50 hover:border-orange-400 hover:bg-white'
+                        ? 'border-blue-600 bg-blue-50/40'
+                        : 'border-slate-200 bg-slate-50 hover:border-blue-400 hover:bg-white'
                     }`}
                   >
                     {selectedFile ? (
                       <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
-                          <span className="material-symbols-outlined text-2xl">
-                            {selectedFile.name.endsWith('.pdf') ? 'picture_as_pdf' : 'description'}
-                          </span>
+                        <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center">
+                          <FileText className="w-6 h-6 text-blue-600" />
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-900">{selectedFile.name}</p>
@@ -2418,8 +2337,8 @@ export default function BrainTab({
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
-                        <div className="w-12 h-12 rounded-xl bg-slate-200/70 text-slate-500 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-2xl">cloud_upload</span>
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center">
+                          <UploadCloud className="w-6 h-6 text-slate-500" />
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800">
@@ -2444,19 +2363,19 @@ export default function BrainTab({
                     value={newTitle ?? ''}
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder="Ej: Catálogo Oficial 2026, Objeciones Frecuentes..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 focus:bg-white"
                   />
                 </div>
 
                 {uploadProgress && (
-                  <div className="rounded-xl bg-orange-50 border border-orange-200 p-2.5 flex items-center gap-2 text-[11px] text-orange-800">
-                    <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                  <div className="rounded-xl bg-blue-50 border border-blue-200 p-2.5 flex items-center gap-2 text-[11px] text-blue-800">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
                     <span>{uploadProgress}</span>
                   </div>
                 )}
 
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 flex items-start gap-2.5 text-[11px] text-emerald-800">
-                  <span className="material-symbols-outlined text-base text-emerald-600 shrink-0 mt-0.5">verified</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
                     El documento será extraído e indexado como nodo de memoria en el Cerebro 3D. El bot de WhatsApp y las llamadas de voz lo asimilarán en tiempo real.
                   </p>
@@ -2476,16 +2395,16 @@ export default function BrainTab({
                   <button
                     type="submit"
                     disabled={isUploadingFile || !selectedFile}
-                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-orange-500/20 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-all disabled:opacity-50"
                   >
                     {isUploadingFile ? (
                       <>
-                        <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         <span>Asimilando Archivo...</span>
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-sm">upload</span>
+                        <Upload className="w-3.5 h-3.5" />
                         <span>Asimilar Archivo en el Cerebro</span>
                       </>
                     )}
@@ -2502,16 +2421,16 @@ export default function BrainTab({
                     key="manual-category-select"
                     value={newCategory ?? 'objections'}
                     onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 focus:bg-white"
                   >
-                    <option value="objections">🛡️ Manejo de Objeciones (Precio, Tiempo, Dudas)</option>
-                    <option value="sales">💰 Estrategia de Ventas y Cierre</option>
-                    <option value="scripts">📝 Guiones y Scripts de Conversación</option>
-                    <option value="product">📦 Información de Productos y Precios</option>
-                    <option value="process">⚙️ Políticas y Procesos de Atención</option>
-                    <option value="faq">❓ Preguntas Frecuentes (FAQ)</option>
-                    <option value="competitor">🥊 Diferenciación vs Competencia</option>
-                    <option value="general">🧠 Regla General del Negocio</option>
+                    <option value="objections">Manejo de Objeciones (Precio, Tiempo, Dudas)</option>
+                    <option value="sales">Estrategia de Ventas y Cierre</option>
+                    <option value="scripts">Guiones y Scripts de Conversación</option>
+                    <option value="product">Información de Productos y Precios</option>
+                    <option value="process">Políticas y Procesos de Atención</option>
+                    <option value="faq">Preguntas Frecuentes (FAQ)</option>
+                    <option value="competitor">Diferenciación vs Competencia</option>
+                    <option value="general">Regla General del Negocio</option>
                   </select>
                 </div>
 
@@ -2526,7 +2445,7 @@ export default function BrainTab({
                     value={newTitle ?? ''}
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder="Ej: Objeción de precio alto, Descuento en pago anticipado, etc."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 focus:bg-white"
                   />
                 </div>
 
@@ -2541,12 +2460,12 @@ export default function BrainTab({
                     value={newContent ?? ''}
                     onChange={(e) => setNewContent(e.target.value)}
                     placeholder="Describe qué debe responder la IA, qué argumentos usar o qué límites fijar cuando surja esta situación..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/20 focus:bg-white resize-none"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600/20 focus:bg-white resize-none"
                   />
                 </div>
 
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 flex items-start gap-2.5 text-[11px] text-emerald-800">
-                  <span className="material-symbols-outlined text-base text-emerald-600 shrink-0 mt-0.5">verified</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
                     Esta regla se asimilará en el Cerebro 3D y se sincronizará automáticamente con las respuestas del bot de WhatsApp y los guiones de llamadas telefónicas.
                   </p>
@@ -2563,16 +2482,16 @@ export default function BrainTab({
                   <button
                     type="submit"
                     disabled={isSavingKnowledge || !newTitle.trim() || !newContent.trim()}
-                    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-orange-500/20 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white shadow-xs transition-all disabled:opacity-50"
                   >
                     {isSavingKnowledge ? (
                       <>
-                        <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                         <span>Asimilando...</span>
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-sm">bolt</span>
+                        <Sparkles className="w-3.5 h-3.5" />
                         <span>Asimilar en el Cerebro</span>
                       </>
                     )}

@@ -14,6 +14,10 @@ export type OutreachDraft = {
   template_html?: string | null;
   include_whatsapp?: boolean;
   whatsapp_phone?: string;
+  greeting_intro?: string;
+  include_greeting?: boolean;
+  closing_message?: string;
+  include_closing?: boolean;
 };
 
 export const DEFAULT_TEMPLATE_ID = 'default';
@@ -32,6 +36,10 @@ export const SAMPLE_OUTREACH: OutreachDraft = {
   template_html: null,
   include_whatsapp: true,
   whatsapp_phone: '+593 98 391 0712',
+  greeting_intro: 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+  include_greeting: true,
+  closing_message: '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+  include_closing: true,
 };
 
 export function validOutreachEmail(value: string): boolean {
@@ -54,7 +62,7 @@ export function escapeEmailHtml(value: string): string {
 
 export function extractOutreachMeta(rawTemplateHtml: string | null | undefined): {
   template_html: string | null;
-  meta: Partial<Pick<OutreachDraft, 'price' | 'service_title' | 'deliverables' | 'deliverables_note' | 'image_url' | 'include_whatsapp' | 'whatsapp_phone'>>;
+  meta: Partial<Pick<OutreachDraft, 'price' | 'service_title' | 'deliverables' | 'deliverables_note' | 'image_url' | 'include_whatsapp' | 'whatsapp_phone' | 'greeting_intro' | 'include_greeting' | 'closing_message' | 'include_closing'>>;
 } {
   if (!rawTemplateHtml) return { template_html: null, meta: {} };
 
@@ -83,7 +91,7 @@ export function extractOutreachMeta(rawTemplateHtml: string | null | undefined):
 
 export function packOutreachMeta(
   templateHtml: string | null | undefined,
-  meta: Partial<Pick<OutreachDraft, 'price' | 'service_title' | 'deliverables' | 'deliverables_note' | 'image_url' | 'include_whatsapp' | 'whatsapp_phone'>>
+  meta: Partial<Pick<OutreachDraft, 'price' | 'service_title' | 'deliverables' | 'deliverables_note' | 'image_url' | 'include_whatsapp' | 'whatsapp_phone' | 'greeting_intro' | 'include_greeting' | 'closing_message' | 'include_closing'>>
 ): string | null {
   let safeImageUrl = meta.image_url;
   if (safeImageUrl && safeImageUrl.startsWith('data:') && safeImageUrl.length > 45_000) {
@@ -97,7 +105,11 @@ export function packOutreachMeta(
     meta.deliverables_note ||
     safeImageUrl ||
     meta.include_whatsapp !== undefined ||
-    meta.whatsapp_phone
+    meta.whatsapp_phone ||
+    meta.greeting_intro ||
+    meta.include_greeting !== undefined ||
+    meta.closing_message ||
+    meta.include_closing !== undefined
   );
 
   if (!hasMeta) return templateHtml || null;
@@ -110,6 +122,10 @@ export function packOutreachMeta(
     image_url: safeImageUrl || undefined,
     include_whatsapp: typeof meta.include_whatsapp === 'boolean' ? meta.include_whatsapp : undefined,
     whatsapp_phone: meta.whatsapp_phone || undefined,
+    greeting_intro: meta.greeting_intro || undefined,
+    include_greeting: typeof meta.include_greeting === 'boolean' ? meta.include_greeting : undefined,
+    closing_message: meta.closing_message || undefined,
+    include_closing: typeof meta.include_closing === 'boolean' ? meta.include_closing : undefined,
   });
 
   if (!templateHtml) {
@@ -242,6 +258,24 @@ export function parseOutreachDraft(input: Record<string, unknown>): OutreachDraf
     draft.whatsapp_phone = input.whatsapp_phone.trim();
   }
 
+  if (typeof input.include_greeting === 'boolean') {
+    draft.include_greeting = input.include_greeting;
+  } else if (typeof input.include_greeting === 'string') {
+    draft.include_greeting = input.include_greeting === 'true';
+  }
+  if (typeof input.greeting_intro === 'string' && input.greeting_intro.trim().length <= 300) {
+    draft.greeting_intro = input.greeting_intro.trim();
+  }
+
+  if (typeof input.include_closing === 'boolean') {
+    draft.include_closing = input.include_closing;
+  } else if (typeof input.include_closing === 'string') {
+    draft.include_closing = input.include_closing === 'true';
+  }
+  if (typeof input.closing_message === 'string' && input.closing_message.trim().length <= 500) {
+    draft.closing_message = input.closing_message.trim();
+  }
+
   if (input.template_html != null && input.template_html !== '') {
     const { template_html, meta } = extractOutreachMeta(String(input.template_html));
     if (meta) {
@@ -254,6 +288,14 @@ export function parseOutreachDraft(input: Record<string, unknown>): OutreachDraf
         draft.include_whatsapp = meta.include_whatsapp;
       }
       if (!draft.whatsapp_phone && meta.whatsapp_phone) draft.whatsapp_phone = meta.whatsapp_phone;
+      if (draft.include_greeting === undefined && meta.include_greeting !== undefined) {
+        draft.include_greeting = meta.include_greeting;
+      }
+      if (!draft.greeting_intro && meta.greeting_intro) draft.greeting_intro = meta.greeting_intro;
+      if (draft.include_closing === undefined && meta.include_closing !== undefined) {
+        draft.include_closing = meta.include_closing;
+      }
+      if (!draft.closing_message && meta.closing_message) draft.closing_message = meta.closing_message;
     }
 
     if (template_html) {
@@ -278,29 +320,37 @@ export const RIFX_SOCIAL_LINKS = {
 
 export function renderSocialLinksCornerHtml(): string {
   return `
-                  <td align="right" valign="top" style="text-align:right;padding-left:10px;">
-                    <div style="font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-                      Redes
-                    </div>
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;margin-left:auto;">
+                  <td align="right" valign="middle" style="text-align:right;padding-left:12px;vertical-align:middle;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="right" style="display:inline-table;margin-left:auto;text-align:center;">
                       <tr>
-                        <!-- TikTok -->
-                        <td style="padding:0 3px;">
-                          <a href="${RIFX_SOCIAL_LINKS.tiktok}" target="_blank" rel="noopener noreferrer" style="display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;background:#000000;border-radius:8px;text-decoration:none;box-shadow:0 2px 5px rgba(0,0,0,0.12);" title="TikTok @rifxmarketing">
-                            <img src="https://img.icons8.com/ios-filled/50/ffffff/tiktok--v1.png" width="16" height="16" alt="TikTok" style="display:inline-block;vertical-align:middle;border:0;outline:none;" />
-                          </a>
+                        <td align="center" style="padding-bottom:6px;font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                          REDES
                         </td>
-                        <!-- Facebook -->
-                        <td style="padding:0 3px;">
-                          <a href="${RIFX_SOCIAL_LINKS.facebook}" target="_blank" rel="noopener noreferrer" style="display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;background:#1877F2;border-radius:8px;text-decoration:none;box-shadow:0 2px 5px rgba(24,119,242,0.2);" title="Facebook Rifx Marketing">
-                            <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" width="16" height="16" alt="Facebook" style="display:inline-block;vertical-align:middle;border:0;outline:none;" />
-                          </a>
-                        </td>
-                        <!-- Instagram -->
-                        <td style="padding:0 3px;">
-                          <a href="${RIFX_SOCIAL_LINKS.instagram}" target="_blank" rel="noopener noreferrer" style="display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;background:#E1306C;border-radius:8px;text-decoration:none;box-shadow:0 2px 5px rgba(225,48,108,0.2);" title="Instagram @rifxmarketing">
-                            <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new--v1.png" width="16" height="16" alt="Instagram" style="display:inline-block;vertical-align:middle;border:0;outline:none;" />
-                          </a>
+                      </tr>
+                      <tr>
+                        <td align="center" style="text-align:center;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+                            <tr>
+                              <!-- TikTok -->
+                              <td align="center" valign="middle" style="padding:0 3px;text-align:center;">
+                                <a href="${RIFX_SOCIAL_LINKS.tiktok}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;line-height:32px;text-align:center;background:#000000;border-radius:50%;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,0.18);vertical-align:middle;" title="TikTok @rifxmarketing">
+                                  <img src="https://img.icons8.com/ios-filled/50/ffffff/tiktok--v1.png" width="16" height="16" alt="TikTok" style="display:block;margin:0 auto;border:0;outline:none;" />
+                                </a>
+                              </td>
+                              <!-- Facebook -->
+                              <td align="center" valign="middle" style="padding:0 3px;text-align:center;">
+                                <a href="${RIFX_SOCIAL_LINKS.facebook}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;line-height:32px;text-align:center;background:#1877F2;border-radius:50%;text-decoration:none;box-shadow:0 2px 6px rgba(24,119,242,0.25);vertical-align:middle;" title="Facebook Rifx Marketing">
+                                  <img src="https://img.icons8.com/ios-filled/50/ffffff/facebook-new.png" width="16" height="16" alt="Facebook" style="display:block;margin:0 auto;border:0;outline:none;" />
+                                </a>
+                              </td>
+                              <!-- Instagram -->
+                              <td align="center" valign="middle" style="padding:0 3px;text-align:center;">
+                                <a href="${RIFX_SOCIAL_LINKS.instagram}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;line-height:32px;text-align:center;background:#E1306C;border-radius:50%;text-decoration:none;box-shadow:0 2px 6px rgba(225,48,108,0.25);vertical-align:middle;" title="Instagram @rifxmarketing">
+                                  <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new--v1.png" width="16" height="16" alt="Instagram" style="display:block;margin:0 auto;border:0;outline:none;" />
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
                         </td>
                       </tr>
                     </table>
@@ -352,17 +402,24 @@ export function renderOutreach(
               </table>`
     : '';
 
+  const hasGreeting = draft.include_greeting !== false;
+  const greetingIntro = hasGreeting
+    ? (draft.greeting_intro !== undefined ? draft.greeting_intro.trim() : 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.')
+    : '';
+  const greetingPrefix = greetingIntro ? `${greetingIntro} ` : '';
+  const observationSection = `${greetingPrefix}${draft.observation || ''}`.trim();
+
+  const hasClosing = draft.include_closing !== false;
+  const closingText = hasClosing
+    ? (draft.closing_message !== undefined ? draft.closing_message.trim() : '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.')
+    : '';
+
   const text = `Hola, equipo de ${draft.business}:
 
-Soy Bryan Arcos, de Rifx Marketing, en Ambato. ${draft.observation}
-
-${draft.proposal}
+${observationSection ? `${observationSection}\n\n` : ''}${draft.proposal}
 
 ${serviceTitle}: ${price}. Incluye ${deliverables}. ${deliverablesNote}
-${imageUrl ? `Muestra visual de anuncio: ${imageUrl}\n` : ''}
-¿Con quién puedo conversar sobre su publicidad? Si les interesa, acordamos el alcance y el presupuesto de anuncios.${includeWhatsApp ? `\n\n📲 Chatear por WhatsApp: ${waUrl}` : ''}
-
-Bryan Arcos
+${imageUrl ? `Muestra visual de anuncio: ${imageUrl}\n` : ''}${closingText ? `${closingText}\n\n` : ''}${includeWhatsApp ? `📲 Chatear por WhatsApp: ${waUrl}\n\n` : ''}Bryan Arcos
 Director | Rifx Marketing
 ${senderEmail}
 https://rifx-marketing.com/
@@ -452,7 +509,7 @@ Si prefieren no recibir propuestas, pueden indicármelo al responder este correo
                         <a href="mailto:${e(senderEmail)}" style="color:#103260;text-decoration:none;font-weight:600;">${e(senderEmail)}</a>
                       </div>
                       <div style="margin-top:2px;">
-                        <a href="https://rifx-marketing.com/" style="color:#b64e12;text-decoration:none;font-weight:700;">rifx-marketing.com</a>
+                        <a href="https://rifx-marketing.com/" style="color:#f27121;text-decoration:none;font-weight:700;">rifx-marketing.com</a>
                       </div>
                     </div>
                   </td>
@@ -520,9 +577,19 @@ Si prefieren no recibir propuestas, pueden indicármelo al responder este correo
                 Hola, equipo de ${e(draft.business)}:
               </h2>
 
+              ${(() => {
+                const hasGreeting = draft.include_greeting !== false;
+                const greetingIntro = hasGreeting
+                  ? (draft.greeting_intro !== undefined ? draft.greeting_intro.trim() : 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.')
+                  : '';
+                const greetingPrefixHtml = greetingIntro ? `${e(greetingIntro)} ` : '';
+                const observationHtml = draft.observation ? e(draft.observation).replace(/\n/g, '<br>') : '';
+                const combinedIntro = `${greetingPrefixHtml}${observationHtml}`.trim();
+                return combinedIntro ? `
               <p style="margin:0 0 16px;color:#1e293b;font-size:15px;line-height:1.68;">
-                Soy Bryan Arcos, de Rifx Marketing, en Ambato. ${e(draft.observation).replace(/\n/g, '<br>')}
-              </p>
+                ${combinedIntro}
+              </p>` : '';
+              })()}
 
               <p style="margin:0 0 16px;color:#1e293b;font-size:15px;line-height:1.68;">
                 ${e(draft.proposal).replace(/\n/g, '<br>')}
@@ -557,9 +624,10 @@ Si prefieren no recibir propuestas, pueden indicármelo al responder este correo
                 </tr>
               </table>
 
+              ${closingText ? `
               <p style="margin:0 0 20px;color:#1e293b;font-size:15px;line-height:1.68;">
-                ¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.
-              </p>
+                ${e(closingText).replace(/\n/g, '<br>')}
+              </p>` : ''}
 
               ${whatsAppButtonHtml}
             </td>
@@ -582,7 +650,7 @@ Si prefieren no recibir propuestas, pueden indicármelo al responder este correo
                         <a href="mailto:${e(senderEmail)}" style="color:#103260;text-decoration:none;font-weight:600;">${e(senderEmail)}</a>
                       </div>
                       <div style="margin-top:2px;">
-                        <a href="https://rifx-marketing.com/" style="color:#b64e12;text-decoration:none;font-weight:700;">rifx-marketing.com</a>
+                        <a href="https://rifx-marketing.com/" style="color:#f27121;text-decoration:none;font-weight:700;">rifx-marketing.com</a>
                       </div>
                     </div>
                   </td>
@@ -753,7 +821,7 @@ export function renderAgencyReply({
                         <a href="mailto:${e(senderEmail)}" style="color:#103260;text-decoration:none;font-weight:600;">${e(senderEmail)}</a>
                       </div>
                       <div style="margin-top:2px;">
-                        <a href="https://rifx-marketing.com/" style="color:#b64e12;text-decoration:none;font-weight:700;">rifx-marketing.com</a>
+                        <a href="https://rifx-marketing.com/" style="color:#f27121;text-decoration:none;font-weight:700;">rifx-marketing.com</a>
                       </div>
                     </div>
                   </td>

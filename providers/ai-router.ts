@@ -134,10 +134,34 @@ export const aiRouter = {
       editableZones?: any[];
       hasTextSlots?: boolean;
       cleanedTemplateBase64?: string;
-      visualProvider?: 'openai' | 'flux' | 'sharp';
+      visualProvider?: 'openai' | 'flux' | 'sharp' | 'higgsfield';
       pureSharpMode?: boolean;
     }
   ): Promise<{ base64: string; provider: string }> {
+    // ═══ HIGGSFIELD AI CASE ═══
+    if (extraOptions?.visualProvider === 'higgsfield') {
+      const hfKey = getAiCredential('higgsfield');
+      if (hfKey && hfKey.length > 5 && !hfKey.includes('[SENSITIVE]')) {
+        console.log(`[AI-ROUTER] ⚡ Visual provider: Higgsfield AI (Marketing Studio Image - Low $0.05)`);
+        try {
+          const { generateHiggsfieldImage } = await import('@/lib/higgsfield');
+          const hfResult = await generateHiggsfieldImage({
+            prompt: promptText,
+            aspectRatio: gptImageSize ? (gptImageSize.includes('1024x1024') ? '1:1' : '3:4') : '3:4',
+            resolution: '2k',
+            quality: 'low', // Modo de máxima economía: $0.05 USD
+            enhancePrompt: false,
+            model: 'marketing-studio/image',
+            apiKey: hfKey,
+            imageUrl: productRefImage || undefined,
+          });
+          return { base64: hfResult.imageUrl, provider: 'Higgsfield AI (Marketing Studio Low $0.05)' };
+        } catch (err: any) {
+          console.warn(`[AI-ROUTER] ⚠️ Higgsfield AI falló (${err.message}) — fallback automático a Pure Sharp`);
+        }
+      }
+    }
+
     const falKey = getAiCredential('fal');
     const hasFalKey = !!(falKey && falKey.length >= 20 && !falKey.includes('[SENSITIVE]'));
 
@@ -152,7 +176,9 @@ export const aiRouter = {
       (hasFalKey && extraOptions?.visualProvider !== 'openai') ||
       (!extraOptions?.visualProvider && process.env.USE_FLUX === 'true'));
 
-    const providerName = usePureSharp
+    const providerName = extraOptions?.visualProvider === 'higgsfield'
+      ? 'Higgsfield AI (Marketing Studio Low $0.05)'
+      : usePureSharp
       ? 'Pure Sharp (Deterministic — No AI)'
       : useFlux ? 'FLUX (fal.ai)' : 'OpenAI gpt-image-1';
     
@@ -269,12 +295,29 @@ export const aiRouter = {
     promptText: string,
     aspectRatio: string = '4:5',
     options?: {
-      visualProvider?: 'openai' | 'flux' | 'sharp';
+      visualProvider?: 'openai' | 'flux' | 'sharp' | 'higgsfield';
       preferredModel?: 'ideogram' | 'flux';
       referenceImageUrl?: string;
       imageWeight?: number;
     }
   ): Promise<{ base64: string; provider: string }> {
+    const hfKey = getAiCredential('higgsfield');
+    const hasHfKey = !!(hfKey && hfKey.length > 5 && !hfKey.includes('[SENSITIVE]'));
+    if ((options?.visualProvider === 'higgsfield' || (!options?.visualProvider && hasHfKey)) && hasHfKey) {
+      const { generateHiggsfieldImage } = await import('@/lib/higgsfield');
+      const hfResult = await generateHiggsfieldImage({
+        prompt: promptText,
+        aspectRatio,
+        resolution: '2k',
+        quality: 'low', // Máximo ahorro ($0.05 USD)
+        enhancePrompt: false,
+        model: 'marketing-studio/image',
+        apiKey: hfKey,
+        imageUrl: options?.referenceImageUrl,
+      });
+      return { base64: hfResult.imageUrl, provider: 'Higgsfield AI (Marketing Studio Low $0.05)' };
+    }
+
     const falKey = getAiCredential('fal');
     const hasFalKey = !!(falKey && falKey.length >= 20 && !falKey.includes('[SENSITIVE]'));
     const openaiKey = getAiCredential('openai');
@@ -296,7 +339,7 @@ export const aiRouter = {
       return fluxProvider.generateAdaptiveAd(promptText, aspectRatio, options);
     }
 
-    throw new Error('No hay claves API configuradas para generación con IA (fal.ai o OpenAI). Configura tu clave en el panel de configuración.');
+    throw new Error('No hay claves API configuradas para generación con IA (Higgsfield, fal.ai o OpenAI). Configura tu clave en el panel de configuración.');
   },
 
   async runQA(

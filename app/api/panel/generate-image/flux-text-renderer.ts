@@ -86,12 +86,36 @@ function getSlotStyle(
   type: string,
   slotW: number,  // pixel width of slot
   slotH: number,  // pixel height of slot
-  adaptedColors: any
+  adaptedColors: any,
+  slotStyle?: string,
+  slotId?: string
 ): SlotStyle {
 
   // avgCharWidth ≈ fontSize * 0.55 for Arial
   // maxCharsPerLine = slotW / (fontSize * 0.55)
   const calcMaxChars = (fs: number) => Math.max(6, Math.floor(slotW / (fs * 0.55)));
+
+  if (slotStyle === 'dark_pill' || slotId === 'feature_pill') {
+    const fs = Math.max(11, Math.min(slotH * 0.45, 22));
+    return {
+      fontSize: fs,
+      fontWeight: '800',
+      fontStyle: 'normal',
+      fill: '#ffffff',
+      textAnchor: 'middle',
+      letterSpacing: 1.2,
+      hasBg: true,
+      bgFill: 'rgba(28, 12, 38, 0.92)',
+      bgRx: 999,
+      bgPadX: 20,
+      bgPadY: 8,
+      shadow: false,
+      shadowColor: '',
+      maxCharsPerLine: 45,
+      maxLines: 1,
+      lineHeight: 1,
+    };
+  }
 
   switch (type) {
 
@@ -128,7 +152,7 @@ function getSlotStyle(
         textAnchor: 'middle',
         letterSpacing: 1.5,
         hasBg: true,
-        bgFill: adaptedColors?.badgeBg || '#10b981',
+        bgFill: adaptedColors?.badgeBg || '#8b5cf6',
         bgRx: 999,   // pill shape
         bgPadX: 20,
         bgPadY: 9,
@@ -251,6 +275,72 @@ function getSlotStyle(
       };
     }
 
+    case 'benefit_item': {
+      const fs = Math.max(13, Math.min(slotH * 0.35, 24));
+      return {
+        fontSize: fs,
+        fontWeight: '600',
+        fontStyle: 'normal',
+        fill: '#ffffff',
+        textAnchor: 'start',
+        letterSpacing: 0,
+        hasBg: false,
+        bgFill: '',
+        bgRx: 0,
+        bgPadX: 0,
+        bgPadY: 0,
+        shadow: true,
+        shadowColor: 'rgba(0,0,0,0.95)',
+        maxCharsPerLine: Math.max(15, Math.floor((slotW - 55) / (fs * 0.55))),
+        maxLines: 2,
+        lineHeight: 1.25,
+      };
+    }
+
+    case 'footer': {
+      const fs = Math.max(12, Math.min(slotH * 0.45, 22));
+      return {
+        fontSize: fs,
+        fontWeight: '700',
+        fontStyle: 'normal',
+        fill: '#ffffff',
+        textAnchor: 'middle',
+        letterSpacing: 1.5,
+        hasBg: false,
+        bgFill: '',
+        bgRx: 0,
+        bgPadX: 0,
+        bgPadY: 0,
+        shadow: true,
+        shadowColor: 'rgba(0,0,0,0.9)',
+        maxCharsPerLine: 55,
+        maxLines: 1,
+        lineHeight: 1,
+      };
+    }
+
+    case 'footer_sub': {
+      const fs = Math.max(10, Math.min(slotH * 0.5, 16));
+      return {
+        fontSize: fs,
+        fontWeight: '600',
+        fontStyle: 'normal',
+        fill: 'rgba(255,255,255,0.85)',
+        textAnchor: 'middle',
+        letterSpacing: 2,
+        hasBg: false,
+        bgFill: '',
+        bgRx: 0,
+        bgPadX: 0,
+        bgPadY: 0,
+        shadow: true,
+        shadowColor: 'rgba(0,0,0,0.8)',
+        maxCharsPerLine: 70,
+        maxLines: 1,
+        lineHeight: 1,
+      };
+    }
+
     default: {
       const fs = Math.max(14, Math.min(slotH * 0.35, slotW * 0.07, 40));
       return {
@@ -297,7 +387,8 @@ function buildSlotSvg(
   const slotW = slot.width * canvasW;
   const slotH = slot.height * canvasH;
 
-  const style = getSlotStyle(slot.type, slotW, slotH, adaptedColors);
+  const style = getSlotStyle(slot.type, slotW, slotH, adaptedColors, slot.style, slot.id);
+  const isLeftAlign = (slot.align === 'left' || (slot.x < 0.45 && slot.type !== 'badge')) && slot.type !== 'footer' && slot.type !== 'footer_sub';
   const lines = wrapText(content, style.maxCharsPerLine, style.maxLines);
   if (lines.length === 0) return '';
 
@@ -314,13 +405,54 @@ function buildSlotSvg(
       </filter>
     </defs>` : '';
 
+  // ── Benefit Item with Circle Icon ─────────────────────────────────────────
+  if (slot.type === 'benefit_item') {
+    const startX = cx - slotW / 2;
+    const circleRadius = Math.max(14, Math.min(slotH * 0.32, 22));
+    const circleCenterX = startX + circleRadius;
+    const textStartX = startX + circleRadius * 2 + 14;
+
+    const iconChar = slot.icon || (content.includes('✦') ? '✦' : content.includes('💧') ? '💧' : content.includes('✨') ? '✨' : content.includes('🛡️') ? '🛡️' : '✓');
+    const cleanContent = content.replace(/^[✦💧✨🛡️✓\s*-]+/, '').trim();
+    const itemLines = wrapText(cleanContent, style.maxCharsPerLine, style.maxLines);
+
+    const tspans = itemLines.map((line, idx) => {
+      const lineY = startY + idx * style.fontSize * style.lineHeight;
+      const isFirst = idx === 0;
+      return `<tspan x="${textStartX.toFixed(1)}" y="${lineY.toFixed(1)}" font-weight="${isFirst ? '800' : '500'}" fill="${isFirst ? '#ffffff' : 'rgba(255,255,255,0.92)'}">${escapeXml(line)}</tspan>`;
+    }).join('\n    ');
+
+    return `
+  ${filterDef}
+  <circle
+    cx="${circleCenterX.toFixed(1)}" cy="${cy.toFixed(1)}" r="${circleRadius.toFixed(1)}"
+    fill="#ffffff"
+    filter="url(#${filterId})"
+  />
+  <text
+    x="${circleCenterX.toFixed(1)}" y="${(cy + circleRadius * 0.36).toFixed(1)}"
+    font-size="${(circleRadius * 1.1).toFixed(1)}"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    fill="${escapeXml(adaptedColors?.accent || adaptedColors?.primary || '#4a154b')}"
+  >${escapeXml(iconChar)}</text>
+  <text
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="${style.fontSize}"
+    letter-spacing="${style.letterSpacing}"
+    ${style.shadow ? `filter="url(#${filterId})"` : ''}
+  >${tspans}</text>`;
+  }
+
   // ── Badge: single-line with pill background ───────────────────────────────
   if (style.hasBg) {
     const line = escapeXml(lines[0]);
     const estimatedW = lines[0].length * style.fontSize * 0.58;
     const bgW = estimatedW + style.bgPadX * 2;
     const bgH = style.fontSize + style.bgPadY * 2;
-    const bgX = cx - bgW / 2;
+    const pillIsLeft = slot.align === 'left' || slot.x < 0.45;
+    const bgX = pillIsLeft ? (cx - slotW / 2) : (cx - bgW / 2);
+    const textX = bgX + bgW / 2;
     const bgY = cy - bgH / 2;
 
     return `
@@ -332,21 +464,24 @@ function buildSlotSvg(
     fill="${escapeXml(style.bgFill)}"
   />
   <text
-    x="${cx.toFixed(1)}" y="${(cy + style.fontSize * 0.36).toFixed(1)}"
+    x="${textX.toFixed(1)}" y="${(cy + style.fontSize * 0.36).toFixed(1)}"
     font-family="Arial, Helvetica, sans-serif"
     font-size="${style.fontSize}"
     font-weight="${style.fontWeight}"
     font-style="${style.fontStyle}"
     fill="${escapeXml(style.fill)}"
-    text-anchor="${style.textAnchor}"
+    text-anchor="middle"
     letter-spacing="${style.letterSpacing}"
   >${line}</text>`;
   }
 
-  // ── Regular multiline text ────────────────────────────────────────────────
+  // ── Regular multiline text (Left or Middle aligned) ───────────────────────
+  const textX = isLeftAlign ? (cx - slotW / 2) : cx;
+  const anchor = isLeftAlign ? 'start' : style.textAnchor;
+
   const tspans = lines.map((line, idx) => {
     const lineY = startY + idx * style.fontSize * style.lineHeight;
-    return `<tspan x="${cx.toFixed(1)}" y="${lineY.toFixed(1)}">${escapeXml(line)}</tspan>`;
+    return `<tspan x="${textX.toFixed(1)}" y="${lineY.toFixed(1)}">${escapeXml(line)}</tspan>`;
   }).join('\n    ');
 
   return `
@@ -357,7 +492,7 @@ function buildSlotSvg(
     font-weight="${style.fontWeight}"
     font-style="${style.fontStyle}"
     fill="${escapeXml(style.fill)}"
-    text-anchor="${style.textAnchor}"
+    text-anchor="${anchor}"
     letter-spacing="${style.letterSpacing}"
     ${style.shadow ? `filter="url(#${filterId})"` : ''}
   >${tspans}</text>`;
@@ -399,7 +534,12 @@ export async function renderTextLayersOntoImage(
     return inputBuffer;
   }
 
-  console.log(`\n🖊️ [TEXT RENDERER] Renderizando ${textSlots.length} text_slots con Sharp+SVG...`);
+  // Inspect actual input dimensions to prevent any compositing size mismatches
+  const meta = await sharp(inputBuffer).metadata();
+  const actualW = meta.width || canvasW || 1024;
+  const actualH = meta.height || canvasH || 1536;
+
+  console.log(`\n🖊️ [TEXT RENDERER] Renderizando ${textSlots.length} text_slots con Sharp+SVG (${actualW}x${actualH}px)...`);
 
   const svgElements: string[] = [];
   let renderedCount = 0;
@@ -414,7 +554,7 @@ export async function renderTextLayersOntoImage(
       continue;
     }
 
-    const svgPart = buildSlotSvg(slot, content, canvasW, canvasH, adaptedColors, i);
+    const svgPart = buildSlotSvg(slot, content, actualW, actualH, adaptedColors, i);
     if (svgPart) {
       svgElements.push(svgPart);
       renderedCount++;
@@ -428,8 +568,8 @@ export async function renderTextLayersOntoImage(
     return inputBuffer;
   }
 
-  // Build full-canvas SVG overlay with all text elements
-  const svgOverlay = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">
+  // Build full-canvas SVG overlay matching image dimensions exactly
+  const svgOverlay = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualW}" height="${actualH}">
 ${svgElements.join('\n')}
 </svg>`;
 

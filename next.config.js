@@ -43,7 +43,7 @@ const nextConfig = {
   experimental: {
     after: true,
   },
-  serverExternalPackages: ['@imgly/background-removal-node'],
+  serverExternalPackages: ['@imgly/background-removal-node', '@higgsfield/client', 'form-data'],
   async redirects() {
     return [
       {

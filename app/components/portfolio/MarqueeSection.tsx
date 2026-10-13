@@ -23,7 +23,8 @@ const images = [
   "https://motionsites.ai/assets/hero-new-era-preview-CocuDUm9.gif",
   "https://motionsites.ai/assets/hero-wealth-preview-B70idl_u.gif",
   "https://motionsites.ai/assets/hero-luminex-preview-CxOP7ce6.gif",
-  "https://motionsites.ai/assets/hero-celestia-preview-0yO3jXO8.gif"
+  "https://motionsites.ai/assets/hero-digital-reality-preview-BogjTXUi.gif",
+  "https://motionsites.ai/assets/hero-nova-space-preview-ej0OOJ0M.gif"
 ];
 
 const row1Base = images.slice(0, 11);
@@ -39,6 +40,11 @@ const row2 = [...row2Base, ...row2Base, ...row2Base];
 // del hilo principal, así que se mantiene fluida sin importar qué tan cargado
 // esté el resto de la página.
 export default function MarqueeSection() {
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    // Si algún recurso externo falla, reemplaza por un preview garantizado para no romper el layout
+    e.currentTarget.src = "https://motionsites.ai/assets/hero-digital-reality-preview-BogjTXUi.gif";
+  };
+
   return (
     <section className="relative z-10 pt-24 sm:pt-32 md:pt-40 pb-10 overflow-hidden">
       <style>{`
@@ -72,6 +78,7 @@ export default function MarqueeSection() {
               key={`r1-${i}`}
               src={src}
               alt="Project Showcase"
+              onError={handleImageError}
               className="w-[420px] h-[270px] rounded-2xl object-cover shrink-0"
             />
           ))}
@@ -84,6 +91,7 @@ export default function MarqueeSection() {
               key={`r2-${i}`}
               src={src}
               alt="Project Showcase"
+              onError={handleImageError}
               className="w-[420px] h-[270px] rounded-2xl object-cover shrink-0"
             />
           ))}

@@ -619,7 +619,8 @@ export const fluxProvider = {
       editableZones?: any[];
       hasTextSlots?: boolean;
       cleanedTemplateBase64?: string;
-      visualProvider?: 'openai' | 'flux' | 'sharp';
+      visualProvider?: 'openai' | 'flux' | 'sharp' | 'higgsfield';
+      pureSharpMode?: boolean;
     }
   ): Promise<{ base64: string; provider: string }> {
 

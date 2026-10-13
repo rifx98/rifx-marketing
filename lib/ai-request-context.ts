@@ -4,7 +4,8 @@ export interface AiRequestContext {
   openaiKey?: string;
   falKey?: string;
   groqKey?: string;
-  visualProvider?: 'openai' | 'flux' | 'sharp';
+  higgsfieldKey?: string;
+  visualProvider?: 'openai' | 'flux' | 'sharp' | 'higgsfield';
 }
 
 const requestContext = new AsyncLocalStorage<Readonly<AiRequestContext>>();
@@ -16,10 +17,11 @@ export function runWithAiRequestContext<T>(
   return requestContext.run(Object.freeze({ ...context }), operation);
 }
 
-export function getAiCredential(provider: 'openai' | 'fal' | 'groq'): string | undefined {
+export function getAiCredential(provider: 'openai' | 'fal' | 'groq' | 'higgsfield'): string | undefined {
   const context = requestContext.getStore();
   if (provider === 'openai') return context?.openaiKey || process.env.OPENAI_API_KEY;
   if (provider === 'fal') return context?.falKey || process.env.FAL_KEY;
+  if (provider === 'higgsfield') return context?.higgsfieldKey || process.env.HIGGSFIELD_API_KEY;
   return context?.groqKey || process.env.GROQ_API_KEY;
 }
 

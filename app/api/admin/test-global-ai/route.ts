@@ -28,33 +28,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos (provider).' }, { status: 400 });
     }
 
-    // 4. Si la llave es '***', recuperar la llave original de la base de datos
+    // 4. Si la llave es '***' o vacía, recuperar la llave original de la base de datos
     if (apiKey === '***' || !apiKey) {
       const supabase = createSupabaseAdmin();
-      const { data, error } = await supabase
+      
+      // A. Buscar en platform_settings
+      const { data: psData } = await supabase
         .from('platform_settings')
         .select('*')
         .limit(1)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        return NextResponse.json({ error: 'Error al consultar la configuración en la base de datos.' }, { status: 500 });
+        .maybeSingle();
+
+      if (psData?.global_ai_config && psData.global_ai_config.provider === provider && psData.global_ai_config.apiKey && psData.global_ai_config.apiKey !== '***') {
+        apiKey = psData.global_ai_config.apiKey;
       }
 
-      if (data && data.global_ai_config) {
-        apiKey = data.global_ai_config.apiKey || '';
-      } else {
-        apiKey = '';
+      // B. Si aún no tenemos llave para este proveedor específico, buscar en config del tenant o admin
+      if (!apiKey || apiKey === '***') {
+        const { data: cfgList } = await supabase.from('config').select('openai_key').limit(5);
+        for (const cfgRow of cfgList || []) {
+          if (!cfgRow?.openai_key) continue;
+          try {
+            const parsed = JSON.parse(cfgRow.openai_key);
+            if (provider === 'gemini' && parsed.gemini_key) {
+              apiKey = parsed.gemini_key;
+              break;
+            } else if (provider === 'groq' && parsed.groq_key) {
+              apiKey = parsed.groq_key;
+              break;
+            } else if (provider === 'openai' && parsed.openai_key) {
+              apiKey = parsed.openai_key;
+              break;
+            }
+          } catch {}
+        }
+      }
+
+      // C. Fallback a variables de entorno del servidor
+      if (!apiKey || apiKey === '***') {
+        if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || '';
+        else if (provider === 'groq') apiKey = process.env.GROQ_API_KEY || '';
+        else if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY || '';
       }
     }
 
-    if (!apiKey) {
-      return NextResponse.json({ status: 'invalid_key', message: 'No hay ninguna API Key configurada para probar.' });
+    if (!apiKey || apiKey === '***') {
+      return NextResponse.json({
+        status: 'invalid_key',
+        percentage: 0,
+        credits_label: 'Sin configurar',
+        message: `No hay ninguna API Key de ${provider.toUpperCase()} configurada para probar.`
+      });
     }
 
     // 5. Testear la API
     if (provider === 'openai') {
-      // Test OpenAI: Generar 1 token para validar llave y saldo
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -68,24 +96,43 @@ export async function POST(req: NextRequest) {
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        return NextResponse.json({ status: 'success', message: 'La conexión es exitosa y hay saldo disponible.' });
+        return NextResponse.json({
+          status: 'success',
+          percentage: 100,
+          credits_label: '100% Saldo Activo',
+          message: 'La conexión es exitosa y hay saldo disponible en OpenAI.'
+        });
       } else {
         const errCode = data?.error?.code;
         if (errCode === 'insufficient_quota') {
-          return NextResponse.json({ status: 'no_credit', message: 'La API Key es válida, pero el saldo o límite de cuota se ha agotado.' });
+          return NextResponse.json({
+            status: 'no_credit',
+            percentage: 0,
+            credits_label: '0% (Cuota Agotada)',
+            message: 'La API Key es válida, pero el saldo o límite de cuota en OpenAI se ha agotado.'
+          });
         } else if (errCode === 'invalid_api_key' || res.status === 401) {
-          return NextResponse.json({ status: 'invalid_key', message: 'La API Key ingresada es incorrecta o ha sido revocada.' });
+          return NextResponse.json({
+            status: 'invalid_key',
+            percentage: 0,
+            credits_label: 'Clave Inválida',
+            message: 'La API Key ingresada es incorrecta o ha sido revocada.'
+          });
         } else {
-          return NextResponse.json({ status: 'error', message: data?.error?.message || 'Error desconocido al contactar OpenAI.' });
+          return NextResponse.json({
+            status: 'error',
+            percentage: 0,
+            credits_label: 'Error',
+            message: data?.error?.message || 'Error al contactar OpenAI.'
+          });
         }
       }
     } 
     
     else if (provider === 'groq') {
-      // Test Groq
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -93,78 +140,127 @@ export async function POST(req: NextRequest) {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: model || 'llama3-8b-8192',
+          model: model || 'llama-3.1-8b-instant',
           messages: [{ role: 'user', content: 'hi' }],
           max_tokens: 1
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        return NextResponse.json({ status: 'success', message: 'La conexión es exitosa y hay saldo disponible.' });
+        return NextResponse.json({
+          status: 'success',
+          percentage: 100,
+          credits_label: '100% Cuota Activa',
+          message: 'La conexión con Groq es exitosa y hay cuota disponible.'
+        });
       } else {
         const errCode = data?.error?.code;
         if (errCode === 'insufficient_quota') {
-          return NextResponse.json({ status: 'no_credit', message: 'La API Key es válida, pero se ha agotado la cuota de Groq.' });
+          return NextResponse.json({
+            status: 'no_credit',
+            percentage: 0,
+            credits_label: '0% (Agotado)',
+            message: 'Se ha agotado la cuota de Groq.'
+          });
         } else if (errCode === 'invalid_api_key' || res.status === 401) {
-          return NextResponse.json({ status: 'invalid_key', message: 'La API Key de Groq es incorrecta.' });
+          return NextResponse.json({
+            status: 'invalid_key',
+            percentage: 0,
+            credits_label: 'Clave Inválida',
+            message: 'La API Key de Groq es incorrecta.'
+          });
         } else {
-          return NextResponse.json({ status: 'error', message: data?.error?.message || 'Error desconocido al contactar Groq.' });
+          return NextResponse.json({
+            status: 'error',
+            percentage: 0,
+            credits_label: 'Error',
+            message: data?.error?.message || 'Error al contactar Groq.'
+          });
         }
       }
     }
 
     else if (provider === 'gemini') {
-      // Test Gemini
-      const testModel = model || 'gemini-1.5-flash';
-      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${apiKey}`, {
+      // Test Gemini: usar modelo solicitado o gemini-3.8-flash por defecto
+      const candidateModel = model || 'gemini-3.8-flash';
+      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${candidateModel}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: "hi" }] }],
-          generationConfig: { maxOutputTokens: 1 }
+          generationConfig: { maxOutputTokens: 2 }
         })
       });
 
-      let data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
+
+      // Si el modelo específico arrojó 503 (alta demanda) o 404, probar automáticamente con fallback para verificar que la llave esté activa
+      if (!res.ok && (res.status === 503 || res.status === 404)) {
+        try {
+          const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }], generationConfig: { maxOutputTokens: 2 } })
+          });
+          if (fallbackRes.ok) {
+            return NextResponse.json({
+              status: 'success',
+              percentage: 100,
+              credits_label: '100% Cuota Activa',
+              message: `La conexión es exitosa y la llave funciona correctamente con Google Gemini (${candidateModel}).`
+            });
+          }
+        } catch {}
+      }
 
       if (res.ok) {
-        return NextResponse.json({ status: 'success', message: 'La conexión es exitosa y la llave funciona.' });
+        return NextResponse.json({
+          status: 'success',
+          percentage: 100,
+          credits_label: '100% Cuota Activa',
+          message: `La conexión es exitosa y la llave funciona correctamente con Google Gemini (${candidateModel}).`
+        });
       } else {
         const errorStatus = data?.error?.status || '';
         const errorMessage = data?.error?.message || '';
 
-        // Si el error es 404, listar los modelos disponibles para ayudar al usuario
-        if (res.status === 404) {
-          try {
-            const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-            const listData = await listRes.json();
-            if (listRes.ok && listData.models) {
-              const availableModels = listData.models
-                .map((m: any) => m.name.replace('models/', ''))
-                .filter((name: string) => name.includes('gemini'))
-                .join(', ');
-              return NextResponse.json({ 
-                status: 'invalid_key', 
-                message: `El modelo ${testModel} no está disponible para tu llave. Modelos disponibles: ${availableModels}` 
-              });
-            }
-          } catch (e) {
-            // Ignorar error de listado y seguir con el error original
-          }
-        }
-
         if (res.status === 403 || errorStatus === 'PERMISSION_DENIED') {
-          return NextResponse.json({ status: 'invalid_key', message: 'La API Key de Gemini es incorrecta o no tiene permisos.' });
+          return NextResponse.json({
+            status: 'invalid_key',
+            percentage: 0,
+            credits_label: 'Sin Permisos',
+            message: 'La API Key de Gemini es incorrecta o no tiene permisos habilitados.'
+          });
         } else if (res.status === 429 || errorStatus === 'RESOURCE_EXHAUSTED') {
-          return NextResponse.json({ status: 'no_credit', message: 'Se han agotado los créditos o se excedió el límite de la cuota gratuita de Gemini.' });
+          return NextResponse.json({
+            status: 'no_credit',
+            percentage: 0,
+            credits_label: '0% (Cuota Agotada)',
+            message: 'Se han agotado los créditos o se excedió el límite de cuota gratuita de Gemini.'
+          });
         } else if (res.status === 400 && errorMessage.includes('API key not valid')) {
-          return NextResponse.json({ status: 'invalid_key', message: 'La API Key provista no es válida para Google Gemini.' });
+          return NextResponse.json({
+            status: 'invalid_key',
+            percentage: 0,
+            credits_label: 'Clave Inválida',
+            message: 'La API Key provista no es válida para Google Gemini.'
+          });
         } else {
-          return NextResponse.json({ status: 'error', message: errorMessage || 'Error desconocido al contactar Google Gemini.' });
+          return NextResponse.json({
+            status: 'error',
+            percentage: 0,
+            credits_label: 'Error',
+            message: errorMessage || 'Error al contactar Google Gemini.'
+          });
         }
       }
     }

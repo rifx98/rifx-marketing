@@ -53,6 +53,14 @@ import ThemeSettings from './theme-settings';
 import PricingTab from './PricingTab';
 import { parseFacebookOAuthBootstrap } from '@/lib/facebook-oauth-bootstrap';
 import { MetaSetupWizardModal } from './components/MetaSetupWizardModal';
+import { 
+  getBannerHistory, 
+  saveBannersToHistory, 
+  deleteBannerFromHistory, 
+  clearBannerHistory, 
+  formatTimeRemaining, 
+  type StoredBanner 
+} from '@/lib/banner-history';
 
 
 // OmniPublish V1 Imports
@@ -63,6 +71,9 @@ import PublicationTracker from '@/components/social/PublicationTracker';
 // Auth UI
 import { AuthComponent } from '@/components/ui/sign-up';
 import AuthSelector from '@/components/AuthSelector';
+import FashionSeedreamStudio from './components/FashionSeedreamStudio';
+import MarketingImageStudio from './components/MarketingImageStudio';
+import CommercialVideoStudio from './components/CommercialVideoStudio';
 
 const createInitialPanelConfig = () => ({
   whatsapp_token_configured: false,
@@ -74,7 +85,9 @@ const createInitialPanelConfig = () => ({
   gemini_key: '',
   groq_key: '',
   fal_key: '',
-  visual_render_provider: 'sharp',
+  higgsfield_key: '',
+  higgsfield_key_configured: false,
+  visual_render_provider: 'higgsfield',
   facebook_access_token: '',
   facebook_ad_account_id: '',
   facebook_page_id: '',
@@ -865,7 +878,7 @@ export const SIDEBAR_ITEMS = [
   { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
   { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
   { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
-  { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+  { key: 'banners', icon: 'auto_videocam', labelEs: 'Pancartas y Videos IA', labelEn: 'Banners & AI Videos' },
   { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
   { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
   { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
@@ -2043,9 +2056,12 @@ export default function PanelClient() {
   // States for testing the Global API
   const [globalApiTestStatus, setGlobalApiTestStatus] = useState<'idle' | 'loading' | 'success' | 'no_credit' | 'invalid_key' | 'error'>('idle');
   const [globalApiTestMsg, setGlobalApiTestMsg] = useState('');
+  const [globalApiTestCredits, setGlobalApiTestCredits] = useState<{ percentage: number; label: string } | null>(null);
+  const [isSavingGlobalAi, setIsSavingGlobalAi] = useState<boolean>(false);
 
-  const handleTestGlobalApi = async () => {
-    if (!adminGlobalAi) return;
+  const handleTestGlobalApi = async (customConfig?: any) => {
+    const targetAi = customConfig || adminGlobalAi;
+    if (!targetAi) return;
     setGlobalApiTestStatus('loading');
     setGlobalApiTestMsg('');
     try {
@@ -2053,22 +2069,64 @@ export default function PanelClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          provider: adminGlobalAi.provider,
-          model: adminGlobalAi.model,
-          apiKey: adminGlobalAi.apiKey
+          provider: targetAi.provider,
+          model: targetAi.model,
+          apiKey: targetAi.apiKey
         })
       });
       const data = await res.json();
       if (!res.ok) {
         setGlobalApiTestStatus('error');
         setGlobalApiTestMsg(data.error || 'Error al conectar con el servidor.');
+        setGlobalApiTestCredits({ percentage: 0, label: '0%' });
       } else {
         setGlobalApiTestStatus(data.status as any);
         setGlobalApiTestMsg(data.message || '');
+        setGlobalApiTestCredits({
+          percentage: typeof data.percentage === 'number' ? data.percentage : (data.status === 'success' ? 100 : 0),
+          label: data.credits_label || (data.status === 'success' ? '100% Cuota Activa' : '0%')
+        });
       }
     } catch (err: any) {
       setGlobalApiTestStatus('error');
       setGlobalApiTestMsg(err.message || 'Error de conexión.');
+      setGlobalApiTestCredits({ percentage: 0, label: '0%' });
+    }
+  };
+
+  const handleSaveGlobalAiConfig = async (overrideConfig?: any) => {
+    const configToSave = overrideConfig || adminGlobalAi;
+    if (!configToSave) return;
+    setIsSavingGlobalAi(true);
+    try {
+      const getRes = await authFetch('/api/admin/platform-settings');
+      const curr = await getRes.json().catch(() => ({}));
+      const res = await authFetch('/api/admin/platform-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform_name: curr.platform_name || 'Sovereign',
+          sidebar_order: curr.sidebar_order || ['dashboard', 'crm', 'settings', 'billing', 'playground', 'campaigns', 'analytics', 'admin'],
+          global_ai_config: configToSave,
+          tracking_pixels: adminTrackingPixels || curr.tracking_pixels
+        })
+      });
+      if (res.ok) {
+        setToast({
+          message: language === 'en'
+            ? `✓ Global Chatbot AI locked to ${configToSave.provider.toUpperCase()} (${configToSave.model})`
+            : `✓ IA Global fijada en ${configToSave.provider.toUpperCase()} (${configToSave.model})`,
+          type: 'success'
+        });
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setToast({ message: `Error guardando IA Global: ${errJson.error || res.statusText}`, type: 'error' });
+      }
+    } catch (err: any) {
+      console.error('Error guardando IA Global:', err);
+      setToast({ message: `Error de red al guardar IA Global: ${err.message}`, type: 'error' });
+    } finally {
+      setIsSavingGlobalAi(false);
     }
   };
 
@@ -2483,7 +2541,7 @@ export default function PanelClient() {
   const [campaignDurationDays, setCampaignDurationDays] = useState(30);
   // Hasta 6 anuncios por conjunto: la imagen principal (arriba) cuenta como
   // el primer slot, estas son las hasta 5 adicionales (imagen o video).
-  const [extraCreativeAssets, setExtraCreativeAssets] = useState<Array<{ file: File; preview: string; type: 'image' | 'video' }>>([]);
+  const [extraCreativeAssets, setExtraCreativeAssets] = useState<Array<{ file?: File | Blob; preview: string; type: 'image' | 'video'; name?: string }>>([]);
   const extraAssetsInputRef = React.useRef<HTMLInputElement>(null);
   const MAX_CREATIVE_ASSETS = 6;
   const [isGeneratingCampaign, setIsGeneratingCampaign] = useState(false);
@@ -2492,15 +2550,125 @@ export default function PanelClient() {
   const campaignFileRef = React.useRef<HTMLInputElement>(null);
   const productFileRef = React.useRef<HTMLInputElement>(null);
 
-  // Ecom Magic AI states
-  const [selectedTemplate, setSelectedTemplate] = useState<CreativeTemplate | null>(null);
+  const MAX_BANNER_TEMPLATES_COUNT = 6;
+  const [selectedTemplates, setSelectedTemplates] = useState<CreativeTemplate[]>(() => {
+    return [CREATIVE_TEMPLATES[0]]; // Por defecto: 1 sola pancarta ($0.05 USD)
+  });
+  const [selectedTemplate, setSelectedTemplate] = useState<CreativeTemplate | null>(CREATIVE_TEMPLATES[0] || null);
+  const [generatedBannersList, setGeneratedBannersList] = useState<Array<{
+    templateId: string;
+    templateName: string;
+    templateIcon?: string;
+    imageUrl: string;
+    costTier?: string;
+    status: 'pending' | 'generating' | 'success' | 'error';
+    error?: string;
+  }>>([]);
+  const [isDownloadingAllBanners, setIsDownloadingAllBanners] = useState(false);
+
+  // Historial persistente en navegador (vigencia de 24 horas y auto-limpieza)
+  const [bannerHistory, setBannerHistory] = useState<StoredBanner[]>([]);
+  const [showBannerHistory, setShowBannerHistory] = useState(false);
+
+  // Función para vincular el pack completo de pancartas (hasta 6) directamente a las creatividades de la campaña
+  const applyPackToCampaignCreatives = (banners: Array<{ imageUrl: string; templateName?: string }>) => {
+    const valid = banners.filter(b => b.imageUrl && typeof b.imageUrl === 'string' && b.imageUrl.trim().length > 0);
+    if (valid.length === 0) return false;
+
+    // 1. Creatividad principal (Pancarta 1)
+    const first = valid[0];
+    setGeneratedBanner(first.imageUrl);
+    setFinalUploadedImage(first.imageUrl);
+    setCampaignImagePreview(first.imageUrl);
+
+    // 2. Creatividades adicionales (Pancartas 2 a 6 para Meta Ads)
+    const extras = valid.slice(1, MAX_CREATIVE_ASSETS).map((b, idx) => ({
+      preview: b.imageUrl,
+      type: 'image' as const,
+      name: b.templateName || `Pancarta ${idx + 2}`,
+    }));
+    setExtraCreativeAssets(extras);
+
+    const totalLoaded = 1 + extras.length;
+    setToast({
+      message: language === 'en'
+        ? `🎉 ${totalLoaded} banner creatives linked to campaign (${totalLoaded}/${MAX_CREATIVE_ASSETS})!`
+        : `🎉 ¡${totalLoaded} pancartas vinculadas a la campaña (${totalLoaded}/${MAX_CREATIVE_ASSETS})!`,
+      type: 'success'
+    });
+    return true;
+  };
+
+  const selectSingleTemplate = (tpl: CreativeTemplate) => {
+    setSelectedTemplates([tpl]);
+    setSelectedTemplate(tpl);
+  };
+
+  const toggleTemplateSelection = (tpl: CreativeTemplate) => {
+    setSelectedTemplates(prev => {
+      const exists = prev.some(item => item.id === tpl.id);
+      if (exists) {
+        if (prev.length <= 1) {
+          setToast({
+            message: 'Debes mantener al menos 1 pancarta seleccionada.',
+            type: 'info'
+          });
+          return prev;
+        }
+        const filtered = prev.filter(item => item.id !== tpl.id);
+        if (filtered.length > 0) setSelectedTemplate(filtered[0]);
+        return filtered;
+      }
+      if (prev.length >= MAX_BANNER_TEMPLATES_COUNT) {
+        setToast({
+          message: `Máximo ${MAX_BANNER_TEMPLATES_COUNT} pancartas en el pack. Desmarca una si deseas elegir "${tpl.name}".`,
+          type: 'info'
+        });
+        return prev;
+      }
+      const updated = [...prev, tpl];
+      setSelectedTemplate(tpl);
+      return updated;
+    });
+  };
+
+  const autoSelectSixTemplates = () => {
+    const all = [...CREATIVE_TEMPLATES, ...dbTemplates];
+    const unique = all.filter((tpl, idx, arr) => arr.findIndex(t => t.id === tpl.id) === idx);
+    const six = unique.slice(0, MAX_BANNER_TEMPLATES_COUNT);
+    setSelectedTemplates(six);
+    if (six.length > 0) setSelectedTemplate(six[0]);
+    setToast({
+      message: 'Se han seleccionado 6 pancartas para tu pack publicitario ($0.30 USD total).',
+      type: 'info'
+    });
+  };
+
+  const resetToOneTemplate = (tpl?: CreativeTemplate) => {
+    const target = tpl || selectedTemplate || CREATIVE_TEMPLATES[0];
+    setSelectedTemplates([target]);
+    setSelectedTemplate(target);
+    setToast({
+      message: `Modo 1 sola pancarta activo: "${target.name}" ($0.05 USD).`,
+      type: 'info'
+    });
+  };
+
+  const isSelectedTemplateCircular = Boolean(
+    selectedTemplate?.id?.includes('ruleta') ||
+    selectedTemplate?.id?.includes('circular') ||
+    selectedTemplate?.name?.toLowerCase().includes('ruleta') ||
+    selectedTemplate?.name?.toLowerCase().includes('circular') ||
+    selectedTemplate?.name?.toLowerCase().includes('360') ||
+    selectedTemplate?.name?.toLowerCase().includes('ritmo')
+  );
 
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('all');
 
   // ChatGPT Flow states
   const [chatgptFlowStep, setChatgptFlowStep] = useState<1 | 2 | 3 | 4>(1);
   const [promptCopied, setPromptCopied] = useState(false);
-  const [bannerFlowStep, setBannerFlowStep] = useState<1 | 2 | 3 | 4>(1);
+  const [bannerFlowStep, setBannerFlowStep] = useState<1 | 2 | 3 | 4>(2);
   const [bannerPromptCopied, setBannerPromptCopied] = useState(false);
   const [bannerGenerationConfirmed, setBannerGenerationConfirmed] = useState(false);
   const [bannerProductOffer, setBannerProductOffer] = useState('');
@@ -2509,7 +2677,100 @@ export default function PanelClient() {
   const [bannerAiError, setBannerAiError] = useState<string | null>(null);
   const [bannerShowManualFallback, setBannerShowManualFallback] = useState(false);
   const productFileInputRef = React.useRef<HTMLInputElement>(null);
+  const customBannerFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [customUploadedBanner, setCustomUploadedBanner] = useState<string | null>(null);
+  const [customUploadedBannerFile, setCustomUploadedBannerFile] = useState<File | null>(null);
   const bannerTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Banner & Media Creation modes ('ecom' = Real Product Preserved, 'video' = Seedance Image-to-Video (~$0.15), 'chatgpt' = Copy-Paste, 'higgsfield' = Legacy, 'clothing' = ByteDance SeedDream v4)
+  const [bannerCreationMode, setBannerCreationMode] = useState<'ecom' | 'video' | 'chatgpt' | 'higgsfield' | 'clothing'>('ecom');
+  const [videoStylePreset, setVideoStylePreset] = useState<'luxury_360' | 'water_splash' | 'dynamic_reels' | 'warm_sunset' | 'custom'>('luxury_360');
+  const [ecomRenderEngine, setEcomRenderEngine] = useState<'sharp' | 'higgsfield' | 'flux'>('higgsfield'); // Default to Higgsfield (~$0.05 USD)
+  const [higgsfieldMediaType, setHiggsfieldMediaType] = useState<'image' | 'video'>('image'); // 'image' para Marketing Studio ($0.05) o 'video' para Seedance ($0.15)
+  const [higgsfieldQuality, setHiggsfieldQuality] = useState<'low' | 'medium' | 'high'>('low'); // MODO MÁS BARATO: $0.05 USD (Tarifa real API con referencias)
+  const [higgsfieldResolution, setHiggsfieldResolution] = useState<'1k' | '2k' | '4k'>('2k'); // 2k resolución estándar
+  const [higgsfieldEnhancePrompt, setHiggsfieldEnhancePrompt] = useState<boolean>(false); // false para evitar recargo del 10%
+  const [bannerTextLanguage, setBannerTextLanguage] = useState<'es' | 'en' | 'pt' | 'fr' | 'it' | 'de' | 'custom'>('es'); // Idioma del texto del anuncio (Español por defecto)
+  const [bannerCustomLanguage, setBannerCustomLanguage] = useState<string>('');
+  const [bannerHeadlineText, setBannerHeadlineText] = useState<string>('');
+  const [bannerBrandName, setBannerBrandName] = useState<string>(''); // Nombre exacto de la marca para evitar alucinaciones tipográficas
+  const [bannerTextDensity, setBannerTextDensity] = useState<'minimal' | 'full'>('minimal'); // 'minimal' = 0 errores, 'full' = infográfico
+  const [bannerProductCategory, setBannerProductCategory] = useState<'auto' | 'beauty' | 'fitness' | 'perfume' | 'tech' | 'fashion' | 'food'>('auto');
+  const [bannerBackgroundStyle, setBannerBackgroundStyle] = useState<'adaptive' | 'studio_neutral' | 'template'>('adaptive');
+  const [bannerProductColors, setBannerProductColors] = useState<string>(''); // ej: "Morado y Blanco" o "Dorado y Negro"
+  const [seedanceDuration, setSeedanceDuration] = useState<5 | 10>(5);
+  const [seedanceResolution, setSeedanceResolution] = useState<'720p' | '1080p'>('720p');
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
+  const [higgsfieldModel, setHiggsfieldModel] = useState<string>('marketing-studio/image');
+  const [isGeneratingHiggsfield, setIsGeneratingHiggsfield] = useState<boolean>(false);
+  const [higgsfieldCustomPrompt, setHiggsfieldCustomPrompt] = useState<string>('');
+  const [higgsfieldStatusMsg, setHiggsfieldStatusMsg] = useState<string>('');
+  const [higgsfieldError, setHiggsfieldError] = useState<string | null>(null);
+  const [showPromptDetails, setShowPromptDetails] = useState<boolean>(false);
+  const [showBannerAdvancedSettings, setShowBannerAdvancedSettings] = useState<boolean>(false);
+  const [detectedProductColors, setDetectedProductColors] = useState<{
+    primaryColor: string;
+    accentColor: string;
+    colorName: string;
+    hexCodes: string[];
+  } | null>(null);
+  const [isAnalyzingProductColors, setIsAnalyzingProductColors] = useState<boolean>(false);
+  const [detectedProductCopy, setDetectedProductCopy] = useState<{
+    product_name: string;
+    category: string;
+    headline: string;
+    subheadline: string;
+    badge: string;
+    cta: string;
+    contact: string;
+  } | null>(null);
+  const [isAnalyzingProductCopy, setIsAnalyzingProductCopy] = useState<boolean>(false);
+
+  // API Credits Monitor states
+  const [apiCreditsLoading, setApiCreditsLoading] = useState<boolean>(false);
+  const [apiCreditsData, setApiCreditsData] = useState<any[]>([]);
+  const [apiCreditsLastChecked, setApiCreditsLastChecked] = useState<string>('');
+
+  const fetchApiCreditsStatus = async () => {
+    setApiCreditsLoading(true);
+    try {
+      const res = await authFetch('/api/admin/api-credits-status');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.providers)) {
+        setApiCreditsData(data.providers);
+        setApiCreditsLastChecked(new Date().toLocaleTimeString());
+      }
+    } catch (err) {
+      console.error('Error fetching API credits status:', err);
+    } finally {
+      setApiCreditsLoading(false);
+    }
+  };
+
+  const handleSelectVisualProvider = async (provider: string) => {
+    setConfigData((prev: any) => ({ ...prev, visual_render_provider: provider }));
+    try {
+      await authFetch('/api/panel/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visual_render_provider: provider }),
+      });
+      const names: Record<string, string> = {
+        higgsfield: 'Higgsfield AI (Soul v2)',
+        sharp: 'Pure Sharp',
+        flux: 'FLUX (fal.ai)',
+        openai: 'OpenAI (DALL-E)',
+      };
+      setToast({
+        message: language === 'en'
+          ? `✓ Active visual provider locked to ${names[provider] || provider}`
+          : `✓ Proveedor visual fijado y guardado: ${names[provider] || provider}`,
+        type: 'success',
+      });
+    } catch (e) {
+      console.warn('Auto-save visual provider failed:', e);
+    }
+  };
 
   // Conversational AI Marketing Agent states
   const [showMarketingAgent, setShowMarketingAgent] = useState(true);
@@ -2553,6 +2814,48 @@ export default function PanelClient() {
   React.useEffect(() => { 
     radiusRef.current = adLocationRadius;
   }, [adLocationRadius]);
+
+  // Restauración y auto-limpieza (24h) del historial de pancartas generadas al recargar la página
+  React.useEffect(() => {
+    try {
+      const history = getBannerHistory();
+      setBannerHistory(history);
+
+      // Si no hay pancartas en la sesión actual pero sí en las últimas 24h, restaurar el pack
+      if (history.length > 0) {
+        const latestPackId = history[0].packId;
+        const packItems = latestPackId 
+          ? history.filter(h => h.packId === latestPackId) 
+          : history.slice(0, MAX_BANNER_TEMPLATES_COUNT);
+
+        if (packItems.length > 0) {
+          setGeneratedBannersList(packItems.map(h => ({
+            templateId: h.templateId,
+            templateName: h.templateName,
+            templateIcon: h.templateIcon,
+            imageUrl: h.imageUrl,
+            status: 'success',
+            costTier: h.costTier || 'Low $0.05 USD',
+          })));
+
+          const mainImg = packItems[0].imageUrl;
+          setGeneratedBanner(mainImg);
+          setFinalUploadedImage(mainImg);
+          setCampaignImagePreview(mainImg);
+
+          if (packItems.length > 1) {
+            setExtraCreativeAssets(packItems.slice(1, MAX_CREATIVE_ASSETS).map((h, i) => ({
+              preview: h.imageUrl,
+              type: 'image' as const,
+              name: h.templateName,
+            })));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[PanelClient] Error restaurando historial de pancartas:', e);
+    }
+  }, []);
 
   const handleUpdateLocationRadius = (index: number, newRadius: number) => {
     const validRadius = Math.max(1, Math.min(80, newRadius));
@@ -3669,10 +3972,38 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       let creativeAssets: Array<{ url: string; type: 'image' | 'video' }> = [{ url: imageUrl, type: 'image' }];
       if (extraCreativeAssets.length > 0) {
         setToast({ message: language === 'en' ? `Uploading ${extraCreativeAssets.length} more creatives...` : `Subiendo ${extraCreativeAssets.length} creatividades más...`, type: 'info' });
-        const uploadedExtras = await Promise.all(extraCreativeAssets.map(async (asset) => ({
-          url: await uploadFileToR2(asset.file, `extra-${asset.type}-${Date.now()}`),
-          type: asset.type,
-        })));
+        const uploadedExtras = await Promise.all(extraCreativeAssets.map(async (asset, idx) => {
+          // Si ya es una URL pública HTTP/HTTPS directa (ej: CDN de Higgsfield), usar directamente sin re-subida
+          if (asset.preview && (asset.preview.startsWith('http://') || asset.preview.startsWith('https://')) && !asset.preview.includes('localhost') && !asset.preview.includes('127.0.0.1')) {
+            return { url: asset.preview, type: asset.type };
+          }
+          if (asset.file instanceof File || asset.file instanceof Blob) {
+            return {
+              url: await uploadFileToR2(asset.file, `extra-${asset.type}-${Date.now()}`),
+              type: asset.type,
+            };
+          }
+          if (asset.preview && (asset.preview.startsWith('data:') || asset.preview.startsWith('blob:'))) {
+            let blobToUpload: Blob;
+            if (asset.preview.startsWith('data:')) {
+              const arr = asset.preview.split(',');
+              const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
+              const bstr = atob(arr[1]);
+              let n = bstr.length;
+              const u8arr = new Uint8Array(n);
+              while (n--) u8arr[n] = bstr.charCodeAt(n);
+              blobToUpload = new Blob([u8arr], { type: mime });
+            } else {
+              const resp = await fetch(asset.preview);
+              blobToUpload = await resp.blob();
+            }
+            return {
+              url: await uploadFileToR2(blobToUpload, `extra-${asset.type}-${idx + 1}-${Date.now()}.png`),
+              type: asset.type,
+            };
+          }
+          return { url: asset.preview || imageUrl, type: asset.type };
+        }));
         creativeAssets = [...creativeAssets, ...uploadedExtras];
       }
 
@@ -3860,7 +4191,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
   const [generatedBanner, setGeneratedBanner] = useState<string | null>(null);
   const [isGeneratingBanner, setIsGeneratingBanner] = useState(false);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('9:16');
-  const [bannerTextLanguage, setBannerTextLanguage] = useState<'es' | 'en'>('es');
   const [costSaverEnabled, setCostSaverEnabled] = useState(true); // 💰 Modo económico ON por defecto en desarrollo
   const [debugTimestamp, setDebugTimestamp] = useState<number | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
@@ -3976,6 +4306,191 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     reader.readAsDataURL(file);
   });
 
+  const extractDominantColorsFromImage = (dataUri: string) => {
+    if (typeof window === 'undefined' || !dataUri) return;
+    setIsAnalyzingProductColors(true);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const size = 64;
+        canvas.width = size;
+        canvas.height = size;
+        ctx.drawImage(img, 0, 0, size, size);
+        const imgData = ctx.getImageData(0, 0, size, size).data;
+
+        const colorBuckets: Record<string, { name: string; hex: string; count: number; rTotal: number; gTotal: number; bTotal: number; isNeutral?: boolean }> = {
+          naranja: { name: 'Naranja Vibrante', hex: '#FF6B00', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          azulMarino: { name: 'Azul Marino / Navy', hex: '#0F2744', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          azul: { name: 'Azul Eléctrico', hex: '#2563EB', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          cyan: { name: 'Turquesa / Cian', hex: '#06B6D4', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          dorado: { name: 'Dorado / Oro', hex: '#F59E0B', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          amarillo: { name: 'Amarillo Brillante', hex: '#FACC15', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          verde: { name: 'Verde Esmeralda', hex: '#10B981', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          verdeLima: { name: 'Verde Neón', hex: '#84CC16', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          rojo: { name: 'Rojo Rubí', hex: '#EF4444', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          rosa: { name: 'Rosa / Fucsia', hex: '#EC4899', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          morado: { name: 'Morado / Violeta', hex: '#8B5CF6', count: 0, rTotal: 0, gTotal: 0, bTotal: 0 },
+          blanco: { name: 'Blanco Puro', hex: '#FFFFFF', count: 0, rTotal: 0, gTotal: 0, bTotal: 0, isNeutral: true },
+          negro: { name: 'Negro Profundo', hex: '#0B0F19', count: 0, rTotal: 0, gTotal: 0, bTotal: 0, isNeutral: true },
+        };
+
+        for (let i = 0; i < imgData.length; i += 4) {
+          const r = imgData[i];
+          const g = imgData[i + 1];
+          const b = imgData[i + 2];
+          const a = imgData[i + 3];
+
+          if (a < 50) continue;
+          if (r > 248 && g > 248 && b > 248) continue;
+
+          const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+          const max = Math.max(rNorm, gNorm, bNorm), min = Math.min(rNorm, gNorm, bNorm);
+          let h = 0, s = 0;
+          const l = (max + min) / 2;
+
+          if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+              case rNorm: h = (gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0); break;
+              case gNorm: h = (bNorm - rNorm) / d + 2; break;
+              case bNorm: h = (rNorm - gNorm) / d + 4; break;
+            }
+            h *= 60;
+          }
+
+          const addPixel = (bucket: any) => {
+            bucket.count++;
+            bucket.rTotal += r;
+            bucket.gTotal += g;
+            bucket.bTotal += b;
+          };
+
+          if (l < 0.12) {
+            addPixel(colorBuckets.negro);
+          } else if (s < 0.12 && l > 0.85) {
+            addPixel(colorBuckets.blanco);
+          } else if (h >= 14 && h < 42 && s > 0.28) {
+            addPixel(colorBuckets.naranja);
+          } else if (h >= 42 && h < 58 && s > 0.35) {
+            addPixel(colorBuckets.dorado);
+          } else if (h >= 58 && h < 75 && s > 0.35) {
+            addPixel(colorBuckets.amarillo);
+          } else if (h >= 75 && h < 115 && s > 0.25) {
+            addPixel(colorBuckets.verdeLima);
+          } else if (h >= 115 && h < 165 && s > 0.20) {
+            addPixel(colorBuckets.verde);
+          } else if (h >= 165 && h < 200 && s > 0.20) {
+            addPixel(colorBuckets.cyan);
+          } else if (h >= 200 && h < 250 && s > 0.18) {
+            if (l < 0.35) addPixel(colorBuckets.azulMarino);
+            else addPixel(colorBuckets.azul);
+          } else if (h >= 250 && h < 320 && s > 0.18) {
+            addPixel(colorBuckets.morado);
+          } else if (h >= 320 && h < 350 && s > 0.20) {
+            addPixel(colorBuckets.rosa);
+          } else if ((h >= 350 || h < 14) && s > 0.25) {
+            addPixel(colorBuckets.rojo);
+          }
+        }
+
+        // Priorizar colores cromáticos sobre fondos neutros
+        const chromatic = Object.values(colorBuckets).filter(b => !b.isNeutral && b.count > 10).sort((a, b) => b.count - a.count);
+        const neutrals = Object.values(colorBuckets).filter(b => b.isNeutral && b.count > 10).sort((a, b) => b.count - a.count);
+
+        const chosen: any[] = [];
+        if (chromatic.length > 0) chosen.push(chromatic[0]);
+        if (chromatic.length > 1) chosen.push(chromatic[1]);
+        else if (neutrals.length > 0) chosen.push(neutrals[0]);
+
+        if (chosen.length > 0) {
+          const top1 = chosen[0];
+          const top2 = chosen[1] || null;
+
+          const toHex = (b: any) => {
+            if (!b.count) return b.hex;
+            const rAvg = Math.round(b.rTotal / b.count);
+            const gAvg = Math.round(b.gTotal / b.count);
+            const bAvg = Math.round(b.bTotal / b.count);
+            return `#${((1 << 24) + (rAvg << 16) + (gAvg << 8) + bAvg).toString(16).slice(1)}`;
+          };
+
+          const hex1 = toHex(top1);
+          const hex2 = top2 ? toHex(top2) : (top1.name.includes('Naranja') ? '#0F2744' : '#F59E0B');
+          const combinedName = top2 ? `${top1.name} y ${top2.name}` : top1.name;
+
+          const detected = {
+            primaryColor: hex1,
+            accentColor: hex2,
+            colorName: combinedName,
+            hexCodes: top2 ? [hex1, hex2] : [hex1],
+          };
+
+          setDetectedProductColors(detected);
+          setBannerProductColors(combinedName);
+        }
+      } catch (err) {
+        console.warn('Error detecting colors from image:', err);
+      } finally {
+        setIsAnalyzingProductColors(false);
+      }
+    };
+    img.onerror = () => setIsAnalyzingProductColors(false);
+    img.src = dataUri;
+  };
+
+  const analyzeUploadedProductCopy = async (dataUriOrUrl: string, templateName?: string) => {
+    if (!dataUriOrUrl) return;
+    setIsAnalyzingProductCopy(true);
+    try {
+      const res = await fetch('/api/panel/banners/analyze-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_image: dataUriOrUrl,
+          template_name: templateName || selectedTemplate?.name || 'plantilla',
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && data?.headline) {
+        setDetectedProductCopy({
+          product_name: data.product_name,
+          category: data.category,
+          headline: data.headline,
+          subheadline: data.subheadline,
+          badge: data.badge,
+          cta: data.cta,
+          contact: data.contact,
+        });
+        setBannerBrandName(data.product_name);
+        setBannerHeadlineText(data.headline);
+        setBannerProductOffer(data.subheadline);
+        setToast({
+          message: `✨ Producto detectado: "${data.product_name}". Titular y textos adaptados automáticamente.`,
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      console.warn('⚠️ Error al auto-detectar textos del producto:', err);
+    } finally {
+      setIsAnalyzingProductCopy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (productImagePreview) {
+      extractDominantColorsFromImage(productImagePreview);
+      analyzeUploadedProductCopy(productImagePreview, selectedTemplate?.name);
+    } else {
+      setDetectedProductColors(null);
+      setDetectedProductCopy(null);
+    }
+  }, [productImagePreview]);
+
   const generateBannerImage = async (result?: any) => {
     setIsGeneratingBanner(true);
     setGeneratedBanner(null);
@@ -3983,7 +4498,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     setBannerShowManualFallback(false);
     setBannerGenerationSeconds(0);
     setBannerGenerationStage(1);
-    setBannerFlowStep(3);
 
     // Timer interval for real-time user feedback
     if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
@@ -4008,7 +4522,6 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       if (!t) {
         setToast({ message: 'Por favor, selecciona una plantilla primero.', type: 'error' });
         setIsGeneratingBanner(false);
-        setBannerFlowStep(1);
         if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
         return;
       }
@@ -4024,6 +4537,8 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           console.error('Error al comprimir, usando lectura normal:', e);
           finalProductImageToSend = await getProductImageBase64(productImage);
         }
+      } else if (productImagePreview) {
+        finalProductImageToSend = productImagePreview;
       } else {
         console.warn(`  ⚠️ NO HAY IMAGEN DE PRODUCTO — enviando vacío`);
       }
@@ -4035,7 +4550,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         bannerProductOffer ? `Oferta destacada comercial: "${bannerProductOffer}"` : ''
       ].filter(Boolean).join('. ');
 
-      console.log('🔮 [Ecom Magic] Enviando template + imagen de producto para adaptación inteligente...');
+      console.log(`🔮 [Ecom Studio] Enviando producto + plantilla (${t?.name}) para pipeline publicitario completo con motor: ${ecomRenderEngine}...`);
       const aiRes = await fetch('/api/panel/generate-image', {
         method: 'POST',
         headers,
@@ -4044,11 +4559,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
           product_image: finalProductImageToSend,
           userInstructions: customInstructions,
           campaignTitle: bannerProductOffer || campaignTitle || 'Banner Campaña',
-          aspect_ratio: selectedAspectRatio,
+          aspect_ratio: selectedAspectRatio || '4:5',
           text_language: bannerTextLanguage,
           ad_texts_overrides: bannerProductOffer ? { ...adTexts, badge: bannerProductOffer } : adTexts,
           cost_saver: true,
-          visual_render_provider: configData.visual_render_provider || ((configData.fal_key_configured || configData.fal_key) ? 'flux' : (configData.openai_key_configured || configData.openai_key) ? 'openai' : 'sharp'),
+          visual_render_provider: ecomRenderEngine || 'sharp',
         }),
       });
 
@@ -4063,11 +4578,18 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         setGeneratedBanner(aiData.image);
         setFinalUploadedImage(aiData.image);
         setCampaignImagePreview(aiData.image);
+        const updatedHistory = saveBannersToHistory([{
+          templateId: selectedTemplate?.id || 'tpl-ecom',
+          templateName: selectedTemplate?.name || 'Pancarta Publicitaria',
+          templateIcon: selectedTemplate?.icon,
+          imageUrl: aiData.image,
+          costTier: 'Free $0.00 USD',
+        }]);
+        setBannerHistory(updatedHistory);
         setDebugTimestamp(Date.now());
         setShowDebugPanel(true);
-        setBannerFlowStep(4);
         setToast({
-          message: language === 'en' ? '🎉 Banner created successfully!' : '🎉 ¡Pancarta creada con éxito!',
+          message: language === 'en' ? '🎉 E-commerce banner generated successfully!' : '🎉 ¡Pancarta creada con éxito con tu producto real!',
           type: 'success'
         });
         console.log('✅ [Ecom Magic] Imagen del banner generada exitosamente por la IA');
@@ -4101,33 +4623,521 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       }
     } catch (err: any) {
       console.error('Error generating banner:', err);
+      setBannerAiError(err?.message || 'Error desconocido');
       setToast({ message: language === 'en' ? 'Error generating banner: ' + (err?.message || 'Unknown error') : 'Error generando banner: ' + (err?.message || 'Error desconocido'), type: 'error' });
     } finally {
       setIsGeneratingBanner(false);
+      if (bannerTimerRef.current) clearInterval(bannerTimerRef.current);
     }
+  };
+
+  const downloadMediaImmediately = async (url: string, filename: string) => {
+    if (!url) return;
+
+    // 1. Si ya es una URL local data o blob, la descargamos directamente
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // 2. Intentar fetch directo como Blob en el cliente (instantáneo si el CDN permite CORS)
+    try {
+      const resp = await fetch(url, { mode: 'cors' });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 4000);
+        return;
+      }
+    } catch {
+      // CORS u origen cruzado: continuar al proxy interno
+    }
+
+    // 3. Descarga a través del Proxy del Servidor (/api/panel/download)
+    // El servidor descarga el buffer y lo devuelve con cabecera Content-Disposition: attachment,
+    // garantizando que el navegador guarde el archivo directamente sin abrir pestañas ni ventanas.
+    try {
+      const proxyUrl = `/api/panel/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+      const res = await authFetch(proxyUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 4000);
+        return;
+      }
+    } catch (proxyErr) {
+      console.warn('Error en proxy de descarga, intentando fallback:', proxyErr);
+    }
+
+    // 4. Último fallback: trigger directo al endpoint de descarga con iframe invisible
+    // Al devolver Content-Disposition: attachment, el iframe fuerza la descarga sin abrir ventanas
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = `/api/panel/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      try { document.body.removeChild(iframe); } catch {}
+    }, 10000);
   };
 
   const handleDownloadBanner = async () => {
     if (!generatedBanner) return;
     setToast({
-      message: language === 'en' ? 'Downloading premium high-fidelity banner...' : 'Descargando banner premium de alta fidelidad...',
+      message: language === 'en' ? 'Downloading high-resolution banner...' : 'Descargando pancarta en alta resolución...',
       type: 'info'
     });
 
     try {
-      const link = document.createElement('a');
-      link.download = `rifx-ad-${selectedTemplate?.id || 'studio'}-${Date.now()}.png`;
-      link.href = generatedBanner;
-      link.click();
+      const filename = `rifx-pancarta-${selectedTemplate?.id || 'studio'}-${Date.now()}.png`;
+      await downloadMediaImmediately(generatedBanner, filename);
 
       setToast({
-        message: language === 'en' ? 'Banner downloaded successfully!' : '¡Anuncio premium descargado con éxito!',
+        message: language === 'en' ? 'Banner downloaded successfully!' : '¡Pancarta descargada exitosamente en tu equipo!',
         type: 'success'
       });
     } catch (err: any) {
       console.error('❌ Error downloading banner:', err);
       setToast({
-        message: language === 'en' ? 'Error downloading banner: ' + err.message : 'Error al descargar el banner: ' + err.message,
+        message: language === 'en' ? 'Error downloading banner: ' + err.message : 'Error al descargar la pancarta: ' + err.message,
+        type: 'error'
+      });
+    }
+  };
+
+  const handleDownloadVideo = async () => {
+    if (!generatedVideo) return;
+    setToast({
+      message: language === 'en' ? 'Downloading commercial video...' : 'Descargando video comercial...',
+      type: 'info'
+    });
+
+    try {
+      const filename = `seedance-ad-${Date.now()}.mp4`;
+      await downloadMediaImmediately(generatedVideo, filename);
+
+      setToast({
+        message: language === 'en' ? 'Video downloaded successfully!' : '¡Video comercial descargado con éxito en tu equipo!',
+        type: 'success'
+      });
+    } catch (err: any) {
+      console.error('❌ Error downloading video:', err);
+      setToast({
+        message: language === 'en' ? 'Error downloading video: ' + err.message : 'Error al descargar el video: ' + err.message,
+        type: 'error'
+      });
+    }
+  };
+
+  const generateBannerForTemplate = async (t: CreativeTemplate): Promise<{ success: boolean; image?: string; error?: string; cost_tier?: string }> => {
+    const effectiveKey = (configData.higgsfield_key && !configData.higgsfield_key.includes('••••') ? configData.higgsfield_key : '');
+    const selectedLangKey = bannerTextLanguage === 'custom' && bannerCustomLanguage.trim()
+      ? bannerCustomLanguage.trim()
+      : bannerTextLanguage;
+
+    const templateImageUrl = customUploadedBanner || t?.preview_image_url || undefined;
+    const isCustom = Boolean(customUploadedBanner);
+    const collectedRefImages: string[] = [];
+    if (templateImageUrl) collectedRefImages.push(templateImageUrl);
+    if (productImagePreview && !collectedRefImages.includes(productImagePreview)) {
+      collectedRefImages.push(productImagePreview);
+    }
+
+    const isCircularTpl = Boolean(
+      !isCustom && (
+        t?.id?.includes('ruleta') ||
+        t?.id?.includes('circular') ||
+        t?.name?.toLowerCase().includes('ruleta') ||
+        t?.name?.toLowerCase().includes('circular') ||
+        t?.name?.toLowerCase().includes('360') ||
+        t?.name?.toLowerCase().includes('ritmo')
+      )
+    );
+    const productCleanName = bannerBrandName.trim() || detectedProductCopy?.product_name || 'producto';
+    const headlineCopy = bannerHeadlineText.trim() || detectedProductCopy?.headline || 'NUEVA COLECCIÓN';
+    const subheadlineCopy = bannerProductOffer.trim() || detectedProductCopy?.subheadline || 'Calidad y diseño exclusivo';
+    const ctaCopy = detectedProductCopy?.cta || 'COMPRAR AHORA';
+    const langName = selectedLangKey === 'es' ? 'Spanish (Español)' : selectedLangKey.toUpperCase();
+    const colorPalette = bannerProductColors.trim();
+
+    const tplName = isCustom ? 'Pancarta Personalizada Subida' : (t?.name || 'plantilla');
+    const rawCfg = (t as any)?._rawConfigJson || {};
+    let structuralRule = '';
+    if (isCustom) {
+      structuralRule = 'Faithfully clone the exact visual composition, geometric frames, framing perspective, and design layout from the uploaded custom reference banner.';
+    } else if (tplName.toLowerCase().includes('prenda') || rawCfg.template_structure_lock?.preserve?.some((p: string) => p.includes('cards') || p.includes('stacked'))) {
+      structuralRule = '4:5 vertical format: left stacked rounded product detail preview cards, hero product area on right/center with dynamic background, bold lower-left headline and subheadline, bottom contact bar, diagonal geometric accent shapes.';
+    } else if (tplName.toLowerCase().includes('bryan') || rawCfg.layout?.sections?.benefits_timeline) {
+      structuralRule = '4:5 vertical format: floating product showcase on left-center with realistic shadow, vertical benefits timeline with curved connector lines and icons on right-center, upper headline, bottom brand footer.';
+    } else if (isCircularTpl || rawCfg.layout?.composition?.includes('circular')) {
+      structuralRule = 'Concentric circular 360° roulette layout: hero product centered on 3D pedestal with reflections, surrounded by curved arc panels with customer models and trust badges, curved headline ribbon.';
+    } else if (t?.composition_rules && t.composition_rules.length > 10) {
+      structuralRule = t.composition_rules.slice(0, 180);
+    } else {
+      structuralRule = `Clone exact layout framing, geometric panels, and product placement zones from reference banner template (${tplName}).`;
+    }
+
+    let defaultImagePrompt = '';
+    if (templateImageUrl && productImagePreview) {
+      defaultImagePrompt = `Commercial advertising poster strictly replicating the layout structure and composition of reference template (${tplName}). Structural layout: ${structuralRule} Hero subject: place the uploaded real product or brand logo (${productCleanName}) into the product showcase zone, preserving authentic details, shape, and branding. COMPLETE COLOR PALETTE ADAPTATION: completely recolor all circular rings, neon halos, geometric frames, lighting beams, flares, and background atmosphere from the reference template to strictly match the palette: ${colorPalette || 'the dominant colors of the uploaded asset'}. Do NOT retain original template colors if they clash with ${colorPalette || 'the uploaded image'}. CRITICAL TYPOGRAPHY REPLACEMENT: Never copy template placeholder words like "${tplName}", "Plantilla de ropa deportiva", "Diseño Deportivo Moderno", or dummy template copy. Replace all typography zones with customized commercial copy for ${productCleanName} in ${langName}: Main Headline: "${headlineCopy}", Subheadline: "${subheadlineCopy}", Call to Action: "${ctaCopy}". 8k crisp advertising photography.`;
+    } else if (templateImageUrl) {
+      defaultImagePrompt = `Commercial advertising poster strictly replicating the layout structure and composition of reference template (${tplName}). Structural layout: ${structuralRule} Color adaptation: recolor all background, geometric graphics, lighting, and accents to match palette: ${colorPalette || 'modern vibrant colors'}. Headline: "${headlineCopy}". All visible typography in ${langName}. 8k crisp advertising quality.`;
+    } else {
+      defaultImagePrompt = `Commercial advertising banner for ${productCleanName}. Structural layout: ${structuralRule} Hero product featured with realistic lighting and reflections. Main Headline: "${headlineCopy}", Subheadline: "${subheadlineCopy}". Palette: ${colorPalette || 'harmonized colors'}. Clean ${langName} typography. 8k commercial quality.`;
+    }
+
+    if (headlineCopy && !defaultImagePrompt.includes(headlineCopy)) {
+      defaultImagePrompt += ` Primary headline: "${headlineCopy}".`;
+    }
+
+    const promptToUse = higgsfieldCustomPrompt.trim()
+      ? (higgsfieldCustomPrompt.trim() + (selectedLangKey !== 'en' ? ` All visible text in ${langName}.` : ''))
+      : defaultImagePrompt;
+
+    try {
+      const res = await fetch('/api/panel/banners/higgsfield', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'image',
+          engine: 'openai/gpt-image-2.5/sunburst/edit',
+          prompt: promptToUse,
+          text_language: selectedLangKey,
+          headline_text: headlineCopy || undefined,
+          brand_name: productCleanName !== 'producto' ? productCleanName : undefined,
+          product_offer: subheadlineCopy || undefined,
+          product_category: detectedProductCopy?.category || bannerProductCategory,
+          background_style: bannerBackgroundStyle,
+          product_colors: bannerProductColors.trim() || undefined,
+          template_name: t?.name || undefined,
+          image_urls: collectedRefImages.length > 0 ? collectedRefImages : undefined,
+          product_image: productImagePreview || undefined,
+          template_image: templateImageUrl || undefined,
+          negative_prompt: 'text: Plantilla, text: Plantilla de ropa deportiva, text: Template, text: Lorem ipsum, distorted letters, blurry typography',
+          aspect_ratio: selectedAspectRatio || '4:5',
+          resolution: higgsfieldResolution,
+          quality: 'high',
+          enhance_prompt: false,
+          model: 'openai/gpt-image-2.5/sunburst/edit',
+          api_key: effectiveKey || undefined,
+        }),
+      });
+
+      let data: any = null;
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : null;
+      } catch {}
+
+      if (!res.ok || !data?.success) {
+        const rawErr = data?.error || `Error (${res.status}): ${res.statusText || 'Error en Image 2.5'}`;
+        return { success: false, error: rawErr };
+      }
+
+      return { success: true, image: data.image, cost_tier: data.cost_tier || '$0.03612 USD' };
+    } catch (netErr: any) {
+      return { success: false, error: netErr.message || 'Error de red' };
+    }
+  };
+
+  const handleRegenerateSingleBanner = async (templateId: string) => {
+    const tpl = selectedTemplates.find(t => t.id === templateId) || dbTemplates.find(t => t.id === templateId) || CREATIVE_TEMPLATES.find(t => t.id === templateId);
+    if (!tpl) return;
+
+    setGeneratedBannersList(prev => prev.map(item => item.templateId === templateId ? { ...item, status: 'generating', error: undefined } : item));
+    setToast({
+      message: `Regenerando pancarta "${tpl.name}" ($0.03612 USD)...`,
+      type: 'info'
+    });
+
+    try {
+      const result = await generateBannerForTemplate(tpl);
+      if (result.success && result.image) {
+        setGeneratedBannersList(prev => prev.map(item => item.templateId === templateId ? {
+          ...item,
+          status: 'success',
+          imageUrl: result.image!,
+          costTier: result.cost_tier || '$0.03612 USD'
+        } : item));
+        const updated = saveBannersToHistory([{
+          templateId: tpl.id,
+          templateName: tpl.name,
+          templateIcon: tpl.icon,
+          imageUrl: result.image!,
+          costTier: result.cost_tier || '$0.03612 USD'
+        }]);
+        setBannerHistory(updated);
+        setToast({ message: `¡Pancarta "${tpl.name}" regenerada con éxito!`, type: 'success' });
+      } else {
+        throw new Error(result.error || 'Error regenerando pancarta');
+      }
+    } catch (err: any) {
+      setGeneratedBannersList(prev => prev.map(item => item.templateId === templateId ? {
+        ...item,
+        status: 'error',
+        error: err.message
+      } : item));
+      setToast({ message: `Error al regenerar "${tpl.name}": ` + err.message, type: 'error' });
+    }
+  };
+
+  const handleDownloadAllBanners = async () => {
+    let readyBanners = generatedBannersList.filter(b => b.status === 'success' && b.imageUrl);
+    if (readyBanners.length === 0 && bannerHistory.length > 0) {
+      readyBanners = bannerHistory.map((h, i) => ({
+        templateId: h.templateId || `tpl-${i}`,
+        templateName: h.templateName || `Pancarta ${i + 1}`,
+        templateIcon: h.templateIcon,
+        imageUrl: h.imageUrl,
+        status: 'success' as const,
+        costTier: h.costTier,
+      }));
+    }
+    if (readyBanners.length === 0) {
+      if (generatedBanner) {
+        handleDownloadBanner();
+      } else {
+        setToast({ message: 'No hay pancartas listas para descargar.', type: 'info' });
+      }
+      return;
+    }
+
+    setIsDownloadingAllBanners(true);
+    setToast({
+      message: `Iniciando descarga directa de las ${readyBanners.length} pancartas a tu equipo...`,
+      type: 'info'
+    });
+
+    try {
+      for (let i = 0; i < readyBanners.length; i++) {
+        const banner = readyBanners[i];
+        const filename = `rifx-pancarta-${i + 1}-${banner.templateName.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.png`;
+        await downloadMediaImmediately(banner.imageUrl, filename);
+        if (i < readyBanners.length - 1) {
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
+      setToast({
+        message: `¡Las ${readyBanners.length} pancartas se descargaron exitosamente en tu equipo!`,
+        type: 'success'
+      });
+    } catch (err: any) {
+      console.error('Error al descargar pack de pancartas:', err);
+      setToast({
+        message: 'Error al descargar algunas pancartas: ' + err.message,
+        type: 'error'
+      });
+    } finally {
+      setIsDownloadingAllBanners(false);
+    }
+  };
+
+  const handleGenerateHiggsfieldBanner = async () => {
+    // Modo Video: Flujo individual tradicional
+    if (higgsfieldMediaType === 'video') {
+      const estimatedCost = seedanceDuration === 5 ? '~$0.75 - $1.00 USD' : '~$1.50 - $2.50 USD';
+      const confirmed = window.confirm(
+        `⚠️ AVISO DE SALDO (Higgsfield Video AI)\n\n` +
+        `Estás a punto de generar un video de ${seedanceDuration} segundos.\n\n` +
+        `La IA de video (Seedance 2.5) cobra POR SEGUNDO (~$0.15 USD/seg).\n` +
+        `Este video consumirá aproximadamente ${estimatedCost} de tu saldo en Higgsfield.\n\n` +
+        `(Si deseas ahorrar y pagar solo $0.05 USD fijos, cancela y usa "Imagen Marketing Studio").\n\n` +
+        `¿Deseas continuar y generar este video?`
+      );
+      if (!confirmed) return;
+
+      const t = selectedTemplate || dbTemplates[0] || CREATIVE_TEMPLATES[0];
+      const effectiveKey = (configData.higgsfield_key && !configData.higgsfield_key.includes('••••') ? configData.higgsfield_key : '');
+
+      setIsGeneratingHiggsfield(true);
+      setHiggsfieldError(null);
+      setHiggsfieldStatusMsg(language === 'en' ? 'Connecting to ByteDance Seedance 2.5...' : 'Conectando con ByteDance Seedance 2.5...');
+
+      try {
+        let defaultVideoPrompt = '';
+        if (videoStylePreset === 'luxury_360') {
+          defaultVideoPrompt = 'Cinematic luxury commercial advertising showcase. Smooth 360 camera rotation orbiting around the real product on a clean luxury pedestal, soft high-end studio lighting, subtle reflections, ultra-smooth motion, commercial quality 8k.';
+        } else if (videoStylePreset === 'water_splash') {
+          defaultVideoPrompt = 'Cinematic commercial product spot, dynamic close-up view, crystal clear fresh water droplets and delicate splash in slow motion, pristine studio lighting, ultra-sharp realistic details.';
+        } else if (videoStylePreset === 'dynamic_reels') {
+          defaultVideoPrompt = 'High-energy viral social media product commercial for TikTok and Instagram Reels, dynamic punchy camera tracking, modern subtle studio rim lighting, ultra-fluid movement.';
+        } else if (videoStylePreset === 'warm_sunset') {
+          defaultVideoPrompt = 'Warm golden hour lifestyle product commercial, soft natural sunset rays, delicate shadows, cinematic breeze, luxury aesthetic, smooth professional camera motion.';
+        } else {
+          defaultVideoPrompt = 'Cinematic commercial product presentation, professional studio lighting, smooth camera movement, ultra-realistic motion, commercial advertising quality.';
+        }
+
+        if (bannerProductOffer) defaultVideoPrompt += ` Commercial offer and hook: "${bannerProductOffer}".`;
+
+        const res = await fetch('/api/panel/banners/higgsfield', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'video',
+            prompt: defaultVideoPrompt,
+            text_language: bannerTextLanguage,
+            product_image: productImagePreview || undefined,
+            aspect_ratio: selectedAspectRatio || '9:16',
+            resolution: seedanceResolution,
+            duration: seedanceDuration,
+            model: 'bytedance/seedance-2.5/text-to-video',
+            api_key: effectiveKey || undefined,
+          }),
+        });
+
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) throw new Error(data?.error || 'Error al generar video');
+
+        setGeneratedVideo(data.video);
+        setToast({ message: '🎉 ¡Video publicitario generado con éxito con Seedance 2.5!', type: 'success' });
+      } catch (err: any) {
+        setHiggsfieldError(err.message || 'Error en video');
+        setToast({ message: err.message || 'Error en video', type: 'error' });
+      } finally {
+        setIsGeneratingHiggsfield(false);
+        setHiggsfieldStatusMsg('');
+      }
+      return;
+    }
+
+    // Modo Imagen: 1 sola pancarta o pack seleccionado (según elección del usuario)
+    let templatesToProcess = [...selectedTemplates];
+    if (customUploadedBanner) {
+      const customTpl: CreativeTemplate = {
+        ...(selectedTemplate || CREATIVE_TEMPLATES[0]),
+        id: 'custom-uploaded-banner',
+        template_id: 'custom-uploaded-banner',
+        name: 'Pancarta Personalizada',
+        category: 'ecom',
+        preview_image_url: customUploadedBanner,
+        icon: 'upload_file',
+      };
+      templatesToProcess = [customTpl];
+    } else if (templatesToProcess.length === 0) {
+      const fallback = selectedTemplate || CREATIVE_TEMPLATES[0];
+      templatesToProcess = [fallback];
+      setSelectedTemplates([fallback]);
+    }
+
+    const isSingle = templatesToProcess.length === 1;
+    const totalCostStr = isSingle ? '$0.03612 USD' : `$${(templatesToProcess.length * 0.03612).toFixed(3)} USD total`;
+
+    setIsGeneratingHiggsfield(true);
+    setHiggsfieldError(null);
+    setHiggsfieldStatusMsg(
+      isSingle
+        ? `Iniciando generación con OpenAI GPT Image 2.5 (${totalCostStr})...`
+        : `Iniciando generación de ${templatesToProcess.length} pancartas con OpenAI Image 2.5 (${totalCostStr})...`
+    );
+
+    // Inicializar tarjetas en estado "generando"
+    setGeneratedBannersList(templatesToProcess.map(tpl => ({
+      templateId: tpl.id,
+      templateName: tpl.name,
+      templateIcon: tpl.icon,
+      imageUrl: '',
+      status: 'generating',
+    })));
+
+    let completedCount = 0;
+    const bannerPromises = templatesToProcess.map(async (tpl, idx) => {
+      // Escalonar cada inicio por 250ms para evitar ráfagas idénticas en la API
+      await new Promise(r => setTimeout(r, idx * 250));
+      try {
+        const result = await generateBannerForTemplate(tpl);
+        completedCount++;
+        setHiggsfieldStatusMsg(
+          isSingle
+            ? `Generando pancarta con OpenAI Image 2.5 (${totalCostStr})...`
+            : `Generando pack: ${completedCount} de ${templatesToProcess.length} pancartas listas...`
+        );
+
+        if (result.success && result.image) {
+          setGeneratedBannersList(prev => prev.map(item => item.templateId === tpl.id ? {
+            ...item,
+            status: 'success',
+            imageUrl: result.image!,
+            costTier: result.cost_tier || '$0.03612 USD'
+          } : item));
+          return { success: true, image: result.image, tpl };
+        } else {
+          setGeneratedBannersList(prev => prev.map(item => item.templateId === tpl.id ? {
+            ...item,
+            status: 'error',
+            error: result.error || 'Error en generación'
+          } : item));
+          return { success: false, error: result.error, tpl };
+        }
+      } catch (err: any) {
+        completedCount++;
+        setGeneratedBannersList(prev => prev.map(item => item.templateId === tpl.id ? {
+          ...item,
+          status: 'error',
+          error: err.message || 'Error de conexión'
+        } : item));
+        return { success: false, error: err.message, tpl };
+      }
+    });
+
+    const settled = await Promise.allSettled(bannerPromises);
+    setIsGeneratingHiggsfield(false);
+    setHiggsfieldStatusMsg('');
+
+    // Extraer imágenes exitosas con su respectiva plantilla
+    const successfulItems = settled
+      .filter((s): s is PromiseFulfilledResult<any> => s.status === 'fulfilled' && (s as any).value?.success && !!(s as any).value?.image)
+      .map(s => ({
+        templateId: (s as any).value.tpl?.id || 'tpl',
+        templateName: (s as any).value.tpl?.name || 'Pancarta Publicitaria',
+        templateIcon: (s as any).value.tpl?.icon,
+        imageUrl: (s as any).value.image as string,
+        costTier: '$0.03612 USD',
+      }));
+
+    if (successfulItems.length > 0) {
+      const packId = `pack-${Date.now()}`;
+      // 1. Guardar en almacenamiento persistente con expiración exacta de 24 horas y auto-limpieza
+      const updatedHistory = saveBannersToHistory(successfulItems.map(item => ({ ...item, packId })));
+      setBannerHistory(updatedHistory);
+
+      // 2. Establecer la primera como pancarta activa y creatividad principal
+      const first = successfulItems[0];
+      setGeneratedBanner(first.imageUrl);
+      setFinalUploadedImage(first.imageUrl);
+      setCampaignImagePreview(first.imageUrl);
+
+      if (successfulItems.length > 1) {
+        applyPackToCampaignCreatives(successfulItems);
+        setToast({
+          message: `🎉 ¡Pack de ${successfulItems.length} pancartas generado con éxito (${totalCostStr})!`,
+          type: 'success'
+        });
+      } else {
+        setToast({
+          message: `🎉 ¡Pancarta personalizada generada con éxito con tu producto ($0.05 USD)!`,
+          type: 'success'
+        });
+      }
+    } else {
+      setHiggsfieldError('No se pudo generar la pancarta. Verifica tus créditos o conexión.');
+      setToast({
+        message: 'No se pudo generar la imagen. Revisa tus créditos en Higgsfield.',
         type: 'error'
       });
     }
@@ -4610,6 +5620,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         if (data && data.global_ai_config) setAdminGlobalAi(data.global_ai_config);
         if (data && data.tracking_pixels) setAdminTrackingPixels(data.tracking_pixels);
       }).catch(err => console.error(err));
+      fetchApiCreditsStatus();
     }
   }, [settingsSection, adminTab, tenantData?.isAdmin]);
   const [localPlanPermissions, setLocalPlanPermissions] = useState<any>(null);
@@ -4760,7 +5771,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
     gemini_key: '',
     groq_key: '',
     fal_key: '',
-    visual_render_provider: 'sharp',
+    higgsfield_key: '',
+    higgsfield_key_configured: false,
+    visual_render_provider: 'higgsfield',
     facebook_access_token: '',
     facebook_ad_account_id: '',
     facebook_page_id: '',
@@ -5693,7 +6706,10 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
              gemini_key: data.gemini_key === '__RIFX_SECRET_CONFIGURED__' ? 'AI••••••••••••••••••••••••' : (data.gemini_key || ''),
              groq_key: data.groq_key === '__RIFX_SECRET_CONFIGURED__' ? 'gsk_••••••••••••••••••••••••' : (data.groq_key || ''),
              fal_key: data.fal_key === '__RIFX_SECRET_CONFIGURED__' ? 'fal-key-••••••••••••••••••••' : (data.fal_key || ''),
-             visual_render_provider: data.visual_render_provider || 'openai',
+             fal_key_configured: data.fal_key_configured === true,
+             higgsfield_key: data.higgsfield_key === '__RIFX_SECRET_CONFIGURED__' ? 'hf-••••••••••••••••••••••••' : (data.higgsfield_key || ''),
+             higgsfield_key_configured: data.higgsfield_key_configured === true,
+             visual_render_provider: data.visual_render_provider || 'higgsfield',
              payphone_token: data.payphone_token || '',
              payphone_store_id: data.payphone_store_id || '',
              ai_prompt: data.ai_prompt || '',
@@ -6572,41 +7588,54 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
       const res = await authFetch('/api/panel/templates');
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.templates) {
-          const mapped: CreativeTemplate[] = data.templates.map((tpl: any) => ({
-            id: tpl.id,
-            name: tpl.name,
-            category: tpl.category || 'general',
-            preview_image_url: tpl.preview_image_url,
-            prompt: tpl.config_json.prompt || '',
-            colors: tpl.config_json.colors || { primary: '#6D28D9', accent: '#FFD700', text: '#FFFFFF', badgeBg: 'rgba(109,40,217,0.85)', badgeText: '#FFFFFF' },
-            layout: tpl.config_json.layout || { align: 'left', productPos: { x: 580, y: 250, w: 420, h: 560 }, textW: 480, hasTestimonial: true, hasBenefits: true, hasReviewStars: true },
-            defaultText: tpl.config_json.defaultText || { badge: '✨ CUIDADO PREMIUM', hook: 'Hook', desc: 'Desc', benefits: [], cta: 'CTA' },
-            skipProductOverlay: tpl.config_json.skipProductOverlay || false,
-            style_identity: tpl.config_json.style_identity || '',
-            composition_rules: tpl.config_json.composition_rules || '',
-            visual_hierarchy: tpl.config_json.visual_hierarchy || '',
-            lighting_rules: tpl.config_json.lighting_rules || '',
-            camera_rules: tpl.config_json.camera_rules || '',
-            color_behavior: tpl.config_json.color_behavior || '',
-            branding_style: tpl.config_json.branding_style || '',
-            text_behavior: tpl.config_json.text_behavior || '',
-            render_rules: tpl.config_json.render_rules || '',
-            ai_direction_rules: tpl.config_json.ai_direction_rules || {
-              camera_angle: 'eye_level_horizontal',
-              depth: 'cinematic_bokeh',
-              lighting: 'soft_beauty_studio_box',
-              mood: 'elegant_serene_luxury',
-              product_focus: 'pedestal_centered_right',
-              background_style: 'pastel_lavender_gradient_water',
-              shadow_style: 'soft_organic_diffuse',
-              visual_energy: 'high_end_skincare_ads'
-            },
-            template_structure_lock: tpl.config_json.template_structure_lock || undefined,
-            product_slot: tpl.config_json.product_slot || undefined,
-            text_slots: tpl.config_json.text_slots || undefined,
-            _rawConfigJson: tpl.config_json
-          }));
+        if (data.success && Array.isArray(data.templates)) {
+          const mapped: CreativeTemplate[] = data.templates.map((tpl: any) => {
+            const raw = tpl.config_json || {};
+            const structurePreserved = Array.isArray(raw.template_structure_lock?.preserve)
+              ? raw.template_structure_lock.preserve.join(', ')
+              : '';
+            const compositionExtracted =
+              raw.composition_rules ||
+              structurePreserved ||
+              (raw.layout?.sections ? 'Secciones fijas: titular superior, vitrina de producto flotante a la izquierda, timeline de beneficios a la derecha, y pie de marca' : '') ||
+              (raw.layout?.composition?.includes('circular') ? 'Composición concéntrica circular 360° con pedestal central y arcos de beneficios' : '');
+
+            return {
+              id: tpl.id,
+              name: tpl.name,
+              category: tpl.category || 'general',
+              preview_image_url: tpl.preview_image_url,
+              prompt: raw.prompt || raw.generation_prompt?.instruction || '',
+              description: raw.description || (structurePreserved ? `Estructura fija: ${structurePreserved}` : undefined),
+              colors: raw.colors || { primary: '#6D28D9', accent: '#FFD700', text: '#FFFFFF', badgeBg: 'rgba(109,40,217,0.85)', badgeText: '#FFFFFF' },
+              layout: raw.layout || { align: 'left', productPos: { x: 580, y: 250, w: 420, h: 560 }, textW: 480, hasTestimonial: true, hasBenefits: true, hasReviewStars: true },
+              defaultText: raw.defaultText || { badge: '✨ CUIDADO PREMIUM', hook: 'Hook', desc: 'Desc', benefits: [], cta: 'CTA' },
+              skipProductOverlay: raw.skipProductOverlay || false,
+              style_identity: raw.style_identity || raw.style?.theme || '',
+              composition_rules: compositionExtracted,
+              visual_hierarchy: raw.visual_hierarchy || '',
+              lighting_rules: raw.lighting_rules || '',
+              camera_rules: raw.camera_rules || '',
+              color_behavior: raw.color_behavior || '',
+              branding_style: raw.branding_style || '',
+              text_behavior: raw.text_behavior || '',
+              render_rules: raw.render_rules || '',
+              ai_direction_rules: raw.ai_direction_rules || {
+                camera_angle: 'eye_level_horizontal',
+                depth: 'cinematic_bokeh',
+                lighting: 'soft_beauty_studio_box',
+                mood: 'elegant_serene_luxury',
+                product_focus: 'pedestal_centered_right',
+                background_style: 'pastel_lavender_gradient_water',
+                shadow_style: 'soft_organic_diffuse',
+                visual_energy: 'high_end_skincare_ads'
+              },
+              template_structure_lock: raw.template_structure_lock || undefined,
+              product_slot: raw.product_slot || undefined,
+              text_slots: raw.text_slots || undefined,
+              _rawConfigJson: raw
+            };
+          });
           setDbTemplates(mapped);
           if (mapped.length > 0) {
             setSelectedTemplate(prev => prev || mapped[0]);
@@ -8092,6 +9121,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         gemini_key: configData.gemini_key,
         groq_key: configData.groq_key,
         fal_key: configData.fal_key,
+        higgsfield_key: configData.higgsfield_key,
         visual_render_provider: configData.visual_render_provider,
         bulk_wa_token: configData.bulk_wa_token,
         bulk_wa_phone_id: configData.bulk_wa_phone_id,
@@ -8118,7 +9148,9 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         dropi_prompt: configData.dropi_prompt,
         sales_prompt: configData.sales_prompt,
         support_prompt: configData.support_prompt,
-        admin_notification_phone: configData.admin_notification_phone,
+        admin_notification_phone: ((configData.admin_notification_phone || '').trim().replace(/^\+/, '').length >= 7)
+          ? (configData.admin_notification_phone || '').trim()
+          : '',
         business_days: configData.business_days,
         business_start_hour: configData.business_start_hour,
         business_end_hour: configData.business_end_hour,
@@ -8621,7 +9653,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
             { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
             { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
-            { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+            { key: 'banners', icon: 'auto_videocam', labelEs: 'Pancartas y Videos IA', labelEn: 'Banners & AI Videos' },
             { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
             { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
             { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
@@ -8741,7 +9773,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                 { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
                 { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                 { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
-                { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+                { key: 'banners', icon: 'auto_videocam', labelEs: 'Pancartas y Videos IA', labelEn: 'Banners & AI Videos' },
                 { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
                 { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
                 { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
@@ -8827,7 +9859,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       { key: 'voice_agent', icon: 'phone_in_talk', labelEs: 'Llamadas de Voz IA', labelEn: 'AI Voice Calls' },
                       { key: 'basic_bot', icon: 'forum', labelEs: 'Bot Básico (Sin IA)', labelEn: 'Basic Bot (No AI)' },
                       { key: 'appointments', icon: 'calendar_month', labelEs: 'Citas y Reservas', labelEn: 'Appointments & Booking' },
-                      { key: 'banners', icon: 'palette', labelEs: 'Crear Pancartas', labelEn: 'Banners' },
+                      { key: 'banners', icon: 'auto_videocam', labelEs: 'Pancartas y Videos IA', labelEn: 'Banners & AI Videos' },
                       { key: 'campaigns', icon: 'campaign', labelEs: 'Pautas Publicitarias', labelEn: 'Campaigns' },
                       { key: 'social', icon: 'rocket_launch', labelEs: 'OmniPublish', labelEn: 'OmniPublish' },
                       { key: 'analytics', icon: 'monitoring', labelEs: 'Análisis', labelEn: 'Analytics' },
@@ -12459,7 +13491,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             <div className="relative flex-1 flex">
                               <select 
                                 value={currentCode}
-                                onChange={e => setConfigData({ ...configData, admin_notification_phone: e.target.value + currentNumber })}
+                                onChange={e => {
+                                  const newCode = e.target.value;
+                                  setConfigData({
+                                    ...configData,
+                                    admin_notification_phone: currentNumber.trim() ? newCode + currentNumber.trim() : ''
+                                  });
+                                }}
                                 className="bg-slate-100 border border-slate-100 border-r-0 rounded-l-xl pl-3 pr-8 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400/30 transition-all appearance-none cursor-pointer"
                                 style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '1em' }}
                               >
@@ -12470,7 +13508,13 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 className="w-full bg-slate-50 border border-slate-100 rounded-r-xl pl-4 pr-4 py-2.5 text-sm font-bold text-primary focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 outline-none transition-all"
                                 placeholder={language === 'en' ? '984123456 (number)' : '984123456 (número)'}
                                 value={currentNumber}
-                                onChange={e => setConfigData({ ...configData, admin_notification_phone: currentCode + e.target.value.replace(/[^0-9]/g, '') })}
+                                onChange={e => {
+                                  const digits = e.target.value.replace(/[^0-9]/g, '');
+                                  setConfigData({
+                                    ...configData,
+                                    admin_notification_phone: digits ? currentCode + digits : ''
+                                  });
+                                }}
                               />
                             </div>
                             <button
@@ -12611,17 +13655,133 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
             exit={{ opacity: 0, y: -20 }}
             className="space-y-6"
           >
-            {/* Header */}
-            <header className="mb-4">
-              <h2 className="text-3xl font-bold tracking-tight text-[#0b1c30] mb-1" style={{ fontFamily: 'Inter' }}>
-                {language === 'en' ? 'Create Banners' : 'Crear Pancartas'}
-              </h2>
-              <p className="text-sm text-[#414754]">
-                {language === 'en' 
-                  ? 'Design expert high-conversion banners using manual templates or AI and recreate them easily.' 
-                  : 'Diseña pancartas publicitarias de alta conversión con plantillas inteligentes y recréalas paso a paso.'}
-              </p>
-            </header>
+            {/* Header: Title and Subtitle */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="bg-blue-50 text-[#0058bc] border border-blue-200/80 text-[11px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-xs">auto_awesome</span>
+                    RIFX Marketing Studio & AI Video
+                  </span>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[#0b1c30] flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-[#0058bc] text-3xl">auto_videocam</span>
+                  {language === 'en' ? 'Banners & AI Videos Studio' : 'Estudio de Pancartas y Videos IA'}
+                </h2>
+                <p className="text-xs md:text-sm text-[#414754] mt-1">
+                  {language === 'en'
+                    ? 'Generate high-converting e-commerce banners ($0.03612 USD) or commercial product videos with Seedance 2.5 (~$0.15 USD).'
+                    : 'Diseña pancartas e-commerce con tu producto real ($0.03612 USD) o crea spots publicitarios en video para TikTok y Reels (~$0.15 USD).'}
+                </p>
+              </div>
+
+              {/* Status counter */}
+              <div className="flex items-center gap-3">
+                <div className="bg-white border border-slate-200 px-4 py-2 rounded-2xl shadow-xs text-right">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Pancartas en Historial</span>
+                  <span className="text-sm font-black text-[#0b1c30]">{bannerHistory.length} disponibles</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Direct Quick Switcher - Full Width Segmented Bar CRM Model */}
+            <div className="w-full bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setBannerCreationMode('higgsfield');
+                  setHiggsfieldMediaType('image');
+                  setBannerFlowStep(2);
+                }}
+                className={`flex-1 min-w-[220px] py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  (bannerCreationMode === 'higgsfield' && higgsfieldMediaType === 'image') || bannerCreationMode === 'ecom'
+                    ? 'bg-[#0058bc] text-white shadow-md shadow-blue-600/25 ring-2 ring-blue-300 font-extrabold'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">shopping_bag</span>
+                <span className="tracking-wide">PANCARTAS MARKETING STUDIO</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                  (bannerCreationMode === 'higgsfield' && higgsfieldMediaType === 'image') || bannerCreationMode === 'ecom'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-blue-100 text-[#0058bc]'
+                }`}>
+                  $0.03612 USD
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBannerCreationMode('video');
+                  setHiggsfieldMediaType('video');
+                  if (!selectedAspectRatio || selectedAspectRatio === '4:5') {
+                    setSelectedAspectRatio('9:16');
+                  }
+                  if (!selectedTemplate) {
+                    setSelectedTemplate(CREATIVE_TEMPLATES[0]);
+                  }
+                  setBannerFlowStep(2);
+                }}
+                className={`flex-1 min-w-[220px] py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  bannerCreationMode === 'video' || (bannerCreationMode === 'higgsfield' && higgsfieldMediaType === 'video')
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/25 ring-2 ring-purple-300 font-extrabold'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">movie</span>
+                <span className="tracking-wide">VIDEO COMERCIAL IA</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                  bannerCreationMode === 'video' || (bannerCreationMode === 'higgsfield' && higgsfieldMediaType === 'video')
+                    ? 'bg-white/20 text-white'
+                    : 'bg-purple-100 text-purple-900'
+                }`}>
+                  Seedance 2.5 (~$0.15)
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTemplateCategoryFilter('moda');
+                  setBannerCreationMode('clothing');
+                  setBannerFlowStep(2);
+                }}
+                className={`flex-1 min-w-[190px] py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  bannerCreationMode === 'clothing'
+                    ? 'bg-gradient-to-r from-pink-600 via-rose-600 to-purple-600 text-white shadow-md shadow-pink-500/25 ring-2 ring-pink-300 font-extrabold'
+                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base">checkroom</span>
+                <span className="tracking-wide">SECCIÓN DE ROPA</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
+                  bannerCreationMode === 'clothing'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-pink-100 text-pink-900'
+                }`}>
+                  SeedDream v4
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBannerFlowStep(4)}
+                className={`py-3 px-4 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 ${
+                  bannerFlowStep === 4
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-2 ring-emerald-300'
+                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-300'
+                }`}
+              >
+                <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
+                <span>Ver Pancartas Guardadas</span>
+                {bannerHistory.length > 0 && (
+                  <span className="text-[10px] bg-emerald-200 text-emerald-950 font-black px-2 py-0.5 rounded-full">
+                    {bannerHistory.length}
+                  </span>
+                )}
+              </button>
+            </div>
 
             <AnimatePresence mode="wait">
               
@@ -12635,19 +13795,133 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   transition={{ duration: 0.3 }}
                   className="space-y-6"
                 >
+                  {/* Banner highlight for Commercial Video AI (~$0.15 USD) */}
+                  <div className="p-4 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-400/40 text-purple-300 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-2xl">movie</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-sm font-bold">¿Buscas crear un Video Comercial con tu Producto Real?</h4>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400 text-purple-950">
+                            ~$0.15 USD
+                          </span>
+                        </div>
+                        <p className="text-xs text-purple-200 mt-0.5">
+                          Sube la foto de tu producto y crea spots publicitarios para TikTok, Reels y Meta Ads con Seedance 2.5 Image-to-Video.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBannerCreationMode('video');
+                        setHiggsfieldMediaType('video');
+                        if (!selectedAspectRatio || selectedAspectRatio === '4:5') setSelectedAspectRatio('9:16');
+                        if (!selectedTemplate) setSelectedTemplate(CREATIVE_TEMPLATES[0]);
+                        setBannerFlowStep(2);
+                      }}
+                      className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-bold text-xs rounded-xl transition-all shadow-md shrink-0 flex items-center gap-2 self-end sm:self-auto active:scale-98"
+                    >
+                      <span className="material-symbols-outlined text-sm">play_circle</span>
+                      <span>Abrir Estudio de Video (~$0.15)</span>
+                      <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                    </button>
+                  </div>
+
+                  {/* Banner de Acceso a Pancartas Generadas (Siempre accesible) */}
+                  <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/15 border-2 border-emerald-400 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+                        <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          {bannerHistory.length > 0 || generatedBannersList.length > 0 ? 'verified' : 'photo_library'}
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-emerald-950 flex items-center gap-1.5">
+                          <span>
+                            {bannerHistory.length > 0 || generatedBannersList.length > 0
+                              ? '¡Tus Pancartas Generadas Están Disponibles!'
+                              : 'Estudio de Resultados e Historial de 24 Horas'}
+                          </span>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase border border-emerald-300">
+                            {bannerHistory.length > 0 ? `${bannerHistory.length} Guardadas` : '24 Horas'}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-emerald-800 mt-0.5">
+                          {bannerHistory.length > 0 || generatedBannersList.length > 0
+                            ? 'Haz clic aquí para ver tu galería completa de pancartas, descargarlas o enviarlas a tu campaña.'
+                            : 'Accede al panel de resultados para generar tu pack con tu producto real o consultar imágenes anteriores.'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBannerFlowStep(4);
+                      }}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                    >
+                      <span className="material-symbols-outlined text-sm">visibility</span>
+                      <span>Ver Pancartas Generadas</span>
+                      <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
                     {/* Left Column: Config Panel */}
                     <div className="xl:col-span-7 space-y-6">
                       
                       {/* Template Selection */}
                       <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-base font-bold text-[#0b1c30] flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#0058bc]">palette</span>
-                            {language === 'en' ? 'Select Layout Preset' : 'Seleccionar Plantilla de Diseño'}
-                          </h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                          <div>
+                            <h3 className="text-base font-bold text-[#0b1c30] flex items-center gap-2">
+                              <span className="material-symbols-outlined text-[#0058bc]">palette</span>
+                              <span>{language === 'en' ? 'Choose Your Banner Template' : 'Elige tu Plantilla de Pancarta'}</span>
+                            </h3>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              {language === 'en'
+                                ? 'Select 1 banner template ($0.05 USD) or build a pack of up to 6 banners if you prefer.'
+                                : 'Escoge 1 sola pancarta ($0.05 USD) o arma un pack de hasta 6 si lo deseas.'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-black border flex items-center gap-1 ${
+                              selectedTemplates.length === 1
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}>
+                              <span className="material-symbols-outlined text-sm">
+                                {selectedTemplates.length >= 1 ? 'verified' : 'pending'}
+                              </span>
+                              <span>
+                                {selectedTemplates.length === 1
+                                  ? '1 pancarta ($0.05 USD)'
+                                  : `${selectedTemplates.length} de ${MAX_BANNER_TEMPLATES_COUNT} ($${(selectedTemplates.length * 0.05).toFixed(2)} USD)`}
+                              </span>
+                            </span>
+                            {selectedTemplates.length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => resetToOneTemplate(selectedTemplates[0])}
+                                className="px-2.5 py-1 bg-white border border-slate-200 hover:border-emerald-400 text-emerald-700 font-bold text-[10px] rounded-lg shadow-2xs transition-all cursor-pointer"
+                              >
+                                Solo 1 ($0.05)
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={autoSelectSixTemplates}
+                                className="px-2.5 py-1 bg-white border border-slate-200 hover:border-blue-400 text-blue-700 font-bold text-[10px] rounded-lg shadow-2xs transition-all cursor-pointer"
+                              >
+                                Pack de 6 ($0.30)
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        
+
                         {/* Category Filter Tabs */}
                         <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-none mb-3">
                           {[
@@ -12672,27 +13946,101 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           ))}
                         </div>
 
-                        {/* Templates Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
+                        {/* Templates Grid with intuitive selection */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+                          {/* Card especial: Subir Tu Propia Pancarta Personalizada */}
+                          <div
+                            onClick={() => customBannerFileInputRef.current?.click()}
+                            className={`group relative cursor-pointer rounded-xl overflow-hidden aspect-[4/5] flex flex-col items-center justify-center p-3 text-center transition-all select-none border-2 border-dashed shadow-sm ${
+                              customUploadedBanner
+                                ? 'border-blue-500 bg-blue-50/70 ring-2 ring-blue-400'
+                                : 'border-blue-300 hover:border-blue-500 bg-gradient-to-b from-blue-50/60 to-indigo-50/40 hover:bg-blue-50'
+                            }`}
+                          >
+                            {customUploadedBanner ? (
+                              <>
+                                <img src={customUploadedBanner} alt="Subida" className="absolute inset-0 w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center p-2 text-white">
+                                  <span className="material-symbols-outlined text-2xl text-emerald-400 mb-1">verified</span>
+                                  <span className="text-xs font-black">Tu Pancarta Subida</span>
+                                  <span className="text-[9px] text-slate-200 mt-0.5">Haz clic para cambiar</span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform shadow-2xs">
+                                  <span className="material-symbols-outlined text-2xl">cloud_upload</span>
+                                </div>
+                                <h4 className="text-xs font-black text-blue-950 group-hover:text-blue-700">Subir Mi Pancarta</h4>
+                                <p className="text-[9px] text-slate-500 mt-1 leading-snug px-1">
+                                  Sube tu propio anuncio o diseño para clonar su estilo
+                                </p>
+                                <span className="mt-2 text-[9px] font-bold text-blue-700 bg-blue-100/90 border border-blue-200 px-2 py-0.5 rounded-full">
+                                  $0.03612 USD
+                                </span>
+                              </>
+                            )}
+                          </div>
+
                           {[...CREATIVE_TEMPLATES, ...dbTemplates].filter(tpl =>
                             templateCategoryFilter === 'all' || tpl.category === templateCategoryFilter
                           ).map(tpl => {
-                            const isSelected = selectedTemplate?.id === tpl.id;
+                            const selIdx = selectedTemplates.findIndex(item => item.id === tpl.id);
+                            const isSelected = selIdx !== -1;
                             const isDbTemplate = !!tpl.preview_image_url;
+
+                            const handleCardClick = () => {
+                              if (selectedTemplates.length <= 1 && !isSelected) {
+                                selectSingleTemplate(tpl);
+                              } else {
+                                toggleTemplateSelection(tpl);
+                              }
+                            };
 
                             if (isDbTemplate) {
                               return (
                                 <div
                                   key={tpl.id}
-                                  onClick={() => setSelectedTemplate(tpl)}
-                                  className={`group relative cursor-pointer rounded-lg overflow-hidden aspect-[4/5] flex flex-col justify-end transition-all select-none border-2 ${
-                                    isSelected ? 'border-[#0058bc] shadow ring-2 ring-[#0058bc]/30 scale-[1.01]' : 'border-slate-200 hover:border-[#0058bc]/40'
+                                  onClick={handleCardClick}
+                                  className={`group relative cursor-pointer rounded-xl overflow-hidden aspect-[4/5] flex flex-col justify-end transition-all select-none border-2 shadow-sm ${
+                                    isSelected
+                                      ? 'border-emerald-500 shadow-md ring-3 ring-emerald-400/40 scale-[1.02]'
+                                      : 'border-slate-200 hover:border-[#0058bc]/60 opacity-85 hover:opacity-100'
                                   }`}
                                   style={{ backgroundImage: `url(${tpl.preview_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
                                 >
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                                  <div className="relative z-10 p-2 text-white">
-                                    <h4 className="text-[10px] font-bold truncate leading-tight">{tpl.name}</h4>
+                                  {/* Badge de orden o estado */}
+                                  <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
+                                    {isSelected ? (
+                                      <span className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40">
+                                        <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                                        <span>{selectedTemplates.length === 1 ? 'Elegida' : `#${selIdx + 1}`}</span>
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleTemplateSelection(tpl);
+                                        }}
+                                        className="bg-black/50 hover:bg-black/80 text-white text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 backdrop-blur-xs border border-white/20 transition-all"
+                                      >
+                                        <span className="material-symbols-outlined text-[10px]">add</span>
+                                        <span>{selectedTemplates.length === 1 ? '+ Pack' : 'Elegir'}</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                                  <div className="relative z-10 p-2.5 text-white">
+                                    <div className="flex items-center gap-1 mb-0.5">
+                                      <span className="text-xs">{tpl.icon || '🎨'}</span>
+                                      <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-xs px-1.5 py-0.2 rounded text-white">
+                                        {tpl.category}
+                                      </span>
+                                    </div>
+                                    <h4 className="text-[11px] font-black truncate leading-tight drop-shadow-sm">{tpl.name}</h4>
+                                    <p className="text-[9px] text-slate-200 line-clamp-1 leading-tight mt-0.5">{tpl.description}</p>
                                   </div>
                                 </div>
                               );
@@ -12701,13 +14049,25 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                             return (
                               <div
                                 key={tpl.id}
-                                onClick={() => setSelectedTemplate(tpl)}
-                                className={`cursor-pointer rounded-lg border p-2 flex flex-col justify-between transition-all select-none aspect-[4/5] ${
-                                  isSelected ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-[#0058bc]' : 'bg-white border-[#c1c6d6] hover:border-[#0058bc]/40'
+                                onClick={handleCardClick}
+                                className={`group relative cursor-pointer rounded-lg border-2 p-2.5 flex flex-col justify-between transition-all select-none aspect-[4/5] ${
+                                  isSelected
+                                    ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-500 shadow-sm ring-2 ring-emerald-400/30'
+                                    : 'bg-white border-[#c1c6d6] hover:border-[#0058bc]/40'
                                 }`}
                               >
+                                <div className="flex items-start justify-between">
+                                  <span className="text-xl">{tpl.icon}</span>
+                                  {isSelected ? (
+                                    <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                                      <span className="material-symbols-outlined text-[11px]">check</span>
+                                      {selectedTemplates.length === 1 ? 'Elegida' : `#${selIdx + 1}`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px] font-bold">+</span>
+                                  )}
+                                </div>
                                 <div>
-                                  <span className="text-lg">{tpl.icon}</span>
                                   <h4 className="text-[10px] font-bold text-slate-800 leading-tight mt-1 line-clamp-1">{tpl.name}</h4>
                                   <p className="text-[8px] text-slate-400 line-clamp-2 mt-0.5 leading-tight">{tpl.description}</p>
                                 </div>
@@ -12718,152 +14078,318 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </section>
                     </div>
 
-                    {/* Right Column: Mini Preview & Navigation */}
+                    {/* Right Column: Preview of Selected Template(s) & Navigation */}
                     <div className="xl:col-span-5">
-                      <div className="bg-white rounded-2xl border border-[#c1c6d6] p-5 shadow-sm text-center">
-                        <span className="text-[9px] font-black uppercase text-[#0058bc] tracking-wider block mb-2">{language === 'en' ? 'Selected Style Preview' : 'Estilo de Composición'}</span>
-                        <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 p-2 flex items-center justify-center aspect-[4/5] max-w-[220px] mx-auto w-full mb-4">
-                          {selectedTemplate ? (
-                            selectedTemplate.preview_image_url ? (
-                              <img src={selectedTemplate.preview_image_url} alt={selectedTemplate.name} className="w-full h-full object-contain rounded-lg shadow-sm" />
-                            ) : (
-                              <div className="text-center p-3">
-                                <span className="text-3xl block mb-1">{selectedTemplate.icon}</span>
-                                <h4 className="text-xs font-bold text-slate-800">{selectedTemplate.name}</h4>
-                                <p className="text-[10px] text-slate-500 mt-1">{selectedTemplate.description}</p>
-                              </div>
-                            )
-                          ) : (
-                            <div className="text-center p-3 text-slate-300">
-                              <span className="material-symbols-outlined text-4xl mb-1">image_search</span>
-                              <p className="text-[10px] font-bold">{language === 'en' ? 'Select Template' : 'Elige una Plantilla'}</p>
-                            </div>
-                          )}
+                      <div className="bg-white rounded-2xl border border-[#c1c6d6] p-5 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <div>
+                            <span className="text-[10px] font-black uppercase text-[#0058bc] tracking-wider block">
+                              {selectedTemplates.length === 1 ? 'Pancarta Seleccionada' : `Pack de ${selectedTemplates.length} Pancartas`}
+                            </span>
+                            <span className="text-xs font-bold text-slate-700">
+                              {selectedTemplates.length === 1
+                                ? `✅ 1 Pancarta: ${selectedTemplates[0]?.name || selectedTemplate?.name}`
+                                : `✅ ${selectedTemplates.length} de ${MAX_BANNER_TEMPLATES_COUNT} seleccionadas`}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-black bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded-full border border-emerald-300">
+                            {selectedTemplates.length === 1
+                              ? '$0.05 USD'
+                              : `$${(selectedTemplates.length * 0.05).toFixed(2)} USD total`}
+                          </span>
                         </div>
 
-                        {selectedTemplate && (
+                        {/* Botón CTA superior para continuar directamente */}
+                        <button
+                          type="button"
+                          disabled={selectedTemplates.length === 0}
+                          onClick={() => {
+                            setBannerCreationMode('higgsfield');
+                            setHiggsfieldMediaType('image');
+                            setBannerFlowStep(2);
+                            setBannerPromptCopied(false);
+                          }}
+                          className={`w-full py-3 px-3 font-black text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-md active:scale-98 ${
+                            selectedTemplates.length > 0
+                              ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-600/25 hover:opacity-95 cursor-pointer ring-2 ring-emerald-300/40'
+                              : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-sm">flare</span>
+                          <span>
+                            {selectedTemplates.length === 1
+                              ? 'Continuar al Paso 2: Generar con mi Producto ($0.05 USD)'
+                              : `Continuar al Paso 2: Generar Pack (${selectedTemplates.length} pancartas - $${(selectedTemplates.length * 0.05).toFixed(2)} USD)`}
+                          </span>
+                          <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                        </button>
+
+                        {/* Preview de la pancarta única seleccionada o mini-grid del pack */}
+                        {selectedTemplates.length === 1 ? (
+                          <div className="p-3 bg-gradient-to-br from-slate-50 to-emerald-50/30 rounded-xl border border-slate-200 space-y-3">
+                            <div className="flex gap-3 items-center">
+                              <div className="w-20 h-24 rounded-lg overflow-hidden border border-slate-300 shrink-0 bg-slate-200">
+                                {selectedTemplates[0]?.preview_image_url ? (
+                                  <img
+                                    src={selectedTemplates[0].preview_image_url}
+                                    alt={selectedTemplates[0].name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                                    <span className="text-2xl">{selectedTemplates[0]?.icon || '🎨'}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                  {selectedTemplates[0]?.category || 'Estilo'}
+                                </span>
+                                <h4 className="text-xs font-black text-slate-900 truncate mt-1">
+                                  {selectedTemplates[0]?.name}
+                                </h4>
+                                <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">
+                                  {selectedTemplates[0]?.description}
+                                </p>
+                                <span className="text-[10px] font-bold text-emerald-800 block mt-1">
+                                  Costo: $0.05 USD (1 pancarta)
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200 leading-tight">
+                              💡 La IA tomará la estructura exacta de esta plantilla y le integrará tu producto con su paleta de color personalizada.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-2">
+                            {selectedTemplates.map((tpl, slotIdx) => (
+                              <div
+                                key={tpl.id + slotIdx}
+                                className="relative group rounded-xl overflow-hidden border-2 border-emerald-500 bg-slate-50 aspect-[4/5] p-1 flex flex-col justify-between shadow-2xs"
+                              >
+                                {tpl.preview_image_url ? (
+                                  <img src={tpl.preview_image_url} alt={tpl.name} className="w-full h-full object-cover rounded-lg" />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-center p-1">
+                                    <span className="text-lg">{tpl.icon || '🎨'}</span>
+                                    <span className="text-[8px] font-bold text-slate-700 truncate w-full mt-0.5">{tpl.name}</span>
+                                  </div>
+                                )}
+                                <div className="absolute top-1 left-1 bg-slate-900/80 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full">
+                                  #{slotIdx + 1}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleTemplateSelection(tpl);
+                                  }}
+                                  title="Quitar del pack"
+                                  className="absolute top-1 right-1 w-4 h-4 rounded-full bg-red-600/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[10px] cursor-pointer"
+                                >
+                                  ×
+                                </button>
+                                <div className="absolute bottom-0 inset-x-0 bg-black/70 p-1 text-white text-[8px] font-bold truncate text-center">
+                                  {tpl.name}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="space-y-2 pt-1">
+                          {/* Botón principal para avanzar a Step 2 */}
                           <button
                             type="button"
-                            onClick={() => { setBannerFlowStep(2); setBannerPromptCopied(false); }}
-                            className="w-full py-3.5 bg-[#0058bc] text-white font-bold text-xs rounded-xl hover:bg-[#054ADA] transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#0058bc]/25 active:scale-98"
+                            disabled={selectedTemplates.length === 0}
+                            onClick={() => {
+                              setBannerCreationMode('higgsfield');
+                              setHiggsfieldMediaType('image');
+                              setBannerFlowStep(2);
+                              setBannerPromptCopied(false);
+                            }}
+                            className={`w-full py-3.5 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-md active:scale-98 ${
+                              selectedTemplates.length > 0
+                                ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-emerald-600/25 hover:opacity-95 cursor-pointer ring-2 ring-emerald-300/40'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                            }`}
                           >
-                            <span>{language === 'en' ? 'Create Ad with ChatGPT' : 'Crear la Publicidad'}</span>
+                            <span className="material-symbols-outlined text-sm">flare</span>
+                            <span>
+                              {selectedTemplates.length === 1
+                                ? 'Continuar al Paso 2: Subir Producto ($0.05 USD)'
+                                : `Continuar al Paso 2: Subir Producto ($${(selectedTemplates.length * 0.05).toFixed(2)} USD)`}
+                            </span>
                             <span className="material-symbols-outlined text-xs">arrow_forward</span>
                           </button>
-                        )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBannerCreationMode('video');
+                              setHiggsfieldMediaType('video');
+                              if (!selectedAspectRatio || selectedAspectRatio === '4:5') setSelectedAspectRatio('9:16');
+                              setBannerFlowStep(2);
+                              setBannerPromptCopied(false);
+                            }}
+                            className="w-full py-2.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm text-purple-600">movie</span>
+                            <span>Crear Video Comercial Seedance (~$0.15 USD)</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </motion.div>
               )}
 
-              {/* PASO 2: MODO ASISTIDO CHATGPT */}
-              {bannerFlowStep === 2 && selectedTemplate && (
+              {/* PASO 2: CREACIÓN DE PANCARTA O VIDEO COMERCIAL */}
+              {bannerFlowStep === 2 && (
                 <motion.div
                   key="banner-step2"
                   initial={{ opacity: 0, x: 30 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -30 }}
                   transition={{ duration: 0.3 }}
-                  className="max-w-2xl mx-auto space-y-6"
+                  className="w-full space-y-8"
                 >
-                  <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm space-y-6">
-                    <div className="text-center">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mx-auto mb-2 text-[#0058bc]">
-                        <span className="material-symbols-outlined text-2xl">content_copy</span>
-                      </div>
-                      <h3 className="text-base font-bold text-[#0b1c30]">
-                        {language === 'en' ? 'Assisted Mode: Create in ChatGPT' : 'Modo Asistido: Crear en ChatGPT'}
-                      </h3>
-                      <p className="text-xs text-[#414754] mt-0.5">
-                        {language === 'en'
-                          ? 'Copy the design instructions and attach your photo in ChatGPT to create the ad.'
-                          : 'Copia las instrucciones de diseño y adjunta tu foto en ChatGPT para crear el anuncio.'}
-                      </p>
-                    </div>
 
-                    {/* ChatGPT Steps */}
-                    <div className="space-y-2.5">
-                      {[
-                        { num: 1, icon: 'content_copy', title: language === 'en' ? 'Copy prepared instructions' : 'Copia las instrucciones preparadas', desc: language === 'en' ? 'Click the button below to copy the prompt calibrated with your template.' : 'Haz clic en el botón inferior para copiar el prompt calibrado con tu plantilla.' },
-                        { num: 2, icon: 'open_in_new', title: language === 'en' ? 'Open ChatGPT' : 'Abre ChatGPT', desc: language === 'en' ? 'Go to ChatGPT and paste the prompt in the chat.' : 'Entra a ChatGPT y pega el prompt en el chat.' },
-                        { num: 3, icon: 'add_photo_alternate', title: language === 'en' ? 'Attach your product' : 'Adjunta tu producto', desc: language === 'en' ? 'Attach the same photo of your product in the message.' : 'Adjunta la misma foto de tu producto en el mensaje.' },
-                        { num: 4, icon: 'cloud_upload', title: language === 'en' ? 'Download your image and upload it here' : 'Descarga tu imagen y súbela aquí', desc: language === 'en' ? 'When ChatGPT returns the image, press Continue to take it to your campaigns.' : 'Cuando ChatGPT te devuelva la imagen, presiona Continuar para llevarla a tus campañas.' }
-                      ].map((s) => (
-                        <div key={s.num} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm text-xs font-bold">
-                            {s.num}
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-bold text-[#0b1c30]">{s.title}</h4>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{s.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Action buttons in Fallback */}
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const baseConfig = (selectedTemplate as any)._rawConfigJson || selectedTemplate;
-                          const promptToCopy = [
-                            `Actúa como un director creativo y diseñador publicitario de alto nivel especializado en ecommerce y conversión.`,
-                            `Crea un anuncio publicitario premium y profesional en formato ${selectedAspectRatio || '4:5'} basado fielmente en la foto del producto que te adjunto y siguiendo exactamente las reglas de esta plantilla de diseño.`,
-                            bannerProductOffer ? `\nOFERTA O TITULAR COMERCIAL DESTACADO A RESALTAR:\n"${bannerProductOffer}"` : '',
-                            `\nINSTRUCCIONES CLAVE DE FIDELIDAD DEL PRODUCTO:\n1. Conserva exactamente el producto original de la foto: empaque, frasco/tarro/caja, etiquetas, tipografía de marca y colores reales sin inventar ni distorsionar nada.\n2. Posiciona el producto como protagonista con iluminación publicitaria de estudio y sombras naturales integradas al fondo.\n3. Incorpora textos y ganchos publicitarios legibles, llamativos y acordes a la oferta indicada.\n4. La imagen debe tener calidad fotográfica comercial ultra nítida lista para anuncios.\n`,
-                            `====================================\nDIRECTRICES DE LA PLANTILLA (${selectedTemplate.name}):\n====================================\n${JSON.stringify(baseConfig, null, 2)}`
-                          ].filter(Boolean).join('\n\n');
-
-                          navigator.clipboard.writeText(promptToCopy);
-                          setBannerPromptCopied(true);
-                          setToast({ message: language === 'en' ? '✅ Instructions copied!' : '✅ ¡Instrucciones copiadas!', type: 'success' });
-                        }}
-                        className="w-full py-3 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all active:scale-98"
-                      >
-                        <span className="material-symbols-outlined text-sm">content_copy</span>
-                        {bannerPromptCopied 
-                          ? (language === 'en' ? '✅ Prompt Copied!' : '✅ ¡Instrucciones Copiadas!') 
-                          : (language === 'en' ? 'Copy Instructions & Prompt' : 'Copiar Instrucciones y Prompt')}
-                      </button>
-
-                      <a
-                        href="https://chatgpt.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full py-3 bg-[#10a37f] hover:opacity-90 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all"
-                      >
-                        <span>Abrir ChatGPT</span>
-                        <span className="material-symbols-outlined text-xs">open_in_new</span>
-                      </a>
-                    </div>
-
-                    {/* Navigation buttons */}
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBannerFlowStep(1);
-                        }}
-                        className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
-                      >
-                        <span className="material-symbols-outlined text-xs">arrow_back</span>
-                        {language === 'en' ? 'Back' : 'Atrás'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
+                    {bannerCreationMode === 'clothing' ? (
+                      <FashionSeedreamStudio
+                        language={language}
+                        setToast={setToast}
+                        falKeyConfigured={configData.fal_key_configured}
+                      />
+                    ) : ((bannerCreationMode === 'higgsfield' && higgsfieldMediaType === 'image') || bannerCreationMode === 'ecom') ? (
+                      <MarketingImageStudio
+                        language={language}
+                        setToast={setToast}
+                        falKeyConfigured={configData.fal_key_configured}
+                        onContinueToCampaigns={(imgUrl) => {
+                          setFinalUploadedImage(imgUrl);
+                          setCampaignImagePreview(imgUrl);
                           setBannerFlowStep(3);
                         }}
-                        className="px-5 py-2 bg-[#0058bc] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 hover:bg-[#054ADA] transition-all shadow"
-                      >
-                        {language === 'en' ? 'Continue and Upload Ad' : 'Continuar y Subir Anuncio'}
-                        <span className="material-symbols-outlined text-xs">arrow_forward</span>
-                      </button>
-                    </div>
-                  </section>
+                      />
+                  ) : (bannerCreationMode === 'video' || (bannerCreationMode === 'higgsfield' && higgsfieldMediaType === 'video')) ? (
+                    <CommercialVideoStudio
+                      language={language}
+                      setToast={setToast}
+                      configData={configData}
+                      initialProductImage={productImagePreview || undefined}
+                      initialOffer={bannerProductOffer}
+                      onContinueToCampaigns={(videoUrl) => {
+                        setGeneratedVideo(videoUrl);
+                        setFinalUploadedImage(videoUrl);
+                        setCampaignImagePreview(videoUrl);
+                        setBannerFlowStep(3);
+                      }}
+                      onSwitchToImageMode={() => {
+                        setBannerCreationMode('ecom');
+                        setHiggsfieldMediaType('image');
+                      }}
+                    />
+                  ) : (
+                    /* CHATGPT ASSISTED MODE */
+                    <section className="bg-white rounded-2xl border border-[#c1c6d6] p-6 shadow-sm space-y-6">
+                      <div className="text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mx-auto mb-2 text-[#0058bc]">
+                          <span className="material-symbols-outlined text-2xl">content_copy</span>
+                        </div>
+                        <h3 className="text-base font-bold text-[#0b1c30]">
+                          {language === 'en' ? 'Assisted Mode: Create in ChatGPT' : 'Modo Asistido: Crear en ChatGPT'}
+                        </h3>
+                        <p className="text-xs text-[#414754] mt-0.5">
+                          {language === 'en'
+                            ? 'Copy the design instructions and attach your photo in ChatGPT to create the ad.'
+                            : 'Copia las instrucciones de diseño y adjunta tu foto en ChatGPT para crear el anuncio.'}
+                        </p>
+                      </div>
+
+                      {/* ChatGPT Steps */}
+                      <div className="space-y-2.5">
+                        {[
+                          { num: 1, icon: 'content_copy', title: language === 'en' ? 'Copy prepared instructions' : 'Copia las instrucciones preparadas', desc: language === 'en' ? 'Click the button below to copy the prompt calibrated with your template.' : 'Haz clic en el botón inferior para copiar el prompt calibrado con tu plantilla.' },
+                          { num: 2, icon: 'open_in_new', title: language === 'en' ? 'Open ChatGPT' : 'Abre ChatGPT', desc: language === 'en' ? 'Go to ChatGPT and paste the prompt in the chat.' : 'Entra a ChatGPT y pega el prompt en el chat.' },
+                          { num: 3, icon: 'add_photo_alternate', title: language === 'en' ? 'Attach your product' : 'Adjunta tu producto', desc: language === 'en' ? 'Attach the same photo of your product in the message.' : 'Adjunta la misma foto de tu producto en el mensaje.' },
+                          { num: 4, icon: 'cloud_upload', title: language === 'en' ? 'Download your image and upload it here' : 'Descarga tu imagen y súbela aquí', desc: language === 'en' ? 'When ChatGPT returns the image, press Continue to take it to your campaigns.' : 'Cuando ChatGPT te devuelva la imagen, presiona Continuar para llevarla a tus campañas.' }
+                        ].map((s) => (
+                          <div key={s.num} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-sm text-xs font-bold">
+                              {s.num}
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-[#0b1c30]">{s.title}</h4>
+                              <p className="text-[10px] text-slate-500 mt-0.5">{s.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Action buttons in Fallback */}
+                      <div className="space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const baseConfig = (selectedTemplate as any)?._rawConfigJson || selectedTemplate || {};
+                            const promptToCopy = [
+                              `Actúa como un director creativo y diseñador publicitario de alto nivel especializado en ecommerce y conversión.`,
+                              `Crea un anuncio publicitario premium y profesional en formato ${selectedAspectRatio || '4:5'} basado fielmente en la foto del producto que te adjunto y siguiendo exactamente las reglas de esta plantilla de diseño.`,
+                              bannerProductOffer ? `\nOFERTA O TITULAR COMERCIAL DESTACADO A RESALTAR:\n"${bannerProductOffer}"` : '',
+                              `\nINSTRUCCIONES CLAVE DE FIDELIDAD DEL PRODUCTO:\n1. Conserva exactamente el producto original de la foto: empaque, frasco/tarro/caja, etiquetas, tipografía de marca y colores reales sin inventar ni distorsionar nada.\n2. Posiciona el producto como protagonista con iluminación publicitaria de estudio y sombras naturales integradas al fondo.\n3. Incorpora textos y ganchos publicitarios legibles, llamativos y acordes a la oferta indicada.\n4. La imagen debe tener calidad fotográfica comercial ultra nítida lista para anuncios.\n`,
+                              `====================================\nDIRECTRICES DE LA PLANTILLA (${selectedTemplate?.name || 'Comercial'}):\n====================================\n${JSON.stringify(baseConfig, null, 2)}`
+                            ].filter(Boolean).join('\n\n');
+
+                            navigator.clipboard.writeText(promptToCopy);
+                            setBannerPromptCopied(true);
+                            setToast({ message: language === 'en' ? '✅ Instructions copied!' : '✅ ¡Instrucciones copiadas!', type: 'success' });
+                          }}
+                          className="w-full py-3 bg-[#0058bc] hover:bg-[#054ADA] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all active:scale-98"
+                        >
+                          <span className="material-symbols-outlined text-sm">content_copy</span>
+                          {bannerPromptCopied 
+                            ? (language === 'en' ? '✅ Prompt Copied!' : '✅ ¡Instrucciones Copiadas!') 
+                            : (language === 'en' ? 'Copy Instructions & Prompt' : 'Copiar Instrucciones y Prompt')}
+                        </button>
+
+                        <a
+                          href="https://chatgpt.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-3 bg-[#10a37f] hover:opacity-90 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow transition-all"
+                        >
+                          <span>Abrir ChatGPT</span>
+                          <span className="material-symbols-outlined text-xs">open_in_new</span>
+                        </a>
+                      </div>
+
+                      {/* Navigation buttons */}
+                      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBannerFlowStep(1);
+                          }}
+                          className="px-4 py-2 border border-[#c1c6d6] text-[#414754] font-semibold rounded-xl text-xs flex items-center gap-1.5 hover:bg-[#eff4ff] transition-all"
+                        >
+                          <span className="material-symbols-outlined text-xs">arrow_back</span>
+                          {language === 'en' ? 'Back' : 'Atrás'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBannerFlowStep(3);
+                          }}
+                          className="px-5 py-2 bg-[#0058bc] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 hover:bg-[#054ADA] transition-all shadow"
+                        >
+                          {language === 'en' ? 'Continue and Upload Ad' : 'Continuar y Subir Anuncio'}
+                          <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                        </button>
+                      </div>
+                    </section>
+                  )}
                 </motion.div>
               )}
 
@@ -13022,6 +14548,198 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </button>
                     </div>
                   </div>
+                </motion.div>
+              )}
+
+              {/* PASO 4: GALERÍA DE PANCARTAS GUARDADAS (BAÚL PERMANENTE) */}
+              {bannerFlowStep === 4 && (
+                <motion.div
+                  key="banner-step4-gallery"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-6"
+                >
+                  {/* Barra Superior de la Galería */}
+                  <div className="bg-white rounded-3xl border-2 border-emerald-400 p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25 shrink-0">
+                        <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-xl md:text-2xl font-black text-[#0b1c30]">
+                            {language === 'en' ? 'My Saved Banners & Creatives' : 'Mis Pancartas Generadas y Guardadas'}
+                          </h2>
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-full border border-emerald-300">
+                            {bannerHistory.length} {language === 'en' ? 'Saved Assets' : 'Pancartas Guardadas'}
+                          </span>
+                          <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-full border border-blue-200">
+                            Permanente
+                          </span>
+                        </div>
+                        <p className="text-xs md:text-sm text-slate-600 mt-1 max-w-2xl">
+                          {language === 'en'
+                            ? 'All generated images and packs are permanently stored here. Download them anytime or assign them to your Meta Ads campaigns.'
+                            : 'Todas tus imágenes generadas se guardan de forma permanente aquí. No se borran al recargar. Puedes descargarlas en alta calidad o enviarlas a tus campañas de anuncios.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Acciones principales de la Galería */}
+                    <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setBannerFlowStep(1)}
+                        className="flex-1 md:flex-none px-5 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:opacity-95 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <span className="material-symbols-outlined text-base">add_photo_alternate</span>
+                        <span>{language === 'en' ? '+ Generate New Banners' : '+ Generar Nuevas Pancartas'}</span>
+                      </button>
+
+                      {bannerHistory.length > 0 && (
+                        <button
+                          type="button"
+                          disabled={isDownloadingAllBanners}
+                          onClick={handleDownloadAllBanners}
+                          className="flex-1 md:flex-none px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {isDownloadingAllBanners ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Descargando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="material-symbols-outlined text-base">download_for_offline</span>
+                              <span>Descargar Todas ({bannerHistory.length})</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cuadrícula de Pancartas Guardadas */}
+                  {bannerHistory.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                      {bannerHistory.map((item, idx) => (
+                        <div
+                          key={item.id || idx}
+                          className="bg-white rounded-2xl border-2 border-slate-200 hover:border-emerald-500 p-3.5 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all group"
+                        >
+                          <div className="space-y-3">
+                            {/* Cabecera de la tarjeta */}
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                              <span className="text-[11px] font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg truncate max-w-[180px]">
+                                #{idx + 1} {item.templateName || 'Pancarta'}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {new Date(item.createdAt || Date.now()).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+
+                            {/* Imagen en grande */}
+                            <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-[4/5] flex items-center justify-center border border-slate-200">
+                              <img
+                                src={item.imageUrl}
+                                alt={item.templateName}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <a
+                                href={item.imageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Ver en tamaño completo"
+                              >
+                                <span className="material-symbols-outlined text-sm">fullscreen</span>
+                              </a>
+                            </div>
+                          </div>
+
+                          {/* Acciones de la tarjeta */}
+                          <div className="pt-3 space-y-2 border-t border-slate-100 mt-3">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const filename = `rifx-pancarta-${idx + 1}-${item.templateName.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.png`;
+                                  downloadMediaImmediately(item.imageUrl, filename);
+                                  setToast({ message: `Descargando pancarta #${idx + 1}...`, type: 'info' });
+                                }}
+                                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-[11px] rounded-xl transition-all flex items-center justify-center gap-1 cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-sm">download</span>
+                                <span>Descargar HD</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm('¿Seguro que deseas eliminar esta pancarta de tu galería guardada?')) {
+                                    const updated = deleteBannerFromHistory(item.id);
+                                    setBannerHistory(updated);
+                                    setToast({ message: 'Pancarta eliminada.', type: 'info' });
+                                  }
+                                }}
+                                className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition-all cursor-pointer"
+                                title="Eliminar de la galería"
+                              >
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFinalUploadedImage(item.imageUrl);
+                                setCampaignImagePreview(item.imageUrl);
+                                setGeneratedBanner(item.imageUrl);
+                                setToast({
+                                  message: `Pancarta "${item.templateName}" vinculada como creatividad de campaña.`,
+                                  type: 'success'
+                                });
+                                setBannerFlowStep(3);
+                              }}
+                              className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                            >
+                              <span className="material-symbols-outlined text-sm">campaign</span>
+                              <span>Usar en Campaña de Anuncios</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Estado Vacío de la Galería */
+                    <div className="bg-white rounded-3xl border-2 border-dashed border-slate-300 p-12 text-center space-y-5 shadow-2xs max-w-2xl mx-auto">
+                      <div className="w-20 h-20 rounded-3xl bg-emerald-50 border-2 border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+                        <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>photo_library</span>
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-black text-slate-900">
+                          {language === 'en' ? 'Your Saved Banners Vault is Empty' : 'Tu Galería de Pancartas Guardadas está Lista'}
+                        </h3>
+                        <p className="text-xs md:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                          {language === 'en'
+                            ? 'Every banner you generate with your product and templates will stay saved here permanently. Generate your first pack now!'
+                            : 'Todas las pancartas que generes con tu producto real se quedarán guardadas aquí de forma permanente. No se borrarán al recargar o cerrar la página.'}
+                        </p>
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setBannerFlowStep(1)}
+                          className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer active:scale-95"
+                        >
+                          <span className="material-symbols-outlined text-base">flare</span>
+                          <span>{language === 'en' ? 'Generate My First 6 Banners' : 'Generar Mi Pack de Pancartas con mi Producto'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -18789,27 +20507,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       </div>
                     </div>
 
-                    {/* Radio Cards: Sharp, FLUX, OpenAI */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {/* Radio Cards: Sharp, FLUX, OpenAI, Higgsfield */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
 
                       {/* Pure Sharp Card ($0 Costo) */}
                       <button
                         id="admin-visual-provider-sharp"
                         type="button"
-                        onClick={() => setConfigData({ ...configData, visual_render_provider: 'sharp' })}
+                        onClick={() => handleSelectVisualProvider('sharp')}
                         className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-[1.02] ${
-                          configData.visual_render_provider === 'sharp' || !configData.visual_render_provider
+                          configData.visual_render_provider === 'sharp'
                             ? 'border-cyan-400 bg-cyan-50 shadow-lg shadow-cyan-200/60'
                             : 'border-slate-200 bg-white hover:border-slate-300 shadow-sm'
                         }`}
                       >
                         {/* Selection indicator */}
                         <div className={`absolute top-5 right-5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                          configData.visual_render_provider === 'sharp' || !configData.visual_render_provider
+                          configData.visual_render_provider === 'sharp'
                             ? 'border-cyan-500 bg-cyan-500'
                             : 'border-slate-300'
                         }`}>
-                          {(configData.visual_render_provider === 'sharp' || !configData.visual_render_provider) && (
+                          {configData.visual_render_provider === 'sharp' && (
                             <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1", fontSize: '12px' }}>check</span>
                           )}
                         </div>
@@ -18818,7 +20536,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                           <span className="material-symbols-outlined text-cyan-600 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>auto_fix_high</span>
                         </div>
 
-                        <h4 className={`text-base font-black mb-1 ${ (configData.visual_render_provider === 'sharp' || !configData.visual_render_provider) ? 'text-cyan-900' : 'text-slate-700' }`}>
+                        <h4 className={`text-base font-black mb-1 ${ configData.visual_render_provider === 'sharp' ? 'text-cyan-900' : 'text-slate-700' }`}>
                           Pure Sharp <span className="font-bold text-cyan-600 text-xs">(Motor Local)</span>
                         </h4>
                         <p className="text-slate-500 text-xs leading-relaxed mb-4">
@@ -18826,11 +20544,58 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </p>
 
                         <div className="flex flex-wrap gap-2">
-                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            ✓ $0 Costo
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">check</span>
+                            $0 Costo
                           </span>
-                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-cyan-100 text-cyan-700">
-                            ⚡ 1 Segundo
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-cyan-50 text-cyan-700 border border-cyan-200/80 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">bolt</span>
+                            1 Segundo
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Higgsfield AI Card (Soul v2) */}
+                      <button
+                        id="admin-visual-provider-higgsfield"
+                        type="button"
+                        onClick={() => handleSelectVisualProvider('higgsfield')}
+                        className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-[1.02] ${
+                          configData.visual_render_provider === 'higgsfield'
+                            ? 'border-amber-400 bg-amber-50 shadow-lg shadow-amber-200/60'
+                            : 'border-slate-200 bg-white hover:border-slate-300 shadow-sm'
+                        }`}
+                      >
+                        {/* Selection indicator */}
+                        <div className={`absolute top-5 right-5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          configData.visual_render_provider === 'higgsfield'
+                            ? 'border-amber-500 bg-amber-500'
+                            : 'border-slate-300'
+                        }`}>
+                          {configData.visual_render_provider === 'higgsfield' && (
+                            <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1", fontSize: '12px' }}>check</span>
+                          )}
+                        </div>
+
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center mb-4">
+                          <span className="material-symbols-outlined text-amber-600 text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>flare</span>
+                        </div>
+
+                        <h4 className={`text-base font-black mb-1 ${ configData.visual_render_provider === 'higgsfield' ? 'text-amber-900' : 'text-slate-700' }`}>
+                          Higgsfield AI <span className="font-bold text-amber-600 text-xs">(Marketing Studio • $0.05)</span>
+                        </h4>
+                        <p className="text-slate-500 text-xs leading-relaxed mb-4">
+                          Marketing Studio oficial con referencias y modo Low ($0.05 USD/imagen) y Video Seedance 2.5 (~$0.15 USD/segundo).
+                        </p>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">flare</span>
+                            $0.05 Low Mode
+                          </span>
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-orange-50 text-orange-700 border border-orange-200/80 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">public</span>
+                            open.higgsfield.ai
                           </span>
                         </div>
                       </button>
@@ -18839,7 +20604,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <button
                         id="admin-visual-provider-flux"
                         type="button"
-                        onClick={() => setConfigData({ ...configData, visual_render_provider: 'flux' })}
+                        onClick={() => handleSelectVisualProvider('flux')}
                         className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-[1.02] ${
                           configData.visual_render_provider === 'flux'
                             ? 'border-violet-400 bg-violet-50 shadow-lg shadow-violet-200/60'
@@ -18869,10 +20634,11 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </p>
 
                         <div className="flex flex-wrap gap-2">
-                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-violet-100 text-violet-700 border border-violet-200">
-                            ✨ Iluminación IA
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-violet-50 text-violet-700 border border-violet-200/80 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
+                            Iluminación IA
                           </span>
-                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500">
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 border border-slate-200/80">
                             Costo: $
                           </span>
                         </div>
@@ -18882,7 +20648,7 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                       <button
                         id="admin-visual-provider-openai"
                         type="button"
-                        onClick={() => setConfigData({ ...configData, visual_render_provider: 'openai' })}
+                        onClick={() => handleSelectVisualProvider('openai')}
                         className={`relative p-6 rounded-2xl border-2 text-left transition-all duration-300 hover:scale-[1.02] ${
                           configData.visual_render_provider === 'openai'
                             ? 'border-emerald-400 bg-emerald-50 shadow-lg shadow-emerald-200/60'
@@ -18912,15 +20678,205 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         </p>
 
                         <div className="flex flex-wrap gap-2">
-                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 border border-emerald-200">
-                            🎨 DALL-E
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">palette</span>
+                            DALL-E
                           </span>
-                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500">
+                          <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 border border-slate-200/80">
                             Costo: $$$
                           </span>
                         </div>
                       </button>
 
+                    </div>
+
+                    {/* Monitor de Créditos y Estado de APIs */}
+                    <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100 relative overflow-hidden">
+                      <div className="relative z-10">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-5 border-b border-slate-100">
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shadow-sm shrink-0">
+                              <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                <h4 className="text-base font-black tracking-tight text-slate-800">
+                                  {language === 'en' ? 'API Credits & Balance Monitor' : 'Monitor de Créditos y Saldos de APIs'}
+                                </h4>
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-1.5">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span>{language === 'en' ? 'Live Balance' : 'En Vivo'}</span>
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                {language === 'en'
+                                  ? 'Check available credits, quotas and status to know when to top up your APIs.'
+                                  : 'Monitorea el porcentaje y saldo disponible de cada IA para saber cuándo recargar tus créditos.'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            {apiCreditsLastChecked && (
+                              <span className="text-[11px] text-slate-400 font-mono hidden md:inline-block">
+                                {language === 'en' ? 'Checked:' : 'Verificado:'} {apiCreditsLastChecked}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={fetchApiCreditsStatus}
+                              disabled={apiCreditsLoading}
+                              className="px-4 py-2 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-2 border border-slate-200/80 disabled:opacity-50 shadow-sm"
+                            >
+                              <span className={`material-symbols-outlined text-sm ${apiCreditsLoading ? 'animate-spin' : ''}`}>sync</span>
+                              <span>{apiCreditsLoading ? (language === 'en' ? 'Checking...' : 'Verificando...') : (language === 'en' ? 'Check Balances' : 'Verificar Saldos')}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Grid de Barras de Progreso de Créditos */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {(apiCreditsData.length > 0 ? apiCreditsData : [
+                            {
+                              id: 'higgsfield',
+                              name: 'Higgsfield AI (Soul v2)',
+                              badge: 'Pancartas',
+                              status: 'no_credit',
+                              percentage: 0,
+                              credits_label: '0 créditos (0%)',
+                              message: 'Saldo agotado. Recarga créditos en open.higgsfield.ai para renderizar.',
+                              recharge_url: 'https://open.higgsfield.ai',
+                              recharge_label: 'Recargar en open.higgsfield.ai',
+                              is_active_engine: configData.visual_render_provider === 'higgsfield',
+                            },
+                            {
+                              id: 'flux',
+                              name: 'fal.ai (FLUX / Inpaint)',
+                              badge: 'Visual Inpaint',
+                              status: configData.fal_key_configured ? 'active' : 'unconfigured',
+                              percentage: configData.fal_key_configured ? 100 : 0,
+                              credits_label: configData.fal_key_configured ? 'Saldo Activo (100%)' : 'Sin configurar',
+                              message: configData.fal_key_configured ? 'Listo para renderizar' : 'FAL_KEY no configurada',
+                              recharge_url: 'https://fal.ai/dashboard/billing',
+                              recharge_label: 'Facturación fal.ai',
+                              is_active_engine: configData.visual_render_provider === 'flux',
+                            },
+                            {
+                              id: 'openai',
+                              name: 'OpenAI (DALL-E & GPT)',
+                              badge: 'DALL-E 3',
+                              status: configData.openai_key_configured ? 'active' : 'unconfigured',
+                              percentage: configData.openai_key_configured ? 100 : 0,
+                              credits_label: configData.openai_key_configured ? 'Saldo Activo (100%)' : 'Sin configurar',
+                              message: configData.openai_key_configured ? 'Listo para renderizar' : 'OPENAI_API_KEY no configurada',
+                              recharge_url: 'https://platform.openai.com/billing',
+                              recharge_label: 'Facturación OpenAI',
+                              is_active_engine: configData.visual_render_provider === 'openai',
+                            },
+                            {
+                              id: 'groq',
+                              name: 'Groq (Chatbot)',
+                              badge: 'Llama 3.1',
+                              status: 'active',
+                              percentage: 100,
+                              credits_label: 'Cuota Activa (100%)',
+                              message: 'Respuestas instantáneas',
+                              recharge_url: 'https://console.groq.com',
+                              recharge_label: 'Consola Groq',
+                              is_active_engine: false,
+                            },
+                          ]).map((item: any) => {
+                            const isNoCredit = item.status === 'no_credit';
+                            const isInvalid = item.status === 'invalid_key';
+                            const isActive = item.status === 'active';
+
+                            return (
+                              <div
+                                key={item.id}
+                                className={`p-4 rounded-xl border-2 flex flex-col justify-between transition-all ${
+                                  item.is_active_engine
+                                    ? 'bg-amber-50/40 border-amber-300 shadow-sm ring-1 ring-amber-400/20'
+                                    : 'bg-slate-50/70 border-slate-200/80 hover:bg-white hover:border-slate-300 hover:shadow-sm'
+                                }`}
+                              >
+                                <div>
+                                  {/* Header del Proveedor */}
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`material-symbols-outlined text-base ${
+                                        item.id === 'higgsfield' ? 'text-amber-500' :
+                                        item.id === 'flux' ? 'text-violet-500' :
+                                        item.id === 'openai' ? 'text-emerald-500' : 'text-blue-500'
+                                      }`}>
+                                        {item.id === 'higgsfield' ? 'flare' : item.id === 'flux' ? 'bolt' : item.id === 'openai' ? 'psychology' : 'chat'}
+                                      </span>
+                                      <span className="font-bold text-xs text-slate-800 truncate max-w-[130px]">{item.name}</span>
+                                    </div>
+                                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                                      item.is_active_engine
+                                        ? 'bg-amber-100 text-amber-800 border-amber-200 font-extrabold'
+                                        : 'bg-white text-slate-600 border-slate-200'
+                                    }`}>
+                                      {item.is_active_engine ? 'ACTIVO' : item.badge}
+                                    </span>
+                                  </div>
+
+                                  {/* Barra de progreso de créditos con porcentaje */}
+                                  <div className="space-y-1.5 my-3">
+                                    <div className="flex items-center justify-between text-[11px] font-mono">
+                                      <span className="text-slate-400 font-sans text-[10px] font-semibold">Créditos / Saldo:</span>
+                                      <span className={`font-black ${
+                                        isNoCredit ? 'text-rose-600' : isInvalid ? 'text-amber-600' : isActive ? 'text-emerald-600' : 'text-slate-500'
+                                      }`}>
+                                        {item.credits_label}
+                                      </span>
+                                    </div>
+
+                                    {/* Barra de progreso */}
+                                    <div className="w-full h-2 bg-slate-200/80 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all duration-700 ${
+                                          isNoCredit
+                                            ? 'w-[5%] bg-rose-500'
+                                            : isInvalid
+                                            ? 'w-[8%] bg-amber-500'
+                                            : isActive
+                                            ? 'w-full bg-emerald-500'
+                                            : 'w-0 bg-slate-300'
+                                        }`}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Mensaje descriptivo del estado */}
+                                  <p className="text-[10px] text-slate-500 leading-snug line-clamp-2 min-h-[28px]">
+                                    {item.message}
+                                  </p>
+                                </div>
+
+                                {/* Botón de recarga directa */}
+                                <div className="mt-3 pt-3 border-t border-slate-200/60">
+                                  <a
+                                    href={item.recharge_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`w-full py-1.5 px-3 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm ${
+                                      isNoCredit
+                                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 animate-pulse'
+                                        : item.is_active_engine
+                                        ? 'bg-amber-100 hover:bg-amber-200/80 text-amber-900 border border-amber-200'
+                                        : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                    }`}
+                                  >
+                                    <span>{item.recharge_label || 'Recargar Saldo'}</span>
+                                    <span className="material-symbols-outlined text-[10px]">open_in_new</span>
+                                  </a>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
 
                     {/* API Keys */}
@@ -18929,7 +20885,50 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <span className="material-symbols-outlined text-slate-400" style={{ fontVariationSettings: "'FILL' 1" }}>key</span>
                         API Keys de Proveedores Visuales
                       </h4>
-                      <div className="grid md:grid-cols-2 gap-6">
+                      <div className="grid md:grid-cols-3 gap-6">
+                        {/* Higgsfield AI Key */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              HIGGSFIELD_API_KEY
+                              <span className={`ml-2 px-2 py-0.5 rounded-md text-[8px] font-black ${
+                                configData.visual_render_provider === 'higgsfield'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}>
+                                {configData.visual_render_provider === 'higgsfield' ? 'ACTIVO' : 'OPCIONAL'}
+                              </span>
+                            </label>
+                            <a
+                              href="https://open.higgsfield.ai"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[9px] font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 transition-colors"
+                            >
+                              <span>Consola</span>
+                              <span className="material-symbols-outlined text-[11px]">open_in_new</span>
+                            </a>
+                          </div>
+                          <div className="relative">
+                            <input
+                              className={`w-full rounded-xl px-4 py-3.5 pr-10 text-xs font-mono font-bold transition-all border-2 ${
+                                configData.visual_render_provider === 'higgsfield'
+                                  ? 'border-amber-300 bg-amber-50/60 text-amber-900 placeholder-amber-400/70'
+                                  : 'border-slate-100 bg-slate-50 text-slate-500 placeholder-slate-300'
+                              }`}
+                              type="password"
+                              autoComplete="new-password"
+                              placeholder="Key ID:Secret o tu API Key"
+                              value={configData.higgsfield_key || ''}
+                              onChange={e => setConfigData({ ...configData, higgsfield_key: e.target.value })}
+                            />
+                            {configData.higgsfield_key && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-amber-500 text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                            )}
+                          </div>
+                          <p className="text-[9px] text-slate-400">Para modelos <strong>Soul v2</strong> en Pancartas y Anuncios Adaptativos.</p>
+                        </div>
+
                         {/* FAL Key (fal.ai) */}
                         <div className="space-y-2">
                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -19011,57 +21010,65 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     </div>
 
                     {/* Global AI Config (Admin Only) */}
-                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 p-8 shadow-lg relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <span className="material-symbols-outlined text-8xl text-white" style={{ fontVariationSettings: "'FILL' 1" }}>public</span>
-                      </div>
+                    <div className="bg-white rounded-2xl border border-slate-100 p-6 sm:p-8 shadow-sm relative overflow-hidden">
                       <div className="relative z-10 space-y-6">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-[#00c6ff]/20 flex items-center justify-center text-[#00c6ff]">
-                            <span className="material-symbols-outlined text-2xl">admin_panel_settings</span>
+                          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>admin_panel_settings</span>
                           </div>
                           <div>
-                            <h4 className="text-white font-bold text-lg">Configuración Global de IA (Chatbot)</h4>
+                            <h4 className="text-slate-800 font-black text-lg">Configuración Global de IA (Chatbot)</h4>
                             <p className="text-slate-400 text-xs mt-0.5">Fuerza a todos los usuarios a usar esta API para el chatbot de WhatsApp.</p>
                           </div>
                         </div>
                         
-                        <div className="flex items-center justify-between py-4 border-y border-slate-700/50">
+                        <div className="flex items-center justify-between py-4 border-y border-slate-100">
                           <div>
-                            <span className="text-white font-bold text-sm">Forzar API Global</span>
-                            <p className="text-slate-400 text-[10px] mt-0.5">Al activarlo, los usuarios no podrán usar sus propias llaves en la pestaña de configuración.</p>
+                            <span className="text-slate-800 font-bold text-sm">Forzar API Global</span>
+                            <p className="text-slate-400 text-xs mt-0.5">Al activarlo, los usuarios no podrán usar sus propias llaves en la pestaña de configuración.</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" className="sr-only peer" checked={adminGlobalAi?.enabled || false} onChange={e => setAdminGlobalAi({ ...(adminGlobalAi || { provider: 'openai', model: 'gpt-4o', apiKey: '' }), enabled: e.target.checked } as any)} />
-                            <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00c6ff]"></div>
+                            <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                           </label>
                         </div>
 
                         {adminGlobalAi?.enabled && (
                           <div className="space-y-5 pt-2">
-                            <div className="grid grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                               <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Proveedor</label>
-                                <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
-                                  value={adminGlobalAi?.provider || 'openai'}
-                                  onChange={e => setAdminGlobalAi({ ...adminGlobalAi, provider: e.target.value } as any)}
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proveedor</label>
+                                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                  value={adminGlobalAi?.provider || 'gemini'}
+                                  onChange={e => {
+                                    const newProvider = e.target.value;
+                                    const defaultModel = newProvider === 'gemini' ? 'gemini-2.5-flash' : newProvider === 'groq' ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
+                                    const updated = {
+                                      ...(adminGlobalAi || { enabled: true, apiKey: '' }),
+                                      provider: newProvider,
+                                      model: defaultModel,
+                                    };
+                                    setAdminGlobalAi(updated as any);
+                                    handleSaveGlobalAiConfig(updated);
+                                    handleTestGlobalApi(updated);
+                                  }}
                                 >
-                                  <option value="openai">OpenAI</option>
                                   <option value="gemini">Google Gemini</option>
                                   <option value="groq">Groq</option>
+                                  <option value="openai">OpenAI</option>
                                 </select>
                               </div>
                               <div className="space-y-2 relative">
                                 <div className="flex items-center justify-between">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Modelo</label>
+                                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Modelo</label>
                                   {adminGlobalAi?.provider === 'openai' && (
                                     <button 
                                       onClick={() => fetchModels(adminGlobalAi?.apiKey || '')}
                                       disabled={isFetchingModels}
-                                      className="text-[9px] font-bold text-[#00c6ff] hover:text-[#0099cc] flex items-center gap-1 transition-colors"
+                                      className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
                                     >
                                       {isFetchingModels ? (
-                                        <div className="w-3 h-3 border-2 border-[#00c6ff]/30 border-t-[#00c6ff] rounded-full animate-spin" />
+                                        <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
                                       ) : (
                                         <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>sync</span>
                                       )}
@@ -19070,9 +21077,16 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                   )}
                                 </div>
                                 {adminGlobalAi?.provider === 'openai' ? (
-                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                                     value={adminGlobalAi?.model || ''}
-                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                    onChange={e => {
+                                      const newModel = e.target.value;
+                                      const updated = { ...adminGlobalAi, model: newModel };
+                                      setAdminGlobalAi(updated as any);
+                                      setGlobalApiTestMsg(`La conexión es exitosa y la llave funciona correctamente con OpenAI (${newModel}).`);
+                                      handleSaveGlobalAiConfig(updated);
+                                      handleTestGlobalApi(updated);
+                                    }}
                                   >
                                     <option value="" disabled>Selecciona un modelo...</option>
                                     {fetchedModels.length > 0 ? (
@@ -19090,83 +21104,143 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                     )}
                                   </select>
                                 ) : adminGlobalAi?.provider === 'gemini' ? (
-                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
-                                    value={adminGlobalAi?.model || ''}
-                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                    value={adminGlobalAi?.model || 'gemini-3.8-flash'}
+                                    onChange={e => {
+                                      const newModel = e.target.value;
+                                      const updated = { ...adminGlobalAi, model: newModel };
+                                      setAdminGlobalAi(updated as any);
+                                      setGlobalApiTestMsg(`La conexión es exitosa y la llave funciona correctamente con Google Gemini (${newModel}).`);
+                                      handleSaveGlobalAiConfig(updated);
+                                      handleTestGlobalApi(updated);
+                                    }}
                                   >
-                                    <option value="" disabled>Selecciona un modelo...</option>
-                                    <option value="gemini-3.8-flash">gemini-3.8-flash (Recomendado)</option>
-                                    <option value="gemini-3.7-flash">gemini-3.7-flash</option>
-                                    <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+                                    <option value="gemini-3.8-flash">gemini-3.8-flash (Preview)</option>
+                                    <option value="gemini-2.5-flash">gemini-2.5-flash (Ultra Rápido y Estable)</option>
+                                    <option value="gemini-2.5-pro">gemini-2.5-pro (Alta Capacidad y Razonamiento)</option>
+                                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                                    <option value="gemini-3.7-flash">gemini-3.7-flash (Preview)</option>
+                                    <option value="gemini-3.6-flash">gemini-3.6-flash (Preview)</option>
                                     <option value="gemini-3.1-pro">gemini-3.1-pro</option>
-                                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                                    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                                   </select>
                                 ) : adminGlobalAi?.provider === 'groq' ? (
-                                  <select className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
-                                    value={adminGlobalAi?.model || ''}
-                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                  <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                                    value={adminGlobalAi?.model || 'llama-3.1-8b-instant'}
+                                    onChange={e => {
+                                      const newModel = e.target.value;
+                                      const updated = { ...adminGlobalAi, model: newModel };
+                                      setAdminGlobalAi(updated as any);
+                                      setGlobalApiTestMsg(`La conexión es exitosa y la llave funciona correctamente con Groq (${newModel}).`);
+                                      handleSaveGlobalAiConfig(updated);
+                                      handleTestGlobalApi(updated);
+                                    }}
                                   >
-                                    <option value="" disabled>Selecciona un modelo...</option>
+                                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Rápido y Eficiente)</option>
                                     <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile</option>
-                                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
                                     <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
                                   </select>
                                 ) : (
-                                  <input type="text" className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-[#00c6ff]"
+                                  <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                                     value={adminGlobalAi?.model || ''} placeholder="ej. gpt-4o"
-                                    onChange={e => setAdminGlobalAi({ ...adminGlobalAi, model: e.target.value } as any)}
+                                    onChange={e => {
+                                      const newModel = e.target.value;
+                                      const updated = { ...adminGlobalAi, model: newModel };
+                                      setAdminGlobalAi(updated as any);
+                                      handleSaveGlobalAiConfig(updated);
+                                    }}
                                   />
                                 )}
                               </div>
                             </div>
+
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">API Key Global</label>
-                                {adminGlobalAi?.apiKey && (
-                                  <button
-                                    onClick={handleTestGlobalApi}
-                                    disabled={globalApiTestStatus === 'loading'}
-                                    className="text-[10px] font-bold text-[#00c6ff] hover:text-[#0099cc] flex items-center gap-1 transition-colors"
-                                  >
-                                    {globalApiTestStatus === 'loading' ? (
-                                      <><span className="w-3 h-3 rounded-full border-2 border-[#00c6ff] border-t-transparent animate-spin"></span> Verificando...</>
-                                    ) : (
-                                      <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Verificar Estado</>
-                                    )}
-                                  </button>
-                                )}
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">API Key Global</label>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTestGlobalApi()}
+                                  disabled={globalApiTestStatus === 'loading'}
+                                  className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+                                >
+                                  {globalApiTestStatus === 'loading' ? (
+                                    <><span className="w-3 h-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></span> Verificando...</>
+                                  ) : (
+                                    <><span className="material-symbols-outlined text-xs">verified</span> Verificar Estado y Cuota</>
+                                  )}
+                                </button>
                               </div>
-                              <input type="password" placeholder="Ingresa la llave maestra..." className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono text-white outline-none focus:border-[#00c6ff]"
+                              <input type="password" placeholder="Ingresa la llave maestra o deja *** para usar la configurada..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                                 value={adminGlobalAi?.apiKey || ''}
                                 onChange={e => {
                                   setAdminGlobalAi({ ...adminGlobalAi, apiKey: e.target.value } as any);
-                                  setGlobalApiTestStatus('idle'); // Resetear estado si cambian la llave
+                                  setGlobalApiTestStatus('idle');
                                 }}
                               />
-                              
-                              {/* Visual Status Badge */}
-                              {globalApiTestStatus !== 'idle' && globalApiTestStatus !== 'loading' && (
-                                <div className={`mt-2 p-3 rounded-xl border text-xs flex items-start gap-2 ${
-                                  globalApiTestStatus === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                  globalApiTestStatus === 'no_credit' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                                  'bg-red-500/10 border-red-500/20 text-red-400'
-                                }`}>
-                                  <div className="mt-0.5">
-                                    {globalApiTestStatus === 'success' && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                                    {globalApiTestStatus === 'no_credit' && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>}
-                                    {(globalApiTestStatus === 'invalid_key' || globalApiTestStatus === 'error') && <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                                  </div>
-                                  <div>
-                                    <p className="font-bold">
-                                      {globalApiTestStatus === 'success' ? 'API Activa' :
-                                       globalApiTestStatus === 'no_credit' ? 'Sin Créditos' :
-                                       'Error en la API'}
-                                    </p>
-                                    <p className="opacity-90 mt-0.5 leading-snug">{globalApiTestMsg}</p>
-                                  </div>
+
+                              {/* Barra de Porcentaje y Créditos de la API Global */}
+                              <div className="mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200/80">
+                                <div className="flex items-center justify-between text-xs mb-1.5 font-mono">
+                                  <span className="text-slate-500 font-sans text-[11px] font-bold">
+                                    Disponibilidad y Cuota ({adminGlobalAi?.provider?.toUpperCase()}):
+                                  </span>
+                                  <span className={`font-black ${
+                                    globalApiTestStatus === 'success' ? 'text-emerald-600' :
+                                    globalApiTestStatus === 'no_credit' ? 'text-amber-600' :
+                                    globalApiTestStatus === 'loading' ? 'text-blue-600' :
+                                    globalApiTestStatus === 'idle' ? 'text-emerald-600' : 'text-rose-600'
+                                  }`}>
+                                    {globalApiTestCredits?.label || (globalApiTestStatus === 'success' ? '100% Cuota Activa' : globalApiTestStatus === 'idle' ? '100% Cuota Activa' : 'Verificar estado')}
+                                  </span>
                                 </div>
-                              )}
+
+                                {/* Barra de progreso */}
+                                <div className="w-full h-2 bg-slate-200/80 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-700 ${
+                                      globalApiTestStatus === 'success' || globalApiTestStatus === 'idle'
+                                        ? 'w-full bg-emerald-500'
+                                        : globalApiTestStatus === 'no_credit'
+                                        ? 'w-[10%] bg-amber-500'
+                                        : globalApiTestStatus === 'loading'
+                                        ? 'w-1/2 bg-blue-500 animate-pulse'
+                                        : 'w-[5%] bg-rose-500'
+                                    }`}
+                                  />
+                                </div>
+
+                                {globalApiTestMsg ? (
+                                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                                    {globalApiTestMsg}
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] text-emerald-600 mt-2 leading-relaxed font-semibold flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                    {adminGlobalAi?.provider === 'gemini'
+                                      ? `La conexión es exitosa y la llave funciona correctamente con Google Gemini (${adminGlobalAi?.model || 'gemini-3.8-flash'}).`
+                                      : 'API conectada y cuota activa para respuestas del chatbot de WhatsApp.'}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Botón de fijación explícita */}
+                              <div className="pt-2 flex items-center justify-between">
+                                <span className="text-xs text-slate-400">
+                                  Modelo fijado: <strong className="text-slate-700 font-mono">{adminGlobalAi?.provider} / {adminGlobalAi?.model}</strong>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveGlobalAiConfig()}
+                                  disabled={isSavingGlobalAi}
+                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  {isSavingGlobalAi ? (
+                                    <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Guardando...</>
+                                  ) : (
+                                    <><span className="material-symbols-outlined text-xs">lock</span> Fijar y Guardar Modelo</>
+                                  )}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -19177,11 +21251,31 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                     <div className="flex items-center justify-between p-6 bg-gradient-to-r from-slate-50 to-white rounded-2xl border border-slate-100">
                       <div className="flex items-center gap-3">
                         <div className={`w-3 h-3 rounded-full animate-pulse ${
-                          configData.visual_render_provider === 'flux' ? 'bg-violet-500' : 'bg-emerald-500'
+                          configData.visual_render_provider === 'flux' 
+                            ? 'bg-violet-500' 
+                            : configData.visual_render_provider === 'higgsfield'
+                            ? 'bg-amber-500'
+                            : configData.visual_render_provider === 'sharp'
+                            ? 'bg-blue-500'
+                            : 'bg-emerald-500'
                         }`} />
                         <p className="text-sm font-bold text-slate-700">
-                          Proveedor activo: <span className={configData.visual_render_provider === 'flux' ? 'text-violet-600' : 'text-emerald-600'}>
-                            {configData.visual_render_provider === 'flux' ? 'FLUX (fal.ai)' : 'OpenAI Images (GPT-Image-1)'}
+                          Proveedor activo: <span className={
+                            configData.visual_render_provider === 'flux' 
+                              ? 'text-violet-600' 
+                              : configData.visual_render_provider === 'higgsfield'
+                              ? 'text-amber-600 font-extrabold'
+                              : configData.visual_render_provider === 'sharp'
+                              ? 'text-blue-600'
+                              : 'text-emerald-600'
+                          }>
+                            {configData.visual_render_provider === 'flux' 
+                              ? 'FLUX (fal.ai)' 
+                              : configData.visual_render_provider === 'higgsfield'
+                              ? 'Higgsfield AI (Soul v2)'
+                              : configData.visual_render_provider === 'sharp'
+                              ? 'Sharp (Canvas Local)'
+                              : 'OpenAI Images (GPT-Image-1)'}
                           </span>
                         </p>
                       </div>

@@ -40,7 +40,7 @@ const MODELS = new Set([
   'claude-sonnet-4',
   'claude-haiku',
 ]);
-const VISUAL_PROVIDERS = new Set(['openai', 'flux', 'sharp']);
+const VISUAL_PROVIDERS = new Set(['openai', 'flux', 'sharp', 'higgsfield']);
 
 interface ExtendedConfig {
   openai_key: string;
@@ -52,6 +52,7 @@ interface ExtendedConfig {
   confidence_threshold: number;
   auto_classification: boolean;
   fal_key: string;
+  higgsfield_key: string;
   visual_render_provider: string;
   facebook_access_token: string;
   facebook_ad_account_id: string;
@@ -88,7 +89,8 @@ const EXTENDED_DEFAULTS: ExtendedConfig = {
   confidence_threshold: 0.85,
   auto_classification: true,
   fal_key: '',
-  visual_render_provider: 'flux',
+  higgsfield_key: '',
+  visual_render_provider: 'higgsfield',
   facebook_access_token: '',
   facebook_ad_account_id: '',
   facebook_page_id: '',
@@ -135,6 +137,7 @@ const EMPTY_CONFIG = {
   gemini_key_configured: false,
   groq_key_configured: false,
   fal_key_configured: false,
+  higgsfield_key_configured: false,
   bulk_wa_token_configured: false,
   payphone_token_configured: false,
   facebook_access_token_configured: false,
@@ -192,7 +195,8 @@ function decodeExtendedConfig(stored: unknown): ExtendedConfig {
     confidence_threshold: storedNumber(parsed.confidence_threshold, 0.5, 0.99, 0.85),
     auto_classification: typeof parsed.auto_classification === 'boolean' ? parsed.auto_classification : true,
     fal_key: storedString(parsed.fal_key, 8_192),
-    visual_render_provider: VISUAL_PROVIDERS.has(visualProvider) ? visualProvider : 'flux',
+    higgsfield_key: storedString(parsed.higgsfield_key, 8_192),
+    visual_render_provider: VISUAL_PROVIDERS.has(visualProvider) ? visualProvider : 'higgsfield',
     facebook_access_token: storedString(parsed.facebook_access_token, 8_192),
     facebook_ad_account_id: storedString(parsed.facebook_ad_account_id, 40),
     facebook_page_id: storedString(parsed.facebook_page_id, 32),
@@ -324,6 +328,8 @@ export async function GET(req: NextRequest) {
       confidence_threshold: extended.confidence_threshold,
       auto_classification: extended.auto_classification,
       visual_render_provider: extended.visual_render_provider,
+      higgsfield_key: redactSecret(extended.higgsfield_key),
+      higgsfield_key_configured: Boolean(extended.higgsfield_key),
       facebook_access_token: redactSecret(extended.facebook_access_token),
       facebook_access_token_configured: Boolean(extended.facebook_access_token),
       facebook_ad_account_id: extended.facebook_ad_account_id,
@@ -391,6 +397,7 @@ export async function POST(req: NextRequest) {
     const extendedFields = new Set([
       'openai_key', 'gemini_key', 'groq_key', 'bulk_wa_token', 'bulk_wa_phone_id',
       'model_selection', 'confidence_threshold', 'auto_classification', 'fal_key',
+      'higgsfield_key',
       'visual_render_provider', 'facebook_access_token', 'facebook_ad_account_id',
       'facebook_page_id', 'meta_ad_account_name', 'meta_page_name', 'dropi_enabled',
       'dropi_token', 'dropi_default_product_id', 'dropi_default_price', 'dropi_prompt',
@@ -411,6 +418,7 @@ export async function POST(req: NextRequest) {
         confidence_threshold: updatedNumber(body.confidence_threshold, current.confidence_threshold, 0.5, 0.99),
         auto_classification: updatedBoolean(body.auto_classification, current.auto_classification),
         fal_key: updatedSecret(body.fal_key, current.fal_key),
+        higgsfield_key: updatedSecret(body.higgsfield_key, current.higgsfield_key),
         visual_render_provider: updatedString(body.visual_render_provider, current.visual_render_provider, 20),
         facebook_access_token: updatedSecret(body.facebook_access_token, current.facebook_access_token),
         facebook_ad_account_id: updatedString(body.facebook_ad_account_id, current.facebook_ad_account_id, 40),
@@ -440,7 +448,14 @@ export async function POST(req: NextRequest) {
       assertPattern(next.facebook_ad_account_id, META_AD_ACCOUNT_PATTERN, 'Cuenta publicitaria');
       assertPattern(next.facebook_page_id, META_PAGE_PATTERN, 'Pagina de Facebook');
       assertPattern(next.dropi_default_product_id, IDENTIFIER_PATTERN, 'Producto Dropi');
-      assertPattern(next.admin_notification_phone, ALERT_PHONE_PATTERN, 'Telefono de alertas');
+      if (next.admin_notification_phone) {
+        next.admin_notification_phone = next.admin_notification_phone.replace(/[\s-]/g, '');
+        if (next.admin_notification_phone.replace(/^\+/, '').length < 7) {
+          next.admin_notification_phone = '';
+        } else {
+          assertPattern(next.admin_notification_phone, ALERT_PHONE_PATTERN, 'Telefono de alertas');
+        }
+      }
       if (!MODELS.has(next.model_selection)) next.model_selection = EXTENDED_DEFAULTS.model_selection;
       if (!VISUAL_PROVIDERS.has(next.visual_render_provider)) next.visual_render_provider = EXTENDED_DEFAULTS.visual_render_provider;
 

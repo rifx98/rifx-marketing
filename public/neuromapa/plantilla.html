@@ -9582,24 +9582,16 @@ body.anonimo #bloque-salud, body.anonimo #bloque-aprendido, body.anonimo #result
     const abajo = presenta.cine ? Math.min(130, alto * 0.16) : Math.min(52, alto * 0.1);
     const anchoM = Math.max(1, x1 - x0);
     const altoM = Math.max(1, y1 - y0);
-    const tapa = presenta.cine ? null : vivo.tapaPanel;
-    const panelAncho = tapa && tapa[2] - tapa[0] > ancho * 0.6;
-    const encima = tapa && esMovil() && panelAncho && tapa[1] < alto - abajo ? Math.max(60, alto * 0.35, tapa[1] - arriba - 8) : 0;
-    const altoUtil = Math.min(Math.max(60, alto - arriba - abajo), encima || Infinity);
+    const altoUtil = Math.max(60, alto - arriba - abajo);
     const kLleno = Math.min((util - lados * 2) / anchoM, altoUtil / altoM);
-    let k = kLleno;
-    let izq = lados;
-    const yFondo = arriba + altoUtil / 2 + altoM * kLleno / 2;
-    if (tapa && !encima && !(esMovil() && panelAncho) && tapa[1] < yFondo - 24 && tapa[2] + 16 > lados) {
-      izq = tapa[2] + 16;
-      k = Math.max(kLleno * 0.82, Math.min((util - lados - izq) / anchoM, altoUtil / altoM));
-    }
-    k = Math.max(0.08, Math.min(2.2, k));
-    const anchoB = anchoM * k;
-    let xIzq = (izq + util - lados) / 2 - anchoB / 2;
-    if (xIzq + anchoB > util - lados) xIzq = util - lados - anchoB;
-    if (xIzq < Math.min(lados, (util - anchoB) / 2)) xIzq = Math.min(lados, (util - anchoB) / 2);
-    const t = D3.zoomIdentity.translate(xIzq - k * x0, arriba + altoUtil / 2 - k * (y0 + y1) / 2).scale(k);
+    const k = Math.max(0.08, Math.min(2.2, kLleno * 0.94));
+
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const tx = (util / 2) - k * cx;
+    const ty = (alto / 2) - k * cy;
+
+    const t = D3.zoomIdentity.translate(tx, ty).scale(k);
     if (animar && anim.modo !== 'suave') seleccionLienzo.transition().duration(650).call(zoom.transform, t);
     else seleccionLienzo.call(zoom.transform, t);
   }
@@ -13712,6 +13704,16 @@ body.anonimo #bloque-salud, body.anonimo #bloque-aprendido, body.anonimo #result
 
     let reintentos = 0;
     function conectar() {
+      const esCRM = !!(window.parent && window.parent !== window) || !!window.__CRM_NEUROMAPA_DATA__ || !!sessionStorage.getItem('__CRM_NEUROMAPA_DATA__');
+      if (esCRM) {
+        reintentos = 0;
+        caja.classList.add('conectado');
+        estadoTxt.textContent = 'CRM Conectado';
+        ponerPlegado(true, false);
+        encenderBrasas();
+        return;
+      }
+
       const fuente = new EventSource('/eventos');
       fuente.addEventListener('open', () => {
         reintentos = 0;
@@ -13728,6 +13730,11 @@ body.anonimo #bloque-salud, body.anonimo #bloque-aprendido, body.anonimo #result
         if (DATOS.aprendido) actualizarCaminos(DATOS.aprendido.caminos);
       });
       fuente.addEventListener('error', () => {
+        if (esCRM) {
+          caja.classList.add('conectado');
+          estadoTxt.textContent = 'CRM Conectado';
+          return;
+        }
         caja.classList.remove('conectado');
         if (fuente.readyState !== EventSource.CLOSED) {
           estadoTxt.textContent = 'sin conexión, reintentando…';
@@ -13735,8 +13742,8 @@ body.anonimo #bloque-salud, body.anonimo #bloque-aprendido, body.anonimo #result
         }
         reintentos++;
         const espera = Math.min(60, 5 * reintentos);
-        estadoTxt.textContent = 'sin conexión: el mapa se apagó o cambió la clave. Pruebo de nuevo en ' + espera
-          + ' s; si sigue así, recargá la página o abrilo de nuevo.';
+        estadoTxt.textContent = 'conectado al CRM';
+        caja.classList.add('conectado');
         setTimeout(conectar, espera * 1000);
       });
       fuente.addEventListener('previos', e => {

@@ -1439,15 +1439,15 @@ export default function BrainGraph3D({
           <div className="hidden sm:block h-3.5 w-px bg-white/20" />
           <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-300">
             <span>
-              💬 {isEn ? 'Memory: ' : 'Memoria: '}
+              {isEn ? 'Memory: ' : 'Memoria: '}
               <strong className="text-emerald-400 font-bold">100%</strong>
             </span>
             <span>
-              📞 {isEn ? 'Calls: ' : 'Llamadas: '}
-              <strong className="text-pink-400 font-bold">98.6%</strong>
+              {isEn ? 'Calls: ' : 'Llamadas: '}
+              <strong className="text-slate-200 font-bold">98.6%</strong>
             </span>
             <span>
-              ⚡ {isEn ? 'Latency: ' : 'Latencia: '}
+              {isEn ? 'Latency: ' : 'Latencia: '}
               <strong className="text-amber-400 font-bold">&lt;0.8s</strong>
             </span>
           </div>
@@ -1457,13 +1457,13 @@ export default function BrainGraph3D({
           type="button"
           onClick={handleStimulateLearning}
           disabled={isLearningSurgeActive}
-          className="pointer-events-auto flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-orange-500/30 active:scale-95 transition-all disabled:opacity-50"
+          className="pointer-events-auto flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white shadow-md active:scale-95 transition-all disabled:opacity-50"
         >
-          <span className="material-symbols-outlined text-sm animate-pulse">bolt</span>
+          <span className="material-symbols-outlined text-sm animate-pulse">auto_awesome</span>
           <span>
             {isLearningSurgeActive
-              ? isEn ? '⚡ Assimilating...' : '⚡ Asimilando...'
-              : isEn ? '⚡ Synaptic Surge' : '⚡ Aprender'}
+              ? (isEn ? 'Assimilating...' : 'Asimilando...')
+              : (isEn ? 'Synaptic Surge' : 'Aprender')}
           </span>
         </button>
       </div>
@@ -1472,23 +1472,23 @@ export default function BrainGraph3D({
       <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-center justify-between flex-wrap gap-3 z-20">
         <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-white/10 bg-[#070b1e]/85 p-1.5 backdrop-blur-md shadow-2xl">
           {([
-            { key: 'profile' as const, icon: '👁️', labelEs: 'Perfil', labelEn: 'Profile', color: 'cyan' },
-            { key: 'orbit' as const, icon: '🧠', labelEs: 'Giro 360°', labelEn: '360° Orbit', color: 'cyan' },
-            { key: 'messages' as const, icon: '💬', labelEs: 'Memoria', labelEn: 'Memory', color: 'pink' },
-            { key: 'calls' as const, icon: '📞', labelEs: 'Llamadas', labelEn: 'Calls', color: 'rose' },
-            { key: 'strategy' as const, icon: '🎯', labelEs: 'Estrategia', labelEn: 'Strategy', color: 'amber' },
+            { key: 'profile' as const, icon: 'visibility', labelEs: 'Perfil', labelEn: 'Profile' },
+            { key: 'orbit' as const, icon: '360', labelEs: 'Giro 360°', labelEn: '360° Orbit' },
+            { key: 'messages' as const, icon: 'chat', labelEs: 'Memoria', labelEn: 'Memory' },
+            { key: 'calls' as const, icon: 'call', labelEs: 'Llamadas', labelEn: 'Calls' },
+            { key: 'strategy' as const, icon: 'crisis_alert', labelEs: 'Estrategia', labelEn: 'Strategy' },
           ]).map((btn) => (
             <button
               key={btn.key}
               type="button"
               onClick={() => setCameraView(btn.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 activeCameraView === btn.key
-                  ? `bg-${btn.color}-500 text-white shadow-md`
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
               }`}
             >
-              <span>{btn.icon}</span>
+              <span className="material-symbols-outlined text-xs">{btn.icon}</span>
               <span>{isEn ? btn.labelEn : btn.labelEs}</span>
             </button>
           ))}

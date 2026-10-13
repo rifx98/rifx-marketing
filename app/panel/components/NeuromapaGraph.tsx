@@ -1,22 +1,131 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import type {
-  BrainEdge,
-  BrainNode,
-  CognitiveLearningState,
-} from '@/lib/brain-graph';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import type { BrainNode, BrainEdge, CognitiveLearningState } from '@/lib/brain-graph';
 
-export type NeuromapaGraphProps = {
+interface NeuromapaGraphProps {
   nodes?: BrainNode[];
   edges?: BrainEdge[];
   selectedNodeId?: string | null;
-  onSelectNode: (nodeId: string | null) => void;
-  language?: string;
+  onSelectNode: (id: string | null) => void;
+  language?: 'es' | 'en';
   learningState?: CognitiveLearningState;
   onTriggerLearn?: () => void;
   onExecuteCopilotAction?: (action: string, node: BrainNode) => void;
-};
+}
+
+export function crmGraphToNeuromapa(
+  nodes: BrainNode[] = [],
+  edges: BrainEdge[] = [],
+  learningState?: CognitiveLearningState
+) {
+  const grupos = [
+    { id: 'clientes', nombre: 'Clientes & Contactos CRM', color: '#10b981', lobulo: 'frontal' },
+    { id: 'estrategia', nombre: 'Prefrontal · Estrategia & Ventas', color: '#f59e0b', lobulo: 'prefrontal' },
+    { id: 'whatsapp', nombre: 'Memoria · WhatsApp & Chats', color: '#06b6d4', lobulo: 'temporal' },
+    { id: 'llamadas', nombre: 'Voz · Llamadas & Coherencia', color: '#f43f5e', lobulo: 'temporal' },
+    { id: 'documentos', nombre: 'Documentos & Base de Conocimiento', color: '#8b5cf6', lobulo: 'parietal' },
+    { id: 'workflows', nombre: 'Workflows & Automatizaciones', color: '#22d3ee', lobulo: 'occipital' },
+    { id: 'motor_ia', nombre: 'Núcleo Central IA & Auditoría', color: '#a193ff', lobulo: 'cerebelo' },
+    { id: 'campanas', nombre: 'Campañas & Outreach', color: '#e11d48', lobulo: 'frontal' },
+  ];
+
+  const groupByType = (type: string) => {
+    switch (type) {
+      case 'customer':
+        return 'clientes';
+      case 'sale':
+      case 'intent':
+        return 'estrategia';
+      case 'conversation':
+      case 'message_user':
+      case 'message_ai':
+        return 'whatsapp';
+      case 'voice':
+      case 'appointment':
+        return 'llamadas';
+      case 'knowledge':
+        return 'documentos';
+      case 'action':
+      case 'objection':
+        return 'workflows';
+      case 'campaign':
+        return 'campanas';
+      case 'core':
+      default:
+        return 'motor_ia';
+    }
+  };
+
+  const neuromapaNodes = nodes.map((node) => {
+    const grupo = groupByType(node.type);
+    return {
+      id: node.id,
+      titulo: node.label || node.id,
+      ruta: `crm/${node.type}/${node.id}`,
+      grupo: grupo,
+      tipo: node.type || 'knowledge',
+      slug: (node.label || node.id).toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
+      descripcion: node.summary || node.label || '',
+      modificado: node.timestamp || new Date().toISOString(),
+      lineas: 12,
+      bytes: 640,
+      texto: `${node.label}\n\n${node.summary || 'Entidad viva en la red neuronal del CRM.'}\n\nTipo: ${node.type}\nEstado: ${node.status || 'activo'}\nConfianza sináptica: ${Math.round((node.confidence || 0.95) * 100)}%`,
+    };
+  });
+
+  const neuromapaEdges = edges.map((edge) => ({
+    de: edge.source,
+    a: edge.target,
+    clase: 'enlace',
+    texto: edge.relation || 'conecta con',
+  }));
+
+  return {
+    generado: new Date().toISOString().replace('T', ' ').slice(0, 16),
+    usuario: 'RIFX CRM',
+    carpeta: 'CRM Cognitive Memory',
+    proyectos: [{ raiz: 'crm', alias: 'CRM' }],
+    aliasRutas: [],
+    lobulos: {
+      prefrontal: 'PREFRONTAL · REGLAS & VENTAS',
+      frontal: 'FRONTAL · CLIENTES & CONTACTOS',
+      temporal: 'TEMPORAL · WHATSAPP & LLAMADAS',
+      parietal: 'PARIETAL · DOCUMENTOS & BASE CONOCIMIENTO',
+      occipital: 'OCCIPITAL · WORKFLOWS & AUTOMATIZACIONES',
+      cerebelo: 'CEREBELO · MOTOR IA & AUDITORÍA',
+      tronco: 'TRONCO · SINAPSIS & ACCIONES',
+    },
+    grupos: grupos.map((g) => ({
+      ...g,
+      cantidad: neuromapaNodes.filter((n) => n.grupo === g.id).length,
+    })),
+    nodos: neuromapaNodes,
+    aristas: neuromapaEdges,
+    salud: {
+      rotos: [],
+      huerfanos: [],
+      sinIndice: [],
+      indiceRoto: [],
+      ambiguos: [],
+      handoffsAbiertos: [],
+      respuestasSinAcuse: [],
+      medico: [],
+      anclas: [],
+      hechos: [],
+      repiteClaude: [],
+      memoriasParecidas: [],
+    },
+    podadas: [],
+    entidades: {
+      archivos: [],
+      commits: [],
+      tablas: [],
+    },
+    aprendido: null,
+    aprender: true,
+  };
+}
 
 export default function NeuromapaGraph({
   nodes = [],
@@ -31,8 +140,47 @@ export default function NeuromapaGraph({
   const isEn = language === 'en';
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+
+  // Compute Neuromapa payload from live CRM nodes & edges
+  const neuromapaPayload = useMemo(() => {
+    return crmGraphToNeuromapa(nodes, edges, learningState);
+  }, [nodes, edges, learningState]);
+
+  // Synchronize data to window and sessionStorage
+  useEffect(() => {
+    if (!neuromapaPayload.nodos.length) return;
+    if (typeof window !== 'undefined') {
+      (window as any).__CRM_NEUROMAPA_DATA__ = neuromapaPayload;
+      try {
+        sessionStorage.setItem('__CRM_NEUROMAPA_DATA__', JSON.stringify(neuromapaPayload));
+      } catch (err) {}
+    }
+
+    if (iframeLoaded && iframeRef.current?.contentWindow) {
+      try {
+        (iframeRef.current.contentWindow as any).__CRM_NEUROMAPA_DATA__ = neuromapaPayload;
+        iframeRef.current.contentWindow.postMessage(
+          { type: 'SET_CRM_GRAPH_DATA', payload: neuromapaPayload },
+          '*'
+        );
+      } catch (e) {}
+    }
+  }, [neuromapaPayload, iframeLoaded]);
+
+  // Handle iframe initial load
+  const handleIframeLoad = useCallback(() => {
+    setIframeLoaded(true);
+    if (iframeRef.current?.contentWindow) {
+      try {
+        (iframeRef.current.contentWindow as any).__CRM_NEUROMAPA_DATA__ = neuromapaPayload;
+        iframeRef.current.contentWindow.postMessage(
+          { type: 'SET_CRM_GRAPH_DATA', payload: neuromapaPayload },
+          '*'
+        );
+      } catch (e) {}
+    }
+  }, [neuromapaPayload]);
 
   // Listen to postMessage events from the 3D Neuromapa application
   useEffect(() => {
@@ -47,13 +195,13 @@ export default function NeuromapaGraph({
         if (onExecuteCopilotAction && payload) {
           const matchedNode = nodes.find((n) => n.id === payload.id) || {
             id: payload.id,
-            type: payload.type || 'knowledge',
+            type: (payload.type as any) || 'knowledge',
             label: payload.label || payload.title || payload.id,
             summary: payload.summary || payload.text || '',
             timestamp: new Date().toISOString(),
             status: 'active',
             confidence: 0.95,
-            source: 'confirmed',
+            source: 'confirmed' as const,
             metadata: {},
           };
           onExecuteCopilotAction('inspect_node', matchedNode as BrainNode);
@@ -67,67 +215,12 @@ export default function NeuromapaGraph({
     return () => window.removeEventListener('message', handleMessage);
   }, [nodes, onSelectNode, onExecuteCopilotAction]);
 
-  const toggleFullscreen = useCallback(() => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
   return (
     <div
       ref={containerRef}
-      className={`relative w-full overflow-hidden rounded-2xl bg-[#0a0c10] shadow-2xl transition-all ${
-        isFullscreen ? 'fixed inset-0 z-50 h-screen w-screen rounded-none' : 'h-full min-h-[650px]'
-      }`}
+      className="relative h-full min-h-[650px] w-full overflow-hidden rounded-2xl bg-[#0a0c10] shadow-2xl"
     >
-      {/* ── TOP FLOATING CONTROL BAR OVERLAY ───────────────────── */}
-      <div className="absolute right-4 top-3.5 z-20 flex items-center gap-2">
-        <a
-          href="/neuromapa/cerebro.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#14171f]/85 px-3 py-1.5 text-xs font-semibold text-slate-300 shadow-md backdrop-blur-md hover:bg-white/10 hover:text-white transition-all"
-          title="Abrir Neuromapa en ventana completa independiente"
-        >
-          <span className="material-symbols-outlined text-sm">open_in_new</span>
-          <span className="hidden sm:inline">{isEn ? 'Open Full Tab' : 'Pestaña Completa'}</span>
-        </a>
-
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="flex items-center gap-1.5 rounded-xl border border-[#a193ff]/30 bg-[#a193ff]/20 px-3 py-1.5 text-xs font-bold text-[#a193ff] shadow-md backdrop-blur-md hover:bg-[#a193ff]/30 transition-all active:scale-95"
-          title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-        >
-          <span className="material-symbols-outlined text-sm">
-            {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
-          </span>
-          <span className="hidden sm:inline">
-            {isFullscreen
-              ? isEn
-                ? 'Exit Fullscreen'
-                : 'Salir de Pantalla Completa'
-              : isEn
-              ? 'Fullscreen'
-              : 'Pantalla Completa'}
-          </span>
-        </button>
-      </div>
-
-      {/* ── LOADING SPINNER OVERLAY ────────────────────────────── */}
+      {/* LOADING SPINNER OVERLAY */}
       {!iframeLoaded && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0a0c10] text-slate-400">
           <div className="relative mb-4 flex h-14 w-14 items-center justify-center">
@@ -140,17 +233,17 @@ export default function NeuromapaGraph({
           </div>
           <p className="text-sm font-bold text-white">Iniciando Red Neuronal Anatómica 3D...</p>
           <p className="mt-1 text-xs text-slate-500 font-mono">
-            Compilando shaders WebGL de Neuromapa, tractos de fibra y lóbulos corticales
+            Conectando entidades del CRM, llamadas y memoria de WhatsApp
           </p>
         </div>
       )}
 
-      {/* ── EMBEDDED NEUROMAPA 3D ANATOMICAL ENGINE ────────────── */}
+      {/* EMBEDDED NEUROMAPA 3D ANATOMICAL ENGINE */}
       <iframe
         ref={iframeRef}
         src="/neuromapa/cerebro.html"
         title="Neuromapa Anatómico 3D CRM"
-        onLoad={() => setIframeLoaded(true)}
+        onLoad={handleIframeLoad}
         className="h-full w-full border-0 bg-[#0a0c10]"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
       />

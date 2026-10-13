@@ -4,9 +4,12 @@ export type InboxMessage = {
   uid: string;
   fromEmail: string;
   fromName: string;
+  toEmail?: string;
+  toName?: string;
   subject: string;
   date: string;
   snippet: string;
+  isSent?: boolean;
   matchedContactId?: string;
   matchedContactBusiness?: string;
 };
@@ -99,12 +102,17 @@ function cleanBodySnippet(raw: string): string {
  * Conecta mediante TLS al buzón IMAP de Nominalia (pop.securemail.pro:993)
  * y descarga las respuestas recientes para mostrarlas en el panel CRM.
  */
-export async function fetchOutreachInbox(options?: { limit?: number }): Promise<{
+export async function fetchOutreachInbox(options?: {
+  limit?: number;
+  mailbox?: string;
+}): Promise<{
   success: boolean;
   messages: InboxMessage[];
   error?: string;
 }> {
   const limit = options?.limit ?? 15;
+  const targetMailbox = options?.mailbox || 'INBOX';
+  const isSentMailbox = targetMailbox.toLowerCase().includes('sent');
   const host = process.env.RIFX_OUTREACH_IMAP_HOST || 'pop.securemail.pro';
   const port = Number(process.env.RIFX_OUTREACH_IMAP_PORT) || 993;
   const user = process.env.RIFX_OUTREACH_SMTP_USER;
@@ -147,7 +155,7 @@ export async function fetchOutreachInbox(options?: { limit?: number }): Promise<
       }
 
       if (buffer.includes('A001 OK')) {
-        send('SELECT INBOX');
+        send(`SELECT "${targetMailbox}"`);
         buffer = '';
         return;
       }
@@ -195,19 +203,39 @@ export async function fetchOutreachInbox(options?: { limit?: number }): Promise<
           const date = dateMatch ? dateMatch[1] : '';
           const uid = uidMatch ? uidMatch[1] : String(Date.now());
 
+          const addrs = [...item.matchAll(/\(\((?:"([^"]*)"|NIL)\s+NIL\s+"([^"]*)"\s+"([^"]*)"\)\)/g)];
+          // En IMAP ENVELOPE: addrs[0]=from, addrs[1]=sender, addrs[2]=reply-to, addrs[3]=to
+          const toAddr = addrs[3] || addrs[addrs.length - 1];
+          const toEmail = toAddr ? `${toAddr[2]}@${toAddr[3]}`.toLowerCase().trim() : '';
+          const toName = toAddr && toAddr[1] ? decodeMimeWord(toAddr[1]) : toEmail;
+
           const textIdx = item.indexOf('BODY[TEXT]');
           const rawBody = textIdx !== -1 ? item.slice(textIdx) : '';
           const snippet = cleanBodySnippet(rawBody);
 
-          // Omitir correos autoremitidos de prueba si no tienen contenido relevante
-          if (fromEmail) {
+          if (isSentMailbox) {
+            messages.push({
+              uid,
+              fromEmail: fromEmail || (user || ''),
+              fromName: fromName || 'Bryan Arcos',
+              toEmail: toEmail || fromEmail,
+              toName: toName || toEmail,
+              subject,
+              date,
+              snippet,
+              isSent: true,
+            });
+          } else if (fromEmail) {
             messages.push({
               uid,
               fromEmail,
               fromName: fromName || fromEmail.split('@')[0],
+              toEmail,
+              toName,
               subject,
               date,
               snippet,
+              isSent: false,
             });
           }
         }

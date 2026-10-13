@@ -193,7 +193,10 @@ export async function POST(req: NextRequest) {
         if (typeof decoded.groq_key === 'string' && decoded.groq_key.trim().length >= 20) {
           aiContext.groqKey = decoded.groq_key.trim();
         }
-        if (['openai', 'flux', 'sharp'].includes(decoded.visual_render_provider)) {
+        if (typeof decoded.higgsfield_key === 'string' && decoded.higgsfield_key.trim().length >= 5) {
+          aiContext.higgsfieldKey = decoded.higgsfield_key.trim();
+        }
+        if (['openai', 'flux', 'sharp', 'higgsfield'].includes(decoded.visual_render_provider)) {
           aiContext.visualProvider = decoded.visual_render_provider;
         }
       }
@@ -264,17 +267,19 @@ export async function POST(req: NextRequest) {
     console.log('═'.repeat(70) + '\n');
 
     // === VISUAL PROVIDER SELECTION ===
-    // Priority: PURE_SHARP_MODE (env) → body param → USE_FLUX (env) → default 'sharp'
-    // NEVER default to 'openai' — it requires a valid API key
-    const selectedVisualProvider = aiContext.visualProvider || visual_render_provider;
-    let resolvedVisualProvider: 'openai' | 'flux' | 'sharp' = 'sharp';
-    if (process.env.PURE_SHARP_MODE === 'true') {
+    // Priority: PURE_SHARP_MODE (env) → body param → stored tenant config → default 'sharp'
+    // Body parameter ALWAYS takes precedence over database settings to prevent unexpected charges.
+    const selectedVisualProvider = visual_render_provider || aiContext.visualProvider || 'sharp';
+    let resolvedVisualProvider: 'openai' | 'flux' | 'sharp' | 'higgsfield' = 'sharp';
+    if (process.env.PURE_SHARP_MODE === 'true' || selectedVisualProvider === 'sharp') {
       resolvedVisualProvider = 'sharp';
     } else if (selectedVisualProvider === 'flux' || (!selectedVisualProvider && process.env.USE_FLUX === 'true')) {
       resolvedVisualProvider = 'flux';
+    } else if (selectedVisualProvider === 'higgsfield') {
+      resolvedVisualProvider = 'higgsfield';
     } else if (selectedVisualProvider === 'openai') {
       resolvedVisualProvider = 'openai';
-    } else if (selectedVisualProvider === 'sharp') {
+    } else {
       resolvedVisualProvider = 'sharp';
     }
 
@@ -1233,35 +1238,59 @@ OUTPUT: The SAME image with product inserted and ${hasTextSlots ? 'text replaced
       });
     }
 
-    // Map copywriting to text slots — assign generated copy to each slot based on type
+    // Map copywriting to text slots — assign generated copy to each slot based on ID and type
     const textSlotContent: Record<string, string> = {};
     for (const ts of textSlots) {
-      switch (ts.type) {
-        case 'headline':
-          textSlotContent[ts.id] = copywriting.hook || '';
-          break;
-        case 'badge':
-          textSlotContent[ts.id] = copywriting.badge || '';
-          break;
-        case 'product_title':
-          textSlotContent[ts.id] = productAnalysis.product_name || copywriting.hook || '';
-          break;
-        case 'description':
-          textSlotContent[ts.id] = copywriting.desc || '';
-          break;
-        case 'cta':
-          textSlotContent[ts.id] = copywriting.cta || '';
-          break;
-        case 'testimonial':
-          textSlotContent[ts.id] = copywriting.testimonial || '';
-          break;
-        case 'benefit_title':
-          // Assign benefits sequentially
-          const benefitIndex = textSlots.filter((s: any) => s.type === 'benefit_title').indexOf(ts);
-          textSlotContent[ts.id] = copywriting.benefits?.[benefitIndex] || '';
-          break;
-        default:
-          textSlotContent[ts.id] = copywriting.desc || '';
+      if (ts.id === 'badge') {
+        textSlotContent[ts.id] = copywriting.badge || 'NUEVA LÍNEA';
+      } else if (ts.id === 'headline') {
+        textSlotContent[ts.id] = copywriting.hook || 'RUBIO PERFECTO, CABELLO PODEROSO.';
+      } else if (ts.id === 'subhead') {
+        textSlotContent[ts.id] = copywriting.desc || 'Neutraliza los tonos amarillos y potencia el brillo con nutrición profunda.';
+      } else if (ts.id === 'feature_pill') {
+        textSlotContent[ts.id] = copywriting.premium_descriptor || (copywriting.benefits?.[0] ? `CON ${copywriting.benefits[0].replace(/^[✦💧✨🛡️✓\s*-]+/, '').toUpperCase()}` : 'FÓRMULA PROFESIONAL AVANZADA');
+      } else if (ts.id === 'benefit_1') {
+        textSlotContent[ts.id] = copywriting.benefits?.[0] || 'NEUTRALIZA tonos amarillos y cobrizos.';
+      } else if (ts.id === 'benefit_2') {
+        textSlotContent[ts.id] = copywriting.benefits?.[1] || 'HIDRATA y fortalece la fibra capilar.';
+      } else if (ts.id === 'benefit_3') {
+        textSlotContent[ts.id] = copywriting.benefits?.[2] || 'REALZA el brillo y la suavidad natural.';
+      } else if (ts.id === 'benefit_4') {
+        textSlotContent[ts.id] = copywriting.benefits?.[3] || 'PROTEGE el color y mantiene el tono perfecto.';
+      } else if (ts.id === 'footer_guarantees' || ts.type === 'footer') {
+        textSlotContent[ts.id] = copywriting.cta || 'FÓRMULA PROFESIONAL • RESULTADOS VISIBLES';
+      } else if (ts.id === 'footer_bar' || ts.type === 'footer_sub') {
+        textSlotContent[ts.id] = copywriting.testimonial || 'SIN SULFATOS • SIN PARABENOS • CRUELTY FREE';
+      } else {
+        switch (ts.type) {
+          case 'headline':
+            textSlotContent[ts.id] = copywriting.hook || '';
+            break;
+          case 'badge':
+            textSlotContent[ts.id] = copywriting.badge || '';
+            break;
+          case 'product_title':
+            textSlotContent[ts.id] = productAnalysis.product_name || copywriting.hook || '';
+            break;
+          case 'description':
+          case 'desc':
+            textSlotContent[ts.id] = copywriting.desc || '';
+            break;
+          case 'cta':
+            textSlotContent[ts.id] = copywriting.cta || '';
+            break;
+          case 'testimonial':
+            textSlotContent[ts.id] = copywriting.testimonial || '';
+            break;
+          case 'benefit_title':
+          case 'benefit_item': {
+            const benefitIndex = textSlots.filter((s: any) => s.type === 'benefit_title' || s.type === 'benefit_item').indexOf(ts);
+            textSlotContent[ts.id] = copywriting.benefits?.[benefitIndex] || '';
+            break;
+          }
+          default:
+            textSlotContent[ts.id] = copywriting.desc || '';
+        }
       }
     }
 
@@ -1412,6 +1441,18 @@ OUTPUT: The SAME image with product inserted and ${hasTextSlots ? 'text replaced
       }
       console.log(`⚡ [FLUX Prompt] Lighting-integration prompt (${compiledGptImagePrompt.length} chars)`);
       console.log(`   Product identity: Sharp (not FLUX) | Text: Sharp+SVG (not FLUX)`);
+    } else if (resolvedVisualProvider === 'higgsfield') {
+      const hfLighting = templateDNA.lighting_style || artDirection.lighting || 'luxurious commercial studio lighting';
+      const hfPalette = templateDNA.dominant_palette?.[0] || template_json.colors?.primary || '#2d1537';
+      compiledGptImagePrompt = [
+        `High-end commercial product advertising photography.`,
+        `The exact product from reference image placed standing on a modern 3D pedestal on the right side of the composition.`,
+        `Ultra-clean organic gradient waves background in deep rich tones of ${hfPalette}.`,
+        `${hfLighting} with crisp realistic contact shadows on the pedestal.`,
+        `Keep the entire left side completely clean and open for advertisement copy overlay.`,
+        `Pristine product focus, 8k resolution, cinematic commercial e-commerce advertising.`
+      ].join(' ');
+      console.log(`⚡ [Higgsfield Prompt] Commercial layout prompt (${compiledGptImagePrompt.length} chars)`);
     } else {
       // OpenAI GPT-Image-1: full structured prompt with text instructions
       compiledGptImagePrompt = useCompositingMode
@@ -1614,44 +1655,51 @@ OUTPUT: The SAME image with product inserted and ${hasTextSlots ? 'text replaced
       actualProvider = renderResult.provider || resolvedVisualProvider;
 
       // ════════════════════════════════════════════════════════════════════
-      // FLUX TEXT RENDERING STAGE
-      // When FLUX is the visual provider + there are text_slots:
-      //   FLUX rendered the visual (product, lighting, shadows, background)
+      // SHARP+SVG VECTOR TEXT RENDERING STAGE
+      // When there are text_slots:
+      //   Base visual engine (Sharp, Higgsfield, FLUX, OpenAI) rendered the scene
       //   Now Sharp+SVG renders the EXACT Spanish copy at precise positions
       //
-      // This separates visual quality (FLUX) from text legibility (Sharp)
-      // and eliminates all FLUX text hallucination / blurriness issues.
+      // This separates visual quality from text legibility
+      // and eliminates all text hallucination / blurriness issues.
       // ════════════════════════════════════════════════════════════════════
-      if (resolvedVisualProvider === 'flux' && hasTextSlots && textSlots.length > 0) {
+      if (hasTextSlots && textSlots.length > 0) {
         try {
-          // Parse canvas dimensions from gptImageSize (same logic used in flux-provider)
-          const [fluxCanvasW, fluxCanvasH] = (gptImageSize as string) === 'auto'
+          // Parse canvas dimensions from gptImageSize
+          const [canvasW, canvasH] = (!gptImageSize || (gptImageSize as string) === 'auto')
             ? [1024, 1536]
             : gptImageSize.split('x').map(Number);
 
-          console.log(`\n🖊️ [FLUX TEXT STAGE] Iniciando renderizado de texto con Sharp+SVG...`);
+          console.log(`\n🖊️ [TEXT RENDERING STAGE] Iniciando renderizado de texto con Sharp+SVG...`);
+          console.log(`  provider: ${actualProvider}`);
           console.log(`  text_slots: ${textSlots.length}`);
-          console.log(`  canvas: ${fluxCanvasW}x${fluxCanvasH}`);
+          console.log(`  canvas: ${canvasW}x${canvasH}`);
 
-          // Convert base64 result to buffer for sharp processing
-          const base64Data = renderResult.base64.replace(/^data:image\/[a-z]+;base64,/, '');
-          const renderBuffer = Buffer.from(base64Data, 'base64');
+          // Convert result to buffer (supports both remote URLs from Higgsfield and base64)
+          let renderBuffer: Buffer;
+          if (renderResult.base64.startsWith('http://') || renderResult.base64.startsWith('https://')) {
+            const remote = await fetchRemoteImage(renderResult.base64, { maxBytes: 15 * 1024 * 1024 });
+            renderBuffer = remote.buffer;
+          } else {
+            const base64Data = renderResult.base64.replace(/^data:image\/[a-z]+;base64,/, '');
+            renderBuffer = Buffer.from(base64Data, 'base64');
+          }
 
           const textRenderedBuffer = await renderTextLayersOntoImage(
             renderBuffer,
             textSlots,
             textSlotContent,
-            fluxCanvasW,
-            fluxCanvasH,
+            canvasW,
+            canvasH,
             adaptedColors
           );
 
           // Re-encode as base64 data URI
           base64Image = `data:image/png;base64,${textRenderedBuffer.toString('base64')}`;
-          console.log(`✅ [FLUX TEXT STAGE] Texto renderizado correctamente — imagen final lista`);
+          console.log(`✅ [TEXT RENDERING STAGE] Texto vectorial renderizado correctamente — imagen final lista`);
         } catch (textRenderErr: any) {
-          console.error(`⚠️ [FLUX TEXT STAGE] Error en text rendering: ${textRenderErr.message}`);
-          console.warn(`  Usando imagen FLUX sin texto como fallback`);
+          console.error(`⚠️ [TEXT RENDERING STAGE] Error en text rendering: ${textRenderErr.message}`);
+          console.warn(`  Usando imagen base sin capas de texto como fallback`);
           base64Image = renderResult.base64;
         }
       } else {

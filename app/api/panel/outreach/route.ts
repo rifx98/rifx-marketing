@@ -110,24 +110,46 @@ export async function GET(req: NextRequest) {
         image_url: meta.image_url || '',
         include_whatsapp: meta.include_whatsapp !== false,
         whatsapp_phone: meta.whatsapp_phone || '+593 98 391 0712',
+        greeting_intro: meta.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+        include_greeting: meta.include_greeting !== false,
+        closing_message: meta.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+        include_closing: meta.include_closing !== false,
       };
     });
 
     const inboxMessages: any[] = [];
+    const sentMessages: any[] = [];
     try {
-      const inboxRes = await fetchOutreachInbox({ limit: 15 });
-      if (inboxRes.success) {
-        const contactsByEmail = new Map<string, { id: string; business: string; stage: string }>();
-        for (const c of formattedContacts) {
-          contactsByEmail.set(c.email.toLowerCase().trim(), c);
-        }
-        for (const msg of inboxRes.messages) {
+      const [inboxRes, sentRes] = await Promise.allSettled([
+        fetchOutreachInbox({ limit: 15, mailbox: 'INBOX' }),
+        fetchOutreachInbox({ limit: 15, mailbox: 'INBOX.Sent' }),
+      ]);
+
+      const contactsByEmail = new Map<string, { id: string; business: string; stage: string }>();
+      for (const c of formattedContacts) {
+        contactsByEmail.set(c.email.toLowerCase().trim(), c);
+      }
+
+      if (inboxRes.status === 'fulfilled' && inboxRes.value.success) {
+        for (const msg of inboxRes.value.messages) {
           const contact = contactsByEmail.get(msg.fromEmail.toLowerCase().trim());
           if (contact) {
             msg.matchedContactId = contact.id;
             msg.matchedContactBusiness = contact.business;
           }
           inboxMessages.push(msg);
+        }
+      }
+
+      if (sentRes.status === 'fulfilled' && sentRes.value.success) {
+        for (const msg of sentRes.value.messages) {
+          const targetEmail = (msg.toEmail || msg.fromEmail || '').toLowerCase().trim();
+          const contact = contactsByEmail.get(targetEmail);
+          if (contact) {
+            msg.matchedContactId = contact.id;
+            msg.matchedContactBusiness = contact.business;
+          }
+          sentMessages.push(msg);
         }
       }
     } catch (e) {
@@ -139,6 +161,7 @@ export async function GET(req: NextRequest) {
         contacts: formattedContacts,
         templates,
         inbox: inboxMessages,
+        sent: sentMessages,
         smtpReady: smtpReady(),
         testEmail: process.env.RIFX_OUTREACH_TEST_EMAIL || '',
         sender,
@@ -365,14 +388,16 @@ Estilo: ${style}`;
       }
     }
 
-    // Sincronizar bandeja de respuestas de clientes vía IMAP (Nominalia)
+    // Sincronizar bandeja de respuestas de clientes y enviados vía IMAP (Nominalia)
     if (body.action === 'sync-inbox') {
-      const inboxResult = await fetchOutreachInbox({ limit: 25 });
-      if (!inboxResult.success) {
-        return NextResponse.json(
-          { error: inboxResult.error || 'No se pudo sincronizar el buzón de correo.' },
-          { status: 502 }
-        );
+      const [inboxResult, sentResult] = await Promise.allSettled([
+        fetchOutreachInbox({ limit: 25, mailbox: 'INBOX' }),
+        fetchOutreachInbox({ limit: 25, mailbox: 'INBOX.Sent' }),
+      ]);
+
+      if (inboxResult.status === 'rejected' || (inboxResult.status === 'fulfilled' && !inboxResult.value.success)) {
+        const err = inboxResult.status === 'fulfilled' ? inboxResult.value.error : 'No se pudo sincronizar el buzón de correo.';
+        return NextResponse.json({ error: err || 'No se pudo sincronizar el buzón de correo.' }, { status: 502 });
       }
 
       // Obtener todos los contactos del tenant para cruzar por email
@@ -390,29 +415,45 @@ Estilo: ${style}`;
 
       let updatedCount = 0;
       const enrichedMessages = [];
+      const enrichedSentMessages = [];
 
-      for (const msg of inboxResult.messages) {
-        const contact = contactsByEmail.get(msg.fromEmail.toLowerCase().trim());
-        if (contact) {
-          msg.matchedContactId = contact.id;
-          msg.matchedContactBusiness = contact.business;
+      if (inboxResult.status === 'fulfilled' && inboxResult.value.success) {
+        for (const msg of inboxResult.value.messages) {
+          const contact = contactsByEmail.get(msg.fromEmail.toLowerCase().trim());
+          if (contact) {
+            msg.matchedContactId = contact.id;
+            msg.matchedContactBusiness = contact.business;
 
-          // Si el prospecto aún estaba en draft o pending, marcarlo automáticamente como 'replied'
-          if (['draft', 'pending'].includes(contact.stage)) {
-            await db
-              .from('outreach_contacts')
-              .update({ stage: 'replied', updated_at: new Date().toISOString() })
-              .eq('id', contact.id);
-            contact.stage = 'replied';
-            updatedCount++;
+            // Si el prospecto aún estaba en draft o pending, marcarlo automáticamente como 'replied'
+            if (['draft', 'pending'].includes(contact.stage)) {
+              await db
+                .from('outreach_contacts')
+                .update({ stage: 'replied', updated_at: new Date().toISOString() })
+                .eq('id', contact.id);
+              contact.stage = 'replied';
+              updatedCount++;
+            }
           }
+          enrichedMessages.push(msg);
         }
-        enrichedMessages.push(msg);
+      }
+
+      if (sentResult.status === 'fulfilled' && sentResult.value.success) {
+        for (const msg of sentResult.value.messages) {
+          const targetEmail = (msg.toEmail || msg.fromEmail || '').toLowerCase().trim();
+          const contact = contactsByEmail.get(targetEmail);
+          if (contact) {
+            msg.matchedContactId = contact.id;
+            msg.matchedContactBusiness = contact.business;
+          }
+          enrichedSentMessages.push(msg);
+        }
       }
 
       return NextResponse.json({
         success: true,
         messages: enrichedMessages,
+        sentMessages: enrichedSentMessages,
         updatedCount,
       });
     }
@@ -623,6 +664,10 @@ Estilo: ${style}`;
         image_url: draft.image_url,
         include_whatsapp: draft.include_whatsapp,
         whatsapp_phone: draft.whatsapp_phone,
+        greeting_intro: draft.greeting_intro,
+        include_greeting: draft.include_greeting,
+        closing_message: draft.closing_message,
+        include_closing: draft.include_closing,
       });
 
       const payload = {
@@ -664,6 +709,10 @@ Estilo: ${style}`;
             image_url: meta.image_url || draft.image_url || '',
             include_whatsapp: meta.include_whatsapp !== undefined ? meta.include_whatsapp : (draft.include_whatsapp !== false),
             whatsapp_phone: meta.whatsapp_phone || draft.whatsapp_phone || '+593 98 391 0712',
+            greeting_intro: meta.greeting_intro || draft.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+            include_greeting: meta.include_greeting !== undefined ? meta.include_greeting : (draft.include_greeting !== false),
+            closing_message: meta.closing_message || draft.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+            include_closing: meta.include_closing !== undefined ? meta.include_closing : (draft.include_closing !== false),
           },
         });
       }
@@ -688,6 +737,10 @@ Estilo: ${style}`;
           image_url: meta.image_url || draft.image_url || '',
           include_whatsapp: meta.include_whatsapp !== undefined ? meta.include_whatsapp : (draft.include_whatsapp !== false),
           whatsapp_phone: meta.whatsapp_phone || draft.whatsapp_phone || '+593 98 391 0712',
+          greeting_intro: meta.greeting_intro || draft.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+          include_greeting: meta.include_greeting !== undefined ? meta.include_greeting : (draft.include_greeting !== false),
+          closing_message: meta.closing_message || draft.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+          include_closing: meta.include_closing !== undefined ? meta.include_closing : (draft.include_closing !== false),
         },
       });
     }
@@ -702,11 +755,12 @@ Estilo: ${style}`;
         return NextResponse.json({ error: 'Estado de seguimiento inválido.' }, { status: 400 });
       }
 
+      const isDeclined = body.stage === 'declined';
       const { data, error } = await db
         .from('outreach_contacts')
         .update({
           stage: body.stage,
-          ...(body.stage === 'declined' ? { suppressed: true } : {}),
+          suppressed: isDeclined,
           updated_at: new Date().toISOString(),
         })
         .eq('id', body.id)
@@ -728,6 +782,51 @@ Estilo: ${style}`;
           image_url: meta.image_url || '',
           include_whatsapp: meta.include_whatsapp !== false,
           whatsapp_phone: meta.whatsapp_phone || '+593 98 391 0712',
+          greeting_intro: meta.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+          include_greeting: meta.include_greeting !== false,
+          closing_message: meta.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+          include_closing: meta.include_closing !== false,
+        },
+      });
+    }
+
+    // 4.1. Reactivar o permitir nuevo envío a un contacto
+    if (body.action === 'reset-status') {
+      if (typeof body.id !== 'string' || !UUID.test(body.id)) {
+        return NextResponse.json({ error: 'ID de contacto inválido.' }, { status: 400 });
+      }
+
+      const { data, error } = await db
+        .from('outreach_contacts')
+        .update({
+          delivery_status: 'draft',
+          suppressed: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.id)
+        .eq('tenant_id', tenantId)
+        .select(FIELDS)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return NextResponse.json({ error: 'Contacto no encontrado.' }, { status: 404 });
+
+      const { template_html, meta } = extractOutreachMeta(data.template_html);
+      return NextResponse.json({
+        contact: {
+          ...data,
+          template_html,
+          price: meta.price || 'USD 300',
+          service_title: meta.service_title || 'Gestión de anuncios publicitarios',
+          deliverables: meta.deliverables || '12 piezas gráficas • 3 videos editables',
+          deliverables_note: meta.deliverables_note || 'La inversión en anuncios se paga por separado.',
+          image_url: meta.image_url || '',
+          include_whatsapp: meta.include_whatsapp !== false,
+          whatsapp_phone: meta.whatsapp_phone || '+593 98 391 0712',
+          greeting_intro: meta.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.',
+          include_greeting: meta.include_greeting !== false,
+          closing_message: meta.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.',
+          include_closing: meta.include_closing !== false,
         },
       });
     }
@@ -837,6 +936,10 @@ Estilo: ${style}`;
             template_html: typeof item.template_html === 'string' ? item.template_html : (typeof campaignDraft.template_html === 'string' ? campaignDraft.template_html : null),
             include_whatsapp: typeof item.include_whatsapp === 'boolean' ? item.include_whatsapp : (campaignDraft.include_whatsapp !== false),
             whatsapp_phone: String(item.whatsapp_phone || campaignDraft.whatsapp_phone || '+593 98 391 0712'),
+            greeting_intro: String(item.greeting_intro || campaignDraft.greeting_intro || 'Soy Bryan Arcos, de Rifx Marketing, en Ambato.'),
+            include_greeting: typeof item.include_greeting === 'boolean' ? item.include_greeting : (campaignDraft.include_greeting !== false),
+            closing_message: String(item.closing_message || campaignDraft.closing_message || '¿Con quién de su equipo puedo conversar sobre su publicidad? Si les interesa, acordamos los detalles, fechas y presupuesto.'),
+            include_closing: typeof item.include_closing === 'boolean' ? item.include_closing : (campaignDraft.include_closing !== false),
           };
 
           const rendered = renderOutreach(draftToSend, senderEmail);
@@ -958,10 +1061,18 @@ Estilo: ${style}`;
 
     if (body.action === 'test') {
       draft = parseOutreachDraft(body);
-      to = process.env.RIFX_OUTREACH_TEST_EMAIL || '';
+      const customTo =
+        typeof body.testEmail === 'string' && validOutreachEmail(body.testEmail)
+          ? body.testEmail.trim()
+          : null;
+      to =
+        customTo ||
+        (draft?.email && validOutreachEmail(draft.email) ? draft.email : '') ||
+        process.env.RIFX_OUTREACH_TEST_EMAIL ||
+        '';
       if (!draft || !validOutreachEmail(to)) {
         return NextResponse.json(
-          { error: 'Revisa el borrador y asegúrate de configurar tu correo de pruebas RIFX_OUTREACH_TEST_EMAIL.' },
+          { error: 'Revisa el borrador y asegúrate de indicar un correo válido para la prueba.' },
           { status: 400 }
         );
       }
@@ -1101,7 +1212,7 @@ Estilo: ${style}`;
         }
       }
 
-      return NextResponse.json({ accepted: true, test: body.action === 'test' });
+      return NextResponse.json({ accepted: true, test: body.action === 'test', to });
     } catch (sendError) {
       console.error('[Outreach POST] SMTP Error:', sendError);
       if (contactId) {
