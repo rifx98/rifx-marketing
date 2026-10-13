@@ -16,7 +16,16 @@ interface MarketingImageStudioProps {
   onContinueToCampaigns?: (imageUrl: string) => void;
 }
 
-const BANNER_PRESETS = [
+export interface BannerItem {
+  id: string;
+  name: string;
+  tag: string;
+  desc: string;
+  url: string;
+  isCustom?: boolean;
+}
+
+const BANNER_PRESETS: BannerItem[] = [
   {
     id: 'infografia_comercial_4b',
     name: 'Alto Impacto Comercial (4 Beneficios + Pedestal)',
@@ -117,6 +126,24 @@ export default function MarketingImageStudio({
   const [customBannerDimensions, setCustomBannerDimensions] = useState<{ width: number; height: number } | null>(null);
   const [zoomModalUrl, setZoomModalUrl] = useState<string | null>(null);
 
+  // Plantillas dinámicas de la base de datos y segmentación
+  const [dbBanners, setDbBanners] = useState<Array<{ id: string; name: string; tag: string; desc: string; url: string; isCustom?: boolean }>>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = localStorage.getItem('rifx_cached_panel_banners');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedSegment, setSelectedSegment] = useState<string>('all');
+  const [showAddBannerModal, setShowAddBannerModal] = useState<boolean>(false);
+  const [newBannerTitle, setNewBannerTitle] = useState<string>('');
+  const [newBannerCategory, setNewBannerCategory] = useState<string>('Streetwear & Moda');
+  const [newBannerImage, setNewBannerImage] = useState<string>('');
+  const [isSavingNewBanner, setIsSavingNewBanner] = useState<boolean>(false);
+  const newBannerFileInputRef = useRef<HTMLInputElement>(null);
+
   // Datos del Local y Oferta Comercial (Idea del Cliente mejorable con IA)
   const [storeName, setStoreName] = useState<string>('RIFX Marketing');
   const [offerText, setOfferText] = useState<string>('ARMAMOS UNA ESTRATEGIA PARA TU NEGOCIO');
@@ -155,6 +182,80 @@ export default function MarketingImageStudio({
   const productFileInputRef = useRef<HTMLInputElement>(null);
   const secondaryFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cargar plantillas desde /api/panel/templates
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const token = typeof window !== 'undefined'
+          ? (localStorage.getItem('rifx_session_token') || localStorage.getItem('token') || '')
+          : '';
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch('/api/panel/templates', { headers, credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.templates)) {
+            const items = data.templates
+              .filter((t: any) => t.preview_image_url && t.name)
+              .map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                tag: t.category || 'Streetwear & Moda',
+                desc: t.config_json?.description || `Pancarta publicitaria para ${t.category || 'tu producto'}.`,
+                url: t.preview_image_url,
+                isCustom: true,
+              }));
+            setDbBanners(items);
+            try {
+              localStorage.setItem('rifx_cached_panel_banners', JSON.stringify(items));
+            } catch {}
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudieron cargar plantillas de DB:', e);
+      }
+    };
+    fetchTemplates();
+  }, []);
+
+  // Combinación y filtrado reactivo de pancartas
+  const allBannerPresets: BannerItem[] = React.useMemo(() => {
+    const presetIds = new Set(BANNER_PRESETS.map((b) => b.id));
+    const extra = dbBanners.filter((b) => !presetIds.has(b.id));
+    return [...BANNER_PRESETS, ...extra];
+  }, [dbBanners]);
+
+  const filteredBannerPresets: BannerItem[] = React.useMemo(() => {
+    if (selectedSegment === 'all') return allBannerPresets;
+    const seg = selectedSegment.toLowerCase();
+    return allBannerPresets.filter((b) => {
+      const tag = (b.tag || '').toLowerCase();
+      const name = (b.name || '').toLowerCase();
+      if (seg === 'moda') {
+        return tag.includes('moda') || tag.includes('streetwear') || tag.includes('ropa') || name.includes('moda') || name.includes('ropa');
+      }
+      if (seg === 'ecom') {
+        return tag.includes('e-commerce') || tag.includes('comercial') || tag.includes('ganador');
+      }
+      if (seg === 'fitness') {
+        return tag.includes('fitness') || tag.includes('salud') || tag.includes('suplement');
+      }
+      if (seg === 'lujo') {
+        return tag.includes('lujo') || tag.includes('joyería') || tag.includes('perfum');
+      }
+      if (seg === 'viral') {
+        return tag.includes('viral') || tag.includes('creativo') || tag.includes('concept');
+      }
+      if (seg === 'belleza') {
+        return tag.includes('belleza') || tag.includes('cosmética') || tag.includes('skincare');
+      }
+      if (seg === 'alimentos') {
+        return tag.includes('bebida') || tag.includes('alimento') || tag.includes('splash');
+      }
+      return tag.includes(seg) || name.includes(seg);
+    });
+  }, [allBannerPresets, selectedSegment]);
 
   // Cargar historial persistente al montar
   useEffect(() => {
@@ -328,10 +429,97 @@ export default function MarketingImageStudio({
     reader.readAsDataURL(file);
   };
 
+  const handleAddNewBanner = async () => {
+    if (!newBannerTitle.trim()) {
+      setToast?.({ message: 'Escribe un título para la pancarta.', type: 'error' });
+      return;
+    }
+    if (!newBannerImage) {
+      setToast?.({ message: 'Sube una imagen para la pancarta.', type: 'error' });
+      return;
+    }
+
+    setIsSavingNewBanner(true);
+    try {
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('rifx_session_token') || localStorage.getItem('token') || '')
+        : '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/panel/templates', {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          name: newBannerTitle.trim(),
+          category: newBannerCategory,
+          preview_image_url: newBannerImage,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      const newId = data?.template?.id || `custom_${Date.now()}`;
+      const newPresetItem = {
+        id: newId,
+        name: newBannerTitle.trim(),
+        tag: newBannerCategory,
+        desc: `Pancarta publicitaria especializada para ${newBannerCategory}.`,
+        url: newBannerImage,
+        isCustom: true,
+      };
+
+      const updated = [newPresetItem, ...dbBanners];
+      setDbBanners(updated);
+      try {
+        localStorage.setItem('rifx_cached_panel_banners', JSON.stringify(updated));
+      } catch {}
+
+      setSelectedBannerMode('preset');
+      setSelectedBannerPreset(newId);
+      setShowAddBannerModal(false);
+      setNewBannerTitle('');
+      setNewBannerImage('');
+
+      setToast?.({
+        message: '🎉 ¡Pancarta agregada exitosamente al catálogo!',
+        type: 'success',
+      });
+    } catch (err: any) {
+      console.warn('Error guardando pancarta en servidor, usando almacenamiento local:', err);
+      const localId = `custom_${Date.now()}`;
+      const newPresetItem = {
+        id: localId,
+        name: newBannerTitle.trim(),
+        tag: newBannerCategory,
+        desc: `Pancarta publicitaria personalizada para ${newBannerCategory}.`,
+        url: newBannerImage,
+        isCustom: true,
+      };
+      const updated = [newPresetItem, ...dbBanners];
+      setDbBanners(updated);
+      try {
+        localStorage.setItem('rifx_cached_panel_banners', JSON.stringify(updated));
+      } catch {}
+      setSelectedBannerMode('preset');
+      setSelectedBannerPreset(localId);
+      setShowAddBannerModal(false);
+      setNewBannerTitle('');
+      setNewBannerImage('');
+      setToast?.({
+        message: '✅ Pancarta guardada en tu catálogo local.',
+        type: 'success',
+      });
+    } finally {
+      setIsSavingNewBanner(false);
+    }
+  };
+
   const getActiveBannerUrl = (): string => {
     if (selectedBannerMode === 'none') return '';
     if (selectedBannerMode === 'custom') return customBannerImage;
-    const preset = BANNER_PRESETS.find((b) => b.id === selectedBannerPreset);
+    const preset = allBannerPresets.find((b) => b.id === selectedBannerPreset);
     return preset ? preset.url : '';
   };
 
@@ -445,7 +633,7 @@ export default function MarketingImageStudio({
           quality: 'medium', // Calidad medium para fijar estrictamente el costo en $0.03612 USD
           template_mode: selectedBannerMode,
           is_custom_banner: selectedBannerMode === 'custom',
-          template_name: selectedBannerMode === 'custom' ? 'Pancarta Personalizada' : BANNER_PRESETS.find((b) => b.id === selectedBannerPreset)?.name,
+          template_name: selectedBannerMode === 'custom' ? 'Pancarta Personalizada' : allBannerPresets.find((b) => b.id === selectedBannerPreset)?.name,
           bullet_points: bulletPoints,
         }),
       });
@@ -610,6 +798,15 @@ export default function MarketingImageStudio({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setShowAddBannerModal(true)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs flex items-center gap-1.5 transition-all cursor-pointer transform active:scale-95"
+                  title="Subir y agregar una nueva pancarta al catálogo sin necesidad de JSON"
+                >
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  <span>+ Agregar Pancarta</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => {
                     setSelectedBannerMode('custom');
                     bannerFileInputRef.current?.click();
@@ -621,7 +818,7 @@ export default function MarketingImageStudio({
                   }`}
                 >
                   <span className="material-symbols-outlined text-sm">upload</span>
-                  Subir Pancarta
+                  Subir Flyer Rápido
                 </button>
                 <button
                   type="button"
@@ -637,6 +834,36 @@ export default function MarketingImageStudio({
               </div>
             </div>
 
+            {/* Barra de Segmentación / Categorías (Filtros: Moda/Ropa, E-commerce, Fitness, etc.) */}
+            {selectedBannerMode === 'preset' && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-0.5">
+                {[
+                  { id: 'all', label: 'Todas', icon: 'apps' },
+                  { id: 'moda', label: 'Streetwear & Moda (Ropa)', icon: 'checkroom' },
+                  { id: 'ecom', label: 'E-commerce Ganador', icon: 'shopping_bag' },
+                  { id: 'fitness', label: 'Fitness & Salud', icon: 'fitness_center' },
+                  { id: 'lujo', label: 'Joyería & Perfumería', icon: 'diamond' },
+                  { id: 'viral', label: 'Creativo & Viral', icon: 'auto_awesome' },
+                  { id: 'belleza', label: 'Belleza & Cosmética', icon: 'spa' },
+                  { id: 'alimentos', label: 'Bebidas & Alimentos', icon: 'restaurant' },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedSegment(cat.id)}
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                      selectedSegment === cat.id
+                        ? 'bg-[#0058bc] text-white shadow-sm ring-2 ring-blue-400/20'
+                        : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/90'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xs">{cat.icon}</span>
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Input Oculto para Subir Pancarta Personalizada */}
             <input
               type="file"
@@ -646,58 +873,79 @@ export default function MarketingImageStudio({
               className="hidden"
             />
 
-            {/* Galería de Pancartas - Visualización Proporcionada y Nítida en 3 Columnas dentro de la Columna Izquierda */}
+            {/* Galería de Pancartas - Muestra exactamente 6 pancartas a la vista (2 filas de 3) con scroll interno */}
             {selectedBannerMode === 'preset' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 pt-2">
-                {BANNER_PRESETS.map((banner) => {
-                  const isSelected = selectedBannerPreset === banner.id;
-                  return (
-                    <div
-                      key={banner.id}
-                      onClick={() => setSelectedBannerPreset(banner.id)}
-                      className={`group relative rounded-2xl border-2 overflow-hidden cursor-pointer transition-all ${
-                        isSelected
-                          ? 'border-[#0058bc] shadow-md ring-2 ring-blue-500/30'
-                          : 'border-slate-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <div className="aspect-square w-full bg-slate-900 relative overflow-hidden">
-                        <img
-                          src={banner.url}
-                          alt={banner.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute top-2 right-2 bg-slate-950/80 backdrop-blur-sm text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/20">
-                          {banner.tag}
-                        </div>
-                        {/* Botón de Zoom / Ampliar */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setZoomModalUrl(banner.url);
-                          }}
-                          className="absolute bottom-2 right-2 bg-slate-950/70 hover:bg-slate-900 text-white rounded-lg p-1.5 backdrop-blur-xs transition-all shadow-md flex items-center gap-1 text-[10px] font-bold opacity-0 group-hover:opacity-100 z-10"
-                          title="Ver en pantalla completa"
+              <div className="space-y-2">
+                <div className="max-h-[570px] overflow-y-auto pr-1.5 pt-1 rounded-2xl scrollbar-thin scrollbar-thumb-slate-300 hover:scrollbar-thumb-blue-400 focus:outline-none transition-all">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                    {filteredBannerPresets.map((banner) => {
+                      const isSelected = selectedBannerPreset === banner.id;
+                      return (
+                        <div
+                          key={banner.id}
+                          onClick={() => setSelectedBannerPreset(banner.id)}
+                          className={`group relative rounded-2xl border-2 overflow-hidden cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-[#0058bc] shadow-md ring-2 ring-blue-500/30'
+                              : 'border-slate-200 hover:border-blue-300'
+                          }`}
                         >
-                          <span className="material-symbols-outlined text-xs">zoom_in</span>
-                          <span>Ampliar</span>
-                        </button>
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-[#0058bc]/20 backdrop-blur-[1px] flex items-center justify-center">
-                            <span className="bg-[#0058bc] text-white rounded-full p-1.5 shadow-md material-symbols-outlined text-lg">
-                              check
-                            </span>
+                          <div className="aspect-square w-full bg-slate-900 relative overflow-hidden">
+                            <img
+                              src={banner.url}
+                              alt={banner.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            <div className="absolute top-2 right-2 bg-slate-950/80 backdrop-blur-sm text-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/20 max-w-[140px] truncate">
+                              {banner.tag}
+                            </div>
+                            {banner.isCustom && (
+                              <div className="absolute top-2 left-2 bg-emerald-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5 shadow-sm">
+                                <span className="material-symbols-outlined text-[10px]">person</span>
+                                Tuya
+                              </div>
+                            )}
+                            {/* Botón de Zoom / Ampliar */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setZoomModalUrl(banner.url);
+                              }}
+                              className="absolute bottom-2 right-2 bg-slate-950/70 hover:bg-slate-900 text-white rounded-lg p-1.5 backdrop-blur-xs transition-all shadow-md flex items-center gap-1 text-[10px] font-bold opacity-0 group-hover:opacity-100 z-10"
+                              title="Ver en pantalla completa"
+                            >
+                              <span className="material-symbols-outlined text-xs">zoom_in</span>
+                              <span>Ampliar</span>
+                            </button>
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-[#0058bc]/20 backdrop-blur-[1px] flex items-center justify-center">
+                                <span className="bg-[#0058bc] text-white rounded-full p-1.5 shadow-md material-symbols-outlined text-lg">
+                                  check
+                                </span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="p-2.5 bg-white">
-                        <h5 className="font-bold text-xs text-slate-900 line-clamp-1">{banner.name}</h5>
-                        <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">{banner.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+                          <div className="p-2.5 bg-white">
+                            <h5 className="font-bold text-xs text-slate-900 line-clamp-1">{banner.name}</h5>
+                            <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">{banner.desc}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Indicador de Desplazamiento si hay más de 6 pancartas */}
+                {filteredBannerPresets.length > 6 && (
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 px-2 pt-1 border-t border-slate-100">
+                    <span>Mostrando 6 a la vista de {filteredBannerPresets.length} pancartas disponibles</span>
+                    <span className="flex items-center gap-1 text-[#0058bc]">
+                      <span className="material-symbols-outlined text-xs animate-bounce">south</span>
+                      Desliza dentro del recuadro para ver más
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1352,6 +1600,150 @@ export default function MarketingImageStudio({
                 className="px-4 py-2 bg-[#0058bc] text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
               >
                 Cerrar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal para Agregar Pancarta al Catálogo (Sin JSON, solo Imagen, Título y Segmentación) */}
+      {showAddBannerModal && (
+        <div
+          onClick={() => setShowAddBannerModal(false)}
+          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 flex flex-col space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#0058bc] text-2xl">add_photo_alternate</span>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 leading-tight">
+                    Agregar Nueva Pancarta al Catálogo
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Sube la imagen y título; la IA la integrará automáticamente con tus productos.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddBannerModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 block mb-1">
+                  1. Título de la Pancarta
+                </label>
+                <input
+                  type="text"
+                  value={newBannerTitle}
+                  onChange={(e) => setNewBannerTitle(e.target.value)}
+                  placeholder="Ej: Pancarta Streetwear Hoodie Oversize"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-blue-100 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 block mb-1">
+                  2. Segmentación / Categoría
+                </label>
+                <select
+                  value={newBannerCategory}
+                  onChange={(e) => setNewBannerCategory(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:border-[#0058bc] focus:ring-2 focus:ring-blue-100 transition-all bg-white"
+                >
+                  <option value="Streetwear & Moda">Streetwear & Moda (Ropa)</option>
+                  <option value="E-commerce Ganador">E-commerce Ganador</option>
+                  <option value="Fitness & Salud">Fitness & Salud</option>
+                  <option value="Joyería & Perfumería">Joyería & Perfumería</option>
+                  <option value="Creativo & Viral">Creativo & Viral</option>
+                  <option value="Belleza & Cosmética">Belleza & Cosmética</option>
+                  <option value="Bebidas & Alimentos">Bebidas & Alimentos</option>
+                  <option value="Tech & Gadgets">Tech & Gadgets</option>
+                  <option value="General">General</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 block mb-1">
+                  3. Imagen de la Pancarta Publicitaria
+                </label>
+                <input
+                  type="file"
+                  ref={newBannerFileInputRef}
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      setNewBannerImage(ev.target?.result as string);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                  className="hidden"
+                />
+
+                {newBannerImage ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 h-44 bg-slate-950 flex items-center justify-center">
+                    <img src={newBannerImage} alt="Preview" className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setNewBannerImage('')}
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md transition-all cursor-pointer"
+                      title="Quitar imagen"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => newBannerFileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-300 hover:border-[#0058bc] rounded-2xl p-6 text-center cursor-pointer transition-all bg-slate-50 hover:bg-blue-50/30 group"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0058bc] flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                      <span className="material-symbols-outlined text-2xl">cloud_upload</span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-700 group-hover:text-[#0058bc] transition-colors">
+                      Haz clic para subir la imagen de tu pancarta
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Soporta PNG, JPG o WebP</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAddBannerModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleAddNewBanner}
+                disabled={isSavingNewBanner || !newBannerTitle.trim() || !newBannerImage}
+                className="px-5 py-2.5 rounded-xl text-xs font-black bg-[#0058bc] hover:bg-blue-700 text-white shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isSavingNewBanner ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-sm">check</span>
+                )}
+                <span>Guardar en el Catálogo</span>
               </button>
             </div>
           </motion.div>

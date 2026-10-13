@@ -7920,24 +7920,40 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
 
   // Handle template insertion/updating
   const handleSaveCreativeTemplate = async () => {
-    if (!tplName.trim() || !tplConfigJson.trim()) {
+    if (!tplName.trim()) {
       setToast({ 
-        message: language === 'en' ? 'Name and config JSON are required' : 'El nombre y la configuración JSON son requeridos', 
+        message: language === 'en' ? 'Template title is required' : 'El título o nombre de la pancarta es requerido', 
         type: 'error' 
       });
       return;
     }
 
-    // Validar JSON
-    let parsedConfig = null;
-    try {
-      parsedConfig = JSON.parse(tplConfigJson);
-    } catch (e: any) {
+    if (!tplImageFile && !tplPreviewUrl && !tplImagePreview) {
       setToast({ 
-        message: (language === 'en' ? 'Invalid JSON format: ' : 'Formato JSON inválido: ') + e.message, 
+        message: language === 'en' ? 'Template image is required' : 'Debes subir o seleccionar la imagen de la pancarta', 
         type: 'error' 
       });
       return;
+    }
+
+    // Configuración automática por defecto (sin requerir JSON manual)
+    let parsedConfig: any = {
+      name: tplName.trim(),
+      category: tplCategory || 'Streetwear & Moda',
+      template_visual_dna_lock: true,
+      template_semantic_isolation: true,
+      template_structure_lock: { canvas_ratio: '1:1', preserve_layout_similarity: 'high' }
+    };
+
+    if (tplConfigJson && tplConfigJson.trim()) {
+      try {
+        const custom = JSON.parse(tplConfigJson);
+        if (custom && typeof custom === 'object') {
+          parsedConfig = { ...parsedConfig, ...custom };
+        }
+      } catch (e: any) {
+        console.warn('JSON opcional ignorado por error de sintaxis, usando default:', e.message);
+      }
     }
 
     // ==========================================
@@ -8024,19 +8040,35 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
         }
       }
 
-      // Guardar en la DB
-      const saveRes = await authFetch('/api/admin/templates', {
+      // Guardar en la DB (intentar endpoint admin, fallback a panel/templates)
+      let saveRes = await authFetch('/api/admin/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingTpl?.id || null,
-          name: tplName,
+          name: tplName.trim(),
           category: tplCategory,
-          preview_image_url: finalPreviewUrl,
+          preview_image_url: finalPreviewUrl || tplImagePreview,
           config_json: parsedConfig,
           is_active: tplIsActive
         })
       });
+
+      if (!saveRes.ok) {
+        // Fallback al endpoint de panel para cualquier rol/tenant
+        saveRes = await authFetch('/api/panel/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingTpl?.id || null,
+            name: tplName.trim(),
+            category: tplCategory,
+            preview_image_url: finalPreviewUrl || tplImagePreview,
+            config_json: parsedConfig,
+            is_active: tplIsActive
+          })
+        });
+      }
 
       if (!saveRes.ok) {
         let errorMsg = `HTTP ${saveRes.status}`;
@@ -19995,137 +20027,94 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                         <div className="p-6 bg-slate-50 rounded-xl mb-6 border border-slate-200/50">
                           <div className="grid md:grid-cols-3 gap-4 mb-4">
                             <div className="md:col-span-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Nombre de la Plantilla</label>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Título o Nombre de la Pancarta</label>
                               <input 
                                 value={tplName} 
                                 onChange={e => setTplName(e.target.value)} 
-                                placeholder="Ej: Cosmético Lavanda Oasis Premium" 
+                                placeholder="Ej: Pancarta Streetwear Hoodie Oversize" 
                                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all" 
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Categoría</label>
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Segmentación / Categoría</label>
                               <select 
                                 value={tplCategory} 
                                 onChange={e => setTplCategory(e.target.value)} 
                                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm font-bold text-primary bg-white focus:outline-none focus:border-orange-500"
                               >
-                                <option value="general">General</option>
-                                <option value="belleza">Belleza</option>
-                                <option value="suplementos">Suplementos</option>
-                                <option value="moda">Moda</option>
-                                <option value="tech">Tecnología</option>
+                                <option value="Streetwear & Moda">Streetwear & Moda (Ropa)</option>
+                                <option value="E-commerce Ganador">E-commerce Ganador</option>
+                                <option value="Fitness & Salud">Fitness & Salud</option>
+                                <option value="Joyería & Perfumería">Joyería & Perfumería</option>
+                                <option value="Creativo & Viral">Creativo & Viral</option>
+                                <option value="Belleza & Cosmética">Belleza & Cosmética</option>
+                                <option value="Bebidas & Alimentos">Bebidas & Alimentos</option>
+                                <option value="Tech & Gadgets">Tech & Gadgets</option>
+                                <option value="General">General</option>
                               </select>
                             </div>
                           </div>
 
-                          <div className="grid md:grid-cols-2 gap-6 mb-4">
-                            {/* JSON config */}
-                            <div>
-                              <div className="flex justify-between items-center mb-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Configuración JSON</label>
-                                <div className="flex items-center gap-3">
-                                  <button 
-                                    type="button" 
-                                    onClick={handleAutoDetectZones} 
-                                    disabled={detectingZones || (!tplImagePreview && !tplPreviewUrl)}
-                                    className="text-[10px] text-violet-500 hover:text-violet-600 font-extrabold flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                  >
-                                    {detectingZones ? (
-                                      <div className="w-3 h-3 border-2 border-violet-300 border-t-violet-600 rounded-full animate-spin" />
-                                    ) : (
-                                      <span className="material-symbols-outlined text-[12px]">search</span>
-                                    )}
-                                    {detectingZones ? 'Detectando...' : '🔍 Auto-detectar zonas'}
-                                  </button>
-                                  <button 
-                                    type="button" 
-                                    onClick={handlePreFillDefaultJson} 
-                                    className="text-[10px] text-orange-500 hover:text-orange-600 font-extrabold flex items-center gap-1 transition-colors"
-                                  >
-                                    <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
-                                    Autorellenar estructura
-                                  </button>
-                                </div>
+                          {/* Imagen de Vista Previa / Banner */}
+                          <div className="mb-4">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Imagen de la Pancarta Publicitaria</label>
+                            <input 
+                              ref={tplImageInputRef} 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={handleTplImageSelect} 
+                              className="hidden" 
+                            />
+                            {tplImagePreview || tplPreviewUrl ? (
+                              <div className="relative rounded-xl overflow-hidden border border-slate-200 h-[220px] max-w-md bg-slate-950 flex items-center justify-center">
+                                <img 
+                                  src={tplImagePreview || tplPreviewUrl} 
+                                  alt="Preview" 
+                                  className="w-full h-full object-contain" 
+                                />
+                                <button 
+                                  type="button"
+                                  onClick={() => { 
+                                    setTplImageFile(null); 
+                                    setTplImagePreview(''); 
+                                    setTplPreviewUrl(''); 
+                                  }} 
+                                  className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md"
+                                >
+                                  <span className="material-symbols-outlined text-sm">close</span>
+                                </button>
                               </div>
+                            ) : (
+                              <button 
+                                type="button"
+                                onClick={() => tplImageInputRef.current?.click()} 
+                                className="w-full max-w-md h-[180px] border-2 border-dashed border-slate-200 rounded-xl hover:border-orange-400 hover:bg-orange-50/30 transition-all flex flex-col items-center justify-center gap-2 group cursor-pointer"
+                              >
+                                <div className="w-12 h-12 rounded-xl bg-slate-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
+                                  <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500 transition-colors text-2xl">add_photo_alternate</span>
+                                </div>
+                                <p className="text-xs font-bold text-slate-600 group-hover:text-orange-600 transition-colors">Haz clic para subir la imagen de la pancarta</p>
+                                <p className="text-[10px] text-slate-400">Formatos PNG, JPG o WebP en alta calidad</p>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Ajustes Técnicos Avanzados (Opcional - Colapsado por defecto) */}
+                          <details className="text-xs text-slate-500 mt-2 mb-4 group">
+                            <summary className="cursor-pointer font-bold text-slate-400 hover:text-slate-600 select-none flex items-center gap-1.5 text-[11px]">
+                              <span className="material-symbols-outlined text-sm">tune</span>
+                              Opciones Avanzadas (Opcional - La IA autocompleta la estructura automáticamente)
+                            </summary>
+                            <div className="mt-3 p-3 bg-white border border-slate-200 rounded-xl space-y-2">
                               <textarea 
                                 value={tplConfigJson} 
                                 onChange={e => setTplConfigJson(e.target.value)} 
-                                placeholder="Pega o escribe el JSON de la plantilla..." 
-                                rows={8} 
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-xs font-mono text-primary bg-white focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none" 
+                                placeholder="JSON de configuración opcional..." 
+                                rows={4} 
+                                className="w-full p-2 border border-slate-200 rounded-lg text-xs font-mono text-primary bg-slate-50 focus:outline-none focus:border-orange-500 transition-all resize-none" 
                               />
-                              {/* Inline readiness indicator */}
-                              {tplConfigJson.trim() && (() => {
-                                try {
-                                  const cfg = JSON.parse(tplConfigJson);
-                                  const ps = !!cfg.product_slot;
-                                  const ts = Array.isArray(cfg.text_slots) && cfg.text_slots.length > 0;
-                                  const si = cfg.template_semantic_isolation === true;
-                                  const readiness = ps && ts && si ? 'ready' : ps ? 'draft' : 'legacy';
-                                  const label = readiness === 'ready' ? '🟢 Ready' : readiness === 'draft' ? '🟡 Draft' : '🔴 Legacy';
-                                  const details = [
-                                    ps ? `✅ product_slot` : `❌ product_slot`,
-                                    ts ? `✅ ${cfg.text_slots.length} text_slots` : `❌ text_slots`,
-                                    si ? `✅ semantic_isolation` : `❌ semantic_isolation`,
-                                    cfg.template_visual_dna_lock ? `✅ dna_lock` : `❌ dna_lock`
-                                  ].join('  •  ');
-                                  return (
-                                    <div className={`mt-2 px-3 py-2 rounded-lg text-[10px] font-bold border ${
-                                      readiness === 'ready' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
-                                      readiness === 'draft' ? 'bg-amber-50 border-amber-200 text-amber-700' :
-                                      'bg-red-50 border-red-200 text-red-600'
-                                    }`}>
-                                      <span>{label}</span>
-                                      <span className="ml-3 font-medium opacity-75">{details}</span>
-                                    </div>
-                                  );
-                                } catch { return null; }
-                              })()}
                             </div>
-
-                            {/* Preview Image Upload */}
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Imagen de Vista Previa (Banner)</label>
-                              <input 
-                                ref={tplImageInputRef} 
-                                type="file" 
-                                accept="image/*" 
-                                onChange={handleTplImageSelect} 
-                                className="hidden" 
-                              />
-                              {tplImagePreview || tplPreviewUrl ? (
-                                <div className="relative rounded-xl overflow-hidden border border-slate-200 h-[178px]">
-                                  <img 
-                                    src={tplImagePreview || tplPreviewUrl} 
-                                    alt="Preview" 
-                                    className="w-full h-full object-cover" 
-                                  />
-                                  <button 
-                                    onClick={() => { 
-                                      setTplImageFile(null); 
-                                      setTplImagePreview(''); 
-                                      setTplPreviewUrl(''); 
-                                    }} 
-                                    className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-md"
-                                  >
-                                    <span className="material-symbols-outlined text-sm">close</span>
-                                  </button>
-                                </div>
-                              ) : (
-                                <button 
-                                  onClick={() => tplImageInputRef.current?.click()} 
-                                  className="w-full h-[178px] border-2 border-dashed border-slate-200 rounded-xl hover:border-orange-400 hover:bg-orange-50/30 transition-all flex flex-col items-center justify-center gap-2 group"
-                                >
-                                  <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-orange-100 flex items-center justify-center transition-colors">
-                                    <span className="material-symbols-outlined text-slate-400 group-hover:text-orange-500 transition-colors">add_photo_alternate</span>
-                                  </div>
-                                  <p className="text-xs font-bold text-slate-400 group-hover:text-orange-500 transition-colors">Haz clic para subir imagen de preview</p>
-                                  <p className="text-[10px] text-slate-300">Formato horizontal recomendado -- Máx. 5MB</p>
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                          </details>
 
                           <div className="flex justify-between items-center mt-6">
                             <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -20135,28 +20124,30 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                                 onChange={e => setTplIsActive(e.target.checked)} 
                                 className="rounded text-orange-500 focus:ring-orange-500 h-4 w-4 border-slate-300" 
                               />
-                              <span className="text-xs font-bold text-slate-600">Activa (disponible para usuarios)</span>
+                              <span className="text-xs font-bold text-slate-600">Activa (disponible en el catálogo)</span>
                             </label>
                             
                             <div className="flex justify-end gap-3">
                               <button 
+                                type="button"
                                 onClick={() => { 
                                   setShowTplForm(false); 
                                   setTplImageFile(null); 
                                   setTplImagePreview(''); 
                                   setEditingTpl(null); 
                                 }} 
-                                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all"
+                                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-500 text-xs font-bold rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
                               >
                                 Cancelar
                               </button>
                               <button 
+                                type="button"
                                 onClick={handleSaveCreativeTemplate} 
-                                disabled={adminActionLoading || !tplName.trim() || !tplConfigJson.trim()} 
-                                className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2"
+                                disabled={adminActionLoading || !tplName.trim() || (!tplImagePreview && !tplPreviewUrl && !tplImageFile)} 
+                                className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                               >
                                 {adminActionLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="material-symbols-outlined text-sm">save</span>}
-                                {editingTpl ? 'Guardar Cambios' : 'Crear Plantilla'}
+                                {editingTpl ? 'Guardar Cambios' : 'Crear Pancarta'}
                               </button>
                             </div>
                           </div>

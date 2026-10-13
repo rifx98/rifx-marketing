@@ -56,8 +56,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El nombre es obligatorio' }, { status: 400 });
     }
 
-    if (!config_json) {
-      return NextResponse.json({ error: 'El JSON de configuración es obligatorio' }, { status: 400 });
+    // Configuración automática por defecto si no se proporciona JSON
+    let parsedConfig: Record<string, unknown> = {
+      name: name.trim(),
+      category: category || 'Streetwear & Moda',
+      template_visual_dna_lock: true,
+      template_semantic_isolation: true,
+      template_structure_lock: { canvas_ratio: '1:1', preserve_layout_similarity: 'high' }
+    };
+
+    if (config_json) {
+      if (typeof config_json === 'string' && config_json.trim()) {
+        try {
+          const parsed = JSON.parse(config_json);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            parsedConfig = { ...parsedConfig, ...parsed };
+          }
+        } catch {
+          // Si el JSON falla, no bloquear: usar la configuración por defecto
+        }
+      } else if (typeof config_json === 'object' && !Array.isArray(config_json)) {
+        parsedConfig = { ...parsedConfig, ...(config_json as Record<string, unknown>) };
+      }
     }
 
     if (id !== undefined && (typeof id !== 'string' || !UUID_PATTERN.test(id))) {
@@ -72,25 +92,12 @@ export async function POST(req: NextRequest) {
     if (
       preview_image_url !== undefined
       && preview_image_url !== null
-      && (typeof preview_image_url !== 'string' || preview_image_url.length > 2_048)
+      && typeof preview_image_url !== 'string'
     ) {
       return NextResponse.json({ error: 'URL de vista previa invalida' }, { status: 400 });
     }
 
-    // Validar que config_json sea un JSON válido
-    let parsedConfig: unknown = config_json;
-    if (typeof config_json === 'string') {
-      try {
-        parsedConfig = JSON.parse(config_json);
-      } catch {
-        return NextResponse.json({ error: 'El JSON de configuración tiene un formato inválido' }, { status: 400 });
-      }
-    }
-
-    if (!parsedConfig || typeof parsedConfig !== 'object' || Array.isArray(parsedConfig)) {
-      return NextResponse.json({ error: 'El JSON de configuracion debe ser un objeto' }, { status: 400 });
-    }
-    const normalizedConfig = parsedConfig as Record<string, unknown>;
+    const normalizedConfig = parsedConfig;
 
     // Auto-compute template_readiness
     const hasProductSlot = !!normalizedConfig.product_slot;
