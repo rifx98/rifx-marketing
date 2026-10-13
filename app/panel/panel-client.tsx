@@ -74,6 +74,7 @@ import AuthSelector from '@/components/AuthSelector';
 import FashionSeedreamStudio from './components/FashionSeedreamStudio';
 import MarketingImageStudio from './components/MarketingImageStudio';
 import CommercialVideoStudio from './components/CommercialVideoStudio';
+import BannerZoomLightbox from './components/BannerZoomLightbox';
 
 const createInitialPanelConfig = () => ({
   whatsapp_token_configured: false,
@@ -2569,6 +2570,16 @@ export default function PanelClient() {
   // Historial persistente en navegador (vigencia de 24 horas y auto-limpieza)
   const [bannerHistory, setBannerHistory] = useState<StoredBanner[]>([]);
   const [showBannerHistory, setShowBannerHistory] = useState(false);
+  const [bannerZoomModal, setBannerZoomModal] = useState<{
+    isOpen: boolean;
+    imageUrl: string | null;
+    title?: string;
+    subtitle?: string;
+    downloadFilename?: string;
+  }>({
+    isOpen: false,
+    imageUrl: null,
+  });
 
   // Función para vincular el pack completo de pancartas (hasta 6) directamente a las creatividades de la campaña
   const applyPackToCampaignCreatives = (banners: Array<{ imageUrl: string; templateName?: string }>) => {
@@ -14672,22 +14683,60 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                               </span>
                             </div>
 
-                            {/* Imagen en grande */}
-                            <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-[4/5] flex items-center justify-center border border-slate-200">
+                            {/* Imagen en grande con botón Ampliar y Zoom */}
+                            <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-[4/5] flex items-center justify-center border border-slate-200 group">
                               <img
                                 src={item.imageUrl}
                                 alt={item.templateName}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                                onClick={() => {
+                                  setBannerZoomModal({
+                                    isOpen: true,
+                                    imageUrl: item.imageUrl,
+                                    title: `#${idx + 1} ${item.templateName || 'Pancarta Creada'}`,
+                                    subtitle: `Pancarta comercial • ${new Date(item.createdAt || Date.now()).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                    downloadFilename: `rifx-pancarta-${idx + 1}-${(item.templateName || 'creativo').replace(/[^a-zA-Z0-9]/g, '_')}.png`,
+                                  });
+                                }}
                               />
-                              <a
-                                href={item.imageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Ver en tamaño completo"
+
+                              {/* Botón Lupa Ampliar (Estilo RIFX Marketing con zoom interactivo) */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBannerZoomModal({
+                                    isOpen: true,
+                                    imageUrl: item.imageUrl,
+                                    title: `#${idx + 1} ${item.templateName || 'Pancarta Creada'}`,
+                                    subtitle: `Pancarta comercial • ${new Date(item.createdAt || Date.now()).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                    downloadFilename: `rifx-pancarta-${idx + 1}-${(item.templateName || 'creativo').replace(/[^a-zA-Z0-9]/g, '_')}.png`,
+                                  });
+                                }}
+                                className="absolute bottom-2.5 right-2.5 bg-slate-950/85 hover:bg-slate-950 text-white rounded-xl px-2.5 py-1.5 backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 text-[11px] font-black cursor-pointer border border-white/10 hover:scale-105 active:scale-95 z-10"
+                                title="Ampliar y hacer zoom a la pancarta"
+                              >
+                                <span className="material-symbols-outlined text-sm">zoom_in</span>
+                                <span>Ampliar</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBannerZoomModal({
+                                    isOpen: true,
+                                    imageUrl: item.imageUrl,
+                                    title: `#${idx + 1} ${item.templateName || 'Pancarta Creada'}`,
+                                    subtitle: `Pancarta comercial • ${new Date(item.createdAt || Date.now()).toLocaleDateString(language === 'en' ? 'en-US' : 'es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                    downloadFilename: `rifx-pancarta-${idx + 1}-${(item.templateName || 'creativo').replace(/[^a-zA-Z0-9]/g, '_')}.png`,
+                                  });
+                                }}
+                                className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer"
+                                title="Ver en pantalla completa"
                               >
                                 <span className="material-symbols-outlined text-sm">fullscreen</span>
-                              </a>
+                              </button>
                             </div>
                           </div>
 
@@ -14774,6 +14823,27 @@ Por favor, mantén un tono profesional pero sumamente persuasivo, enérgico y co
                   )}
                 </motion.div>
               )}
+
+              {/* Lightbox con Zoom Interactivo para Pancartas Creadas */}
+              <BannerZoomLightbox
+                isOpen={bannerZoomModal.isOpen}
+                onClose={() => setBannerZoomModal((prev) => ({ ...prev, isOpen: false }))}
+                imageUrl={bannerZoomModal.imageUrl}
+                title={bannerZoomModal.title}
+                subtitle={bannerZoomModal.subtitle}
+                downloadFilename={bannerZoomModal.downloadFilename}
+                onUseInCampaign={(url) => {
+                  setFinalUploadedImage(url);
+                  setCampaignImagePreview(url);
+                  setGeneratedBanner(url);
+                  setToast({
+                    message: 'Pancarta vinculada como creatividad de campaña.',
+                    type: 'success'
+                  });
+                  setBannerZoomModal((prev) => ({ ...prev, isOpen: false }));
+                  setBannerFlowStep(3);
+                }}
+              />
 
             </AnimatePresence>
           </motion.div>

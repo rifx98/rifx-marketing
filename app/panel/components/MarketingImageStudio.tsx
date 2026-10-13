@@ -8,6 +8,7 @@ import {
   deleteBannerFromHistory, 
   type StoredBanner 
 } from '@/lib/banner-history';
+import BannerZoomLightbox from './BannerZoomLightbox';
 
 interface MarketingImageStudioProps {
   language?: string;
@@ -1474,8 +1475,23 @@ export default function MarketingImageStudio({
             </div>
           </div>
 
-          <div className="relative rounded-3xl overflow-hidden max-w-2xl mx-auto bg-slate-900 border border-slate-200 shadow-xl">
-            <img src={resultImage} alt="Pancarta generada" className="w-full h-auto object-contain" />
+          <div className="relative rounded-3xl overflow-hidden max-w-2xl mx-auto bg-slate-900 border border-slate-200 shadow-xl group">
+            <img
+              src={resultImage}
+              alt="Pancarta generada"
+              className="w-full h-auto object-contain cursor-pointer"
+              onClick={() => setZoomModalUrl(resultImage)}
+            />
+            {/* Botón Lupa Ampliar (con zoom interactivo) */}
+            <button
+              type="button"
+              onClick={() => setZoomModalUrl(resultImage)}
+              className="absolute bottom-3 right-3 bg-slate-950/85 hover:bg-slate-950 text-white rounded-xl px-3 py-2 backdrop-blur-md transition-all shadow-lg flex items-center gap-1.5 text-xs font-black cursor-pointer border border-white/10 hover:scale-105 active:scale-95 z-10"
+              title="Ampliar y hacer zoom a la pancarta creada"
+            >
+              <span className="material-symbols-outlined text-sm">zoom_in</span>
+              <span>Ampliar</span>
+            </button>
           </div>
         </motion.div>
       )}
@@ -1527,6 +1543,14 @@ export default function MarketingImageStudio({
                         <div className="flex items-center justify-between mt-1.5">
                           <span className="text-[10px] text-blue-300 font-semibold">{banner.costTier}</span>
                           <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setZoomModalUrl(banner.imageUrl)}
+                              className="p-1.5 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white transition-colors cursor-pointer"
+                              title="Ampliar y hacer zoom"
+                            >
+                              <span className="material-symbols-outlined text-xs">zoom_in</span>
+                            </button>
                             <a
                               href={banner.imageUrl}
                               target="_blank"
@@ -1557,54 +1581,19 @@ export default function MarketingImageStudio({
         </div>
       )}
 
-      {/* Lightbox Modal de Visualización Ampliada de Pancarta */}
-      {zoomModalUrl && (
-        <div
-          onClick={() => setZoomModalUrl(null)}
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl overflow-hidden shadow-2xl max-w-2xl w-full border border-slate-200 flex flex-col relative"
-          >
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#0058bc]">image</span>
-                <span className="text-sm font-black text-[#0b1c30]">Vista Previa Ampliada de la Pancarta</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setZoomModalUrl(null)}
-                className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-            </div>
-            <div className="p-4 bg-slate-100 flex items-center justify-center max-h-[75vh] overflow-hidden">
-              <img
-                src={zoomModalUrl}
-                alt="Vista previa ampliada"
-                className="w-full h-auto max-h-[70vh] object-contain rounded-2xl shadow-lg border border-slate-200"
-              />
-            </div>
-            <div className="p-4 bg-white flex items-center justify-between">
-              <p className="text-xs text-slate-500">
-                La IA clonará la iluminación, tipografía y composición exacta de esta pancarta integrando tu producto.
-              </p>
-              <button
-                type="button"
-                onClick={() => setZoomModalUrl(null)}
-                className="px-4 py-2 bg-[#0058bc] text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
-              >
-                Cerrar
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {/* Lightbox Modal de Visualización Ampliada con Zoom Interactivo */}
+      <BannerZoomLightbox
+        isOpen={Boolean(zoomModalUrl)}
+        onClose={() => setZoomModalUrl(null)}
+        imageUrl={zoomModalUrl}
+        title="Vista Previa Ampliada de la Pancarta"
+        subtitle="Inspección en alta fidelidad y detalles de la composición"
+        downloadFilename="pancarta_ampliada.png"
+        onUseInCampaign={onContinueToCampaigns ? (url) => {
+          setZoomModalUrl(null);
+          onContinueToCampaigns(url);
+        } : undefined}
+      />
 
       {/* Modal para Agregar Pancarta al Catálogo (Sin JSON, solo Imagen, Título y Segmentación) */}
       {showAddBannerModal && (
